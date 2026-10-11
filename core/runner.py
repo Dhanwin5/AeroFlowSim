@@ -1,9 +1,10 @@
 """Run one case from start to finish and save the results to disk.
 
-Used by run_case.py (command line) now, and reusable by the GUI later.
+Used by run_case.py (command line); the GUI reuses the CSV/PNG writers and max_errors.
 Steps: load case -> parameters -> mesh -> solve -> reference -> save CSV, YAML and PNG.
 """
 
+import io
 from pathlib import Path
 
 import matplotlib
@@ -86,7 +87,10 @@ def max_errors(result, reference):
 
 
 def save_fields_csv(path, mesh, result, reference):
-    """Write x and every field (and reference field) as columns of a CSV file."""
+    """Write x and every field (and reference field) as columns of a CSV file.
+
+    path may be a file name or an open text buffer (e.g. io.StringIO, used by the GUI download).
+    """
     columns = [mesh.x]
     header = ["x_m"]
     for key, f in result.fields.items():
@@ -96,6 +100,13 @@ def save_fields_csv(path, mesh, result, reference):
         columns.append(f.values)
         header.append(f"{key}_exact_{f.unit}")
     np.savetxt(path, np.column_stack(columns), delimiter=",", header=",".join(header), comments="")
+
+
+def fields_csv_text(mesh, result, reference) -> str:
+    """Same content as save_fields_csv, returned as text instead of written to disk."""
+    buffer = io.StringIO()
+    save_fields_csv(buffer, mesh, result, reference)
+    return buffer.getvalue()
 
 
 def save_residuals_csv(path, result):
@@ -131,11 +142,17 @@ def _style_axes(ax):
         ax.spines[side].set_color(COLOR_MUTED)
 
 
-def plot_fields(path, case, mesh, result, reference):
-    """One plot per field: numerical solution (line + dots) and reference (dashed line)."""
-    n = len(result.fields)
+def plot_fields(path, case, mesh, result, reference, keys=None):
+    """One plot per field: numerical solution (line + dots) and reference (dashed line).
+
+    keys: list of field names to plot (default: all fields).
+    path may be a file name or an open binary buffer (e.g. io.BytesIO, used by the GUI download).
+    """
+    keys = list(result.fields) if keys is None else list(keys)
+    n = len(keys)
     fig, axes = plt.subplots(n, 1, figsize=(7, 3.5 * n), squeeze=False)
-    for ax, (key, f) in zip(axes[:, 0], result.fields.items()):
+    for ax, key in zip(axes[:, 0], keys):
+        f = result.fields[key]
         ax.plot(mesh.x, f.values, color=COLOR_NUMERICAL, linewidth=2, marker="o",
                 markersize=4, label="numerical")
         if reference and key in reference:
@@ -147,7 +164,7 @@ def plot_fields(path, case, mesh, result, reference):
         ax.set_title(f"{case.NAME}: {f.label}")
         _style_axes(ax)
     fig.tight_layout()
-    fig.savefig(path, dpi=120)
+    fig.savefig(path, dpi=120, format="png")
     plt.close(fig)
 
 
