@@ -31,6 +31,27 @@ class Mesh1D:
         """Spacing between neighbouring nodes [m] (length n_nodes - 1)."""
         return np.diff(self.x)
 
+    @property
+    def xc(self) -> np.ndarray:
+        """Cell centres [m] (length n_nodes - 1), halfway between neighbouring nodes.
+
+        Finite-volume cases store one value per cell; the nodes are then the cell faces.
+        """
+        return 0.5 * (self.x[:-1] + self.x[1:])
+
+    def positions(self, n_values: int) -> np.ndarray:
+        """x positions [m] for a field with n_values entries: nodes or cell centres.
+
+        Lets plots and CSV files handle node-based fields (e.g. the heat demo) and
+        cell-based fields (finite-volume cases) with the same code.
+        """
+        if n_values == self.n_nodes:
+            return self.x
+        if n_values == self.n_cells:
+            return self.xc
+        raise ValueError(f"A field with {n_values} values does not fit this mesh "
+                         f"({self.n_nodes} nodes, {self.n_cells} cells).")
+
 
 @dataclass
 class Mesh2D:

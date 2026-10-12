@@ -70,3 +70,14 @@ def test_plot_fields_to_png_buffer_with_selected_field():
     case = type("Case", (), {"NAME": "test"})
     plot_fields(buffer, case, mesh, result, reference, keys=["p"])
     assert buffer.getvalue()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_cell_centred_fields_plot_and_csv_at_cell_centres():
+    mesh = Mesh1D(x=np.linspace(0.0, 1.0, 5))   # 4 cells, centres 0.125 ... 0.875
+    rho = Field(np.ones(4), "kg/m³", "Density")
+    fig = field_figure(mesh, rho, rho)
+    assert np.allclose(fig.data[0].x, mesh.xc)
+    result = Result(fields={"rho": rho}, residuals=[1.0])
+    lines = fields_csv_text(mesh, result, {"rho": rho}).splitlines()
+    assert len(lines) == 5
+    assert float(lines[1].split(",")[0]) == pytest.approx(0.125)

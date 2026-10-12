@@ -7,9 +7,9 @@ import numpy as np
 
 @dataclass
 class Field:
-    """One solution field on the mesh nodes, e.g. temperature."""
+    """One solution field on the mesh, e.g. temperature."""
 
-    values: np.ndarray  # one value per mesh node, in SI units
+    values: np.ndarray  # one value per mesh node, or one per cell (finite volumes), in SI units
     unit: str           # SI unit as text, e.g. "K"
     label: str          # human-readable name, e.g. "Temperature"
 

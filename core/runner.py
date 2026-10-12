@@ -90,8 +90,10 @@ def save_fields_csv(path, mesh, result, reference):
     """Write x and every field (and reference field) as columns of a CSV file.
 
     path may be a file name or an open text buffer (e.g. io.StringIO, used by the GUI download).
+    The x column holds the nodes or the cell centres, whichever the fields are stored on.
     """
-    columns = [mesh.x]
+    first = next(iter(result.fields.values()))
+    columns = [mesh.positions(len(first.values))]
     header = ["x_m"]
     for key, f in result.fields.items():
         columns.append(f.values)
@@ -153,10 +155,11 @@ def plot_fields(path, case, mesh, result, reference, keys=None):
     fig, axes = plt.subplots(n, 1, figsize=(7, 3.5 * n), squeeze=False)
     for ax, key in zip(axes[:, 0], keys):
         f = result.fields[key]
-        ax.plot(mesh.x, f.values, color=COLOR_NUMERICAL, linewidth=2, marker="o",
+        x = mesh.positions(len(f.values))  # nodes or cell centres [m]
+        ax.plot(x, f.values, color=COLOR_NUMERICAL, linewidth=2, marker="o",
                 markersize=4, label="numerical")
         if reference and key in reference:
-            ax.plot(mesh.x, reference[key].values, color=COLOR_REFERENCE, linewidth=2,
+            ax.plot(x, reference[key].values, color=COLOR_REFERENCE, linewidth=2,
                     linestyle="--", label="exact")
             ax.legend(frameon=False)
         ax.set_xlabel("x [m]")

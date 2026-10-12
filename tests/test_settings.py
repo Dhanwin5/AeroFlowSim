@@ -59,3 +59,12 @@ def test_mesh_cell_counts():
     mesh = Mesh2D(x=X, y=Y)
     assert mesh.n_nodes == 12
     assert mesh.n_cells == 6
+
+
+def test_mesh_cell_centres_and_field_positions():
+    mesh = Mesh1D(x=np.array([0.0, 1.0, 3.0]))
+    assert np.allclose(mesh.xc, [0.5, 2.0])
+    assert mesh.positions(3) is mesh.x          # node-based field
+    assert np.allclose(mesh.positions(2), mesh.xc)  # cell-based field
+    with pytest.raises(ValueError):
+        mesh.positions(5)

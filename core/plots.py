@@ -89,11 +89,12 @@ def residual_figure(iterations, residuals, tol=None):
 def field_figure(mesh, field, ref_field=None):
     """One solution field along x: numerical (line + dots) and the reference (dashed), if any."""
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=mesh.x, y=field.values, mode="lines+markers", name="numerical",
+    x = mesh.positions(len(field.values))  # nodes or cell centres [m]
+    fig.add_trace(go.Scatter(x=x, y=field.values, mode="lines+markers", name="numerical",
                              line=dict(color=COLOR_NUMERICAL, width=2), marker=dict(size=8),
                              hovertemplate="%{y:.6g} " + field.unit + "<extra>numerical</extra>"))
     if ref_field is not None:
-        fig.add_trace(go.Scatter(x=mesh.x, y=ref_field.values, mode="lines", name="reference (exact)",
+        fig.add_trace(go.Scatter(x=mesh.positions(len(ref_field.values)), y=ref_field.values, mode="lines", name="reference (exact)",
                                  line=dict(color=COLOR_REFERENCE, width=2, dash="dash"),
                                  hovertemplate="%{y:.6g} " + field.unit + "<extra>reference</extra>"))
     _layout(fig, field.label, "x [m]", f"{field.label} [{field.unit}]", height=450)
