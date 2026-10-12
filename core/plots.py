@@ -99,3 +99,32 @@ def field_figure(mesh, field, ref_field=None):
                                  hovertemplate="%{y:.6g} " + field.unit + "<extra>reference</extra>"))
     _layout(fig, field.label, "x [m]", f"{field.label} [{field.unit}]", height=450)
     return fig
+
+
+def profile_figure(profile, n_points=600):
+    """Wall profile r(x) of a duct / nozzle, mirrored about the axis, with the throat marked.
+
+    profile: core.geometry.WallProfile. The curve is drawn with the profile's own interpolation
+    (so a CSV profile shows the smooth PCHIP curve), and the given points are drawn as dots.
+    """
+    x = np.linspace(profile.x[0], profile.x[-1], n_points)       # [m]
+    r = profile.radius_at(x)                                      # [m]
+    x_mm, r_mm = x * 1e3, r * 1e3                                 # plotted in mm (easier to read)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x_mm, y=r_mm, mode="lines", name="wall",
+                             line=dict(color=COLOR_NUMERICAL, width=2),
+                             hovertemplate="x = %{x:.4f} mm<br>r = %{y:.4f} mm<extra></extra>"))
+    fig.add_trace(go.Scatter(x=x_mm, y=-r_mm, mode="lines", showlegend=False, hoverinfo="skip",
+                             line=dict(color=COLOR_NUMERICAL, width=2)))
+    fig.add_trace(go.Scatter(x=profile.x * 1e3, y=profile.r * 1e3, mode="markers", name="given points",
+                             marker=dict(color=COLOR_NUMERICAL, size=4),
+                             hovertemplate="x = %{x:.4f} mm<br>r = %{y:.4f} mm<extra>point</extra>"))
+    xt, rt = profile.x_throat * 1e3, profile.r_throat * 1e3
+    fig.add_trace(go.Scatter(x=[xt, xt], y=[-rt, rt], mode="lines+markers", name="throat",
+                             line=dict(color=COLOR_REFERENCE, width=2, dash="dot"),
+                             hovertemplate=f"throat: x = {xt:.4f} mm, d = {2 * rt:.4f} mm<extra></extra>"))
+    fig.add_hline(y=0.0, line=dict(color=COLOR_MUTED, dash="dashdot", width=1))   # axis
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)                               # true shape
+    _layout(fig, "Wall profile (mirrored about the axis)", "x [mm]", "r [mm]", height=380)
+    fig.update_layout(hovermode="closest")
+    return fig

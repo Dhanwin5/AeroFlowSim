@@ -17,16 +17,20 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from core.case_template import get_geometry
 from core.discovery import find_cases
+from core.geometry import profile_summary
 from core.job import RunJob
 from core.mesh import Mesh1D, Mesh2D
-from core.parameters import defaults, validate
-from core.plots import field_figure, mesh_figure, residual_figure
+from core.parameters import defaults, is_shown, validate
+from core.plots import field_figure, mesh_figure, profile_figure, residual_figure
 from core.runner import fields_csv_text, max_errors, plot_fields
 from core.settings import list_settings, load_settings, save_settings, settings_dir
 from core.visualise import COLORMAPS, contour_2d, figure_png, shape_view, xt_diagram
 
-ASSETS_DIR = Path(__file__).resolve().parent / "assets"   # logo images
+PROJECT_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = PROJECT_DIR / "assets"     # logo images
+UPLOADS_DIR = PROJECT_DIR / "uploads"   # files uploaded in the Setup tab (not committed to git)
 
 st.set_page_config(page_title="Flow Sim", page_icon=str(ASSETS_DIR / "icon.png"), layout="wide")
 state = st.session_state  # short name
@@ -91,7 +95,7 @@ st.sidebar.caption(f"Folder: `cases/{case_name}/`")
 
 # When the user switches case, forget the mesh and run of the previous case.
 if state.get("case_name") != case_name:
-    for key in ("mesh", "mesh_params", "job", "run_params", "run_mesh", "job_shown_done"):
+    for key in ("mesh", "mesh_params", "mesh_error", "job", "run_params", "run_mesh", "job_shown_done"):
         state.pop(key, None)
     state.case_name = case_name
 
@@ -119,21 +123,69 @@ def on_load(file_name):
         state.settings_message = ("error", f"Could not load '{file_name}': {error}")
 
 
+def on_upload(param_name):
+    """Save an uploaded file to uploads/<case>/ and put its path into the file input box."""
+    uploaded = state.get(f"upload:{case_name}:{param_name}")
+    if uploaded is None:
+        return
+    folder = UPLOADS_DIR / case_name
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / Path(uploaded.name).name   # keep only the file name, never a folder part
+    path.write_bytes(uploaded.getvalue())
+    state[widget_key(case_name, param_name)] = path.relative_to(PROJECT_DIR).as_posix()
+
+
+def input_widget(p):
+    """One input box for parameter p, drawn according to its kind (number, choice or file)."""
+    key = widget_key(case_name, p.name)
+    if p.kind == "choice":
+        st.selectbox(p.label, p.options, key=key, help=p.help)
+    elif p.kind == "file":
+        st.text_input(f"{p.label} (path)", key=key,
+                      help=f"{p.help}  \nA path relative to the project folder, or upload a file below.")
+        st.file_uploader(f"Upload {p.label.lower()}", type=["csv"], key=f"upload:{case_name}:{p.name}",
+                         on_change=on_upload, args=(p.name,))
+    else:
+        label = f"{p.label} [{p.unit}]"
+        help_text = f"{p.help}  \nAllowed range: {p.min:g} to {p.max:g} {p.unit}."
+        if p.is_integer:
+            st.number_input(label, min_value=int(p.min), max_value=int(p.max), step=1,
+                            key=key, help=help_text)
+        else:
+            st.number_input(label, min_value=float(p.min), max_value=float(p.max),
+                            step=float_step(p), format="%g", key=key, help=help_text)
+
+
+def geometry_preview(values):
+    """Setup tab: the wall profile and its key numbers, or a clear message on what to fix."""
+    try:
+        profile = get_geometry(case, validate(param_list, values))
+    except ValueError as error:
+        st.error(f"Geometry problem: {error}")
+        return
+    if profile is None:
+        return
+    st.subheader("Geometry preview")
+    s = profile_summary(profile)
+    cols = st.columns(4)
+    cols[0].metric("Throat diameter [mm]", f"{s['d_throat'][0] * 1e3:.4g}")
+    cols[1].metric("Exit diameter [mm]", f"{s['d_exit'][0] * 1e3:.4g}")
+    cols[2].metric("Area ratio A_exit/A_throat [-]", f"{s['area_ratio'][0]:.4g}")
+    cols[3].metric("Length [mm]", f"{s['length'][0] * 1e3:.4g}")
+    st.plotly_chart(profile_figure(profile), key="profile_plot")
+
+
 with setup_tab:
     st.subheader("Inputs")
+    values_now = current_values(case_name, param_list)
+    shown = [p for p in param_list if is_shown(p, values_now)]   # e.g. hide the CSV path for "parametric"
     columns = st.columns(2)
-    for i, p in enumerate(param_list):
+    for i, p in enumerate(shown):
         with columns[i % 2]:
-            label = f"{p.label} [{p.unit}]"
-            help_text = f"{p.help}  \nAllowed range: {p.min:g} to {p.max:g} {p.unit}."
-            if p.is_integer:
-                st.number_input(label, min_value=int(p.min), max_value=int(p.max), step=1,
-                                key=widget_key(case_name, p.name), help=help_text)
-            else:
-                st.number_input(label, min_value=float(p.min), max_value=float(p.max),
-                                step=float_step(p), format="%g",
-                                key=widget_key(case_name, p.name), help=help_text)
+            input_widget(p)
     st.button("Reset to defaults", on_click=on_reset)
+    if hasattr(case, "geometry"):
+        geometry_preview(values_now)
 
     st.subheader("Settings files")
     st.caption(f"Stored as YAML files in `cases/{case_name}/{settings_dir(case_name).name}/`")
@@ -166,9 +218,20 @@ except ValueError as error:
 
 
 def make_mesh():
-    """Build the mesh from the current inputs and remember which inputs it was built with."""
-    state.mesh = case.build_mesh(params)
+    """Build the mesh from the current inputs and remember which inputs it was built with.
+
+    Returns True on success. A ValueError (e.g. a bad geometry file) is kept in
+    state.mesh_error and shown in the Mesh and Run tabs instead of crashing the app.
+    """
+    state.pop("mesh_error", None)
+    try:
+        state.mesh = case.build_mesh(params)
+    except ValueError as error:
+        state.pop("mesh", None)
+        state.mesh_error = str(error)
+        return False
     state.mesh_params = dict(params)
+    return True
 
 
 # ---------------------------------------------------------------------------------------------
@@ -180,6 +243,8 @@ with mesh_tab:
         st.error(params_error)
     if st.button("Generate mesh", type="primary", key="generate_mesh", disabled=params is None):
         make_mesh()
+    if "mesh_error" in state:
+        st.error(f"Could not build the mesh: {state.mesh_error}")
     mesh = state.get("mesh")
     if mesh is None:
         st.info("Press **Generate mesh** to build the mesh from the Setup inputs.")
@@ -201,7 +266,8 @@ with mesh_tab:
 def on_run():
     """Start a new run in the background (the mesh is (re)built first if needed)."""
     if state.get("mesh") is None or state.get("mesh_params") != params:
-        make_mesh()
+        if not make_mesh():
+            return   # the error is shown in the Run tab
     job = RunJob()
     job.start(case, params, state.mesh)
     state.job, state.run_params, state.run_mesh = job, dict(params), state.mesh
@@ -250,6 +316,8 @@ def live_view():
 with run_tab:
     if params_error:
         st.error(params_error)
+    if "mesh_error" in state:
+        st.error(f"Could not build the mesh: {state.mesh_error}")
     job = state.get("job")
     running = job is not None and job.running
     col_run, col_stop, _ = st.columns([1, 1, 6])
@@ -307,7 +375,8 @@ def contours_section(result, reference_lines, mesh):
     if view == "Shape view":
         x = mesh.positions(len(f.values))                              # [m]
         r = result.shape.radius_at(x) if result.shape is not None else None
-        fig = shape_view(x, r, f.values, f.label, f.unit, cmap=cmap, vmin=vmin, vmax=vmax)
+        fig = shape_view(x, r, f.values, f.label, f.unit, cmap=cmap, vmin=vmin, vmax=vmax,
+                         note=result.shape_note)
     elif view == "x-t diagram":
         lines = []
         if reference_lines and st.checkbox("Show exact wave paths", value=True, key="contour_lines"):

@@ -81,3 +81,15 @@ def test_cell_centred_fields_plot_and_csv_at_cell_centres():
     lines = fields_csv_text(mesh, result, {"rho": rho}).splitlines()
     assert len(lines) == 5
     assert float(lines[1].split(",")[0]) == pytest.approx(0.125)
+
+
+def test_profile_figure_mirrors_wall_and_marks_throat():
+    from core.geometry import WallProfile
+    from core.plots import profile_figure
+    p = WallProfile(x=[0, 1e-3, 2e-3, 3e-3, 4e-3], r=[1e-3, 1e-3, 0.2e-3, 0.3e-3, 0.5e-3],
+                    interpolation="pchip")
+    fig = profile_figure(p)
+    wall, mirror, points, throat = fig.data
+    assert np.allclose(np.array(mirror.y), -np.array(wall.y))
+    assert np.allclose(throat.x, [2.0, 2.0]) and np.allclose(throat.y, [-0.2, 0.2])   # mm
+    assert len(points.x) == 5
