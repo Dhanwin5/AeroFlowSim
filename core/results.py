@@ -97,3 +97,4 @@ class Result:
     # Optional extras (None = not provided):
     snapshots: Snapshots | None = None   # fields over time (unsteady cases) -> x-t diagram
     shape: WallProfile | None = None     # outline r(x) for the shape view
+    shape_note: str | None = None        # second title line of the shape view (None = default text)

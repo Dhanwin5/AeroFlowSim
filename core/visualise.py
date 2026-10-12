@@ -107,13 +107,15 @@ def contour_2d(X, Y, field, name, unit, cmap="viridis", vmin=None, vmax=None,
     return fig
 
 
-def shape_view(x, r_of_x, field, name, unit, cmap="viridis", vmin=None, vmax=None, title=None):
+def shape_view(x, r_of_x, field, name, unit, cmap="viridis", vmin=None, vmax=None, title=None,
+               note=None):
     """A 1D result drawn inside the outline of the duct / rod, coloured by the field along x.
 
     x       positions of the field values [m] (nodes or cell centres)
     r_of_x  wall radius at those positions [m] (array like x), or None for a constant height
             (cases without a radius, e.g. a rod or a shock tube)
     field   field values at x (1D)
+    note    second title line (default "1D result: varies along x only")
 
     The outline is mirrored about the axis. Since the result is 1D, the colour varies along x
     only; it is drawn on a small 2D grid (radius from -r to +r) with the same code as contour_2d.
@@ -140,7 +142,7 @@ def shape_view(x, r_of_x, field, name, unit, cmap="viridis", vmin=None, vmax=Non
     ax.set_aspect("equal")
     ax.set_xlabel("x [m]")
     ax.set_ylabel("r [m]")
-    ax.set_title((title or name) + "\n1D result: varies along x only", fontsize=11)
+    ax.set_title((title or name) + "\n" + (note or "1D result: varies along x only"), fontsize=11)
     return fig
 
 

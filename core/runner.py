@@ -19,7 +19,7 @@ from core.discovery import CASES_DIR, load_case
 from core.parameters import defaults, validate
 # Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
 from core.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png,
-                            style_axes, xt_diagram)
+                            shape_view, style_axes, xt_diagram)
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
@@ -38,7 +38,9 @@ def run_case(name, params=None, out_dir=None, cases_dir=CASES_DIR, print_every=1
 
     print(f"Case: {name} - {case.NAME}")
     for p in param_list:
-        print(f"  {p.label:<35} {values[p.name]:>12g} {p.unit}")
+        value = values[p.name]
+        text = f"{value:>12g}" if p.kind == "number" else f"{value}"
+        print(f"  {p.label:<35} {text} {p.unit}")
 
     mesh = case.build_mesh(values)
     print(f"Mesh: {mesh.n_nodes} nodes")
@@ -66,6 +68,9 @@ def run_case(name, params=None, out_dir=None, cases_dir=CASES_DIR, print_every=1
     if result.snapshots is not None:
         # Unsteady case: x-t diagram of the first field, with the exact lines (if any) on top.
         save_xt_diagram(out_dir, mesh, result, get_reference_lines(case, values, mesh))
+    if result.shape is not None:
+        # Duct / nozzle case: the first field drawn inside the wall outline.
+        save_shape_view(out_dir, mesh, result)
 
     for key, (value, unit) in result.key_numbers.items():
         print(f"  {key:<12} = {value:.6g} {unit}")
@@ -142,6 +147,16 @@ def save_xt_diagram(out_dir, mesh, result, lines):
     x = mesh.positions(f.values.shape[1])  # nodes or cell centres [m]
     fig = xt_diagram(x, result.snapshots.times, f.values, f.label, f.unit, lines=lines)
     path = Path(out_dir) / f"xt_{key}.png"
+    path.write_bytes(figure_png(fig))
+    return path
+
+
+def save_shape_view(out_dir, mesh, result):
+    """Save the shape view (wall outline coloured by the first field) as shape_<field>.png."""
+    key, f = next(iter(result.fields.items()))
+    x = mesh.positions(len(f.values))      # [m]
+    fig = shape_view(x, result.shape.radius_at(x), f.values, f.label, f.unit, note=result.shape_note)
+    path = Path(out_dir) / f"shape_{key}.png"
     path.write_bytes(figure_png(fig))
     return path
 

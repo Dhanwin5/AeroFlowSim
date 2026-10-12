@@ -20,6 +20,11 @@ A case.py file must define:
         Theory or exact solution on the same mesh. Keys should match the keys of
         Result.fields so the two can be compared and plotted together.
 
+    geometry(params)              -> WallProfile                    (optional)
+        The duct / nozzle wall r(x) for these inputs (see core/geometry.py). The GUI shows it
+        as a preview in the Setup tab; raise ValueError with a "what to fix" message if the
+        inputs do not give a valid geometry (e.g. a bad CSV file).
+
     reference_lines(params, mesh) -> list[Line]                     (optional)
         Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
         (see core/results.py). Kept apart from reference() because reference() returns
@@ -30,6 +35,7 @@ Optional extras a case may put in its Result (the GUI then offers more "Contours
                        Collect them with core.results.SnapshotRecorder (at most ~200 kept).
     Result.shape       outline r(x) as a core.geometry.WallProfile -> shape view.
                        Without it the shape view uses a constant height.
+    Result.shape_note  text under the shape view title, e.g. "quasi-1D: varies along x only".
 
 A ready-to-copy skeleton lives in cases/_template/.
 """
@@ -37,7 +43,7 @@ A ready-to-copy skeleton lives in cases/_template/.
 # Names every case must define, and which of them must be functions.
 REQUIRED_TEXT = ["NAME", "DESCRIPTION"]
 REQUIRED_FUNCTIONS = ["parameters", "build_mesh", "run"]
-OPTIONAL_FUNCTIONS = ["reference", "reference_lines"]
+OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry"]
 
 
 def check_case(module) -> list[str]:
@@ -59,6 +65,13 @@ def get_reference(module, params, mesh):
     """Call the case's reference() if it has one; otherwise return None."""
     if hasattr(module, "reference"):
         return module.reference(params, mesh)
+    return None
+
+
+def get_geometry(module, params):
+    """Call the case's geometry() if it has one; otherwise return None."""
+    if hasattr(module, "geometry"):
+        return module.geometry(params)
     return None
 
 

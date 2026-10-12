@@ -97,3 +97,9 @@ def test_wall_profile_checks():
         WallProfile(x=[0.0, 0.0], r=[1.0, 1.0])     # x not increasing
     with pytest.raises(ValueError):
         WallProfile(x=[0.0, 1.0], r=[1.0, -1.0])    # negative radius
+
+
+def test_shape_view_custom_note():
+    x = np.linspace(0.0, 1.0, 10)
+    fig = shape_view(x, 0.1 + 0.0 * x, x, "Mach number", "-", note="quasi-1D: varies along x only")
+    assert "quasi-1D: varies along x only" in fig.axes[0].get_title()

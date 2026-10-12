@@ -29,11 +29,17 @@ def run(params, mesh, progress):
     # Optional Result extras (they unlock more views in the Results tab, "Contours"):
     #   snapshots=SnapshotRecorder(...).snapshots()   unsteady case -> x-t diagram
     #   shape=WallProfile(x=..., r=...)               outline r(x) -> shape view
+    #   shape_note="quasi-1D: varies along x only"    text under the shape view title
     raise NotImplementedError  # TODO return Result(fields={...}, residuals=[...], ...)
 
 
 def reference(params, mesh):
     """Optional: theory or exact solution as {field_name: Field}. Delete if there is none."""
+    raise NotImplementedError
+
+
+def geometry(params):
+    """Optional (ducts / nozzles): the wall as a core.geometry.WallProfile. Delete if none."""
     raise NotImplementedError
 
 

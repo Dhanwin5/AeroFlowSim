@@ -65,3 +65,29 @@ def test_runner_writes_all_outputs(tmp_path):
     assert result.converged and reference is not None
     for name in ["fields.csv", "residuals.csv", "summary.yaml", "fields.png", "residuals.png"]:
         assert (out_dir / name).exists(), name
+
+
+def test_choice_and_file_parameters():
+    from core.parameters import choice_parameter, file_parameter, is_shown, parse_value
+    params = [
+        choice_parameter("src", "Source", ["A", "B"], "A"),
+        file_parameter("csv", "Profile", "x.csv", show_if=("src", "B")),
+        Parameter("n", "Nodes", "-", 11, 3, 101, show_if=("src", "A")),
+    ]
+    assert validate(params, {"src": "B", "csv": " y.csv ", "n": 5}) == {"src": "B", "csv": "y.csv", "n": 5}
+    with pytest.raises(ValueError, match="not one of"):
+        validate(params, {"src": "C", "csv": "x.csv", "n": 5})
+    with pytest.raises(ValueError, match="give a file"):
+        validate(params, {"src": "A", "csv": "  ", "n": 5})
+    assert not is_shown(params[1], {"src": "A"}) and is_shown(params[1], {"src": "B"})
+    assert is_shown(params[0], {})
+    assert parse_value(params[2], "21") == 21 and parse_value(params[1], "a.csv") == "a.csv"
+
+
+def test_command_line_set_option_changes_inputs():
+    import run_case as cli
+    assert cli.parse_settings("demo_heat1d", ["L=2", "n_nodes=11"]) == {"L": 2.0, "n_nodes": 11}
+    with pytest.raises(ValueError, match="NAME=VALUE"):
+        cli.parse_settings("demo_heat1d", ["nonsense=1"])
+    with pytest.raises(ValueError, match="not a number"):
+        cli.parse_settings("demo_heat1d", ["L=abc"])
