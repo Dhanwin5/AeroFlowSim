@@ -13,7 +13,7 @@ from core.runner import run_case
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run a nozzle-cfd case with default settings.")
+    parser = argparse.ArgumentParser(description="Run a Flow Sim case with default settings.")
     parser.add_argument("case_name", nargs="?", help="folder name of the case in cases/")
     parser.add_argument("--list", action="store_true", help="list the available cases and exit")
     args = parser.parse_args()

@@ -1,4 +1,4 @@
-"""Streamlit GUI for nozzle-cfd: Setup / Mesh / Run / Results.
+"""Streamlit GUI for Flow Sim: Setup / Mesh / Run / Results.
 
 Start with:   .venv\\Scripts\\python.exe -m streamlit run app.py
 
@@ -12,6 +12,7 @@ core/case_template.py) and by helper modules in core/ that know nothing about St
 
 import io
 import math
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -23,7 +24,9 @@ from core.plots import field_figure, mesh_figure, residual_figure
 from core.runner import fields_csv_text, max_errors, plot_fields
 from core.settings import list_settings, load_settings, save_settings, settings_dir
 
-st.set_page_config(page_title="nozzle-cfd", layout="wide")
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"   # logo images
+
+st.set_page_config(page_title="Flow Sim", page_icon=str(ASSETS_DIR / "icon.png"), layout="wide")
 state = st.session_state  # short name
 
 
@@ -70,7 +73,7 @@ def progress_fraction(params, iteration, residual):
 # Sidebar: choose ONE case
 # ---------------------------------------------------------------------------------------------
 
-st.sidebar.title("nozzle-cfd")
+st.sidebar.image(str(ASSETS_DIR / "logo.png"), width="stretch")   # the logo shows the name
 cases, problems = find_cases()
 for name, problem in problems.items():
     st.sidebar.warning(f"Case '{name}' is broken: {problem}")

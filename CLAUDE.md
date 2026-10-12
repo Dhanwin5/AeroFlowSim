@@ -1,4 +1,4 @@
-# nozzle-cfd — project rules
+# Flow Sim — project rules
 
 A small **educational CFD software in Python**. Clarity matters more than speed.
 The user is new to programming but knows aerospace engineering and CFD theory:
