@@ -14,16 +14,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from core.case_template import get_reference
+from core.case_template import get_reference, get_reference_lines
 from core.discovery import CASES_DIR, load_case
 from core.parameters import defaults, validate
+# Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
+from core.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png,
+                            style_axes, xt_diagram)
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
-
-# Plot colours: numerical solution, reference solution, grid/axes (muted)
-COLOR_NUMERICAL = "#2a78d6"
-COLOR_REFERENCE = "#eb6834"
-COLOR_MUTED = "#898781"
 
 
 def run_case(name, params=None, out_dir=None, cases_dir=CASES_DIR, print_every=1000):
@@ -65,6 +63,9 @@ def run_case(name, params=None, out_dir=None, cases_dir=CASES_DIR, print_every=1
     save_summary_yaml(out_dir / "summary.yaml", name, case, param_list, values, result, errors)
     plot_fields(out_dir / "fields.png", case, mesh, result, reference)
     plot_residuals(out_dir / "residuals.png", case, result)
+    if result.snapshots is not None:
+        # Unsteady case: x-t diagram of the first field, with the exact lines (if any) on top.
+        save_xt_diagram(out_dir, mesh, result, get_reference_lines(case, values, mesh))
 
     for key, (value, unit) in result.key_numbers.items():
         print(f"  {key:<12} = {value:.6g} {unit}")
@@ -135,13 +136,14 @@ def save_summary_yaml(path, name, case, param_list, values, result, errors):
         yaml.safe_dump(summary, file, sort_keys=False, allow_unicode=True)
 
 
-def _style_axes(ax):
-    """Light grid and muted axes so the data stands out."""
-    ax.grid(True, color=COLOR_MUTED, alpha=0.3, linewidth=0.5)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color(COLOR_MUTED)
+def save_xt_diagram(out_dir, mesh, result, lines):
+    """Save the x-t diagram of the first field as xt_<field>.png; return the file path."""
+    key, f = next(iter(result.snapshots.fields.items()))
+    x = mesh.positions(f.values.shape[1])  # nodes or cell centres [m]
+    fig = xt_diagram(x, result.snapshots.times, f.values, f.label, f.unit, lines=lines)
+    path = Path(out_dir) / f"xt_{key}.png"
+    path.write_bytes(figure_png(fig))
+    return path
 
 
 def plot_fields(path, case, mesh, result, reference, keys=None):
@@ -165,7 +167,7 @@ def plot_fields(path, case, mesh, result, reference, keys=None):
         ax.set_xlabel("x [m]")
         ax.set_ylabel(f"{f.label} [{f.unit}]")
         ax.set_title(f"{case.NAME}: {f.label}")
-        _style_axes(ax)
+        style_axes(ax)
     fig.tight_layout()
     fig.savefig(path, dpi=120, format="png")
     plt.close(fig)
@@ -179,7 +181,7 @@ def plot_residuals(path, case, result):
     ax.set_xlabel("iteration [-]")
     ax.set_ylabel("normalised residual [-]")
     ax.set_title(f"{case.NAME}: convergence history")
-    _style_axes(ax)
+    style_axes(ax)
     fig.tight_layout()
     fig.savefig(path, dpi=120)
     plt.close(fig)

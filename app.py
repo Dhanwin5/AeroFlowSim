@@ -19,10 +19,12 @@ import streamlit as st
 
 from core.discovery import find_cases
 from core.job import RunJob
+from core.mesh import Mesh1D, Mesh2D
 from core.parameters import defaults, validate
 from core.plots import field_figure, mesh_figure, residual_figure
 from core.runner import fields_csv_text, max_errors, plot_fields
 from core.settings import list_settings, load_settings, save_settings, settings_dir
+from core.visualise import COLORMAPS, contour_2d, figure_png, shape_view, xt_diagram
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"   # logo images
 
@@ -262,6 +264,70 @@ with run_tab:
 # Results tab
 # ---------------------------------------------------------------------------------------------
 
+def available_views(result, mesh):
+    """The contour-style views this result supports, in the order shown."""
+    views = []
+    if isinstance(mesh, Mesh1D):
+        views.append("Shape view")      # works for every 1D result (constant height if no shape)
+    if result.snapshots is not None:
+        views.append("x-t diagram")     # unsteady cases that stored snapshots
+    if isinstance(mesh, Mesh2D):
+        views.append("2D contour")      # future 2D cases
+    return views
+
+
+def contours_section(result, reference_lines, mesh):
+    """Colour pictures of a field: view, field, colour map and range chosen by the user."""
+    views = available_views(result, mesh)
+    if not views:
+        return
+    st.subheader("Contours")
+    view = st.radio("View", views, horizontal=True, key="contour_view")
+    # The x-t diagram shows the stored snapshots; the other views show the final fields.
+    fields = result.snapshots.fields if view == "x-t diagram" else result.fields
+    col_field, col_cmap = st.columns(2)
+    key = col_field.selectbox("Field", list(fields), key="contour_field",
+                              format_func=lambda k: f"{fields[k].label} [{fields[k].unit}]")
+    cmap = col_cmap.selectbox("Colour map", COLORMAPS, key="contour_cmap")
+    f = fields[key]
+
+    vmin = vmax = None   # None = automatic (data minimum / maximum)
+    if not st.checkbox("Automatic colour range", value=True, key="contour_auto"):
+        col_min, col_max = st.columns(2)
+        data_min, data_max = float(f.values.min()), float(f.values.max())
+        # The key includes the field, so each field starts from its own data range.
+        vmin = col_min.number_input(f"Minimum [{f.unit}]", value=data_min, format="%g",
+                                    key=f"contour_min:{key}")
+        vmax = col_max.number_input(f"Maximum [{f.unit}]", value=data_max, format="%g",
+                                    key=f"contour_max:{key}")
+        if vmax <= vmin:
+            st.warning("Maximum must be larger than minimum; using the automatic range.")
+            vmin = vmax = None
+
+    if view == "Shape view":
+        x = mesh.positions(len(f.values))                              # [m]
+        r = result.shape.radius_at(x) if result.shape is not None else None
+        fig = shape_view(x, r, f.values, f.label, f.unit, cmap=cmap, vmin=vmin, vmax=vmax)
+    elif view == "x-t diagram":
+        lines = []
+        if reference_lines and st.checkbox("Show exact wave paths", value=True, key="contour_lines"):
+            lines = reference_lines
+        x = mesh.positions(f.values.shape[1])                          # [m]
+        fig = xt_diagram(x, result.snapshots.times, f.values, f.label, f.unit,
+                         cmap=cmap, vmin=vmin, vmax=vmax, lines=lines)
+    else:
+        col_a, col_b = st.columns(2)
+        show_mesh = col_a.checkbox("Show mesh lines", key="contour_mesh")
+        mirror = col_b.checkbox("Mirror about the axis", key="contour_mirror")
+        fig = contour_2d(mesh.x, mesh.y, f.values, f.label, f.unit, cmap=cmap,
+                         vmin=vmin, vmax=vmax, show_mesh=show_mesh, mirror=mirror)
+
+    st.pyplot(fig)
+    st.download_button("Download contour PNG", figure_png(fig), mime="image/png",
+                       file_name=f"{case_name}_{view.split()[0].lower()}_{key}.png",
+                       on_click="ignore", key="contour_png")
+
+
 with results_tab:
     job = state.get("job")
     if job is None or job.status != "finished":
@@ -303,3 +369,5 @@ with results_tab:
         col_png.download_button("Download PNG", png.getvalue(),
                                 file_name=f"{case_name}_{key}.png", mime="image/png",
                                 on_click="ignore")
+
+        contours_section(result, job.reference_lines, mesh)

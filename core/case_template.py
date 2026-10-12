@@ -20,13 +20,24 @@ A case.py file must define:
         Theory or exact solution on the same mesh. Keys should match the keys of
         Result.fields so the two can be compared and plotted together.
 
+    reference_lines(params, mesh) -> list[Line]                     (optional)
+        Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
+        (see core/results.py). Kept apart from reference() because reference() returns
+        fields only (they are compared value by value with the numerical fields).
+
+Optional extras a case may put in its Result (the GUI then offers more "Contours" views):
+    Result.snapshots   fields over time, for unsteady cases -> x-t diagram.
+                       Collect them with core.results.SnapshotRecorder (at most ~200 kept).
+    Result.shape       outline r(x) as a core.geometry.WallProfile -> shape view.
+                       Without it the shape view uses a constant height.
+
 A ready-to-copy skeleton lives in cases/_template/.
 """
 
 # Names every case must define, and which of them must be functions.
 REQUIRED_TEXT = ["NAME", "DESCRIPTION"]
 REQUIRED_FUNCTIONS = ["parameters", "build_mesh", "run"]
-OPTIONAL_FUNCTIONS = ["reference"]
+OPTIONAL_FUNCTIONS = ["reference", "reference_lines"]
 
 
 def check_case(module) -> list[str]:
@@ -49,3 +60,10 @@ def get_reference(module, params, mesh):
     if hasattr(module, "reference"):
         return module.reference(params, mesh)
     return None
+
+
+def get_reference_lines(module, params, mesh):
+    """Call the case's reference_lines() if it has one; otherwise return an empty list."""
+    if hasattr(module, "reference_lines"):
+        return module.reference_lines(params, mesh)
+    return []

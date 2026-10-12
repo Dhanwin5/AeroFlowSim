@@ -7,6 +7,7 @@ Solved by pseudo-time marching to steady state (see README.md).
 
 import numpy as np
 
+from core.geometry import WallProfile
 from core.mesh import Mesh1D
 from core.parameters import Parameter
 from core.results import Field, Result
@@ -97,6 +98,9 @@ def run(params, mesh, progress):
         },
         iterations=iteration,
         converged=converged,
+        # Outline for the shape view. The rod has no diameter input, so this constant
+        # radius (5 % of the length) is for display only and does not enter the physics.
+        shape=WallProfile(x=[0.0, params["L"]], r=[0.05 * params["L"]] * 2),  # [m]
     )
 
 

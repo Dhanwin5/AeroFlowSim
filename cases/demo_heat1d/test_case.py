@@ -1,9 +1,11 @@
 """Validation test for demo_heat1d: compare with the exact parabolic temperature profile."""
 
 import numpy as np
+from matplotlib.figure import Figure
 
 from core.discovery import load_case
 from core.parameters import defaults
+from core.visualise import shape_view
 
 case = load_case("demo_heat1d")
 
@@ -37,3 +39,12 @@ def test_progress_reported_and_residual_falls():
     assert len(calls) == result.iterations == len(result.residuals)
     assert result.residuals[0] == 1.0
     assert result.residuals[-1] < params["tol"]
+
+
+def test_shape_view_of_rod():
+    params, mesh, result, _ = solve()
+    assert result.shape is not None                       # constant-height rod outline
+    assert np.allclose(result.shape.r, 0.05 * params["L"])
+    T = result.fields["T"]
+    fig = shape_view(mesh.x, result.shape.radius_at(mesh.x), T.values, T.label, T.unit)
+    assert isinstance(fig, Figure)

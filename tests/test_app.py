@@ -53,3 +53,22 @@ def test_run_then_results_tab_shows_key_numbers():
     table = at.dataframe[0].value
     assert "T_max" in list(table["Quantity"])
     assert "max |T − T_exact|" in list(table["Quantity"])
+    # Contours: a steady 1D case offers the shape view only (drawn without error above).
+    assert at.radio(key="contour_view").options == ["Shape view"]
+
+
+def test_sod_contours_offer_xt_diagram_with_wave_paths():
+    at = _app()
+    at.sidebar.selectbox[0].set_value("sod_shock_tube").run()
+    at.number_input(key="sod_shock_tube:n_cells").set_value(100).run()
+    at.button(key="run").click().run()
+    at.session_state["job"].wait(timeout=60)
+    at.run()
+    assert not at.exception, at.exception
+    view = at.radio(key="contour_view")
+    assert view.options == ["Shape view", "x-t diagram"]
+    view.set_value("x-t diagram").run()
+    assert not at.exception, at.exception
+    assert at.checkbox(key="contour_lines").value is True
+    at.checkbox(key="contour_auto").uncheck().run()      # manual colour range
+    assert not at.exception, at.exception

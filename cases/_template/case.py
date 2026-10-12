@@ -26,9 +26,17 @@ def build_mesh(params):
 
 def run(params, mesh, progress):
     """Solve; call progress(iteration, residual) every iteration; return a Result."""
+    # Optional Result extras (they unlock more views in the Results tab, "Contours"):
+    #   snapshots=SnapshotRecorder(...).snapshots()   unsteady case -> x-t diagram
+    #   shape=WallProfile(x=..., r=...)               outline r(x) -> shape view
     raise NotImplementedError  # TODO return Result(fields={...}, residuals=[...], ...)
 
 
 def reference(params, mesh):
     """Optional: theory or exact solution as {field_name: Field}. Delete if there is none."""
+    raise NotImplementedError
+
+
+def reference_lines(params, mesh):
+    """Optional: exact lines for the x-t diagram as a list of core.results.Line. Delete if none."""
     raise NotImplementedError

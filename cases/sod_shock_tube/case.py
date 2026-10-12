@@ -11,7 +11,7 @@ from core.euler1d import (cfl_time_step, conserved_to_primitive, flux_divergence
                           primitive_to_conserved, sound_speed, ssp_rk2_step)
 from core.mesh import Mesh1D
 from core.parameters import Parameter
-from core.results import Field, Result
+from core.results import Field, Line, Result, SnapshotRecorder
 from core.riemann_exact import exact_solution, wave_structure
 
 NAME = "Sod shock tube"
@@ -127,6 +127,8 @@ def run(params, mesh, progress):
     step = 0            # number of time steps taken
     residuals = []      # RMS density change rate per step, normalised by the first one [-]
     r0 = None
+    recorder = SnapshotRecorder(max_snapshots=200)   # fields over time, for the x-t diagram
+    recorder.add(0, t, _fields(conserved_to_primitive(U, gamma), gamma))
     while t_end - t > 1e-12 * t_end:
         dt = min(cfl_time_step(U, dx, gamma, params["cfl"]), t_end - t)  # last step lands on t_end
         U_new = ssp_rk2_step(U, dt, rhs)
@@ -138,10 +140,14 @@ def run(params, mesh, progress):
         if r0 is None:
             r0 = r if r > 0.0 else 1.0
         U, t, step = U_new, t + dt, step + 1
+        if step % recorder.every == 0:   # build the output fields only for steps that are stored
+            recorder.add(step, t, _fields(W, gamma))
         residuals.append(r / r0)
         progress(step, residuals[-1])   # the GUI's Stop button raises an exception in here
 
     W = conserved_to_primitive(U, gamma)
+    fields = _fields(W, gamma)
+    recorder.add_final(step, t, fields)   # the last snapshot is exactly the final solution
     left, right = _left_right(params)
     w = wave_structure(left, right, gamma)
     key_numbers = {
@@ -152,8 +158,9 @@ def run(params, mesh, progress):
     for name, value in wave_positions(params, mesh, W[0], W[2]).items():
         key_numbers[name] = (value, "m")
 
-    return Result(fields=_fields(W, gamma), residuals=residuals, key_numbers=key_numbers,
-                  iterations=step, converged=True)   # "converged" = reached t_end
+    return Result(fields=fields, residuals=residuals, key_numbers=key_numbers,
+                  iterations=step, converged=True,   # "converged" = reached t_end
+                  snapshots=recorder.snapshots())
 
 
 def reference(params, mesh):
@@ -162,3 +169,29 @@ def reference(params, mesh):
     gamma = params["gamma"]
     rho, u, p = exact_solution(left, right, gamma, mesh.xc, params["x0"], params["t_end"])
     return _fields(np.array([rho, u, p]), gamma)
+
+
+def reference_lines(params, mesh):
+    """Exact wave paths x = x0 + S t (0 <= t <= t_end) for the x-t diagram.
+
+    A rarefaction gives two lines (head and tail of the fan), a shock one line,
+    and the contact surface moves with the star-region velocity u*.
+    """
+    left, right = _left_right(params)
+    w = wave_structure(left, right, params["gamma"])
+    x0, t_end = params["x0"], params["t_end"]   # [m], [s]
+    t = np.array([0.0, t_end])                  # straight lines: two points are enough [s]
+
+    def path(label, speed, style):
+        return Line(label=label, x=x0 + speed * t, y=t, style=style)
+
+    lines = []
+    for side, name in (("L", "left"), ("R", "right")):
+        if w[f"{name}_wave"] == "shock":
+            lines.append(path(f"{name} shock", w[f"S_{side}"], "-"))
+        else:
+            lines.append(path(f"{name} rarefaction head", w[f"S_head_{side}"], "--"))
+            lines.append(path(f"{name} rarefaction tail", w[f"S_tail_{side}"], "--"))
+        if side == "L":
+            lines.append(path("contact surface", w["u_star"], ":"))
+    return lines

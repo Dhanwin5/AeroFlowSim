@@ -16,7 +16,7 @@ Nothing here imports the GUI; the job can be tested with pytest.
 import threading
 import time
 
-from core.case_template import get_reference
+from core.case_template import get_reference, get_reference_lines
 
 
 class StopRequested(Exception):
@@ -33,6 +33,7 @@ class RunJob:
         self.error = ""         # error message if status == "failed"
         self.result = None      # Result returned by case.run (when finished)
         self.reference = None   # reference fields from case.reference (when finished)
+        self.reference_lines = []  # exact overlay lines from case.reference_lines (when finished)
         self.elapsed_s = 0.0    # wall-clock run time [s]
         self._start_time = 0.0  # time.perf_counter() at start [s]
         self._stop_event = threading.Event()  # set when the user presses Stop
@@ -87,6 +88,7 @@ class RunJob:
         try:
             result = case.run(params, mesh, self._progress)
             reference = get_reference(case, params, mesh)
+            self.reference_lines = get_reference_lines(case, params, mesh)
             self.result, self.reference = result, reference
             status = "finished"
         except StopRequested:

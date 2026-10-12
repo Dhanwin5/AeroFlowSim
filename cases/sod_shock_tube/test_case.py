@@ -85,6 +85,35 @@ def test_progress_every_step_and_reaches_end_time():
     assert abs(result.key_numbers["t_final"][0] - params["t_end"]) < 1e-12
 
 
+def test_snapshots_end_with_final_solution():
+    params, mesh, result = solve()
+    snaps = result.snapshots
+    assert 2 <= len(snaps.times) <= 200                  # memory limit respected
+    assert snaps.times[0] == 0.0
+    assert abs(snaps.times[-1] - params["t_end"]) < 1e-12
+    assert np.all(np.diff(snaps.times) > 0.0)
+    for key, f in result.fields.items():
+        assert snaps.fields[key].values.shape == (len(snaps.times), mesh.n_cells)
+        assert np.array_equal(snaps.fields[key].values[-1], f.values)   # last snapshot = final
+    # First snapshot = initial condition.
+    assert np.array_equal(snaps.fields["rho"].values[0], case.initial_state(params, mesh)[0])
+
+
+def test_reference_lines_are_exact_wave_paths():
+    params, mesh, result = solve(n_cells=100)
+    lines = {line.label: line for line in case.reference_lines(params, mesh)}
+    assert set(lines) == {"left rarefaction head", "left rarefaction tail",
+                          "contact surface", "right shock"}
+    for line in lines.values():                          # every path starts at the diaphragm at t = 0
+        assert line.x[0] == params["x0"] and line.y[0] == 0.0
+        assert line.y[-1] == params["t_end"]
+    k = result.key_numbers
+    assert abs(lines["right shock"].x[-1] - k["x_shock_exact"][0]) < 1e-12
+    assert abs(lines["contact surface"].x[-1] - k["x_contact_exact"][0]) < 1e-12
+    # Sod: head speed = -c_L = -sqrt(1.4) m/s
+    assert abs(lines["left rarefaction head"].x[-1] - (0.5 - math.sqrt(1.4) * 0.2)) < 1e-12
+
+
 def test_stop_signal_ends_run_cleanly():
     params = defaults(case.parameters())
     job = RunJob()
