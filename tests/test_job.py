@@ -44,7 +44,7 @@ def test_stop_ends_a_long_run():
             progress(i, 1.0 / i)
         return Result(fields={}, residuals=[])
 
-    case = SimpleNamespace(run=run)
+    case = SimpleNamespace(run=run, build_mesh=lambda params: None)
     job = RunJob()
     job.start(case, {}, None)
     assert started.wait(timeout=10)
@@ -61,7 +61,7 @@ def test_solver_error_gives_failed_status():
         raise FloatingPointError("solution diverged")
 
     job = RunJob()
-    job.start(SimpleNamespace(run=run), {}, None)
+    job.start(SimpleNamespace(run=run, build_mesh=lambda params: None), {}, None)
     job.wait(timeout=10)
     assert job.status == "failed"
     assert "solution diverged" in job.error
@@ -73,7 +73,7 @@ def test_case_without_reference_is_fine():
         return Result(fields={"T": Field([1.0], "K", "Temperature")}, residuals=[0.0])
 
     job = RunJob()
-    job.start(SimpleNamespace(run=run), {}, None)
+    job.start(SimpleNamespace(run=run, build_mesh=lambda params: None), {}, None)
     job.wait(timeout=10)
     assert job.status == "finished"
     assert job.reference is None

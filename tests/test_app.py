@@ -143,3 +143,13 @@ def test_bad_value_shows_message_under_its_box():
     at.text_input(key="quasi1d_nozzle:profile_csv").set_value("   ").run()   # empty file path
     assert not at.exception, at.exception
     assert any("please give a file" in e.value for e in at.error)
+
+
+def test_results_tab_shows_validity_checks_box():
+    at = _app()
+    at.button(key="run").click().run()
+    at.session_state["job"].wait(timeout=60)
+    at.run()
+    assert not at.exception, at.exception
+    assert "**Validity checks**" in [m.value for m in at.markdown]
+    assert any("Convergence" in s.value and "orders of magnitude" in s.value for s in at.success)

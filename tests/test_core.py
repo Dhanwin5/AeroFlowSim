@@ -2,13 +2,13 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Tests for the shared code in aeroflowsim/: parameters, discovery and the runner."""
+"""Tests for the shared code in aeroflowsim/: parameters, discovery, the run engine and the command line."""
 
 import pytest
 
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.parameters import Parameter, defaults, validate
-from aeroflowsim.runner import run_case
+from aeroflowsim.engine import run_case
 
 PARAMS = [
     Parameter("L", "Length", "m", 1.0, 0.1, 10.0),
@@ -82,11 +82,20 @@ def test_load_case_by_name_or_folder_path():
         load_case("no_such_case")
 
 
-def test_runner_writes_all_outputs(tmp_path):
-    result, reference, out_dir = run_case("demo_heat1d", out_dir=tmp_path)
-    assert result.converged and reference is not None
+def test_run_case_writes_all_outputs(tmp_path):
+    out = run_case("cases/demo_heat1d", out_dir=tmp_path)
+    assert out.result.converged and out.reference is not None and out.out_dir == tmp_path
     for name in ["fields.csv", "residuals.csv", "summary.yaml", "fields.png", "residuals.png"]:
-        assert (out_dir / name).exists(), name
+        assert (tmp_path / name).exists(), name
+    assert "checks:" in (tmp_path / "summary.yaml").read_text(encoding="utf-8")
+
+
+def test_run_case_saves_nothing_without_out_dir_and_fills_defaults():
+    out = run_case("demo_heat1d", {"n_nodes": 11})
+    assert out.out_dir is None
+    assert out.params["n_nodes"] == 11 and out.params["L"] == 1.0   # L kept its default
+    assert out.mesh.n_nodes == 11
+    assert [c.name for c in out.checks] == ["Convergence"] and out.checks[0].level == "info"
 
 
 def test_choice_and_file_parameters():
@@ -107,9 +116,24 @@ def test_choice_and_file_parameters():
 
 
 def test_command_line_set_option_changes_inputs():
-    import run_case as cli
-    assert cli.parse_settings("demo_heat1d", ["L=2", "n_nodes=11"]) == {"L": 2.0, "n_nodes": 11}
+    from aeroflowsim import cli
+    from aeroflowsim.discovery import load_case
+    case = load_case("demo_heat1d")
+    assert cli.parse_settings(case, ["L=2", "n_nodes=11"]) == {"L": 2.0, "n_nodes": 11}
     with pytest.raises(ValueError, match="NAME=VALUE"):
-        cli.parse_settings("demo_heat1d", ["nonsense=1"])
+        cli.parse_settings(case, ["nonsense=1"])
     with pytest.raises(ValueError, match="not a number"):
-        cli.parse_settings("demo_heat1d", ["L=abc"])
+        cli.parse_settings(case, ["L=abc"])
+
+
+def test_command_line_run_and_list(tmp_path, capsys):
+    from aeroflowsim import cli
+    assert cli.main(["list"]) == 0
+    assert "quasi1d_nozzle" in capsys.readouterr().out
+    code = cli.main(["run", "cases/demo_heat1d", "--set", "n_nodes=11", "--out", str(tmp_path)])
+    printed = capsys.readouterr().out
+    assert code == 0
+    assert "Validity checks:" in printed and "Convergence" in printed
+    assert (tmp_path / "summary.yaml").exists()
+    assert cli.main(["run", "cases/demo_heat1d", "--set", "L=99"]) == 1      # outside the allowed range
+    assert "outside the allowed range" in capsys.readouterr().out

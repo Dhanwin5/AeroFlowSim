@@ -278,6 +278,20 @@ with run_tab:
 # Results tab
 # ---------------------------------------------------------------------------------------------
 
+CHECK_STYLE = {"info": ("✅", st.success), "warning": ("⚠️", st.warning), "error": ("❌", st.error)}
+
+
+def validity_box(checks):
+    """The "Validity checks" box: one coloured line per check (see aeroflowsim/checks.py)."""
+    with st.container(border=True):
+        st.markdown("**Validity checks**")
+        if not checks:
+            st.caption("No checks apply to this case.")
+        for check in checks:
+            icon, show = CHECK_STYLE[check.level]
+            show(f"**{check.name}:** {check.message}", icon=icon)   # the message includes the value
+
+
 def available_views(result, mesh):
     """The contour-style views this result supports, in the order shown."""
     views = []
@@ -351,6 +365,7 @@ with results_tab:
         result, reference, mesh = job.result, job.reference, state.run_mesh
         if state.run_params != params:
             st.caption("Note: these results were computed with earlier Setup inputs.")
+        validity_box(job.checks)
 
         keys = list(result.fields)
         key = st.selectbox("Field", keys, format_func=lambda k: f"{result.fields[k].label} "

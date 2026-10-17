@@ -2,10 +2,10 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Run one case from start to finish and save the results to disk.
+"""Output files of a run: CSV tables, a YAML summary and PNG plots.
 
-Used by run_case.py (command line); the GUI reuses the CSV/PNG writers and max_errors.
-Steps: load case -> parameters -> mesh -> solve -> reference -> save CSV, YAML and PNG.
+save_outputs() writes everything for one run (called by aeroflowsim.run_case when out_dir is given,
+e.g. from the command line). The GUI reuses the CSV/PNG writers and max_errors for its downloads.
 """
 
 import io
@@ -18,70 +18,32 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from aeroflowsim.case import get_reference, get_reference_lines
-from aeroflowsim.discovery import CASES_DIR, load_case
-from aeroflowsim.parameters import defaults, validate
 # Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
 from aeroflowsim.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png,
-                            shape_view, style_axes, xt_diagram)
+                                   shape_view, style_axes, xt_diagram)
 
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"   # default output folder
 
 
-def run_case(name, params=None, out_dir=None, cases_dir=CASES_DIR, print_every=1000):
-    """Run case `name` and save everything to out_dir (default results/<name>/).
-
-    params: dict of parameter values; missing ones take their default value.
-    Returns (result, reference, out_dir).
-    """
-    case = load_case(name, cases_dir)
-    param_list = case.parameters()
-    values = defaults(param_list)
-    values.update(params or {})
-    values = validate(param_list, values)
-
-    print(f"Case: {name} - {case.title}")
-    for p in param_list:
-        value = values[p.name]
-        text = f"{value:>12g}" if p.is_number else f"{value}"
-        print(f"  {p.label:<35} {text} {p.unit}")
-
-    mesh = case.build_mesh(values)
-    print(f"Mesh: {mesh.n_nodes} nodes")
-
-    def progress(iteration, residual):
-        """Print the convergence status every `print_every` iterations."""
-        if iteration == 1 or iteration % print_every == 0:
-            print(f"  iteration {iteration:>7d}   residual {residual:.3e}")
-
-    result = case.run(values, mesh, progress)
-    reference = get_reference(case, values, mesh)
-
-    status = "converged" if result.converged else "NOT converged"
-    print(f"Finished: {status} after {result.iterations} iterations, "
-          f"final residual {result.residuals[-1]:.3e}")
-
-    out_dir = Path(out_dir) if out_dir else RESULTS_DIR / name
+def save_outputs(out_dir, output) -> Path:
+    """Write the files of one run (a RunOutput from aeroflowsim.run_case) into out_dir; return it."""
+    out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    case, mesh, result, reference = output.case, output.mesh, output.result, output.reference
     errors = max_errors(result, reference)
     save_fields_csv(out_dir / "fields.csv", mesh, result, reference)
     save_residuals_csv(out_dir / "residuals.csv", result)
-    save_summary_yaml(out_dir / "summary.yaml", name, case, param_list, values, result, errors)
+    save_summary_yaml(out_dir / "summary.yaml", case.name, case, case.parameters(), output.params,
+                      result, errors, output.checks)
     plot_fields(out_dir / "fields.png", case, mesh, result, reference)
     plot_residuals(out_dir / "residuals.png", case, result)
     if result.snapshots is not None:
         # Unsteady case: x-t diagram of the first field, with the exact lines (if any) on top.
-        save_xt_diagram(out_dir, mesh, result, get_reference_lines(case, values, mesh))
+        save_xt_diagram(out_dir, mesh, result, output.reference_lines)
     if result.shape is not None:
         # Duct / nozzle case: the first field drawn inside the wall outline.
         save_shape_view(out_dir, mesh, result)
-
-    for key, (value, unit) in result.key_numbers.items():
-        print(f"  {key:<12} = {value:.6g} {unit}")
-    for key, (value, unit) in errors.items():
-        print(f"  max |{key} - {key}_exact| = {value:.3e} {unit}")
-    print(f"Results saved to {out_dir}")
-    return result, reference, out_dir
+    return out_dir
 
 
 def max_errors(result, reference):
@@ -128,8 +90,8 @@ def save_residuals_csv(path, result):
                header="iteration,residual", comments="", fmt=["%d", "%.6e"])
 
 
-def save_summary_yaml(path, name, case, param_list, values, result, errors):
-    """Write inputs, convergence info, key numbers and errors to a readable YAML file."""
+def save_summary_yaml(path, name, case, param_list, values, result, errors, checks=()):
+    """Write inputs, convergence info, key numbers, errors and validity checks to a readable YAML file."""
     summary = {
         "case": name,
         "description": case.description,
@@ -140,6 +102,7 @@ def save_summary_yaml(path, name, case, param_list, values, result, errors):
         "final_residual": float(result.residuals[-1]),
         "key_numbers": {k: {"value": float(v), "unit": u} for k, (v, u) in result.key_numbers.items()},
         "max_error_vs_reference": {k: {"value": e, "unit": u} for k, (e, u) in errors.items()},
+        "checks": [c.as_dict() for c in checks],
     }
     with open(path, "w", encoding="utf-8") as file:
         yaml.safe_dump(summary, file, sort_keys=False, allow_unicode=True)

@@ -9,6 +9,9 @@ the residual plot and listens for the Stop button. So the solver runs in a separ
 "thread" (a second line of execution inside the same program), and the GUI simply reads
 the latest numbers from the RunJob object every fraction of a second.
 
+The thread calls aeroflowsim.run_case(), exactly the function the command line and scripts use,
+so a run started from the GUI gives the same numbers as the same run from the command line.
+
 How Stop works without changing the case contract: the case calls progress(iteration,
 residual) after every iteration. Our progress function records the residual and, if Stop
 was pressed, raises StopRequested. That exception jumps out of the case's loop, and the
@@ -20,7 +23,7 @@ Nothing here imports the GUI; the job can be tested with pytest.
 import threading
 import time
 
-from aeroflowsim.case import get_reference, get_reference_lines
+from aeroflowsim.engine import run_case
 
 
 class StopRequested(Exception):
@@ -38,6 +41,8 @@ class RunJob:
         self.result = None      # Result returned by case.run (when finished)
         self.reference = None   # reference fields from case.reference (when finished)
         self.reference_lines = []  # exact overlay lines from case.reference_lines (when finished)
+        self.checks = []        # validity check results (when finished), see aeroflowsim/checks.py
+        self.output = None      # the whole RunOutput of aeroflowsim.run_case (when finished)
         self.elapsed_s = 0.0    # wall-clock run time [s]
         self._start_time = 0.0  # time.perf_counter() at start [s]
         self._stop_event = threading.Event()  # set when the user presses Stop
@@ -88,12 +93,11 @@ class RunJob:
             raise StopRequested()
 
     def _work(self, case, params, mesh):
-        """Solve, then fetch the reference solution; record how the run ended."""
+        """Run the case through the shared engine; record how the run ended."""
         try:
-            result = case.run(params, mesh, self._progress)
-            reference = get_reference(case, params, mesh)
-            self.reference_lines = get_reference_lines(case, params, mesh)
-            self.result, self.reference = result, reference
+            output = run_case(case, params, mesh=mesh, progress=self._progress)
+            self.output, self.reference_lines, self.checks = output, output.reference_lines, output.checks
+            self.result, self.reference = output.result, output.reference
             status = "finished"
         except StopRequested:
             status = "stopped"

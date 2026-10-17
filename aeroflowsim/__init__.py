@@ -10,3 +10,5 @@ the solver side must work without the GUI.
 """
 
 __version__ = "0.1.0.dev0"   # keep equal to the version in pyproject.toml and CITATION.cff
+
+from aeroflowsim.engine import run_case  # noqa: E402  (aeroflowsim.run_case(...) for scripts)
