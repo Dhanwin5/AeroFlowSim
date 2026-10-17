@@ -6,9 +6,9 @@ Steady, inviscid flow of nitrogen through a converging-diverging nozzle, from a 
 15° divergent cone, exit Ø 0.911 mm, A_e/A* = 10.59, length 4.00 mm).
 
 ```
-python run_case.py quasi1d_nozzle
-python run_case.py quasi1d_nozzle --set p_back=250000
-python run_case.py quasi1d_nozzle --set "geometry_source=Custom profile (CSV)"
+python -m aeroflowsim run cases/quasi1d_nozzle
+python -m aeroflowsim run cases/quasi1d_nozzle --set p_back=250000
+python -m aeroflowsim run cases/quasi1d_nozzle --set "geometry_source=Custom profile (CSV)"
 ```
 
 ## Equations
