@@ -127,3 +127,19 @@ def test_nozzle_short_run_offers_shape_view():
     table = at.dataframe[0].value
     assert {"mdot", "F_vacuum", "Isp_vacuum", "M_exit"} <= set(table["Quantity"])
     assert at.radio(key="contour_view").options == ["Shape view"]
+
+
+def test_inputs_are_grouped_under_headings_from_schema():
+    at = _nozzle_app()
+    headings = [m.value for m in at.markdown]
+    for group in ("**Geometry**", "**Operating conditions**", "**Gas**", "**Mesh**", "**Solver**"):
+        assert group in headings, group
+    assert any("AeroFlowSim" in c.value for c in at.sidebar.caption)
+
+
+def test_bad_value_shows_message_under_its_box():
+    at = _nozzle_app()
+    at.selectbox(key="quasi1d_nozzle:geometry_source").set_value("Custom profile (CSV)").run()
+    at.text_input(key="quasi1d_nozzle:profile_csv").set_value("   ").run()   # empty file path
+    assert not at.exception, at.exception
+    assert any("please give a file" in e.value for e in at.error)

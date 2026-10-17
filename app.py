@@ -12,6 +12,8 @@ running job, input values) are kept in st.session_state, a dictionary that Strea
 
 This file only draws the screen. All real work is done by the case (through the contract in
 aeroflowsim/case.py) and by helper modules in aeroflowsim/ that know nothing about Streamlit.
+The Setup-tab input panel is built automatically from each case's schema.toml by
+aeroflowsim/gui/panel.py, so adding a case needs no change here.
 """
 
 import io
@@ -21,12 +23,14 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from aeroflowsim import __version__
 from aeroflowsim.case import get_geometry
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.geometry import profile_summary
+from aeroflowsim.gui.panel import current_values, init_inputs, input_panel, set_inputs
 from aeroflowsim.job import RunJob
 from aeroflowsim.mesh import Mesh1D, Mesh2D
-from aeroflowsim.parameters import defaults, is_shown, validate
+from aeroflowsim.parameters import defaults, validate
 from aeroflowsim.plots import field_figure, mesh_figure, profile_figure, residual_figure
 from aeroflowsim.runner import fields_csv_text, max_errors, plot_fields
 from aeroflowsim.settings import list_settings, load_settings, save_settings, settings_dir
@@ -44,30 +48,6 @@ state = st.session_state  # short name
 # Small helpers
 # ---------------------------------------------------------------------------------------------
 
-def widget_key(case_name, param_name):
-    """Session-state key of one input box, e.g. 'demo_heat1d:L'."""
-    return f"{case_name}:{param_name}"
-
-
-def float_step(p):
-    """Step for the +/- buttons of a float input: about 1/10 of the default's order of magnitude."""
-    size = abs(p.default) if p.default != 0 else (p.max - p.min) / 10.0
-    if size <= 0.0:
-        return 1.0
-    return 10.0 ** (math.floor(math.log10(size)) - 1)
-
-
-def current_values(case_name, param_list):
-    """The values currently typed in the Setup tab: {name: value}."""
-    return {p.name: state[widget_key(case_name, p.name)] for p in param_list}
-
-
-def set_inputs(case_name, values):
-    """Put values into the Setup input boxes (only allowed inside a button callback)."""
-    for name, value in values.items():
-        state[widget_key(case_name, name)] = value
-
-
 def progress_fraction(params, iteration, residual):
     """Rough 0..1 progress: the further of 'iterations used' and 'orders of magnitude converged'."""
     fraction = 0.0
@@ -84,6 +64,7 @@ def progress_fraction(params, iteration, residual):
 # ---------------------------------------------------------------------------------------------
 
 st.sidebar.image(str(ASSETS_DIR / "logo.png"), width="stretch")   # the logo shows the name
+st.sidebar.caption(f"AeroFlowSim {__version__} · pre-release, under development")
 cases, problems = find_cases()
 for name, problem in problems.items():
     st.sidebar.warning(f"Case '{name}' is broken: {problem}")
@@ -104,60 +85,26 @@ if state.get("case_name") != case_name:
     state.case_name = case_name
 
 # First visit of this case: fill the input boxes with the default values.
-for name, value in defaults(param_list).items():
-    state.setdefault(widget_key(case_name, name), value)
+init_inputs(case)
 
 st.title(case.title)
 setup_tab, mesh_tab, run_tab, results_tab = st.tabs(["Setup", "Mesh", "Run", "Results"])
 
 
 # ---------------------------------------------------------------------------------------------
-# Setup tab: input form built from case.parameters(), plus save / load settings
+# Setup tab: input panel built from schema.toml, plus save / load settings
 # ---------------------------------------------------------------------------------------------
 
 def on_reset():
-    set_inputs(case_name, defaults(param_list))
+    set_inputs(case, defaults(param_list))
 
 
 def on_load(file_name):
     try:
-        set_inputs(case_name, load_settings(case_name, file_name, param_list))
+        set_inputs(case, load_settings(case_name, file_name, param_list))
         state.settings_message = ("success", f"Loaded settings '{file_name}'.")
     except Exception as error:
         state.settings_message = ("error", f"Could not load '{file_name}': {error}")
-
-
-def on_upload(param_name):
-    """Save an uploaded file to uploads/<case>/ and put its path into the file input box."""
-    uploaded = state.get(f"upload:{case_name}:{param_name}")
-    if uploaded is None:
-        return
-    folder = UPLOADS_DIR / case_name
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / Path(uploaded.name).name   # keep only the file name, never a folder part
-    path.write_bytes(uploaded.getvalue())
-    state[widget_key(case_name, param_name)] = path.relative_to(PROJECT_DIR).as_posix()
-
-
-def input_widget(p):
-    """One input box for parameter p, drawn according to its kind (number, choice or file)."""
-    key = widget_key(case_name, p.name)
-    if p.type == "choice":
-        st.selectbox(p.label, p.options, key=key, help=p.help)
-    elif p.type == "file":
-        st.text_input(f"{p.label} (path)", key=key,
-                      help=f"{p.help}  \nA path relative to the project folder, or upload a file below.")
-        st.file_uploader(f"Upload {p.label.lower()}", type=["csv"], key=f"upload:{case_name}:{p.name}",
-                         on_change=on_upload, args=(p.name,))
-    else:
-        label = f"{p.label} [{p.unit}]"
-        help_text = f"{p.help}  \nAllowed range: {p.min:g} to {p.max:g} {p.unit}."
-        if p.is_integer:
-            st.number_input(label, min_value=int(p.min), max_value=int(p.max), step=1,
-                            key=key, help=help_text)
-        else:
-            st.number_input(label, min_value=float(p.min), max_value=float(p.max),
-                            step=float_step(p), format="%g", key=key, help=help_text)
 
 
 def geometry_preview(values):
@@ -181,15 +128,10 @@ def geometry_preview(values):
 
 with setup_tab:
     st.subheader("Inputs")
-    values_now = current_values(case_name, param_list)
-    shown = [p for p in param_list if is_shown(p, values_now)]   # e.g. hide the CSV path for "parametric"
-    columns = st.columns(2)
-    for i, p in enumerate(shown):
-        with columns[i % 2]:
-            input_widget(p)
+    input_panel(case, UPLOADS_DIR, PROJECT_DIR)   # built from cases/<case>/schema.toml
     st.button("Reset to defaults", on_click=on_reset)
     if hasattr(case, "geometry"):
-        geometry_preview(values_now)
+        geometry_preview(current_values(case))
 
     st.subheader("Settings files")
     st.caption(f"Stored as YAML files in `cases/{case_name}/{settings_dir(case_name).name}/`")
@@ -199,7 +141,7 @@ with setup_tab:
         if st.button("Save settings"):
             try:
                 path = save_settings(case_name, file_name, param_list,
-                                     current_values(case_name, param_list))
+                                     current_values(case))
                 state.settings_message = ("success", f"Saved to {path.name}.")
             except Exception as error:
                 state.settings_message = ("error", f"Could not save: {error}")
@@ -215,7 +157,7 @@ with setup_tab:
 
 # Check the inputs once; the other tabs need valid values.
 try:
-    params = validate(param_list, current_values(case_name, param_list))
+    params = validate(param_list, current_values(case))
     params_error = ""
 except ValueError as error:
     params, params_error = None, str(error)
