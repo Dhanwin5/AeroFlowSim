@@ -47,7 +47,7 @@ def main():
         cases, problems = find_cases()
         print("Available cases:")
         for name, case in cases.items():
-            print(f"  {name:<20} {case.DESCRIPTION}")
+            print(f"  {name:<20} {case.description}")
         for name, problem in problems.items():
             print(f"  {name:<20} BROKEN: {problem}")
         return 0

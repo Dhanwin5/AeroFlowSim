@@ -71,7 +71,7 @@ def test_fields_csv_text():
 def test_plot_fields_to_png_buffer_with_selected_field():
     mesh, result, reference = _result()
     buffer = io.BytesIO()
-    case = type("Case", (), {"NAME": "test"})
+    case = type("Case", (), {"title": "test"})
     plot_fields(buffer, case, mesh, result, reference, keys=["p"])
     assert buffer.getvalue()[:8] == b"\x89PNG\r\n\x1a\n"
 

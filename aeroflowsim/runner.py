@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from aeroflowsim.case_template import get_reference, get_reference_lines
+from aeroflowsim.case import get_reference, get_reference_lines
 from aeroflowsim.discovery import CASES_DIR, load_case
 from aeroflowsim.parameters import defaults, validate
 # Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
@@ -40,10 +40,10 @@ def run_case(name, params=None, out_dir=None, cases_dir=CASES_DIR, print_every=1
     values.update(params or {})
     values = validate(param_list, values)
 
-    print(f"Case: {name} - {case.NAME}")
+    print(f"Case: {name} - {case.title}")
     for p in param_list:
         value = values[p.name]
-        text = f"{value:>12g}" if p.kind == "number" else f"{value}"
+        text = f"{value:>12g}" if p.is_number else f"{value}"
         print(f"  {p.label:<35} {text} {p.unit}")
 
     mesh = case.build_mesh(values)
@@ -132,7 +132,7 @@ def save_summary_yaml(path, name, case, param_list, values, result, errors):
     """Write inputs, convergence info, key numbers and errors to a readable YAML file."""
     summary = {
         "case": name,
-        "description": case.DESCRIPTION,
+        "description": case.description,
         "parameters": {p.name: {"value": values[p.name], "unit": p.unit, "label": p.label}
                        for p in param_list},
         "converged": bool(result.converged),
@@ -185,7 +185,7 @@ def plot_fields(path, case, mesh, result, reference, keys=None):
             ax.legend(frameon=False)
         ax.set_xlabel("x [m]")
         ax.set_ylabel(f"{f.label} [{f.unit}]")
-        ax.set_title(f"{case.NAME}: {f.label}")
+        ax.set_title(f"{case.title}: {f.label}")
         style_axes(ax)
     fig.tight_layout()
     fig.savefig(path, dpi=120, format="png")
@@ -199,7 +199,7 @@ def plot_residuals(path, case, result):
                 color=COLOR_NUMERICAL, linewidth=2)
     ax.set_xlabel("iteration [-]")
     ax.set_ylabel("normalised residual [-]")
-    ax.set_title(f"{case.NAME}: convergence history")
+    ax.set_title(f"{case.title}: convergence history")
     style_axes(ax)
     fig.tight_layout()
     fig.savefig(path, dpi=120)

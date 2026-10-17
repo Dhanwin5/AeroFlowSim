@@ -14,33 +14,8 @@ import numpy as np
 from aeroflowsim.euler1d import (cfl_time_step, conserved_to_primitive, flux_divergence,
                           primitive_to_conserved, sound_speed, ssp_rk2_step)
 from aeroflowsim.mesh import Mesh1D
-from aeroflowsim.parameters import Parameter
 from aeroflowsim.results import Field, Line, Result, SnapshotRecorder
 from aeroflowsim.riemann_exact import exact_solution, wave_structure
-
-NAME = "Sod shock tube"
-DESCRIPTION = ("Unsteady 1D Euler equations from a diaphragm burst (Riemann problem); "
-               "HLLC + MUSCL finite volumes compared with the exact Riemann solution.")
-
-
-def parameters():
-    """Inputs of this case (all SI). Defaults = the standard Sod problem."""
-    return [
-        Parameter("rho_L", "Left density", "kg/m³", 1.0, 1e-6, 1e4, "Initial density left of the diaphragm."),
-        Parameter("u_L", "Left velocity", "m/s", 0.0, -1e4, 1e4, "Initial velocity left of the diaphragm."),
-        Parameter("p_L", "Left pressure", "Pa", 1.0, 1e-6, 1e9, "Initial pressure left of the diaphragm."),
-        Parameter("rho_R", "Right density", "kg/m³", 0.125, 1e-6, 1e4, "Initial density right of the diaphragm."),
-        Parameter("u_R", "Right velocity", "m/s", 0.0, -1e4, 1e4, "Initial velocity right of the diaphragm."),
-        Parameter("p_R", "Right pressure", "Pa", 0.1, 1e-6, 1e9, "Initial pressure right of the diaphragm."),
-        Parameter("gamma", "Ratio of specific heats", "-", 1.4, 1.01, 3.0, "cp/cv of the (calorically perfect) gas."),
-        Parameter("L", "Tube length", "m", 1.0, 1e-3, 1e3, "The tube runs from x = 0 to x = L."),
-        Parameter("x0", "Diaphragm position", "m", 0.5, 0.0, 1e3, "Initial position of the diaphragm (0 < x0 < L)."),
-        Parameter("t_end", "End time", "s", 0.2, 1e-9, 1e3,
-                  "Simulated time. Results are only valid while waves have not reached the tube ends."),
-        Parameter("n_cells", "Number of cells", "-", 400, 10, 20000, "Number of equal finite-volume cells."),
-        Parameter("cfl", "CFL number", "-", 0.5, 0.05, 1.0,
-                  "Time step = CFL x cell width / fastest wave speed. 0.5 is a safe choice."),
-    ]
 
 
 def build_mesh(params):

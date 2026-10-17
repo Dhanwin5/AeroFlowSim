@@ -20,7 +20,7 @@ Nothing here imports the GUI; the job can be tested with pytest.
 import threading
 import time
 
-from aeroflowsim.case_template import get_reference, get_reference_lines
+from aeroflowsim.case import get_reference, get_reference_lines
 
 
 class StopRequested(Exception):

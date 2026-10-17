@@ -44,24 +44,42 @@ def test_discovery_finds_demo_and_skips_template():
     assert problems == {}
 
 
+GOOD_SCHEMA = '[case]\nname = "g"\ndescription = "d"\nsteady = true\n'
+GOOD_CASE = "def build_mesh(p): pass\ndef run(p, m, progress): pass\n"
+
+
+def _make_case(folder, case_py, schema=GOOD_SCHEMA):
+    folder.mkdir()
+    (folder / "case.py").write_text(case_py)
+    if schema is not None:
+        (folder / "schema.toml").write_text(schema)
+
+
 def test_discovery_reports_broken_case(tmp_path):
-    (tmp_path / "good").mkdir()
-    (tmp_path / "good" / "case.py").write_text(
-        "NAME = 'g'\nDESCRIPTION = 'd'\n"
-        "def parameters(): return []\n"
-        "def build_mesh(p): pass\n"
-        "def run(p, m, progress): pass\n"
-    )
-    (tmp_path / "missing_run").mkdir()
-    (tmp_path / "missing_run" / "case.py").write_text("NAME = 'x'\nDESCRIPTION = 'd'\n")
-    (tmp_path / "syntax_error").mkdir()
-    (tmp_path / "syntax_error" / "case.py").write_text("this is not python\n")
+    _make_case(tmp_path / "good", GOOD_CASE)
+    _make_case(tmp_path / "missing_run", "def build_mesh(p): pass\n")
+    _make_case(tmp_path / "syntax_error", "this is not python\n")
+    _make_case(tmp_path / "no_schema", GOOD_CASE, schema=None)
+    _make_case(tmp_path / "bad_schema", GOOD_CASE, schema="[case]\nname = 'x'\n")
     (tmp_path / "not_a_case").mkdir()  # no case.py -> ignored
 
     cases, problems = find_cases(tmp_path)
     assert list(cases) == ["good"]
-    assert set(problems) == {"missing_run", "syntax_error"}
+    assert set(problems) == {"missing_run", "syntax_error", "no_schema", "bad_schema"}
     assert "run()" in problems["missing_run"]
+    assert "schema.toml not found" in problems["no_schema"]
+    assert "description" in problems["bad_schema"]
+    assert cases["good"].title == "g" and cases["good"].steady and cases["good"].parameters() == []
+
+
+def test_load_case_by_name_or_folder_path():
+    from aeroflowsim.discovery import load_case
+    by_name = load_case("demo_heat1d")
+    by_path = load_case("cases/demo_heat1d")
+    assert by_name.folder == by_path.folder and by_name.name == "demo_heat1d"
+    assert by_name.title == "1D heat conduction (demo)"
+    with pytest.raises(ValueError, match="No case found"):
+        load_case("no_such_case")
 
 
 def test_runner_writes_all_outputs(tmp_path):

@@ -1,0 +1,207 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# Format: see aeroflowsim/schema.py. SI units, except where the unit says otherwise.
+
+[case]
+name = "Quasi-1D nozzle"
+description = "Steady quasi-1D Euler flow of N2 through a converging-diverging nozzle (conical or CSV wall profile); compared with isentropic and normal-shock theory."
+steady = true
+
+[[input]]
+key = "geometry_source"
+label = "Geometry source"
+type = "choice"
+default = "Parametric (conical)"
+options = ["Parametric (conical)", "Custom profile (CSV)"]
+group = "Geometry"
+help = "Built-in conical nozzle, or your own wall profile r(x) from a CSV file."
+
+[[input]]
+key = "d_inlet"
+label = "Inlet diameter"
+unit = "m"
+type = "float"
+default = 0.002
+min = 1e-05
+max = 1.0
+group = "Geometry"
+help = "Diameter of the straight inlet section."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "L_inlet"
+label = "Straight inlet length"
+unit = "m"
+type = "float"
+default = 0.00133
+min = 0.0
+max = 10.0
+group = "Geometry"
+help = "Length of the straight (cylindrical) inlet before the convergent cone."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "half_angle_conv"
+label = "Convergent half-angle"
+unit = "deg"
+type = "float"
+default = 30.0
+min = 1.0
+max = 89.0
+group = "Geometry"
+help = "Half-angle of the convergent cone."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "d_throat"
+label = "Throat diameter"
+unit = "m"
+type = "float"
+default = 0.00028
+min = 1e-06
+max = 1.0
+group = "Geometry"
+help = "Smallest diameter (sharp-cornered throat)."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "half_angle_div"
+label = "Divergent half-angle"
+unit = "deg"
+type = "float"
+default = 15.0
+min = 1.0
+max = 89.0
+group = "Geometry"
+help = "Half-angle of the divergent cone."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "d_exit"
+label = "Exit diameter"
+unit = "m"
+type = "float"
+default = 0.000911
+min = 1e-06
+max = 1.0
+group = "Geometry"
+help = "Diameter at the nozzle exit."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "profile_csv"
+label = "Wall profile CSV"
+type = "file"
+default = "cases/quasi1d_nozzle/examples/n2_conical_nozzle.csv"
+group = "Geometry"
+help = "Two columns with header x_mm,r_mm: axial position and wall RADIUS in mm, x increasing, at least 5 points."
+show_if = { geometry_source = "Custom profile (CSV)" }
+
+[[input]]
+key = "p0"
+label = "Total (chamber) pressure"
+unit = "Pa"
+type = "float"
+default = 500000.0
+min = 1.0
+max = 1000000000.0
+group = "Operating conditions"
+help = "Reservoir pressure at the inlet."
+
+[[input]]
+key = "T0"
+label = "Total (chamber) temperature"
+unit = "K"
+type = "float"
+default = 293.15
+min = 1.0
+max = 5000.0
+group = "Operating conditions"
+help = "Reservoir temperature."
+
+[[input]]
+key = "p_back"
+label = "Back pressure"
+unit = "Pa"
+type = "float"
+default = 1000.0
+min = 0.0
+max = 1000000000.0
+group = "Operating conditions"
+help = "Ambient pressure at the exit (must not exceed p0)."
+
+[[input]]
+key = "gamma"
+label = "Ratio of specific heats"
+unit = "-"
+type = "float"
+default = 1.4
+min = 1.01
+max = 3.0
+group = "Gas"
+help = "cp/cv of the gas (N2: 1.4)."
+
+[[input]]
+key = "R"
+label = "Specific gas constant"
+unit = "J/(kg·K)"
+type = "float"
+default = 296.8
+min = 1.0
+max = 100000.0
+group = "Gas"
+help = "R of the gas (N2: 296.8)."
+
+[[input]]
+key = "n_cells"
+label = "Number of cells"
+unit = "-"
+type = "int"
+default = 300
+min = 20
+max = 20000
+group = "Mesh"
+help = "Finite-volume cells along the nozzle."
+
+[[input]]
+key = "throat_refinement"
+label = "Throat refinement"
+unit = "-"
+type = "float"
+default = 10.0
+min = 1.0
+max = 100.0
+group = "Mesh"
+help = "Cells at the throat are this many times smaller than evenly spread cells; they grow by a constant factor towards both ends. 1 = uniform cells."
+
+[[input]]
+key = "cfl"
+label = "CFL number"
+unit = "-"
+type = "float"
+default = 0.2
+min = 0.01
+max = 1.0
+group = "Solver"
+help = "Local time step = CFL x cell width / (|u| + c). 0.2 converges cleanly; larger values can make the minmod limiter oscillate near the sonic throat."
+
+[[input]]
+key = "max_iter"
+label = "Maximum iterations"
+unit = "-"
+type = "int"
+default = 200000
+min = 1
+max = 10000000
+group = "Solver"
+help = "Stop here if not converged."
+
+[[input]]
+key = "tol"
+label = "Residual drop"
+unit = "-"
+type = "float"
+default = 1e-08
+min = 1e-14
+max = 0.1
+group = "Solver"
+help = "Converged when the density residual has dropped by this factor (1e-8 = 8 orders)."

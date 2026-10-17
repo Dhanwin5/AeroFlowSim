@@ -1,0 +1,30 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# Format: see aeroflowsim/schema.py. SI units, except where the unit says otherwise.
+# Types: float, int, bool, choice (needs options = [...]), file. One [[input]] table per input.
+
+[case]
+name = "TODO short name"
+description = "TODO one or two sentences about the physics."
+steady = true             # true: marched to a steady state; false: time-accurate (unsteady)
+
+[[input]]
+key = "L"                 # used in case.py as params["L"]
+label = "Length"
+unit = "m"
+type = "float"
+default = 1.0
+min = 0.01
+max = 10.0
+group = "Geometry"
+help = "TODO help text"
+
+[[input]]
+key = "n_cells"
+label = "Number of cells"
+unit = "-"
+type = "int"
+default = 100
+min = 10
+max = 10000
+group = "Mesh"
+help = "TODO help text"

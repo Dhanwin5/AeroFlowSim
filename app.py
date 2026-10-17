@@ -11,7 +11,7 @@ the user clicks or types something. Values that must survive between re-runs (th
 running job, input values) are kept in st.session_state, a dictionary that Streamlit keeps alive.
 
 This file only draws the screen. All real work is done by the case (through the contract in
-aeroflowsim/case_template.py) and by helper modules in aeroflowsim/ that know nothing about Streamlit.
+aeroflowsim/case.py) and by helper modules in aeroflowsim/ that know nothing about Streamlit.
 """
 
 import io
@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from aeroflowsim.case_template import get_geometry
+from aeroflowsim.case import get_geometry
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.geometry import profile_summary
 from aeroflowsim.job import RunJob
@@ -91,10 +91,10 @@ if not cases:
     st.error("No cases found in the cases/ folder.")
     st.stop()
 
-case_name = st.sidebar.selectbox("Case", list(cases), format_func=lambda n: cases[n].NAME)
+case_name = st.sidebar.selectbox("Case", list(cases), format_func=lambda n: cases[n].title)
 case = cases[case_name]
 param_list = case.parameters()
-st.sidebar.caption(case.DESCRIPTION)
+st.sidebar.caption(case.description)
 st.sidebar.caption(f"Folder: `cases/{case_name}/`")
 
 # When the user switches case, forget the mesh and run of the previous case.
@@ -107,7 +107,7 @@ if state.get("case_name") != case_name:
 for name, value in defaults(param_list).items():
     state.setdefault(widget_key(case_name, name), value)
 
-st.title(case.NAME)
+st.title(case.title)
 setup_tab, mesh_tab, run_tab, results_tab = st.tabs(["Setup", "Mesh", "Run", "Results"])
 
 
@@ -142,9 +142,9 @@ def on_upload(param_name):
 def input_widget(p):
     """One input box for parameter p, drawn according to its kind (number, choice or file)."""
     key = widget_key(case_name, p.name)
-    if p.kind == "choice":
+    if p.type == "choice":
         st.selectbox(p.label, p.options, key=key, help=p.help)
-    elif p.kind == "file":
+    elif p.type == "file":
         st.text_input(f"{p.label} (path)", key=key,
                       help=f"{p.help}  \nA path relative to the project folder, or upload a file below.")
         st.file_uploader(f"Upload {p.label.lower()}", type=["csv"], key=f"upload:{case_name}:{p.name}",

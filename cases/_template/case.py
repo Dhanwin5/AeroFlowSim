@@ -5,22 +5,12 @@
 """TEMPLATE - copy this whole folder to cases/<new_case_name>/ and fill in the parts marked TODO.
 
 Folders starting with "_" are ignored by the app and by pytest, so this file is never run.
-See aeroflowsim/case_template.py for the full description of each function.
+The inputs are described in schema.toml (the GUI panel is built from it automatically);
+params["key"] gives their values here. See aeroflowsim/case.py for the full description of each function.
 """
 
 from aeroflowsim.mesh import Mesh1D
-from aeroflowsim.parameters import Parameter
 from aeroflowsim.results import Field, Result
-
-NAME = "TODO short name"
-DESCRIPTION = "TODO one or two sentences about the physics."
-
-
-def parameters():
-    """Inputs of this case (all SI). Parameter(name, label, unit, default, min, max, help)."""
-    return [
-        Parameter("L", "Length", "m", 1.0, 0.01, 10.0, "TODO help text"),
-    ]
 
 
 def build_mesh(params):

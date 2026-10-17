@@ -22,60 +22,14 @@ from aeroflowsim.euler1d import (conserved_to_primitive, face_fluxes, muscl_reco
                           sound_speed, ssp_rk2_step)
 from aeroflowsim.geometry import conical_nozzle, profile_summary, read_profile_csv
 from aeroflowsim.mesh import Mesh1D
-from aeroflowsim.parameters import Parameter, choice_parameter, file_parameter
 from aeroflowsim.quasi1d import local_time_steps, nozzle_boundary, quasi1d_rhs
 from aeroflowsim.results import Field, Result
 
-NAME = "Quasi-1D nozzle"
-DESCRIPTION = ("Steady quasi-1D Euler flow of N2 through a converging-diverging nozzle (conical or "
-               "CSV wall profile); compared with isentropic and normal-shock theory.")
-
 PROJECT_DIR = Path(__file__).resolve().parent.parent.parent   # relative CSV paths start here
-PARAMETRIC = "Parametric (conical)"
+PARAMETRIC = "Parametric (conical)"     # options of the geometry_source input (schema.toml)
 CUSTOM_CSV = "Custom profile (CSV)"
 DEG = math.pi / 180.0   # one degree [rad]
 G0 = 9.80665            # standard gravity, used to define Isp [m/s²]
-
-
-def parameters():
-    """Inputs of this case (SI, except the cone angles which are typed in degrees)."""
-    conical = ("geometry_source", PARAMETRIC)
-    csv = ("geometry_source", CUSTOM_CSV)
-    return [
-        choice_parameter("geometry_source", "Geometry source", [PARAMETRIC, CUSTOM_CSV], PARAMETRIC,
-                         "Built-in conical nozzle, or your own wall profile r(x) from a CSV file."),
-        Parameter("d_inlet", "Inlet diameter", "m", 2.0e-3, 1e-5, 1.0,
-                  "Diameter of the straight inlet section.", show_if=conical),
-        Parameter("L_inlet", "Straight inlet length", "m", 1.33e-3, 0.0, 10.0,
-                  "Length of the straight (cylindrical) inlet before the convergent cone.", show_if=conical),
-        Parameter("half_angle_conv", "Convergent half-angle", "deg", 30.0, 1.0, 89.0,
-                  "Half-angle of the convergent cone.", show_if=conical),
-        Parameter("d_throat", "Throat diameter", "m", 0.280e-3, 1e-6, 1.0,
-                  "Smallest diameter (sharp-cornered throat).", show_if=conical),
-        Parameter("half_angle_div", "Divergent half-angle", "deg", 15.0, 1.0, 89.0,
-                  "Half-angle of the divergent cone.", show_if=conical),
-        Parameter("d_exit", "Exit diameter", "m", 0.911e-3, 1e-6, 1.0,
-                  "Diameter at the nozzle exit.", show_if=conical),
-        file_parameter("profile_csv", "Wall profile CSV", "cases/quasi1d_nozzle/examples/n2_conical_nozzle.csv",
-                       "Two columns with header x_mm,r_mm: axial position and wall RADIUS in mm, "
-                       "x increasing, at least 5 points.", show_if=csv),
-        Parameter("p0", "Total (chamber) pressure", "Pa", 5.0e5, 1.0, 1e9, "Reservoir pressure at the inlet."),
-        Parameter("T0", "Total (chamber) temperature", "K", 293.15, 1.0, 5000.0, "Reservoir temperature."),
-        Parameter("p_back", "Back pressure", "Pa", 1.0e3, 0.0, 1e9,
-                  "Ambient pressure at the exit (must not exceed p0)."),
-        Parameter("gamma", "Ratio of specific heats", "-", 1.4, 1.01, 3.0, "cp/cv of the gas (N2: 1.4)."),
-        Parameter("R", "Specific gas constant", "J/(kg·K)", 296.8, 1.0, 1e5, "R of the gas (N2: 296.8)."),
-        Parameter("n_cells", "Number of cells", "-", 300, 20, 20000, "Finite-volume cells along the nozzle."),
-        Parameter("throat_refinement", "Throat refinement", "-", 10.0, 1.0, 100.0,
-                  "Cells at the throat are this many times smaller than evenly spread cells; "
-                  "they grow by a constant factor towards both ends. 1 = uniform cells."),
-        Parameter("cfl", "CFL number", "-", 0.2, 0.01, 1.0,
-                  "Local time step = CFL x cell width / (|u| + c). 0.2 converges cleanly; larger values "
-                  "can make the minmod limiter oscillate near the sonic throat."),
-        Parameter("max_iter", "Maximum iterations", "-", 200000, 1, 10000000, "Stop here if not converged."),
-        Parameter("tol", "Residual drop", "-", 1e-8, 1e-14, 0.1,
-                  "Converged when the density residual has dropped by this factor (1e-8 = 8 orders)."),
-    ]
 
 
 # ---- geometry and mesh ------------------------------------------------------------------------

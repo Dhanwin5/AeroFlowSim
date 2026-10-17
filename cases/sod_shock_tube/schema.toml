@@ -1,0 +1,139 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# Format: see aeroflowsim/schema.py. SI units, except where the unit says otherwise.
+
+[case]
+name = "Sod shock tube"
+description = "Unsteady 1D Euler equations from a diaphragm burst (Riemann problem); HLLC + MUSCL finite volumes compared with the exact Riemann solution."
+steady = false
+
+[[input]]
+key = "rho_L"
+label = "Left density"
+unit = "kg/m³"
+type = "float"
+default = 1.0
+min = 1e-06
+max = 10000.0
+group = "Left state (x < x0)"
+help = "Initial density left of the diaphragm."
+
+[[input]]
+key = "u_L"
+label = "Left velocity"
+unit = "m/s"
+type = "float"
+default = 0.0
+min = -10000.0
+max = 10000.0
+group = "Left state (x < x0)"
+help = "Initial velocity left of the diaphragm."
+
+[[input]]
+key = "p_L"
+label = "Left pressure"
+unit = "Pa"
+type = "float"
+default = 1.0
+min = 1e-06
+max = 1000000000.0
+group = "Left state (x < x0)"
+help = "Initial pressure left of the diaphragm."
+
+[[input]]
+key = "rho_R"
+label = "Right density"
+unit = "kg/m³"
+type = "float"
+default = 0.125
+min = 1e-06
+max = 10000.0
+group = "Right state (x > x0)"
+help = "Initial density right of the diaphragm."
+
+[[input]]
+key = "u_R"
+label = "Right velocity"
+unit = "m/s"
+type = "float"
+default = 0.0
+min = -10000.0
+max = 10000.0
+group = "Right state (x > x0)"
+help = "Initial velocity right of the diaphragm."
+
+[[input]]
+key = "p_R"
+label = "Right pressure"
+unit = "Pa"
+type = "float"
+default = 0.1
+min = 1e-06
+max = 1000000000.0
+group = "Right state (x > x0)"
+help = "Initial pressure right of the diaphragm."
+
+[[input]]
+key = "gamma"
+label = "Ratio of specific heats"
+unit = "-"
+type = "float"
+default = 1.4
+min = 1.01
+max = 3.0
+group = "Gas"
+help = "cp/cv of the (calorically perfect) gas."
+
+[[input]]
+key = "L"
+label = "Tube length"
+unit = "m"
+type = "float"
+default = 1.0
+min = 0.001
+max = 1000.0
+group = "Geometry"
+help = "The tube runs from x = 0 to x = L."
+
+[[input]]
+key = "x0"
+label = "Diaphragm position"
+unit = "m"
+type = "float"
+default = 0.5
+min = 0.0
+max = 1000.0
+group = "Geometry"
+help = "Initial position of the diaphragm (0 < x0 < L)."
+
+[[input]]
+key = "t_end"
+label = "End time"
+unit = "s"
+type = "float"
+default = 0.2
+min = 1e-09
+max = 1000.0
+group = "Solver"
+help = "Simulated time. Results are only valid while waves have not reached the tube ends."
+
+[[input]]
+key = "n_cells"
+label = "Number of cells"
+unit = "-"
+type = "int"
+default = 400
+min = 10
+max = 20000
+group = "Mesh"
+help = "Number of equal finite-volume cells."
+
+[[input]]
+key = "cfl"
+label = "CFL number"
+unit = "-"
+type = "float"
+default = 0.5
+min = 0.05
+max = 1.0
+group = "Solver"
+help = "Time step = CFL x cell width / fastest wave speed. 0.5 is a safe choice."

@@ -13,34 +13,7 @@ import numpy as np
 
 from aeroflowsim.geometry import WallProfile
 from aeroflowsim.mesh import Mesh1D
-from aeroflowsim.parameters import Parameter
 from aeroflowsim.results import Field, Result
-
-NAME = "1D heat conduction (demo)"
-DESCRIPTION = ("Steady conduction in a rod with fixed end temperatures and uniform heat "
-               "generation; compared with the exact parabolic solution.")
-
-
-def parameters():
-    """Inputs of this case (all SI)."""
-    return [
-        Parameter("L", "Rod length", "m", 1.0, 0.01, 10.0,
-                  "Length of the rod."),
-        Parameter("k", "Thermal conductivity", "W/(m·K)", 50.0, 0.1, 1000.0,
-                  "Constant thermal conductivity of the rod material."),
-        Parameter("q_gen", "Volumetric heat generation", "W/m³", 5.0e4, 0.0, 1.0e7,
-                  "Uniform heat generated inside the rod (e.g. electrical heating)."),
-        Parameter("T_left", "Temperature at x = 0", "K", 300.0, 1.0, 5000.0,
-                  "Fixed temperature at the left end."),
-        Parameter("T_right", "Temperature at x = L", "K", 400.0, 1.0, 5000.0,
-                  "Fixed temperature at the right end."),
-        Parameter("n_nodes", "Number of mesh nodes", "-", 41, 3, 101,
-                  "Number of equally spaced nodes, including both ends."),
-        Parameter("tol", "Convergence tolerance", "-", 1.0e-10, 1.0e-14, 1.0e-2,
-                  "Stop when the normalised residual drops below this value."),
-        Parameter("max_iter", "Maximum iterations", "-", 100000, 1, 1000000,
-                  "Stop after this many iterations even if not converged."),
-    ]
 
 
 def build_mesh(params):
