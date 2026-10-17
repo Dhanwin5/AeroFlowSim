@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Reusable numerics for the 1D Euler equations (ideal gas), finite-volume form.
 
 Equations (conservative form):

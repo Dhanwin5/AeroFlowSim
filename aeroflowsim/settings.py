@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Save and load a case's input values ("settings") as small YAML files.
 
 Settings files live in cases/<case_name>/settings/<file_name>.yaml and look like:

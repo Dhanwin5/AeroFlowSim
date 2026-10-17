@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Demo case: steady 1D heat conduction in a rod with uniform heat generation.
 
 Equation:   k d2T/dx2 + q_gen = 0      on 0 <= x <= L

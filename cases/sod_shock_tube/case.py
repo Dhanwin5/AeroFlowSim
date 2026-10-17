@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Sod shock tube: unsteady 1D Euler equations (ideal gas) from a Riemann initial condition.
 
 Numerics: finite volumes with HLLC flux, MUSCL/minmod reconstruction, SSP-RK2 time

@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Definition of a case input ("parameter") and helpers to get defaults and check values.
 
 A case lists its inputs in parameters(). The GUI uses this list to draw input boxes,

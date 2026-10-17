@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Exact solution of the Riemann problem for the 1D Euler equations (ideal gas).
 
 Reference: E.F. Toro, "Riemann Solvers and Numerical Methods for Fluid Dynamics",

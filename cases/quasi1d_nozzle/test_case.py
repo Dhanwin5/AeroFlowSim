@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Validation tests for quasi1d_nozzle (default N2 thruster, p0 = 5 bar, T0 = 293.15 K).
 
 Reference values: isentropic area-Mach theory and normal-shock relations (aeroflowsim/gasdynamics.py),

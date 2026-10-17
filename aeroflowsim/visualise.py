@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Contour-style pictures shared by all cases: shape view, x-t diagram and 2D contour.
 
 Every function returns a matplotlib Figure. The GUI shows it (st.pyplot) and offers it as a

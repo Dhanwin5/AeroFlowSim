@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Quasi-1D Euler equations (flow in a duct of slowly varying area A(x)), finite-volume form.
 
 Equations, written for a slice of the duct (not per unit area):

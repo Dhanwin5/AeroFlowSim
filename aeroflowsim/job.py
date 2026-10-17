@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Run a case in the background so a GUI can show live progress and stop it.
 
 Why a background thread? A GUI must stay responsive while the solver iterates: it redraws

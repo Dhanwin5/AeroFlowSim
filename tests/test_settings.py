@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Tests for aeroflowsim/settings.py (save / load case inputs as YAML) and the mesh additions."""
 
 import numpy as np

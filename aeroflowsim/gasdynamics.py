@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Classical 1D gas-dynamics relations (calorically perfect gas): isentropic flow and normal shocks.
 
 Used as the "theory" for nozzle cases (and their tests). Pure functions, nothing here imports the GUI.

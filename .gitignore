@@ -1,5 +1,23 @@
+# Virtual environments
 .venv/
-results/
+venv/
+
+# Python caches and build files
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# Case output (made by "python -m aeroflowsim run ...") and large result files
+results/
+*.vtk
+*.vtu
+*.vtp
+*.pvd
+
+# Files uploaded in the GUI and personal saved settings of each case
 uploads/
+cases/*/settings/

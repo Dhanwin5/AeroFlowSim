@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """TEMPLATE - copy this whole folder to cases/<new_case_name>/ and fill in the parts marked TODO.
 
 Folders starting with "_" are ignored by the app and by pytest, so this file is never run.

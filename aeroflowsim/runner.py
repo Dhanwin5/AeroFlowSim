@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Run one case from start to finish and save the results to disk.
 
 Used by run_case.py (command line); the GUI reuses the CSV/PNG writers and max_errors.

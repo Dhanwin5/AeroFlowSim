@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Tests for aeroflowsim/riemann_exact.py against the published values in Toro, Table 4.2."""
 
 import numpy as np

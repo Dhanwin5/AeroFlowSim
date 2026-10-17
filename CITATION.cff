@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use AeroFlowSim in your work, please cite it as below."
+title: AeroFlowSim
+abstract: "A GUI-first, open-source CFD solver for nozzle and propulsion aerodynamics, with built-in validity checks and published validation."
+type: software
+authors:
+  - family-names: Mehta
+    given-names: Dhanwin
+version: 0.1.0.dev0
+license: GPL-3.0-or-later
+keywords:
+  - CFD
+  - nozzle
+  - propulsion
+  - aerodynamics

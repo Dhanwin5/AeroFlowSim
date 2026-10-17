@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Streamlit GUI for AeroFlowSim: Setup / Mesh / Run / Results.
 
 Start with:   .venv\\Scripts\\python.exe -m streamlit run app.py

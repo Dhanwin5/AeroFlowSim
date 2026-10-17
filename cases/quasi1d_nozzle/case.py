@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Quasi-1D nozzle: steady inviscid flow of N2 through a converging-diverging nozzle.
 
 Numerics: finite volumes for the quasi-1D Euler equations (aeroflowsim/quasi1d.py) with the HLLC flux,

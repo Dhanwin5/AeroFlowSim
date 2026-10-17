@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Smoke tests of the Streamlit GUI, using Streamlit's built-in headless tester (no browser).
 
 AppTest runs app.py like a real user session: we can read widgets and press buttons.

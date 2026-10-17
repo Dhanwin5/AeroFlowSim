@@ -1,0 +1,56 @@
+# AeroFlowSim project settings: what the package is called, what it needs, and how tests run.
+# Install into the virtual environment (from the project folder):  pip install -e .
+# ("-e" = editable: Python uses the files in this folder directly, so edits take effect at once.)
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeroflowsim"
+version = "0.1.0.dev0"
+description = "A GUI-first, open-source CFD solver for nozzle and propulsion aerodynamics, with built-in validity checks and published validation."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Dhanwin Mehta" }]
+requires-python = ">=3.13"
+keywords = ["CFD", "nozzle", "propulsion", "aerodynamics", "finite volume", "Euler", "education"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+# Lower bounds only; requirements.txt holds the exact versions used in .venv.
+dependencies = [
+    "numpy>=2.5",
+    "scipy>=1.18",
+    "matplotlib>=3.11",
+    "plotly>=7.1",
+    "streamlit>=1.65",
+    "PyYAML>=6.0",
+    "pytest>=9.1",
+]
+
+[project.optional-dependencies]
+# Gmsh meshing will be added here in Prompt 6b:  pip install -e ".[mesh]"
+mesh = []
+
+[tool.setuptools]
+packages = ["aeroflowsim", "aeroflowsim.gui"]
+
+[tool.pytest.ini_options]
+# Every case has a file called test_case.py; importlib mode allows identical file names.
+# Slow validation tests are skipped by default; run them with:  python -m pytest -m validation
+addopts = ["--import-mode=importlib", "-m", "not validation"]
+# Make "import aeroflowsim" and "import validation" work from any test file.
+pythonpath = ["."]
+testpaths = ["tests", "cases", "validation"]
+# Folders starting with "_" (e.g. cases/_template) or "." are not searched for tests.
+norecursedirs = ["_*", ".*", "results"]
+python_files = ["test_*.py"]
+markers = [
+    "validation: slow comparison of whole cases against published / exact reference values",
+]

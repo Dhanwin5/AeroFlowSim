@@ -1,3 +1,7 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Interactive Plotly figures used by the GUI (mesh, residual history, solution fields).
 
 These functions only build figures; they do not show them. The GUI (app.py) displays them,
