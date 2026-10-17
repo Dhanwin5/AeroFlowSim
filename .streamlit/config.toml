@@ -1,0 +1,11 @@
+# Streamlit settings for the AeroFlowSim GUI, read automatically when the app starts
+# (start it from the project folder:  python -m streamlit run app.py).
+
+[server]
+# Only this computer can open the GUI (http://localhost:8501). Nobody else on the same
+# Wi-Fi or network can reach it or run cases on this computer.
+address = "localhost"
+
+[browser]
+# Do not send anonymous usage statistics to Streamlit's makers.
+gatherUsageStats = false

@@ -97,6 +97,9 @@ Commands (from the project folder):
    pyyaml, pytest. Optional group `mesh` (Gmsh, from Prompt 6b).
 10. Every `.py` file starts with the AeroFlowSim licence header (GPL-3.0-or-later).
 11. Ask before deleting files or making changes that were not requested.
+12. **Privacy:** the GUI listens on localhost only and sends no usage statistics
+    (`.streamlit/config.toml`, tested). Never change this without asking. User data (results/,
+    uploads/, cases/*/settings/) is git-ignored and must never be committed.
 
 ## Roadmap
 - **Phase 1 - 2D foundations and supersonic:**

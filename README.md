@@ -58,7 +58,9 @@ python -m pip install -e .
 python -m streamlit run app.py
 ```
 
-Your browser opens the app. Choose a case in the sidebar, set the inputs in **Setup**, build the
+Your browser opens the app at `http://localhost:8501`. For privacy, `.streamlit/config.toml` makes
+the GUI reachable **only from your own computer** (nobody else on your network can open it or run
+cases on it) and turns off Streamlit's usage statistics. Choose a case in the sidebar, set the inputs in **Setup**, build the
 mesh in **Mesh**, press **Run**, and look at the plots, key numbers and **Validity checks** in **Results**.
 
 ## Command line and scripts
