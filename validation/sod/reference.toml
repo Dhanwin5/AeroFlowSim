@@ -1,0 +1,55 @@
+# Sod shock tube: reference values of the exact Riemann solution.
+# Values: E. F. Toro, Riemann Solvers and Numerical Methods for Fluid Dynamics, 3rd ed.,
+# Springer 2009, chapter 4, test 1 (rho, u, p = 1, 0, 1 left; 0.125, 0, 0.1 right; gamma = 1.4).
+# Wave travel distances at t = 0.2 s follow from the exact shock speed (1.75216 m/s) and u*.
+
+title = "Sod shock tube (Toro test 1, t = 0.2 s, 400 cells)"
+case = "cases/sod_shock_tube"
+
+[[reference]]
+id = "p_star"
+quantity = "Star-region pressure p* (at x = 0.75 m)"
+value = 0.30313
+unit = "Pa"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313"
+
+[[reference]]
+id = "u_star"
+quantity = "Star-region velocity u* (at x = 0.75 m)"
+value = 0.92745
+unit = "m/s"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: u* = 0.92745"
+
+[[reference]]
+id = "rho_star_L"
+quantity = "Density left of the contact rho*L (at x = 0.6 m)"
+value = 0.42632
+unit = "kg/m³"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: rho*L = 0.42632"
+
+[[reference]]
+id = "rho_star_R"
+quantity = "Density right of the contact rho*R (at x = 0.75 m)"
+value = 0.26557
+unit = "kg/m³"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: rho*R = 0.26557"
+
+[[reference]]
+id = "shock_travel"
+quantity = "Shock distance from the diaphragm"
+value = 0.350432
+unit = "m"
+tolerance_percent = 2.0
+source = "Exact shock speed 1.75216 m/s x 0.2 s (Toro 2009, test 1)"
+
+[[reference]]
+id = "contact_travel"
+quantity = "Contact distance from the diaphragm"
+value = 0.18549
+unit = "m"
+tolerance_percent = 2.0
+source = "Contact speed u* = 0.92745 m/s x 0.2 s (Toro 2009, test 1)"

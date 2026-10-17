@@ -1,0 +1,48 @@
+# Quasi-1D nozzle: reference values from 1D gas-dynamics theory for the default N2 cold-gas
+# thruster nozzle (conical, throat 0.280 mm, exit 0.911 mm, A_exit/A_throat = 10.59),
+# p0 = 5 bar, T0 = 293.15 K, gamma = 1.4, R = 296.8 J/(kg K).
+# Theory: isentropic area-Mach relation, choked mass flow and normal-shock relations
+# (e.g. J. D. Anderson, Modern Compressible Flow, 3rd ed., McGraw-Hill 2003, chapters 3 and 5).
+
+title = "Quasi-1D nozzle (N2 thruster, p0 = 5 bar, T0 = 293.15 K)"
+case = "cases/quasi1d_nozzle"
+
+[[reference]]
+id = "M_exit"
+quantity = "Exit Mach number (p_back = 1 kPa)"
+value = 3.99
+unit = "-"
+tolerance_percent = 2.0
+source = "Isentropic area-Mach relation at A_exit/A_throat = 10.59 (supersonic branch)"
+
+[[reference]]
+id = "p_exit"
+quantity = "Exit pressure (p_back = 1 kPa)"
+value = 3.36
+unit = "kPa"
+tolerance_percent = 5.0
+source = "Isentropic relation p0/p at the exit Mach number"
+
+[[reference]]
+id = "mdot"
+quantity = "Mass flow (p_back = 1 kPa)"
+value = 71.5
+unit = "mg/s"
+tolerance_percent = 2.0
+source = "Choked mass flow through the throat area"
+
+[[reference]]
+id = "F_vacuum"
+quantity = "Vacuum thrust (p_back = 1 kPa)"
+value = 50.8
+unit = "mN"
+tolerance_percent = 2.0
+source = "F_vac = mdot u_exit + p_exit A_exit from the isentropic exit state"
+
+[[reference]]
+id = "x_shock"
+quantity = "Normal-shock position past the throat (p_back = 2.5 bar)"
+value = 0.3208
+unit = "mm"
+tolerance_percent = 2.0
+source = "Normal shock in the divergent part: area-Mach + normal-shock relations matched to p_back = 2.5 bar"
