@@ -72,7 +72,8 @@ if not cases:
     st.error("No cases found in the cases/ folder.")
     st.stop()
 
-case_name = st.sidebar.selectbox("Case", list(cases), format_func=lambda n: cases[n].title)
+case_name = st.sidebar.selectbox("Case", list(cases), format_func=lambda n: cases[n].title,
+                                 filter_mode=None)   # pick from the list only, no typing
 case = cases[case_name]
 param_list = case.parameters()
 st.sidebar.caption(case.description)
@@ -147,7 +148,7 @@ with setup_tab:
                 state.settings_message = ("error", f"Could not save: {error}")
     with load_col:
         saved = list_settings(case_name)
-        chosen = st.selectbox("Saved settings", saved, index=None,
+        chosen = st.selectbox("Saved settings", saved, index=None, filter_mode=None,
                               placeholder="none saved yet" if not saved else "choose a file")
         st.button("Load settings", on_click=on_load, args=(chosen,), disabled=chosen is None)
     if "settings_message" in state:
@@ -314,9 +315,9 @@ def contours_section(result, reference_lines, mesh):
     # The x-t diagram shows the stored snapshots; the other views show the final fields.
     fields = result.snapshots.fields if view == "x-t diagram" else result.fields
     col_field, col_cmap = st.columns(2)
-    key = col_field.selectbox("Field", list(fields), key="contour_field",
+    key = col_field.selectbox("Field", list(fields), key="contour_field", filter_mode=None,
                               format_func=lambda k: f"{fields[k].label} [{fields[k].unit}]")
-    cmap = col_cmap.selectbox("Colour map", COLORMAPS, key="contour_cmap")
+    cmap = col_cmap.selectbox("Colour map", COLORMAPS, key="contour_cmap", filter_mode=None)
     f = fields[key]
 
     vmin = vmax = None   # None = automatic (data minimum / maximum)
@@ -368,7 +369,7 @@ with results_tab:
         validity_box(job.checks)
 
         keys = list(result.fields)
-        key = st.selectbox("Field", keys, format_func=lambda k: f"{result.fields[k].label} "
+        key = st.selectbox("Field", keys, filter_mode=None, format_func=lambda k: f"{result.fields[k].label} "
                                                              f"[{result.fields[k].unit}]")
         ref_field = reference.get(key) if reference else None
         st.plotly_chart(field_figure(mesh, result.fields[key], ref_field), key="field_plot")

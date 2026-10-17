@@ -69,7 +69,8 @@ def input_widget(case, p, uploads_dir, project_dir):
     """One input box for parameter p, chosen by its type (float, int, bool, choice or file)."""
     key = widget_key(case.name, p.name)
     if p.type == "choice":
-        st.selectbox(p.label, p.options, key=key, help=p.help or None)
+        st.selectbox(p.label, p.options, key=key, help=p.help or None,
+                     filter_mode=None)   # pick from the list only: no text cursor, no typing
     elif p.type == "bool":
         st.checkbox(p.label, key=key, help=p.help or None)
     elif p.type == "file":

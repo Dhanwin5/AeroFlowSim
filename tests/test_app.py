@@ -153,3 +153,21 @@ def test_results_tab_shows_validity_checks_box():
     assert not at.exception, at.exception
     assert "**Validity checks**" in [m.value for m in at.markdown]
     assert any("Convergence" in s.value and "orders of magnitude" in s.value for s in at.success)
+
+
+def test_dropdowns_are_pick_only_without_a_text_cursor():
+    """Every dropdown is pick-from-list only (filter_mode=None): no blinking text cursor, no typing."""
+    from streamlit.proto.Selectbox_pb2 import Selectbox
+    no_typing = Selectbox.DESCRIPTOR.fields_by_name["filter_mode"].enum_type.values_by_name["FILTER_MODE_NONE"].number
+    at = _app()
+    at.button(key="run").click().run()          # demo case: a few seconds
+    at.session_state["job"].wait(timeout=60)
+    at.run()                                    # Results tab: field and colour-map dropdowns
+    boxes = list(at.selectbox)
+    labels = {box.label for box in boxes}
+    assert {"Case", "Saved settings", "Field", "Colour map"} <= labels
+    for box in boxes:
+        assert box.proto.filter_mode == no_typing, box.label
+    at = _nozzle_app()                          # a "choice" input from schema.toml
+    choice = at.selectbox(key="quasi1d_nozzle:geometry_source")
+    assert choice.proto.filter_mode == no_typing
