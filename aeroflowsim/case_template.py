@@ -6,34 +6,34 @@ A case.py file must define:
     DESCRIPTION   str   one or two sentences describing the case
 
     parameters()                  -> list[Parameter]
-        The inputs of the case (see core/parameters.py).
+        The inputs of the case (see aeroflowsim/parameters.py).
 
     build_mesh(params)            -> Mesh1D
-        params is a dict {name: value}. Returns the mesh (see core/mesh.py).
+        params is a dict {name: value}. Returns the mesh (see aeroflowsim/mesh.py).
 
     run(params, mesh, progress)   -> Result
         Solves the problem. While iterating it calls progress(iteration, residual)
         so the GUI or the command line can show how the solution is converging.
-        Returns a Result (see core/results.py).
+        Returns a Result (see aeroflowsim/results.py).
 
     reference(params, mesh)       -> dict[str, Field] or None      (optional)
         Theory or exact solution on the same mesh. Keys should match the keys of
         Result.fields so the two can be compared and plotted together.
 
     geometry(params)              -> WallProfile                    (optional)
-        The duct / nozzle wall r(x) for these inputs (see core/geometry.py). The GUI shows it
+        The duct / nozzle wall r(x) for these inputs (see aeroflowsim/geometry.py). The GUI shows it
         as a preview in the Setup tab; raise ValueError with a "what to fix" message if the
         inputs do not give a valid geometry (e.g. a bad CSV file).
 
     reference_lines(params, mesh) -> list[Line]                     (optional)
         Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
-        (see core/results.py). Kept apart from reference() because reference() returns
+        (see aeroflowsim/results.py). Kept apart from reference() because reference() returns
         fields only (they are compared value by value with the numerical fields).
 
 Optional extras a case may put in its Result (the GUI then offers more "Contours" views):
     Result.snapshots   fields over time, for unsteady cases -> x-t diagram.
-                       Collect them with core.results.SnapshotRecorder (at most ~200 kept).
-    Result.shape       outline r(x) as a core.geometry.WallProfile -> shape view.
+                       Collect them with aeroflowsim.results.SnapshotRecorder (at most ~200 kept).
+    Result.shape       outline r(x) as a aeroflowsim.geometry.WallProfile -> shape view.
                        Without it the shape view uses a constant height.
     Result.shape_note  text under the shape view title, e.g. "quasi-1D: varies along x only".
 

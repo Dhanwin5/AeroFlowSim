@@ -1,18 +1,18 @@
 """Sod shock tube: unsteady 1D Euler equations (ideal gas) from a Riemann initial condition.
 
 Numerics: finite volumes with HLLC flux, MUSCL/minmod reconstruction, SSP-RK2 time
-stepping and transmissive ends (all in core/euler1d.py). Compared with the exact Riemann
-solution (core/riemann_exact.py). See README.md.
+stepping and transmissive ends (all in aeroflowsim/euler1d.py). Compared with the exact Riemann
+solution (aeroflowsim/riemann_exact.py). See README.md.
 """
 
 import numpy as np
 
-from core.euler1d import (cfl_time_step, conserved_to_primitive, flux_divergence,
+from aeroflowsim.euler1d import (cfl_time_step, conserved_to_primitive, flux_divergence,
                           primitive_to_conserved, sound_speed, ssp_rk2_step)
-from core.mesh import Mesh1D
-from core.parameters import Parameter
-from core.results import Field, Line, Result, SnapshotRecorder
-from core.riemann_exact import exact_solution, wave_structure
+from aeroflowsim.mesh import Mesh1D
+from aeroflowsim.parameters import Parameter
+from aeroflowsim.results import Field, Line, Result, SnapshotRecorder
+from aeroflowsim.riemann_exact import exact_solution, wave_structure
 
 NAME = "Sod shock tube"
 DESCRIPTION = ("Unsteady 1D Euler equations from a diaphragm burst (Riemann problem); "

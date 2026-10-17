@@ -1,10 +1,10 @@
-"""Tests for the shared code in core/: parameters, discovery and the runner."""
+"""Tests for the shared code in aeroflowsim/: parameters, discovery and the runner."""
 
 import pytest
 
-from core.discovery import find_cases
-from core.parameters import Parameter, defaults, validate
-from core.runner import run_case
+from aeroflowsim.discovery import find_cases
+from aeroflowsim.parameters import Parameter, defaults, validate
+from aeroflowsim.runner import run_case
 
 PARAMS = [
     Parameter("L", "Length", "m", 1.0, 0.1, 10.0),
@@ -68,7 +68,7 @@ def test_runner_writes_all_outputs(tmp_path):
 
 
 def test_choice_and_file_parameters():
-    from core.parameters import choice_parameter, file_parameter, is_shown, parse_value
+    from aeroflowsim.parameters import choice_parameter, file_parameter, is_shown, parse_value
     params = [
         choice_parameter("src", "Source", ["A", "B"], "A"),
         file_parameter("csv", "Profile", "x.csv", show_if=("src", "B")),

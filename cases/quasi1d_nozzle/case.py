@@ -1,10 +1,10 @@
 """Quasi-1D nozzle: steady inviscid flow of N2 through a converging-diverging nozzle.
 
-Numerics: finite volumes for the quasi-1D Euler equations (core/quasi1d.py) with the HLLC flux,
-MUSCL/minmod reconstruction and SSP-RK2 of core/euler1d.py, marched to steady state with local
+Numerics: finite volumes for the quasi-1D Euler equations (aeroflowsim/quasi1d.py) with the HLLC flux,
+MUSCL/minmod reconstruction and SSP-RK2 of aeroflowsim/euler1d.py, marched to steady state with local
 time stepping. Reservoir inlet (p0, T0), back pressure at the exit. Compared with isentropic
 area-Mach theory and, when a shock stands in the nozzle, normal-shock relations
-(core/gasdynamics.py). Geometry from core/geometry.py (conical or CSV). See README.md.
+(aeroflowsim/gasdynamics.py). Geometry from aeroflowsim/geometry.py (conical or CSV). See README.md.
 """
 
 import math
@@ -13,14 +13,14 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import brentq
 
-from core import gasdynamics as gd
-from core.euler1d import (conserved_to_primitive, face_fluxes, muscl_reconstruct, primitive_to_conserved,
+from aeroflowsim import gasdynamics as gd
+from aeroflowsim.euler1d import (conserved_to_primitive, face_fluxes, muscl_reconstruct, primitive_to_conserved,
                           sound_speed, ssp_rk2_step)
-from core.geometry import conical_nozzle, profile_summary, read_profile_csv
-from core.mesh import Mesh1D
-from core.parameters import Parameter, choice_parameter, file_parameter
-from core.quasi1d import local_time_steps, nozzle_boundary, quasi1d_rhs
-from core.results import Field, Result
+from aeroflowsim.geometry import conical_nozzle, profile_summary, read_profile_csv
+from aeroflowsim.mesh import Mesh1D
+from aeroflowsim.parameters import Parameter, choice_parameter, file_parameter
+from aeroflowsim.quasi1d import local_time_steps, nozzle_boundary, quasi1d_rhs
+from aeroflowsim.results import Field, Result
 
 NAME = "Quasi-1D nozzle"
 DESCRIPTION = ("Steady quasi-1D Euler flow of N2 through a converging-diverging nozzle (conical or "

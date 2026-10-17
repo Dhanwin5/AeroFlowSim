@@ -23,7 +23,7 @@ Default inputs (standard Sod problem, non-dimensional values entered in SI units
 `rho_L = 1, u_L = 0, p_L = 1, rho_R = 0.125, u_R = 0, p_R = 0.1, gamma = 1.4, L = 1, x0 = 0.5,
 t_end = 0.2`, 400 cells, CFL = 0.5.
 
-## Numerical method (code in `core/euler1d.py`)
+## Numerical method (code in `aeroflowsim/euler1d.py`)
 
 - **Finite volumes.** Each cell stores the cell average of U. A cell changes only
   through the fluxes at its two faces: `dU_i/dt = -(F_{i+1/2} - F_{i-1/2}) / dx`.
@@ -46,7 +46,7 @@ t_end = 0.2`, 400 cells, CFL = 0.5.
   on `t_end`.
 - **Transmissive boundaries.** Two ghost cells at each end copy the end cell.
 
-## Exact solution (code in `core/riemann_exact.py`)
+## Exact solution (code in `aeroflowsim/riemann_exact.py`)
 
 Toro, chapter 4. Pressure p* and velocity u* are continuous across the contact. Each
 outer wave is a shock (if `p* > p_K`) or a rarefaction (if `p* <= p_K`), which gives

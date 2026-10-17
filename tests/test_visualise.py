@@ -1,13 +1,13 @@
-"""Tests of the shared contour-style views (core/visualise.py) and the snapshot recorder."""
+"""Tests of the shared contour-style views (aeroflowsim/visualise.py) and the snapshot recorder."""
 
 import numpy as np
 import pytest
 from matplotlib.collections import QuadMesh
 from matplotlib.figure import Figure
 
-from core.geometry import WallProfile
-from core.results import Field, Line, SnapshotRecorder
-from core.visualise import contour_2d, figure_png, shape_view, xt_diagram
+from aeroflowsim.geometry import WallProfile
+from aeroflowsim.results import Field, Line, SnapshotRecorder
+from aeroflowsim.visualise import contour_2d, figure_png, shape_view, xt_diagram
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 

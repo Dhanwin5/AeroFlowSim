@@ -7,8 +7,8 @@ and tests can check them without a browser. Nothing here imports the GUI.
 import numpy as np
 import plotly.graph_objects as go
 
-from core.mesh import Mesh1D, Mesh2D
-from core.runner import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE
+from aeroflowsim.mesh import Mesh1D, Mesh2D
+from aeroflowsim.runner import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE
 
 MAX_PLOT_POINTS = 5000  # residual curves longer than this are thinned so the browser stays fast
 
@@ -104,7 +104,7 @@ def field_figure(mesh, field, ref_field=None):
 def profile_figure(profile, n_points=600):
     """Wall profile r(x) of a duct / nozzle, mirrored about the axis, with the throat marked.
 
-    profile: core.geometry.WallProfile. The curve is drawn with the profile's own interpolation
+    profile: aeroflowsim.geometry.WallProfile. The curve is drawn with the profile's own interpolation
     (so a CSV profile shows the smooth PCHIP curve), and the given points are drawn as dots.
     """
     x = np.linspace(profile.x[0], profile.x[-1], n_points)       # [m]

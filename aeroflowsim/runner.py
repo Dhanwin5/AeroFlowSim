@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from core.case_template import get_reference, get_reference_lines
-from core.discovery import CASES_DIR, load_case
-from core.parameters import defaults, validate
+from aeroflowsim.case_template import get_reference, get_reference_lines
+from aeroflowsim.discovery import CASES_DIR, load_case
+from aeroflowsim.parameters import defaults, validate
 # Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
-from core.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png,
+from aeroflowsim.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png,
                             shape_view, style_axes, xt_diagram)
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"

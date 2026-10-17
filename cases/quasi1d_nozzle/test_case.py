@@ -1,6 +1,6 @@
 """Validation tests for quasi1d_nozzle (default N2 thruster, p0 = 5 bar, T0 = 293.15 K).
 
-Reference values: isentropic area-Mach theory and normal-shock relations (core/gasdynamics.py),
+Reference values: isentropic area-Mach theory and normal-shock relations (aeroflowsim/gasdynamics.py),
 computed by hand for the default conical nozzle (A_exit/A_throat = 10.59).
 """
 
@@ -8,9 +8,9 @@ from functools import lru_cache
 
 import numpy as np
 
-from core.discovery import load_case
-from core.job import RunJob
-from core.parameters import defaults
+from aeroflowsim.discovery import load_case
+from aeroflowsim.job import RunJob
+from aeroflowsim.parameters import defaults
 
 case = load_case("quasi1d_nozzle")
 

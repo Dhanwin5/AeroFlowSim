@@ -19,8 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from core.discovery import CASES_DIR
-from core.parameters import defaults, validate
+from aeroflowsim.discovery import CASES_DIR
+from aeroflowsim.parameters import defaults, validate
 
 
 def settings_dir(case_name: str, cases_dir: Path = CASES_DIR) -> Path:

@@ -1,4 +1,4 @@
-"""Streamlit GUI for Flow Sim: Setup / Mesh / Run / Results.
+"""Streamlit GUI for AeroFlowSim: Setup / Mesh / Run / Results.
 
 Start with:   .venv\\Scripts\\python.exe -m streamlit run app.py
 
@@ -7,7 +7,7 @@ the user clicks or types something. Values that must survive between re-runs (th
 running job, input values) are kept in st.session_state, a dictionary that Streamlit keeps alive.
 
 This file only draws the screen. All real work is done by the case (through the contract in
-core/case_template.py) and by helper modules in core/ that know nothing about Streamlit.
+aeroflowsim/case_template.py) and by helper modules in aeroflowsim/ that know nothing about Streamlit.
 """
 
 import io
@@ -17,22 +17,22 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from core.case_template import get_geometry
-from core.discovery import find_cases
-from core.geometry import profile_summary
-from core.job import RunJob
-from core.mesh import Mesh1D, Mesh2D
-from core.parameters import defaults, is_shown, validate
-from core.plots import field_figure, mesh_figure, profile_figure, residual_figure
-from core.runner import fields_csv_text, max_errors, plot_fields
-from core.settings import list_settings, load_settings, save_settings, settings_dir
-from core.visualise import COLORMAPS, contour_2d, figure_png, shape_view, xt_diagram
+from aeroflowsim.case_template import get_geometry
+from aeroflowsim.discovery import find_cases
+from aeroflowsim.geometry import profile_summary
+from aeroflowsim.job import RunJob
+from aeroflowsim.mesh import Mesh1D, Mesh2D
+from aeroflowsim.parameters import defaults, is_shown, validate
+from aeroflowsim.plots import field_figure, mesh_figure, profile_figure, residual_figure
+from aeroflowsim.runner import fields_csv_text, max_errors, plot_fields
+from aeroflowsim.settings import list_settings, load_settings, save_settings, settings_dir
+from aeroflowsim.visualise import COLORMAPS, contour_2d, figure_png, shape_view, xt_diagram
 
 PROJECT_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = PROJECT_DIR / "assets"     # logo images
 UPLOADS_DIR = PROJECT_DIR / "uploads"   # files uploaded in the Setup tab (not committed to git)
 
-st.set_page_config(page_title="Flow Sim", page_icon=str(ASSETS_DIR / "icon.png"), layout="wide")
+st.set_page_config(page_title="AeroFlowSim", page_icon=str(ASSETS_DIR / "icon.png"), layout="wide")
 state = st.session_state  # short name
 
 

@@ -7,10 +7,10 @@ Solved by pseudo-time marching to steady state (see README.md).
 
 import numpy as np
 
-from core.geometry import WallProfile
-from core.mesh import Mesh1D
-from core.parameters import Parameter
-from core.results import Field, Result
+from aeroflowsim.geometry import WallProfile
+from aeroflowsim.mesh import Mesh1D
+from aeroflowsim.parameters import Parameter
+from aeroflowsim.results import Field, Result
 
 NAME = "1D heat conduction (demo)"
 DESCRIPTION = ("Steady conduction in a rod with fixed end temperatures and uniform heat "

@@ -1,12 +1,12 @@
-"""Tests for core/job.py (background run with live progress and Stop)."""
+"""Tests for aeroflowsim/job.py (background run with live progress and Stop)."""
 
 import threading
 from types import SimpleNamespace
 
-from core.discovery import load_case
-from core.job import RunJob
-from core.parameters import defaults, validate
-from core.results import Field, Result
+from aeroflowsim.discovery import load_case
+from aeroflowsim.job import RunJob
+from aeroflowsim.parameters import defaults, validate
+from aeroflowsim.results import Field, Result
 
 
 def _demo(**changes):

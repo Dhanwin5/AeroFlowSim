@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from core import gasdynamics as gd
+from aeroflowsim import gasdynamics as gd
 
 G = 1.4
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from core.geometry import WallProfile
+from aeroflowsim.geometry import WallProfile
 
 
 @dataclass

@@ -37,7 +37,7 @@ Finite volumes. Cell i lies between faces i−½ and i+½ and has volume V_i = �
     V_i dU_i/dt = −(F A)_{i+½} + (F A)_{i−½} + [0, p_i (A_{i+½} − A_{i−½}), 0]
 
 * Face fluxes: HLLC Riemann solver with MUSCL/minmod reconstruction of ρ, u, p
-  (`core/euler1d.py`, the same code as the Sod shock tube).
+  (`aeroflowsim/euler1d.py`, the same code as the Sod shock tube).
 * **Well-balanced source.** The source uses the cell pressure times the difference of the face
   areas. For gas at rest every face flux is exactly (0, p, 0), so in the momentum equation
   −p A_{i+½} + p A_{i−½} + p (A_{i+½} − A_{i−½}) = 0. To make this exactly zero (not just ~1e-16),
@@ -101,7 +101,7 @@ field, labelled "quasi-1D: varies along x only".
 
 ## Reference solution (`reference()`)
 
-`core/gasdynamics.py`, with A* = throat area:
+`aeroflowsim/gasdynamics.py`, with A* = throat area:
 
 * Isentropic area–Mach relation A/A* = (1/M)[(2/(γ+1))(1 + (γ−1)/2 M²)]^{(γ+1)/(2(γ−1))}:
   subsonic branch before the throat, supersonic branch after it.
@@ -118,13 +118,13 @@ field, labelled "quasi-1D: varies along x only".
 
 Geometry source (Setup tab):
 
-* **Parametric (conical):** the inputs above (`core.geometry.conical_nozzle`), sharp corners.
+* **Parametric (conical):** the inputs above (`aeroflowsim.geometry.conical_nozzle`), sharp corners.
 * **Custom profile (CSV):** a file with header `x_mm,r_mm` (axial position and wall **radius**
-  in mm), x strictly increasing, r > 0, at least 5 points. `core/geometry.py` converts it to metres
+  in mm), x strictly increasing, r > 0, at least 5 points. `aeroflowsim/geometry.py` converts it to metres
   and interpolates with PCHIP (smooth, never overshoots, so the throat is never narrower than the
   data). The throat is the smallest given radius. A file that breaks a rule gives a message saying
   which line and what to fix. `examples/n2_conical_nozzle.csv` is the default cone sampled every
-  0.01 mm plus all corner points (made with `core.geometry.write_profile_csv`). Because PCHIP
+  0.01 mm plus all corner points (made with `aeroflowsim.geometry.write_profile_csv`). Because PCHIP
   rounds each corner only within one 0.01 mm interval, it gives the same answer as the parametric
   run within 0.2 %.
 

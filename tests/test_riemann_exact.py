@@ -1,9 +1,9 @@
-"""Tests for core/riemann_exact.py against the published values in Toro, Table 4.2."""
+"""Tests for aeroflowsim/riemann_exact.py against the published values in Toro, Table 4.2."""
 
 import numpy as np
 import pytest
 
-from core.riemann_exact import exact_solution, star_state, wave_structure
+from aeroflowsim.riemann_exact import exact_solution, star_state, wave_structure
 
 GAMMA = 1.4  # [-]
 

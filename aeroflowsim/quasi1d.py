@@ -2,7 +2,7 @@
 
 Equations, written for a slice of the duct (not per unit area):
     d(U A)/dt + d(F A)/dx = S,      S = [0, p dA/dx, 0]
-U and F are the 1D Euler conserved variables and flux (see core/euler1d.py). The source is the
+U and F are the 1D Euler conserved variables and flux (see aeroflowsim/euler1d.py). The source is the
 axial push of the slanted wall on the gas. Discretely, for cell i between faces i-1/2 and i+1/2:
 
     V_i dU_i/dt = -(F A)_{i+1/2} + (F A)_{i-1/2} + [0, p_i (A_{i+1/2} - A_{i-1/2}), 0]
@@ -10,14 +10,14 @@ axial push of the slanted wall on the gas. Discretely, for cell i between faces 
 With this form of the source, gas at rest stays exactly at rest ("well-balanced"): every face
 flux is then (0, p, 0) and the momentum terms cancel to the last bit.
 
-The face fluxes (HLLC + MUSCL/minmod) and SSP-RK2 come unchanged from core/euler1d.py; this
+The face fluxes (HLLC + MUSCL/minmod) and SSP-RK2 come unchanged from aeroflowsim/euler1d.py; this
 module only adds the areas, local time steps and nozzle inlet/outlet boundary conditions.
 Nothing here imports the GUI. See cases/quasi1d_nozzle/README.md for the explanation.
 """
 
 import numpy as np
 
-from core.euler1d import N_GHOST, conserved_to_primitive, face_fluxes, sound_speed
+from aeroflowsim.euler1d import N_GHOST, conserved_to_primitive, face_fluxes, sound_speed
 
 
 def quasi1d_rhs(U, A_faces, volumes, gamma, boundary):

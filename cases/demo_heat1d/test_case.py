@@ -3,9 +3,9 @@
 import numpy as np
 from matplotlib.figure import Figure
 
-from core.discovery import load_case
-from core.parameters import defaults
-from core.visualise import shape_view
+from aeroflowsim.discovery import load_case
+from aeroflowsim.parameters import defaults
+from aeroflowsim.visualise import shape_view
 
 case = load_case("demo_heat1d")
 

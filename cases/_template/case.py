@@ -1,12 +1,12 @@
 """TEMPLATE - copy this whole folder to cases/<new_case_name>/ and fill in the parts marked TODO.
 
 Folders starting with "_" are ignored by the app and by pytest, so this file is never run.
-See core/case_template.py for the full description of each function.
+See aeroflowsim/case_template.py for the full description of each function.
 """
 
-from core.mesh import Mesh1D
-from core.parameters import Parameter
-from core.results import Field, Result
+from aeroflowsim.mesh import Mesh1D
+from aeroflowsim.parameters import Parameter
+from aeroflowsim.results import Field, Result
 
 NAME = "TODO short name"
 DESCRIPTION = "TODO one or two sentences about the physics."
@@ -39,10 +39,10 @@ def reference(params, mesh):
 
 
 def geometry(params):
-    """Optional (ducts / nozzles): the wall as a core.geometry.WallProfile. Delete if none."""
+    """Optional (ducts / nozzles): the wall as a aeroflowsim.geometry.WallProfile. Delete if none."""
     raise NotImplementedError
 
 
 def reference_lines(params, mesh):
-    """Optional: exact lines for the x-t diagram as a list of core.results.Line. Delete if none."""
+    """Optional: exact lines for the x-t diagram as a list of aeroflowsim.results.Line. Delete if none."""
     raise NotImplementedError

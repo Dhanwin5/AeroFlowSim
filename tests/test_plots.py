@@ -1,14 +1,14 @@
-"""Tests for core/plots.py and the in-memory CSV/PNG helpers in core/runner.py."""
+"""Tests for aeroflowsim/plots.py and the in-memory CSV/PNG helpers in aeroflowsim/runner.py."""
 
 import io
 
 import numpy as np
 import pytest
 
-from core.mesh import Mesh1D, Mesh2D
-from core.plots import MAX_PLOT_POINTS, field_figure, mesh_figure, residual_figure
-from core.results import Field, Result
-from core.runner import fields_csv_text, plot_fields
+from aeroflowsim.mesh import Mesh1D, Mesh2D
+from aeroflowsim.plots import MAX_PLOT_POINTS, field_figure, mesh_figure, residual_figure
+from aeroflowsim.results import Field, Result
+from aeroflowsim.runner import fields_csv_text, plot_fields
 
 
 def test_mesh_figure_1d_shows_every_node():
@@ -84,8 +84,8 @@ def test_cell_centred_fields_plot_and_csv_at_cell_centres():
 
 
 def test_profile_figure_mirrors_wall_and_marks_throat():
-    from core.geometry import WallProfile
-    from core.plots import profile_figure
+    from aeroflowsim.geometry import WallProfile
+    from aeroflowsim.plots import profile_figure
     p = WallProfile(x=[0, 1e-3, 2e-3, 3e-3, 4e-3], r=[1e-3, 1e-3, 0.2e-3, 0.3e-3, 0.5e-3],
                     interpolation="pchip")
     fig = profile_figure(p)

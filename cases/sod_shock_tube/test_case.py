@@ -4,10 +4,10 @@ import math
 
 import numpy as np
 
-from core.discovery import load_case
-from core.euler1d import euler_flux, primitive_to_conserved
-from core.job import RunJob
-from core.parameters import defaults
+from aeroflowsim.discovery import load_case
+from aeroflowsim.euler1d import euler_flux, primitive_to_conserved
+from aeroflowsim.job import RunJob
+from aeroflowsim.parameters import defaults
 
 case = load_case("sod_shock_tube")
 

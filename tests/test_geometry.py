@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from core.geometry import (WallProfile, conical_nozzle, profile_summary, read_profile_csv,
+from aeroflowsim.geometry import (WallProfile, conical_nozzle, profile_summary, read_profile_csv,
                            write_profile_csv)
 
 DEG = math.pi / 180.0

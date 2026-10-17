@@ -1,11 +1,11 @@
-"""Tests for core/settings.py (save / load case inputs as YAML) and the mesh additions."""
+"""Tests for aeroflowsim/settings.py (save / load case inputs as YAML) and the mesh additions."""
 
 import numpy as np
 import pytest
 
-from core.mesh import Mesh1D, Mesh2D
-from core.parameters import Parameter, defaults
-from core.settings import clean_file_name, list_settings, load_settings, save_settings
+from aeroflowsim.mesh import Mesh1D, Mesh2D
+from aeroflowsim.parameters import Parameter, defaults
+from aeroflowsim.settings import clean_file_name, list_settings, load_settings, save_settings
 
 PARAMS = [
     Parameter("L", "Length", "m", 1.0, 0.1, 10.0),

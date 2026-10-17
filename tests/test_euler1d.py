@@ -1,8 +1,8 @@
-"""Tests for core/euler1d.py on its own (no case involved)."""
+"""Tests for aeroflowsim/euler1d.py on its own (no case involved)."""
 
 import numpy as np
 
-from core.euler1d import (cfl_time_step, conserved_to_primitive, euler_flux, flux_divergence,
+from aeroflowsim.euler1d import (cfl_time_step, conserved_to_primitive, euler_flux, flux_divergence,
                           hllc_flux, minmod, primitive_to_conserved, ssp_rk2_step)
 
 GAMMA = 1.4  # [-]

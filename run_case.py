@@ -10,9 +10,9 @@ Usage:
 import argparse
 import sys
 
-from core.discovery import find_cases, load_case
-from core.parameters import parse_value
-from core.runner import run_case
+from aeroflowsim.discovery import find_cases, load_case
+from aeroflowsim.parameters import parse_value
+from aeroflowsim.runner import run_case
 
 
 def parse_settings(case_name, assignments):
@@ -32,7 +32,7 @@ def parse_settings(case_name, assignments):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run a Flow Sim case (default settings unless --set).")
+    parser = argparse.ArgumentParser(description="Run a AeroFlowSim case (default settings unless --set).")
     parser.add_argument("case_name", nargs="?", help="folder name of the case in cases/")
     parser.add_argument("--list", action="store_true", help="list the available cases and exit")
     parser.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",

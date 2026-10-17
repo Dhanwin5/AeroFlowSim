@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from core.euler1d import N_GHOST, flux_divergence, primitive_to_conserved, transmissive_ghosts
-from core.gasdynamics import p0_over_p, t0_over_t
-from core.quasi1d import inlet_state, local_time_steps, nozzle_boundary, quasi1d_rhs
+from aeroflowsim.euler1d import N_GHOST, flux_divergence, primitive_to_conserved, transmissive_ghosts
+from aeroflowsim.gasdynamics import p0_over_p, t0_over_t
+from aeroflowsim.quasi1d import inlet_state, local_time_steps, nozzle_boundary, quasi1d_rhs
 
 G, R = 1.4, 296.8   # N2
 

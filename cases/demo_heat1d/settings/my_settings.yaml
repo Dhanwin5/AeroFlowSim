@@ -1,0 +1,19 @@
+case: demo_heat1d
+parameters:
+  L: 1.0
+  k: 50.0
+  q_gen: 50000.0
+  T_left: 300.0
+  T_right: 400.0
+  n_nodes: 41
+  tol: 1.0e-10
+  max_iter: 100000
+units:
+  L: m
+  k: W/(m·K)
+  q_gen: W/m³
+  T_left: K
+  T_right: K
+  n_nodes: '-'
+  tol: '-'
+  max_iter: '-'

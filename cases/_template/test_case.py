@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from core.discovery import load_case
-from core.parameters import defaults
+from aeroflowsim.discovery import load_case
+from aeroflowsim.parameters import defaults
 
 case = load_case("_template")  # TODO new folder name
 

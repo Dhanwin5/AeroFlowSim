@@ -17,7 +17,7 @@ import io
 import numpy as np
 from matplotlib.figure import Figure
 
-# Plot colours (also used by the line plots in core/runner.py)
+# Plot colours (also used by the line plots in aeroflowsim/runner.py)
 COLOR_NUMERICAL = "#2a78d6"
 COLOR_REFERENCE = "#eb6834"
 COLOR_MUTED = "#898781"
@@ -153,7 +153,7 @@ def xt_diagram(x, t, field_xt, name, unit, cmap="viridis", vmin=None, vmax=None,
     x         positions [m], shape (n_x,)
     t         times [s], shape (n_t,) (need not be evenly spaced)
     field_xt  values, shape (n_t, n_x): one row per time
-    lines     optional list of core.results.Line to draw on top (e.g. exact wave paths)
+    lines     optional list of aeroflowsim.results.Line to draw on top (e.g. exact wave paths)
     levels    number of colour bands
     """
     x, t, F = np.asarray(x, float), np.asarray(t, float), np.asarray(field_xt, float)

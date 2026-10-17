@@ -8,9 +8,9 @@ are skipped. A broken case is reported as a problem instead of crashing everythi
 import importlib.util
 from pathlib import Path
 
-from core.case_template import check_case
+from aeroflowsim.case_template import check_case
 
-# cases/ folder next to core/
+# cases/ folder next to aeroflowsim/
 CASES_DIR = Path(__file__).resolve().parent.parent / "cases"
 
 
