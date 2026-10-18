@@ -5,3 +5,5 @@ plotly==7.1.0
 streamlit==1.65.0
 PyYAML==6.0.3
 pytest==9.1.1
+# optional (pip install -e ".[mesh]"):
+gmsh==4.15.2

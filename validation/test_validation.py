@@ -12,6 +12,7 @@ import pytest
 from validation.common import read_references, validate_folder, validation_folders
 
 FOLDERS = validation_folders()
+NEEDS_GMSH = {"external_geometry"}   # uses Gmsh meshes (pip install -e ".[mesh]")
 
 
 def test_every_validation_folder_has_sources_and_tolerances():
@@ -26,6 +27,8 @@ def test_every_validation_folder_has_sources_and_tolerances():
 @pytest.mark.validation
 @pytest.mark.parametrize("folder", FOLDERS, ids=[f.name for f in FOLDERS])
 def test_validation_case_passes(folder):
+    if folder.name in NEEDS_GMSH:
+        pytest.importorskip("gmsh")
     v = validate_folder(folder)
     for c in v.comparisons:
         print(f"  {c.reference.quantity}: ref {c.reference.value:.6g}, AeroFlowSim {c.measured:.6g} "
@@ -45,6 +48,7 @@ def test_nozzle_axi_geometry_error_falls_as_the_mesh_is_refined():
 
 @pytest.mark.validation
 def test_external_geometry_error_falls_as_the_mesh_is_refined():
+    pytest.importorskip("gmsh")
     v = validate_folder(next(f for f in FOLDERS if f.name == "external_geometry"))
     error = {c.reference.id: c.error_percent for c in v.comparisons}
     for quantity in ("cylinder_wall", "cylinder_area", "diamond_area", "wedge_area", "cone_volume"):

@@ -14,7 +14,23 @@ shows the mesh quality checks.
 Level 1 (parametric conical nozzle) or Level 2 (wall profile CSV, header `x_mm,r_mm`), both read
 by the shared `aeroflowsim/geometry.py`. The example CSV in `examples/` is the default nozzle.
 
-## Mesh (`aeroflowsim/nozzle_mesh.py`)
+**Rounded throat** (parametric nozzle): `Rcu/Rt` and `Rcd/Rt` are the wall's radii of curvature just
+upstream and downstream of the throat, divided by the throat radius (default 0 = sharp throat;
+typical 1.5 and 0.4). Each arc is tangent to its cone, both arcs are horizontal at the throat, the
+throat and exit diameters stay exact and the cones get shorter. An arc that does not fit gives an
+error with the largest ratio that fits. The preview marks the tangent points.
+
+## Mesh type
+
+- **Structured** (default): quads, described below.
+- **Triangles (Gmsh)**, needs `pip install -e ".[mesh]"`: unstructured triangles or quad-dominant
+  cells from `aeroflowsim/gmsh_mesh.py`, with the same patches `inlet`, `outlet`, `wall`, `axis`.
+  Sizes are fractions of the throat diameter D_t (wall cell size 0.04 D_t, largest cell 0.2 D_t,
+  growth 1.2), with 4 times smaller cells at the throat and at sharp corners. Inflation layers (same
+  inputs as for the structured mesh, height measured normal to the wall) are grown from the wall
+  by `aeroflowsim/inflation_layers.py`. Both mesh types give the same area and volume to 0.1 %.
+
+## Structured mesh (`aeroflowsim/nozzle_mesh.py`)
 
 - Structured quad cells. "Vertical" grid lines at `nx + 1` axial stations from the axis to the wall;
   "horizontal" grid lines following the wall shape. Patches: `inlet`, `outlet`, `wall`, `axis`.
@@ -47,8 +63,13 @@ ratio, cell size, patch marker). This folder is git-ignored.
 
 - Mesh quality checks (`aeroflowsim/checks.py`): positive cell volumes (error otherwise; the solver
   then refuses to run), aspect ratio (warning above 100, info only with inflation),
-  non-orthogonality (warning above 70°), neighbour volume ratio (warning above 2), inflation
-  thickness (warning above 50 % of the throat radius), smallest cell (info).
+  non-orthogonality (warning above 70°), neighbour volume ratio (warning above 2; 4 with
+  triangles), smallest triangle angle (triangle meshes: warning below 20°, error below 5°),
+  equiangle skewness (warning above 0.85), inflation thickness (warning above 50 % of the throat
+  radius), smallest cell (info).
+- `validation/external_geometry`: the volume of the rounded-throat nozzle (Rcu/Rt = 1.5,
+  Rcd/Rt = 0.4) against the exact volume (cylinder, frustums and arc sections in closed form), for
+  the structured and the triangle mesh.
 - `validation/nozzle_axi_geometry`: mesh area, volume of revolution and wall length against the
   exact values for the default nozzle, on Coarse, Medium and Fine meshes (tolerance 0.1 % on
   Medium). The non-orthogonality of about 30° comes from the 30° convergent wall: vertical

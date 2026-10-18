@@ -20,14 +20,18 @@ still change between versions. Not yet published on PyPI.
 | `demo_heat1d` | Steady 1D heat conduction with heat generation (demo of the case template) | Exact parabolic solution |
 | `sod_shock_tube` | Unsteady 1D Euler equations, HLLC + MUSCL finite volumes | Exact Riemann solution (Toro, test 1) |
 | `quasi1d_nozzle` | Steady quasi-1D Euler flow of N2 through a conical or CSV-profile nozzle | Isentropic area-Mach and normal-shock theory |
+| `nozzle_axi` | 2D axisymmetric nozzle mesh (structured, or triangles with Gmsh), sharp or rounded throat; solver in Prompt 7 | Exact nozzle area and volume |
+| `external_2d` | Mesh of a body in a free stream (wedge, airfoils, cylinder, nose cone, your own coordinates) with Gmsh; solver in Prompt 7 | Exact domain areas and volumes |
 
 - **GUI** (Streamlit, in the web browser) with Setup, Mesh, Run and Results tabs. The input panel
   of each case is generated automatically from the case's `schema.toml`.
 - **Validity checks** after every run (convergence, mass balance), shown in the Results tab.
 - **Validation suite** with a pass/fail report: [validation/report.md](validation/report.md).
 - **Command line and Python scripting** using the same engine as the GUI, so results are identical.
-- Nozzle geometry: built-in parametric conical nozzle, or your own wall profile from a CSV file
-  (`x_mm,r_mm`).
+- Nozzle geometry: built-in parametric conical nozzle with a sharp or rounded throat, or your own
+  wall profile from a CSV file (`x_mm,r_mm`).
+- Shape library for bodies in a free stream; adding a shape needs no GUI code (see CONTRIBUTING.md).
+- Equations and methods: [docs/theory_manual.md](docs/theory_manual.md).
 
 ## Install
 
@@ -47,6 +51,13 @@ Install AeroFlowSim and its dependencies (`-e` = "editable": your edits take eff
 
 ```bash
 python -m pip install -e .
+```
+
+Optional: the Gmsh mesher, for triangle meshes and bodies in a free stream (AeroFlowSim works
+without it; the GUI says when a case needs it):
+
+```bash
+python -m pip install -e ".[mesh]"
 ```
 
 `requirements.txt` lists the exact versions used during development

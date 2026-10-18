@@ -93,16 +93,52 @@ and the GUI panel is generated for you.
    function `measure()` that runs the case with `aeroflowsim.run_case(...)` and returns the measured
    values. `python validation/run_all.py` picks it up automatically. See `validation/common.py`.
 
-## How to add a shape (coming in Prompt 6b)
+## How to add a shape
 
-Shapes will live in a shape library (`aeroflowsim/shapes/`): nozzles (conical, bell, CSV), intakes,
-supersonic and subsonic airfoils, nose cones and blunt bodies. The intended pattern:
+Shapes live in the shape library `aeroflowsim/shapes/`. A shape is **two files with the same name**
+in that folder; the registry finds them automatically, so the Shape dropdown of every case that uses
+the library (e.g. `cases/external_2d`) lists the new shape with its own input boxes. No GUI code
+and no change to any case.
 
-- **one function per shape**, taking its dimensions in SI units and returning a standard geometry
-  object (today `aeroflowsim.geometry.WallProfile` with x [m] and r [m]; later a 2D boundary for Gmsh);
-- cases only consume that object and never care where it came from (parametric, CSV or CAD);
-- each shape gets tests (e.g. exact areas, angles, throat position) and its inputs are described in
-  the schema of the cases that use it.
+1. **`<name>.toml`** - what the shape is and its inputs (same `[[input]]` format as a case's
+   `schema.toml`):
+
+   ```toml
+   [shape]
+   name = "Wedge"                    # shown in the Shape dropdown
+   group = "Supersonic airfoils"     # see GROUPS in aeroflowsim/shapes/__init__.py
+   symmetry = "planar"               # planar, axisymmetric or either
+   description = "Planar wedge with a sharp tip and a flat base."
+
+   [[input]]
+   key = "half_angle"                # inputs["half_angle"] in <name>.py
+   label = "Wedge half-angle"
+   unit = "deg"
+   type = "float"
+   default = 10.0
+   min = 1.0
+   max = 45.0
+   help = "Angle between each wedge surface and the x axis."
+   ```
+
+2. **`<name>.py`** - one function `profile(inputs) -> ShapeProfile` (see
+   `aeroflowsim/shapes/profile.py`). Return the **closed outline**: points (x, y) in metres, going
+   round the body once **counter-clockwise**, last point not repeated, no crossings, enough points
+   on curves. Mark the sharp corners (`corners=[...]`) and the leading/trailing edges
+   (`refine=[...]`), and give the **reference length** and **reference area** (planar: length x 1 m;
+   axisymmetric: base area pi R², with the full silhouette symmetric about y = 0):
+
+   ```python
+   def profile(inputs):
+       L = inputs["length"]                                     # [m]
+       h = L * math.tan(math.radians(inputs["half_angle"]))     # [m]
+       return ShapeProfile([(0, 0), (L, -h), (L, h)], reference_length=L, reference_area=L,
+                           corners=[0, 1, 2])
+   ```
+
+3. **Tests** in `tests/test_shapes.py`: the shape is checked automatically for being closed,
+   counter-clockwise and free of crossings; add a test of its exact geometry (area, thickness,
+   angles) and, where possible, a validation value in `validation/external_geometry`.
 
 ## How to add a gas (coming in Prompt 6c)
 

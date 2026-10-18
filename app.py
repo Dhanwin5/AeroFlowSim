@@ -136,7 +136,11 @@ def shape_preview(profile):
 def geometry_preview(values):
     """Setup tab: the wall profile and its key numbers, or a clear message on what to fix."""
     try:
-        profile = get_geometry(case, validate(param_list, values))
+        checked = validate(param_list, values)
+    except ValueError:
+        return   # the input panel already shows what is wrong
+    try:
+        profile = get_geometry(case, checked)
     except ValueError as error:
         st.error(f"Geometry problem: {error}")
         return

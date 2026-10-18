@@ -50,6 +50,9 @@ aeroflowsim/               the Python package
                            faces with owner/neighbour, patches, geometry, save/load (.npz)
     mesh_quality.py        aspect ratio, non-orthogonality, volume ratio, cell size (per cell)
     nozzle_mesh.py         structured axisymmetric nozzle mesh (throat clustering, inflation layers)
+    gmsh_mesh.py           optional Gmsh meshes (triangles / quad-dominant): external domain, nozzle
+    inflation_layers.py    inflation layers grown from a wall for unstructured meshes
+    shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
     gui/panel.py           auto-generated input panel (the GUI layer; only place with streamlit)
@@ -60,6 +63,8 @@ cases/<case_name>/         one folder per case
     test_case.py           pytest validation test
     mesh/                  generated mesh.npz + mesh.vtu (git-ignored)
 cases/_template/           copy-me skeleton for a new case (ignored by discovery and pytest)
+cases/external_2d/         body in a free stream (shape library + Gmsh), mesh only until Prompt 7
+docs/theory_manual.md      equations and methods, with references and where they are in the code
 validation/<case_name>/    reference.toml (values, sources, tolerances) + validate.py
 validation/run_all.py      runs all validation cases, writes validation/report.md
 tests/                     tests for aeroflowsim/
@@ -104,12 +109,28 @@ Commands (from the project folder):
 8. After each working step, make a **git commit** with a clear message.
 9. Use a Python virtual environment in **`.venv`**; the project is installed into it with
    `pip install -e .`. Dependencies (pyproject.toml): numpy, scipy, matplotlib, plotly, streamlit,
-   pyyaml, pytest. Optional group `mesh` (Gmsh, from Prompt 6b).
+   pyyaml, pytest. Optional group `mesh` (Gmsh): `pip install -e ".[mesh]"`. AeroFlowSim must start
+   and work without it; tests that need it use `pytest.importorskip("gmsh")`.
 10. Every `.py` file starts with the AeroFlowSim licence header (GPL-3.0-or-later).
 11. Ask before deleting files or making changes that were not requested.
 12. **Privacy:** the GUI listens on localhost only and sends no usage statistics
     (`.streamlit/config.toml`, tested). Never change this without asking. User data (results/,
     uploads/, cases/*/settings/, cases/*/mesh/) is git-ignored and must never be committed.
+13. **Verification and validation:** every new numerical method gets a Method of Manufactured
+    Solutions (MMS) order-of-accuracy test where possible, plus validation against theory or
+    experiment.
+14. **Speed:** steady cases must use local time stepping (and later implicit methods). Report
+    iterations and wall-clock time in the Results tab and in validation reports.
+15. **The user must understand the code:** at the end of every prompt, give a plain-language
+    walkthrough of the most important new module (what it does, the key equations, where they are in
+    the code), and add or update the matching section in `docs/theory_manual.md` with the equations
+    and references.
+16. **Best practice by default:** when there is a choice between a quick approach and the approach
+    serious CFD codes use, choose the serious one, explain why in simple words, and only ask the user
+    when the choice really changes what the software can do.
+17. **Adding a shape** (shape library): two files in `aeroflowsim/shapes/` - `<name>.toml` (name,
+    group, symmetry, inputs) and `<name>.py` (`profile(inputs) -> ShapeProfile`: closed,
+    counter-clockwise, corners marked, reference length and area) - plus tests. No GUI or case code.
 
 ## Intelligence
 - **Principle:** intelligence assists, never replaces physics. Every suggestion is shown to the
@@ -129,15 +150,22 @@ Commands (from the project folder):
 - **Phase 1 - 2D foundations and supersonic:**
   - 5.5 foundations (done);
   - 6 face-based mesh format + structured nozzle mesh with inflation controls + VTK export (done);
-  - 6b Gmsh 2D mesh (optional install) + shape library (nozzles: conical, bell, CSV; intakes: ramp,
-    spike; supersonic airfoils: wedge, diamond, biconvex; subsonic airfoils: NACA 4/5-digit,
-    coordinate file; nose cones: conical, tangent ogive, von Karman, power-law; blunt bodies:
-    cylinder, sphere, hemisphere-cylinder, sphere-cone);
+  - 6b Gmsh 2D mesh (optional install), external flow domain, rounded throat, shape library with the
+    first 6 shapes: wedge, diamond airfoil, NACA 4-digit, circular cylinder, conical nose cone,
+    custom coordinates file (done);
+  - 6b-2 remaining shapes with the same pattern: bell nozzle, intakes (ramp, spike), biconvex airfoil,
+    NACA 5-digit, nose cones (tangent ogive, von Karman, power-law), sphere, hemisphere-cylinder,
+    sphere-cone;
   - 6c gas library + custom gas (designed so mixtures can be added later);
-  - 7 Euler solver 2D + axisymmetric with carbuncle fix, far-field BC, thrust/Isp/Cf, Cp/Cl/Cd/Cm;
-  - 7b validation (wedge, diamond airfoil, cone Taylor-Maccoll, cylinder bow shock stand-off,
-    Back-Massier-Gier nozzle, NACA 0012 transonic).
-- **Phase 2 - speed and all speeds:** 8 Numba; 8b low-Mach preconditioning.
+  - 7 2D Euler solver (2D + axisymmetric) **with local time stepping** for steady cases, carbuncle
+    fix, far-field BC, thrust/Isp/Cf, Cp/Cl/Cd/Cm;
+  - 7b validation cases (wedge, diamond airfoil, cone Taylor-Maccoll, cylinder bow shock stand-off,
+    Back-Massier-Gier nozzle, NACA 0012 transonic) + **verification by the Method of Manufactured
+    Solutions (MMS)**: show the designed order of accuracy on structured and triangle meshes. Then a
+    **2D alpha release** on GitHub for early users.
+- **Phase 2 - speed and all speeds:** 8 Numba speed-up + **implicit time stepping** (for example
+  LU-SGS) for steady cases - speed comes before 3D; 8b low-Mach preconditioning; 8c **3D viewer in the
+  GUI with PyVista/trame** (Kitware), before 3D solving starts.
 - **Phase 3 - 3D:** 9 3D Gmsh mesh + STEP import; 10 3D Euler + ParaView export.
 - **Phase 4 - viscous:** laminar NS, Spalart-Allmaras, k-omega SST (2D and 3D); wall heat flux.
 - **Phase 5 - advanced and release:** high-temperature gas, GPU speed-up, GCI mesh-independence

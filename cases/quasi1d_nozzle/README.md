@@ -4,6 +4,8 @@ Steady, inviscid flow of nitrogen through a converging-diverging nozzle, from a 
 (p0, T0) to a back pressure p_back. Default geometry: the N2 cold-gas thruster
 (inlet Ø 2.0 mm, straight inlet 1.33 mm, 30° convergent cone, throat Ø 0.280 mm,
 15° divergent cone, exit Ø 0.911 mm, A_e/A* = 10.59, length 4.00 mm).
+The throat is sharp by default; `Rcu/Rt` and `Rcd/Rt` round it with circular arcs (shared nozzle
+geometry, see `cases/nozzle_axi/README.md`). The validated results use the sharp default.
 
 ```
 python -m aeroflowsim run cases/quasi1d_nozzle

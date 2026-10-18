@@ -248,3 +248,21 @@ def test_nozzle_axi_triangle_mesh_type():
     at.button(key="generate_mesh").click().run()
     assert not at.exception, at.exception
     assert "wall (wall" in " ".join(c.value for c in at.caption)
+
+
+def test_without_gmsh_the_gui_says_how_to_install_it(monkeypatch):
+    import aeroflowsim.gui.panel as panel
+    import aeroflowsim.parameters as parameters
+    missing = lambda name: name != "gmsh" and parameters.importlib.util.find_spec(name) is not None
+    monkeypatch.setattr(parameters, "module_available", missing)     # as if Gmsh were not installed
+    monkeypatch.setattr(panel, "module_available", missing)
+    at = _app()
+    at.sidebar.selectbox[0].set_value("external_2d").run()
+    assert not at.exception, at.exception
+    assert any('pip install -e ".[mesh]"' in w.value for w in at.warning)
+    assert at.button(key="generate_mesh").disabled
+    at.sidebar.selectbox[0].set_value("nozzle_axi").run()
+    assert any("needs gmsh" in c.value for c in at.caption)           # the dropdown option is marked
+    at.selectbox(key="nozzle_axi:mesh_type").set_value("Triangles (Gmsh)").run()
+    assert any('pip install -e ".[mesh]"' in e.value for e in at.error)
+    assert not any("Geometry problem" in e.value for e in at.error)
