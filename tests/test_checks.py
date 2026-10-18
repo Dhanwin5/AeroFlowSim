@@ -123,3 +123,42 @@ def test_volume_jump_and_skewed_cells_warn():
     mesh = Mesh.from_cells(nodes, QUAD, [[0, 1, 2, 3], [3, 2, 5, 4]],
                            {"all": ("wall", [[0, 1], [1, 2], [2, 5], [5, 4], [4, 3], [3, 0]])})
     assert checks.mesh_non_orthogonality(STEADY, {}, mesh, None).level == "warning"
+
+
+def triangle_mesh(nodes):
+    """One triangle cell from three points (counter-clockwise)."""
+    from aeroflowsim.mesh import TRIANGLE, Mesh
+    return Mesh.from_cells(np.array(nodes, dtype=float), TRIANGLE, [[0, 1, 2]],
+                           {"all": ("wall", [[0, 1], [1, 2], [2, 0]])})
+
+
+def test_equilateral_triangle_and_square_are_perfect():
+    from aeroflowsim import mesh_quality
+    equilateral = triangle_mesh([(0, 0), (1, 0), (0.5, np.sqrt(3) / 2)])
+    assert mesh_quality.min_angle(equilateral)[0] == pytest.approx(60.0)
+    assert mesh_quality.equiangle_skewness(equilateral)[0] == pytest.approx(0.0, abs=1e-12)
+    assert mesh_quality.equiangle_skewness(square_mesh())[0] == pytest.approx(0.0, abs=1e-12)
+    right = triangle_mesh([(0, 0), (1, 0), (0, 1)])           # 90-45-45: skewness (90 - 60) / 120 = 0.25
+    assert mesh_quality.equiangle_skewness(right)[0] == pytest.approx(0.25)
+    assert mesh_quality.min_angle(right)[0] == pytest.approx(45.0)
+
+
+@pytest.mark.parametrize("height, level", [(0.8, "info"), (0.25, "warning"), (0.05, "error")])
+def test_smallest_triangle_angle_levels(height, level):
+    # Isosceles triangle with base 2: base angles atan(height) = 38.7, 14.0 and 2.9 degrees.
+    mesh = triangle_mesh([(0, 0), (2, 0), (1, height)])
+    found = by_name(checks.run_mesh_checks(STEADY, {}, mesh))
+    assert found["Smallest angle"].level == level
+    assert found["Smallest angle"].value == pytest.approx(np.degrees(np.arctan(height)))
+    assert found["Skewness"].level == ("warning" if level == "error" else "info")   # 0.43, 0.77, 0.95
+
+
+def test_smallest_angle_check_only_applies_to_triangles():
+    assert checks.mesh_min_angle(STEADY, {}, square_mesh(), None) is None
+
+
+def test_inflation_on_a_body_is_compared_with_the_reference_length():
+    info = {"inflation": True, "inflation_thickness": 0.2, "reference_length": 1.0}
+    assert checks.mesh_inflation(STEADY, {}, square_mesh(info=info), None).level == "warning"
+    info["inflation_thickness"] = 0.01
+    assert checks.mesh_inflation(STEADY, {}, square_mesh(info=info), None).level == "info"

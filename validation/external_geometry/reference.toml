@@ -1,0 +1,181 @@
+# Geometry of the Gmsh meshes (external flow domain, shapes) and of the rounded-throat nozzle,
+# against exact values. No solver is run: this checks the shapes, the far-field boundary, the mesh
+# conversion (cell areas, Pappus volumes of revolution) and the rounded-throat arcs.
+#
+# External cases (cases/external_2d): far-field circle of radius R = 20 reference lengths (1 m bodies),
+# default mesh = surface size L/200, far-field size 2 L; fine and finer divide both sizes by 2 and 4.
+# The far-field circle is a polygon of at least 120 faces (120, 128 and 252 faces here), so its area
+# is slightly too small (2 pi² / 3 n² = 0.046 % for 120 faces); this error falls as the mesh is refined.
+# Nozzle (cases/nozzle_axi): default N2 nozzle with Rcu/Rt = 1.5, Rcd/Rt = 0.4. The arcs are stored as
+# points every 0.5 deg; the structured mesh cuts the inlet corner between stations.
+
+title = "Gmsh mesh geometry: external domains and rounded-throat nozzle"
+case = "cases/external_2d"
+
+[[reference]]
+id = "cylinder_wall_default"
+quantity = "Cylinder D = 1 m: wall patch length, default mesh"
+value = 3.141592653589793
+unit = "m"
+tolerance_percent = 0.1
+source = "Exact: circumference pi D"
+
+[[reference]]
+id = "cylinder_wall_fine"
+quantity = "Cylinder D = 1 m: wall patch length, fine mesh (sizes / 2)"
+value = 3.141592653589793
+unit = "m"
+tolerance_percent = 0.1
+source = "Exact: circumference pi D"
+
+[[reference]]
+id = "cylinder_wall_finer"
+quantity = "Cylinder D = 1 m: wall patch length, finer mesh (sizes / 4)"
+value = 3.141592653589793
+unit = "m"
+tolerance_percent = 0.1
+source = "Exact: circumference pi D"
+
+[[reference]]
+id = "cylinder_area_default"
+quantity = "Cylinder: domain area, default mesh"
+value = 1255.8516632725198
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi (R² - (D/2)²), R = 20 m far-field circle"
+
+[[reference]]
+id = "cylinder_area_fine"
+quantity = "Cylinder: domain area, fine mesh (sizes / 2)"
+value = 1255.8516632725198
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi (R² - (D/2)²), R = 20 m far-field circle"
+
+[[reference]]
+id = "cylinder_area_finer"
+quantity = "Cylinder: domain area, finer mesh (sizes / 4)"
+value = 1255.8516632725198
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi (R² - (D/2)²), R = 20 m far-field circle"
+
+[[reference]]
+id = "diamond_area_default"
+quantity = "Diamond airfoil t/c = 0.1: domain area, default mesh"
+value = 1256.5870614359173
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R² - c t / 2 (circle minus rhombus)"
+
+[[reference]]
+id = "diamond_area_fine"
+quantity = "Diamond airfoil t/c = 0.1: domain area, fine mesh (sizes / 2)"
+value = 1256.5870614359173
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R² - c t / 2 (circle minus rhombus)"
+
+[[reference]]
+id = "diamond_area_finer"
+quantity = "Diamond airfoil t/c = 0.1: domain area, finer mesh (sizes / 4)"
+value = 1256.5870614359173
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R² - c t / 2 (circle minus rhombus)"
+
+[[reference]]
+id = "wedge_area_default"
+quantity = "Wedge 10 deg: domain area, default mesh"
+value = 1256.460734455209
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R² - L² tan 10 deg (circle minus triangle)"
+
+[[reference]]
+id = "wedge_area_fine"
+quantity = "Wedge 10 deg: domain area, fine mesh (sizes / 2)"
+value = 1256.460734455209
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R² - L² tan 10 deg (circle minus triangle)"
+
+[[reference]]
+id = "wedge_area_finer"
+quantity = "Wedge 10 deg: domain area, finer mesh (sizes / 4)"
+value = 1256.460734455209
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R² - L² tan 10 deg (circle minus triangle)"
+
+[[reference]]
+id = "cone_volume_default"
+quantity = "Cone 15 deg: volume of revolution of the half domain, default mesh"
+value = 33510.24645288969
+unit = "m³"
+tolerance_percent = 0.1
+source = "Exact: 4/3 pi R³ - pi R_b² L / 3 (sphere minus cone), R_b = L tan 15 deg"
+
+[[reference]]
+id = "cone_volume_fine"
+quantity = "Cone 15 deg: volume of revolution of the half domain, fine mesh (sizes / 2)"
+value = 33510.24645288969
+unit = "m³"
+tolerance_percent = 0.1
+source = "Exact: 4/3 pi R³ - pi R_b² L / 3 (sphere minus cone), R_b = L tan 15 deg"
+
+[[reference]]
+id = "cone_volume_finer"
+quantity = "Cone 15 deg: volume of revolution of the half domain, finer mesh (sizes / 4)"
+value = 33510.24645288969
+unit = "m³"
+tolerance_percent = 0.1
+source = "Exact: 4/3 pi R³ - pi R_b² L / 3 (sphere minus cone), R_b = L tan 15 deg"
+
+[[reference]]
+id = "nozzle_structured_coarse"
+quantity = "Rounded-throat nozzle volume, structured Coarse"
+value = 6.349938281323374
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t"
+
+[[reference]]
+id = "nozzle_structured_medium"
+quantity = "Rounded-throat nozzle volume, structured Medium"
+value = 6.349938281323374
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t"
+
+[[reference]]
+id = "nozzle_structured_fine"
+quantity = "Rounded-throat nozzle volume, structured Fine"
+value = 6.349938281323374
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t"
+
+[[reference]]
+id = "nozzle_triangles_default"
+quantity = "Rounded-throat nozzle volume, triangles, default mesh"
+value = 6.349938281323374
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t"
+
+[[reference]]
+id = "nozzle_triangles_fine"
+quantity = "Rounded-throat nozzle volume, triangles, fine mesh (sizes / 2)"
+value = 6.349938281323374
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t"
+
+[[reference]]
+id = "nozzle_triangles_finer"
+quantity = "Rounded-throat nozzle volume, triangles, finer mesh (sizes / 4)"
+value = 6.349938281323374
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t"

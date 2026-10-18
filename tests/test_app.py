@@ -9,6 +9,8 @@ AppTest runs app.py like a real user session: we can read widgets and press butt
 
 from pathlib import Path
 
+import pytest
+
 from streamlit.testing.v1 import AppTest
 
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
@@ -196,3 +198,53 @@ def test_nozzle_axi_mesh_tab_updates_with_presets_and_inflation():
     assert any("Inflation layers" in s.value for s in at.success)
     at.selectbox(key="mesh_color_by").set_value("Non-orthogonality").run()
     assert not at.exception, at.exception
+
+
+def _external_app():
+    at = _app()
+    at.sidebar.selectbox[0].set_value("external_2d").run()
+    assert not at.exception, at.exception
+    return at
+
+
+def test_external_case_shows_shape_preview_and_switches_shape_inputs():
+    at = _external_app()
+    metrics = {m.label: m.value for m in at.metric}
+    assert metrics["Reference length [m]"] == "1" and metrics["Body type"] == "planar"
+    assert at.selectbox(key="external_2d:shape").value == "Diamond airfoil"
+    assert "Thickness ratio t/c [-]" in [b.label for b in at.number_input]
+    at.selectbox(key="external_2d:shape").set_value("Conical nose cone").run()
+    assert not at.exception, at.exception
+    labels = [b.label for b in at.number_input]
+    assert "Cone half-angle [deg]" in labels and "Thickness ratio t/c [-]" not in labels
+    assert "Afterbody length [m]" not in labels                       # nested show_if: flat base
+    assert {m.label: m.value for m in at.metric}["Body type"] == "axisymmetric"
+
+
+def test_external_mesh_tab_opens_on_the_body_and_rebuilds_small_meshes():
+    pytest.importorskip("gmsh")
+    at = _external_app()
+    at.button(key="generate_mesh").click().run()
+    assert not at.exception, at.exception
+    metrics = {m.label: m.value for m in at.metric}
+    assert int(metrics["Cells"].replace(",", "")) > 5000 and "Smallest angle [deg]" in metrics
+    at.toggle(key="mesh_full_domain").set_value(True).run()            # the "full domain" switch
+    assert not at.exception, at.exception
+    at.checkbox(key="external_2d:half_domain").check().run()           # small mesh: rebuilt automatically
+    cells = int({m.label: m.value for m in at.metric}["Cells"].replace(",", ""))
+    assert cells < int(metrics["Cells"].replace(",", ""))
+    at.number_input(key="external_2d:surface_size").set_value(0.0001).run()   # about 120,000 cells: not rebuilt
+    assert any("not rebuilt automatically" in i.value for i in at.info)
+    assert int({m.label: m.value for m in at.metric}["Cells"].replace(",", "")) == cells
+
+
+def test_nozzle_axi_triangle_mesh_type():
+    pytest.importorskip("gmsh")
+    at = _app()
+    at.sidebar.selectbox[0].set_value("nozzle_axi").run()
+    at.selectbox(key="nozzle_axi:mesh_type").set_value("Triangles (Gmsh)").run()
+    assert not at.exception, at.exception
+    assert "Estimated cells" in {m.label for m in at.metric}
+    at.button(key="generate_mesh").click().run()
+    assert not at.exception, at.exception
+    assert "wall (wall" in " ".join(c.value for c in at.caption)

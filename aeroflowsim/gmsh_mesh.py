@@ -50,7 +50,7 @@ from aeroflowsim.parameters import install_hint, module_available
 from aeroflowsim.shapes.profile import turning_corners
 
 EDGE_REFINEMENT = 4.0          # corners / edges / throat get cells this many times smaller [-]
-MIN_FARFIELD_FACES = 100       # a far-field circle is split into at least this many faces [-]
+MIN_FARFIELD_FACES = 120       # a far-field circle is split into at least this many faces [-]
 NOZZLE_CORNER_ANGLE = 5.0      # a nozzle wall that turns more than this at a point has a corner [deg]
 SPACING_JUMP = 4.0             # split a spline where neighbouring point spacings differ more than this [-]
 MAX_CELLS = 2_000_000          # refuse to start Gmsh above this estimate (the GUI would freeze) [-]

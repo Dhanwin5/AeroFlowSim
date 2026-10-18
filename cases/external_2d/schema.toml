@@ -110,7 +110,7 @@ default = 2.0
 min = 0.001
 max = 100.0
 group = "Mesh"
-help = "Largest cell size, reached far from the body, in reference lengths. A far-field circle always gets at least 100 faces so that it stays round."
+help = "Largest cell size, reached far from the body, in reference lengths. A far-field circle always gets at least 120 faces so that it stays round."
 
 [[input]]
 key = "size_growth"

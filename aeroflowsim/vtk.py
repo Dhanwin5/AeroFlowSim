@@ -41,6 +41,8 @@ def mesh_cell_data(mesh) -> dict:
         "non_orthogonality": mesh_quality.non_orthogonality(mesh), # [deg]
         "volume_ratio": mesh_quality.volume_ratio(mesh),           # [-]
         "cell_size": mesh_quality.cell_size(mesh),                 # [m]
+        "min_angle": mesh_quality.min_angle(mesh),                 # [deg]
+        "skewness": mesh_quality.equiangle_skewness(mesh),         # [-]
         "patch_marker": marker,
     }
     if mesh.axisymmetric:

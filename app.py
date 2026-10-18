@@ -27,20 +27,21 @@ from aeroflowsim import __version__
 from aeroflowsim.case import get_derived, get_geometry
 from aeroflowsim.checks import run_mesh_checks
 from aeroflowsim.discovery import find_cases
-from aeroflowsim.geometry import profile_summary
+from aeroflowsim.geometry import WallProfile, profile_summary
 from aeroflowsim.gui.panel import current_values, init_inputs, input_panel, set_inputs
 from aeroflowsim.job import RunJob
 from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
 from aeroflowsim.mesh_quality import quality_summary
-from aeroflowsim.parameters import defaults, validate
+from aeroflowsim.parameters import defaults, install_hint, module_available, validate
 from aeroflowsim.plots import (QUALITY_COLORINGS, face_mesh_figure, field_figure, mesh_figure, profile_figure,
-                               residual_figure)
+                               residual_figure, shape_figure)
 from aeroflowsim.vtk import save_mesh_files
 from aeroflowsim.runner import fields_csv_text, max_errors, plot_fields
 from aeroflowsim.settings import list_settings, load_settings, save_settings, settings_dir
 from aeroflowsim.visualise import COLORMAPS, contour_2d, figure_png, shape_view, xt_diagram
 
 PROJECT_DIR = Path(__file__).resolve().parent
+AUTO_REBUILD_CELLS = 50_000             # rebuild the mesh after every input change only below this size
 ASSETS_DIR = PROJECT_DIR / "assets"     # logo images
 UPLOADS_DIR = PROJECT_DIR / "uploads"   # files uploaded in the Setup tab (not committed to git)
 
@@ -94,6 +95,10 @@ if state.get("case_name") != case_name:
 init_inputs(case)
 
 st.title(case.title)
+missing_packages = [name for name in case.requires if not module_available(name)]
+for name in missing_packages:   # e.g. a case that needs the optional Gmsh mesher
+    st.warning(f"This case needs **{name}**, which is not installed. Install it with `{install_hint(name)}` "
+               "and restart the GUI.", icon="⚠️")
 setup_tab, mesh_tab, run_tab, results_tab = st.tabs(["Setup", "Mesh", "Run", "Results"])
 
 
@@ -113,6 +118,21 @@ def on_load(file_name):
         state.settings_message = ("error", f"Could not load '{file_name}': {error}")
 
 
+def shape_preview(profile):
+    """Setup tab: the outline of a body in a free stream (a ShapeProfile) and its reference values."""
+    st.subheader("Geometry preview")
+    cols = st.columns(4)
+    cols[0].metric("Reference length [m]", f"{profile.reference_length:.4g}")
+    cols[1].metric("Reference area [m²]", f"{profile.reference_area:.4g}")
+    cols[2].metric("Body type", "axisymmetric" if profile.axisymmetric else "planar")
+    cols[3].metric("Outline points", f"{profile.n_points:,}")
+    for note in profile.warnings:
+        st.warning(note)
+    st.plotly_chart(shape_figure(profile), key="shape_plot")
+    st.caption("Planar bodies: reference area = reference length × 1 m depth. Axisymmetric bodies: "
+               "base area π R². These are used for the force coefficients from Prompt 7.")
+
+
 def geometry_preview(values):
     """Setup tab: the wall profile and its key numbers, or a clear message on what to fix."""
     try:
@@ -121,6 +141,9 @@ def geometry_preview(values):
         st.error(f"Geometry problem: {error}")
         return
     if profile is None:
+        return
+    if not isinstance(profile, WallProfile):
+        shape_preview(profile)
         return
     st.subheader("Geometry preview")
     s = profile_summary(profile)
@@ -220,12 +243,22 @@ def face_mesh_view(mesh):
         cols[1].metric("Max aspect ratio [-]", f"{q['max_aspect_ratio']:.3g}")
         cols[2].metric("Max non-orthogonality [deg]", f"{q['max_non_orthogonality']:.3g}")
         cols[3].metric("Max neighbour volume ratio [-]", f"{q['max_volume_ratio']:.3g}")
+        cols = st.columns(4)
+        cols[0].metric("Smallest angle [deg]", f"{q['min_angle']:.3g}")
+        cols[1].metric("Max skewness [-]", f"{q['max_skewness']:.3g}")
+        if "reference_length" in mesh.info:
+            cols[2].metric("Reference length [m]", f"{mesh.info['reference_length']:.4g}")
+            cols[3].metric("Reference area [m²]", f"{mesh.info['reference_area']:.4g}")
         st.caption("Patches: " + ", ".join(f"{p.name} ({p.type}, {p.count} faces)" for p in mesh.patches)
                    + ". Full quality checks: **Results** tab.")
-    color_by = st.selectbox("Colour cells by", ["Nothing"] + list(QUALITY_COLORINGS), key="mesh_color_by",
-                            filter_mode=None)
-    st.plotly_chart(face_mesh_figure(mesh, None if color_by == "Nothing" else color_by), key="mesh_plot",
-                    config={"scrollZoom": True})
+    col_color, col_view = st.columns([2, 1])
+    color_by = col_color.selectbox("Colour cells by", ["Nothing"] + list(QUALITY_COLORINGS), key="mesh_color_by",
+                                   filter_mode=None)
+    full = True
+    if "body_bbox" in mesh.info:   # a body in a free stream: open zoomed on the body
+        full = col_view.toggle("Show the full domain", key="mesh_full_domain")
+    st.plotly_chart(face_mesh_figure(mesh, None if color_by == "Nothing" else color_by, full_domain=full),
+                    key="mesh_plot", config={"scrollZoom": True})
     st.caption("Zoom: drag a box or use the mouse wheel; double-click to see the whole mesh. "
                "Click a legend entry to hide or show it.")
     files = state.get("mesh_files")
@@ -235,26 +268,51 @@ def face_mesh_view(mesh):
                            mime="application/xml", on_click="ignore", key="download_vtu")
         st.caption(f"Also saved in `{vtu.relative_to(PROJECT_DIR).as_posix()}` and "
                    f"`{npz.relative_to(PROJECT_DIR).as_posix()}`.")
+        msh = npz.parent / "mesh.msh"
+        if "msh_note" in mesh.info:
+            st.caption(mesh.info["msh_note"])
+        elif msh.exists() and msh.stat().st_mtime >= npz.stat().st_mtime - 60:
+            st.caption(f"Gmsh's own file: `{msh.relative_to(PROJECT_DIR).as_posix()}`.")
 
 
 # ---------------------------------------------------------------------------------------------
 # Mesh tab
 # ---------------------------------------------------------------------------------------------
 
+def estimated_cells(params):
+    """The case's quick cell-count estimate, or None if it has none (or it cannot be computed)."""
+    if not hasattr(case, "estimated_cells"):
+        return None
+    try:
+        return case.estimated_cells(params)
+    except ValueError:
+        return None
+
+
 with mesh_tab:
     if params_error:
         st.error(params_error)
-    if st.button("Generate mesh", type="primary", key="generate_mesh", disabled=params is None):
+    if st.button("Generate mesh", type="primary", key="generate_mesh",
+                 disabled=params is None or bool(missing_packages)):
         make_mesh()
     elif state.get("mesh") is not None and params is not None and state.mesh_params != params:
-        make_mesh()   # the Setup inputs changed since the last mesh: update it automatically
+        # The Setup inputs changed since the last mesh: update it automatically, unless it is big
+        # (a big mesh takes a while and would freeze the page after every typed number).
+        estimate = estimated_cells(params)
+        if estimate is None or estimate <= AUTO_REBUILD_CELLS:
+            make_mesh()
+        else:
+            st.info(f"The inputs changed. The new mesh will have about {estimate:,} cells (more than "
+                    f"{AUTO_REBUILD_CELLS:,}), so it is not rebuilt automatically: press **Generate mesh**.")
     if "mesh_error" in state:
         st.error(f"Could not build the mesh: {state.mesh_error}")
     mesh = state.get("mesh")
     if mesh is None:
         st.info("Press **Generate mesh** to build the mesh from the Setup inputs.")
-    elif state.mesh_params != params:
+    elif state.mesh_params != params and params is None:
         st.warning("The Setup inputs are not valid; this mesh was made with earlier inputs.")
+    elif state.mesh_params != params:
+        st.warning("This mesh was made with earlier Setup inputs.")
     if isinstance(mesh, Mesh):
         face_mesh_view(mesh)
     elif mesh is not None:

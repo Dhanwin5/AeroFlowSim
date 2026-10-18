@@ -15,7 +15,7 @@ FOLDERS = validation_folders()
 
 
 def test_every_validation_folder_has_sources_and_tolerances():
-    assert {f.name for f in FOLDERS} >= {"sod", "quasi1d_nozzle", "nozzle_axi_geometry"}
+    assert {f.name for f in FOLDERS} >= {"sod", "quasi1d_nozzle", "nozzle_axi_geometry", "external_geometry"}
     for folder in FOLDERS:
         header, references = read_references(folder)
         assert header["case"].startswith("cases/") and references
@@ -41,3 +41,16 @@ def test_nozzle_axi_geometry_error_falls_as_the_mesh_is_refined():
     for quantity in ("area", "volume", "wall"):
         coarse, medium, fine = (error[f"{quantity}_{m}"] for m in ("coarse", "medium", "fine"))
         assert coarse > medium > fine, quantity
+
+
+@pytest.mark.validation
+def test_external_geometry_error_falls_as_the_mesh_is_refined():
+    v = validate_folder(next(f for f in FOLDERS if f.name == "external_geometry"))
+    error = {c.reference.id: c.error_percent for c in v.comparisons}
+    for quantity in ("cylinder_wall", "cylinder_area", "diamond_area", "wedge_area", "cone_volume"):
+        default, fine, finer = (error[f"{quantity}_{m}"] for m in ("default", "fine", "finer"))
+        assert default > fine > finer, quantity
+    # The triangle nozzle is already exact to round-off level (Gmsh puts its nodes on the arcs).
+    assert all(error[f"nozzle_triangles_{m}"] < 1e-3 for m in ("default", "fine", "finer"))
+    coarse, medium, fine = (error[f"nozzle_structured_{m}"] for m in ("coarse", "medium", "fine"))
+    assert coarse > medium > fine

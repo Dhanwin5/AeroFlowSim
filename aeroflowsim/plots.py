@@ -80,7 +80,14 @@ QUALITY_COLORINGS = {
     "Non-orthogonality": (mesh_quality.non_orthogonality, "deg"),
     "Neighbour volume ratio": (mesh_quality.volume_ratio, "-"),
     "Cell size": (mesh_quality.cell_size, "m"),
+    "Smallest angle": (mesh_quality.min_angle, "deg"),
+    "Equiangle skewness": (mesh_quality.equiangle_skewness, "-"),
 }
+
+
+def length_unit(size):
+    """("mm", 1e3) for small geometry (nozzles), ("m", 1.0) for bodies of half a metre or more."""
+    return ("m", 1.0) if size >= 0.5 else ("mm", 1e3)
 
 
 def _face_lines(mesh, faces, scale):
@@ -92,16 +99,18 @@ def _face_lines(mesh, faces, scale):
     return x, y
 
 
-def face_mesh_figure(mesh, color_by=None):
-    """Zoomable picture of a 2D face-based Mesh, in mm.
+def face_mesh_figure(mesh, color_by=None, full_domain=True):
+    """Zoomable picture of a 2D face-based Mesh, in mm (small meshes) or m.
 
     Interior faces are thin grey lines; every boundary patch has its own colour (and legend
     entry). color_by = one of QUALITY_COLORINGS: every cell gets a coloured dot at its centre,
-    with the value shown when the mouse is over it.
+    with the value shown when the mouse is over it. full_domain=False: for a body in a free stream
+    (mesh.info has "body_bbox"), the view opens zoomed on the body. For axisymmetric and half
+    domains the view never shows the empty region below the axis / symmetry line (y < 0).
     """
     if mesh.dim != 2:
         raise ValueError("Only 2D meshes can be drawn here; open 3D meshes in ParaView (.vtu).")
-    scale = 1e3                                                   # m -> mm
+    unit, scale = length_unit(float(np.ptp(mesh.nodes[:, :2], axis=0).max()))   # m -> unit
     Scatter = go.Scattergl if mesh.n_faces > 2000 else go.Scatter  # WebGL for big meshes
     fig = go.Figure()
     x, y = _face_lines(mesh, np.arange(mesh.n_interior_faces), scale)
@@ -112,19 +121,28 @@ def face_mesh_figure(mesh, color_by=None):
         fig.add_trace(Scatter(x=x, y=y, mode="lines", name=f"{p.name} ({p.type})", hoverinfo="skip",
                               line=dict(color=PATCH_COLORS.get(p.type, COLOR_NUMERICAL), width=3)))
     if color_by is not None:
-        function, unit = QUALITY_COLORINGS[color_by]
+        function, q_unit = QUALITY_COLORINGS[color_by]
         values = function(mesh)
         c = mesh.cell_centres * scale
         fig.add_trace(Scatter(
             x=c[:, 0], y=c[:, 1], mode="markers", name=color_by, showlegend=False,
             marker=dict(size=5, color=values, colorscale="Viridis",
-                        colorbar=dict(title=f"{color_by} [{unit}]", thickness=14)),
+                        colorbar=dict(title=f"{color_by} [{q_unit}]", thickness=14)),
             customdata=np.column_stack([np.arange(mesh.n_cells), values]),
-            hovertemplate="cell %{customdata[0]}<br>" + color_by + " = %{customdata[1]:.4g} " + unit
-                          + "<br>x = %{x:.4f} mm, r = %{y:.4f} mm<extra></extra>"))
+            hovertemplate="cell %{customdata[0]}<br>" + color_by + " = %{customdata[1]:.4g} " + q_unit
+                          + f"<br>x = %{{x:.4f}} {unit}, y = %{{y:.4f}} {unit}<extra></extra>"))
     fig.update_yaxes(scaleanchor="x", scaleratio=1)               # true shape
-    y_title = "r [mm]" if mesh.axisymmetric else "y [mm]"
-    _layout(fig, f"2D mesh: {mesh.n_cells:,} cells, {mesh.n_faces:,} faces", "x [mm]", y_title, height=520)
+    upper_only = mesh.axisymmetric or mesh.info.get("half_domain")
+    if upper_only:                                                # nothing to see below the axis
+        fig.update_yaxes(minallowed=0.0)
+    bbox = mesh.info.get("body_bbox")
+    if bbox is not None and not full_domain:                      # open zoomed on the body
+        x0, y0, x1, y1 = (v * scale for v in bbox)
+        margin = 0.6 * max(x1 - x0, y1 - y0)
+        fig.update_xaxes(range=[x0 - margin, x1 + margin])
+        fig.update_yaxes(range=[0.0 if upper_only else y0 - margin, y1 + margin])
+    y_title = f"r [{unit}]" if mesh.axisymmetric else f"y [{unit}]"
+    _layout(fig, f"2D mesh: {mesh.n_cells:,} cells, {mesh.n_faces:,} faces", f"x [{unit}]", y_title, height=520)
     fig.update_layout(hovermode="closest", dragmode="zoom", margin=dict(l=60, r=20, t=50, b=90),
                       legend=dict(orientation="h", yanchor="top", y=-0.14, xanchor="left", x=0.0))
     return fig
@@ -200,5 +218,37 @@ def profile_figure(profile, n_points=600):
     fig.add_hline(y=0.0, line=dict(color=COLOR_MUTED, dash="dashdot", width=1))   # axis
     fig.update_yaxes(scaleanchor="x", scaleratio=1)                               # true shape
     _layout(fig, "Wall profile (mirrored about the axis)", "x [mm]", "r [mm]", height=380)
+    fig.update_layout(hovermode="closest")
+    return fig
+
+
+def shape_figure(profile):
+    """Outline of a body (a ShapeProfile) with its points, corners and refined points marked.
+
+    Axisymmetric bodies are drawn as their full silhouette, with the axis as a dash-dot line.
+    """
+    unit, scale = length_unit(profile.reference_length)
+    closed = profile.closed_points() * scale
+    p = profile.points * scale
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=closed[:, 0], y=closed[:, 1], mode="lines+markers", name="outline",
+                             line=dict(color=COLOR_NUMERICAL, width=2), marker=dict(size=3),
+                             hovertemplate=f"x = %{{x:.5g}} {unit}<br>y = %{{y:.5g}} {unit}<extra></extra>"))
+    if np.any(profile.corners):
+        fig.add_trace(go.Scatter(x=p[profile.corners, 0], y=p[profile.corners, 1], mode="markers",
+                                 name="sharp corners", marker=dict(color=COLOR_REFERENCE, size=9, symbol="diamond"),
+                                 hovertemplate=f"corner: x = %{{x:.5g}} {unit}, y = %{{y:.5g}} {unit}<extra></extra>"))
+    smooth_refine = profile.refine & ~profile.corners
+    if np.any(smooth_refine):
+        fig.add_trace(go.Scatter(x=p[smooth_refine, 0], y=p[smooth_refine, 1], mode="markers",
+                                 name="leading/trailing edge (refined)",
+                                 marker=dict(color=COLOR_REFERENCE, size=9, symbol="circle-open"),
+                                 hovertemplate=f"x = %{{x:.5g}} {unit}, y = %{{y:.5g}} {unit}<extra></extra>"))
+    if profile.axisymmetric:
+        fig.add_hline(y=0.0, line=dict(color=COLOR_MUTED, dash="dashdot", width=1))   # axis
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)                                   # true shape
+    kind = "axisymmetric" if profile.axisymmetric else "planar"
+    _layout(fig, f"{profile.name} ({kind}, {profile.n_points} points)", f"x [{unit}]",
+            f"r [{unit}]" if profile.axisymmetric else f"y [{unit}]", height=380)
     fig.update_layout(hovermode="closest")
     return fig
