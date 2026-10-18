@@ -29,7 +29,8 @@ def geometry(params):
             path = PROJECT_DIR / path
         return read_profile_csv(path)
     return conical_nozzle(params["d_inlet"], params["L_inlet"], params["half_angle_conv"] * DEG,
-                          params["d_throat"], params["half_angle_div"] * DEG, params["d_exit"])
+                          params["d_throat"], params["half_angle_div"] * DEG, params["d_exit"],
+                          params["Rcu_ratio"], params["Rcd_ratio"])
 
 
 def mesh_size(params):

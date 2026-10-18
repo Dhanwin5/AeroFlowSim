@@ -95,3 +95,50 @@ def test_csv_round_trip_of_cone_keeps_throat_and_exit(tmp_path):
     xs = np.linspace(0, cone.length, 997)
     # PCHIP rounds each sharp corner a little, within one 10 µm interval of it
     assert np.max(np.abs(p.radius_at(xs) - cone.radius_at(xs))) < 1e-2 * cone.r_throat
+
+
+# ---- rounded throat ------------------------------------------------------------------------------
+
+def rounded(Rcu=1.5, Rcd=0.4):
+    return conical_nozzle(2.0e-3, 1.33e-3, 30 * DEG, 0.280e-3, 15 * DEG, 0.911e-3, Rcu, Rcd)
+
+
+def test_zero_radius_ratios_give_exactly_the_sharp_nozzle():
+    sharp, zero = default_cone(), rounded(0.0, 0.0)
+    assert np.array_equal(sharp.x, zero.x) and np.array_equal(sharp.r, zero.r) and zero.marks == []
+
+
+def test_rounded_throat_keeps_throat_and_exit_diameters_exact():
+    p = rounded()
+    s = profile_summary(p)
+    assert s["d_throat"][0] == 0.280e-3 and s["d_exit"][0] == 0.911e-3 and s["d_inlet"][0] == 2.0e-3
+    assert p.x_throat == dict((m[0], m[1]) for m in p.marks)["throat"]
+
+
+def test_throat_arcs_are_tangent_to_the_cones_and_to_each_other():
+    p = rounded()
+    r_t = 0.14e-3
+    marks = {label: (x, r) for label, x, r in p.marks}
+    x_t = marks["throat"][0]
+    # cone slopes (straight segments next to the tangent points) equal the cone angles
+    up = int(np.argmin(np.abs(p.x - marks["upstream tangent point"][0])))
+    down = int(np.argmin(np.abs(p.x - marks["downstream tangent point"][0])))
+    assert (p.r[up] - p.r[up - 1]) / (p.x[up] - p.x[up - 1]) == pytest.approx(-math.tan(30 * DEG), abs=1e-9)
+    assert (p.r[down + 1] - p.r[down]) / (p.x[down + 1] - p.x[down]) == pytest.approx(math.tan(15 * DEG), abs=1e-9)
+    # the circle slope at the tangent points, -tan(phi), is the cone slope (phi = cone angle)
+    for (x, r), R, sign, angle in ((marks["upstream tangent point"], 1.5 * r_t, -1, 30 * DEG),
+                                   (marks["downstream tangent point"], 0.4 * r_t, 1, 15 * DEG)):
+        assert math.hypot(x - x_t, r - (r_t + R)) == pytest.approx(R, rel=1e-12)    # on the circle
+        slope = (x - x_t) / ((r_t + R) - r)                                          # circle slope dr/dx
+        assert slope == pytest.approx(sign * math.tan(angle), abs=1e-9)
+    # at the throat both arcs are horizontal: their centres are straight above the throat
+    i = int(np.argmin(p.r))
+    left = (p.r[i - 1] - p.r[i]) / (p.x[i] - p.x[i - 1])
+    right = (p.r[i + 1] - p.r[i]) / (p.x[i + 1] - p.x[i])
+    assert abs(left) < 0.01 and abs(right) < 0.01     # chord slopes of a 0.5 deg step -> 0 at the throat
+    assert np.all(p.r[p.x < x_t] > r_t) and np.all(p.r[p.x > x_t] > r_t)
+
+
+def test_arc_that_does_not_fit_gives_a_clear_error():
+    with pytest.raises(ValueError, match="upstream throat arc does not fit.*below"):
+        rounded(Rcu=60.0)

@@ -190,6 +190,13 @@ def profile_figure(profile, n_points=600):
     fig.add_trace(go.Scatter(x=[xt, xt], y=[-rt, rt], mode="lines+markers", name="throat",
                              line=dict(color=COLOR_REFERENCE, width=2, dash="dot"),
                              hovertemplate=f"throat: x = {xt:.4f} mm, d = {2 * rt:.4f} mm<extra></extra>"))
+    tangents = [(label, x, r) for label, x, r in profile.marks if label != "throat"]
+    if tangents:   # e.g. where the rounded-throat arcs meet the cones
+        fig.add_trace(go.Scatter(
+            x=[x * 1e3 for _, x, _ in tangents], y=[r * 1e3 for _, _, r in tangents], mode="markers",
+            name="arc tangent points", marker=dict(color=COLOR_REFERENCE, size=9, symbol="diamond"),
+            text=[label for label, _, _ in tangents],
+            hovertemplate="%{text}<br>x = %{x:.4f} mm<br>r = %{y:.4f} mm<extra></extra>"))
     fig.add_hline(y=0.0, line=dict(color=COLOR_MUTED, dash="dashdot", width=1))   # axis
     fig.update_yaxes(scaleanchor="x", scaleratio=1)                               # true shape
     _layout(fig, "Wall profile (mirrored about the axis)", "x [mm]", "r [mm]", height=380)

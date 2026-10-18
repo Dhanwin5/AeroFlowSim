@@ -14,7 +14,7 @@ the axis, in SI metres. Cases only use that object and never care where it came 
 
 import csv
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +38,7 @@ class WallProfile:
     x: np.ndarray  # axial positions [m], strictly increasing
     r: np.ndarray  # wall radius at those positions [m], >= 0
     interpolation: str = "linear"
+    marks: list = field(default_factory=list)   # special points [(label, x [m], r [m])], e.g. arc tangent points
 
     def __post_init__(self):
         self.x = np.asarray(self.x, dtype=float)
@@ -80,12 +81,19 @@ class WallProfile:
 
 # ---- Level 1: parametric shapes --------------------------------------------------------------
 
-def conical_nozzle(d_inlet, L_inlet, half_angle_conv, d_throat, half_angle_div, d_exit):
-    """Conical converging-diverging nozzle with a straight inlet and a sharp throat.
+ARC_STEP_DEG = 0.5   # the throat arcs are sampled at least every 0.5 degrees of arc [deg]
+ARC_MIN_POINTS = 16  # ... and with at least this many points per arc
+
+
+def conical_nozzle(d_inlet, L_inlet, half_angle_conv, d_throat, half_angle_div, d_exit,
+                   Rcu_ratio=0.0, Rcd_ratio=0.0):
+    """Conical converging-diverging nozzle with a straight inlet and a sharp or rounded throat.
 
     d_inlet, d_throat, d_exit   diameters [m]
     L_inlet                     length of the straight inlet section [m] (may be 0)
     half_angle_conv/div         cone half-angles [rad]
+    Rcu_ratio, Rcd_ratio        throat radius of curvature upstream / downstream, divided by the
+                                throat radius [-]. 0 = sharp throat (the default).
     The cone lengths follow from the diameters and angles. Starts at x = 0.
     """
     if not d_throat < d_inlet:
@@ -94,6 +102,11 @@ def conical_nozzle(d_inlet, L_inlet, half_angle_conv, d_throat, half_angle_div, 
         raise ValueError("The throat diameter must be smaller than the exit diameter.")
     if not (0.0 < half_angle_conv < 0.5 * math.pi and 0.0 < half_angle_div < 0.5 * math.pi):
         raise ValueError("The cone half-angles must be between 0 and 90 degrees.")
+    if Rcu_ratio < 0.0 or Rcd_ratio < 0.0:
+        raise ValueError("The throat radius ratios cannot be negative (0 = sharp throat).")
+    if Rcu_ratio > 0.0 or Rcd_ratio > 0.0:
+        return _rounded_throat_nozzle(d_inlet, L_inlet, half_angle_conv, d_throat, half_angle_div, d_exit,
+                                      Rcu_ratio, Rcd_ratio)
     r_in, r_t, r_e = 0.5 * d_inlet, 0.5 * d_throat, 0.5 * d_exit   # [m]
     L_conv = (r_in - r_t) / math.tan(half_angle_conv)               # [m]
     L_div = (r_e - r_t) / math.tan(half_angle_div)                  # [m]
@@ -102,6 +115,70 @@ def conical_nozzle(d_inlet, L_inlet, half_angle_conv, d_throat, half_angle_div, 
     if L_inlet <= 0.0:                                              # no straight inlet section
         x, r = x[1:], r[1:]
     return WallProfile(x=x, r=r, interpolation="linear")
+
+
+def throat_arc_end(r_t, R_c, half_angle):
+    """Where a throat arc of radius R_c [m] meets a cone of the given half-angle [rad].
+
+    The arc is a circle with its centre straight above the throat, at (x_t, r_t + R_c). It touches
+    the cone (is tangent to it) where the circle's slope equals the cone's slope, i.e. at the arc
+    angle phi = half_angle measured from the throat:
+        dx = R_c sin(half_angle)         axial distance from the throat [m]
+        r  = r_t + R_c (1 - cos(half_angle))   radius there [m]
+    Returns (dx, r).
+    """
+    return R_c * math.sin(half_angle), r_t + R_c * (1.0 - math.cos(half_angle))
+
+
+def _arc_points(R_c, half_angle):
+    """Arc angles phi [rad] from 0 (throat) to half_angle, at most ARC_STEP_DEG apart."""
+    n = max(ARC_MIN_POINTS, math.ceil(math.degrees(half_angle) / ARC_STEP_DEG))
+    return np.linspace(0.0, half_angle, n + 1)
+
+
+def _rounded_throat_nozzle(d_inlet, L_inlet, a_c, d_throat, a_d, d_exit, Rcu_ratio, Rcd_ratio):
+    """Conical nozzle whose throat is two circular arcs (upstream radius Rcu, downstream Rcd).
+
+    Each arc is tangent to its cone and both arcs are horizontal (tangent to each other) at the
+    throat, so the wall has no corner there. The throat and exit diameters stay as given; the
+    cones become shorter by the part the arcs replace. The arcs are stored as many points
+    (linear interpolation between them), so every mesh generator sees the curved wall.
+    """
+    r_in, r_t, r_e = 0.5 * d_inlet, 0.5 * d_throat, 0.5 * d_exit   # [m]
+    R_u, R_d = Rcu_ratio * r_t, Rcd_ratio * r_t                     # arc radii [m]
+    dx_u, r_u = throat_arc_end(r_t, R_u, a_c)                       # upstream tangent point
+    dx_d, r_d = throat_arc_end(r_t, R_d, a_d)                       # downstream tangent point
+    for name, r_end, r_limit, ratio, angle, where in (
+            ("upstream", r_u, r_in, Rcu_ratio, a_c, "inlet"), ("downstream", r_d, r_e, Rcd_ratio, a_d, "exit")):
+        if r_end >= r_limit:
+            largest = (r_limit - r_t) / (r_t * (1.0 - math.cos(angle)))
+            raise ValueError(f"The {name} throat arc does not fit: with Rc/Rt = {ratio:g} it would end at "
+                             f"r = {r_end * 1e3:.4g} mm, beyond the {where} radius {r_limit * 1e3:.4g} mm, so no "
+                             f"cone would be left. Use a {name} radius ratio below {largest:.3g}.")
+    x_u = L_inlet + (r_in - r_u) / math.tan(a_c)    # end of the convergent cone [m]
+    x_t = x_u + dx_u                                # throat [m]
+    x_d = x_t + dx_d                                # start of the divergent cone [m]
+    x_e = x_d + (r_e - r_d) / math.tan(a_d)         # exit [m]
+
+    x, r = ([0.0, L_inlet], [r_in, r_in]) if L_inlet > 0.0 else ([0.0], [r_in])
+    if R_u > 0.0:
+        phi = _arc_points(R_u, a_c)[::-1][:-1]      # from the tangent point down to (not incl.) the throat
+        x += list(x_t - R_u * np.sin(phi))
+        r += list(r_t + R_u * (1.0 - np.cos(phi)))
+    x.append(x_t)                                    # the throat itself is always a point
+    r.append(r_t)
+    if R_d > 0.0:
+        phi = _arc_points(R_d, a_d)[1:]              # from just after the throat to the tangent point
+        x += list(x_t + R_d * np.sin(phi))
+        r += list(r_t + R_d * (1.0 - np.cos(phi)))
+    x.append(x_e)
+    r.append(r_e)
+    marks = [("throat", x_t, r_t)]
+    if R_u > 0.0:
+        marks.insert(0, ("upstream tangent point", x_u, r_u))
+    if R_d > 0.0:
+        marks.append(("downstream tangent point", x_d, r_d))
+    return WallProfile(x=x, r=r, interpolation="linear", marks=marks)
 
 
 # ---- Level 2: profile from a CSV file ---------------------------------------------------------

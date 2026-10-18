@@ -60,7 +60,7 @@ default = 0.00028
 min = 1e-06
 max = 1.0
 group = "Geometry"
-help = "Smallest diameter (sharp-cornered throat)."
+help = "Smallest diameter. It stays exact also with a rounded throat."
 show_if = { geometry_source = "Parametric (conical)" }
 
 [[input]]
@@ -85,6 +85,30 @@ min = 1e-06
 max = 1.0
 group = "Geometry"
 help = "Diameter at the nozzle exit."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "Rcu_ratio"
+label = "Throat radius ratio upstream Rcu/Rt"
+unit = "-"
+type = "float"
+default = 0.0
+min = 0.0
+max = 10.0
+group = "Geometry"
+help = "Radius of curvature of the wall just upstream of the throat, divided by the throat radius. 0 = sharp throat. Typical: 1.5. The arc is tangent to the convergent cone; the cone gets shorter."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "Rcd_ratio"
+label = "Throat radius ratio downstream Rcd/Rt"
+unit = "-"
+type = "float"
+default = 0.0
+min = 0.0
+max = 10.0
+group = "Geometry"
+help = "Radius of curvature of the wall just downstream of the throat, divided by the throat radius. 0 = sharp throat. Typical: 0.4. The arc is tangent to the divergent cone; the cone gets shorter."
 show_if = { geometry_source = "Parametric (conical)" }
 
 [[input]]
