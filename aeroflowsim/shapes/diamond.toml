@@ -1,0 +1,37 @@
+# Diamond (double-wedge) airfoil: four straight sides, sharp leading and trailing edges.
+
+[shape]
+name = "Diamond airfoil"
+group = "Supersonic airfoils"
+symmetry = "planar"
+description = "Symmetric double-wedge airfoil with straight sides."
+
+[[input]]
+key = "chord"
+label = "Chord (reference length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Leading edge to trailing edge. Also the reference length (reference area = chord x 1 m depth)."
+
+[[input]]
+key = "thickness_ratio"
+label = "Thickness ratio t/c"
+unit = "-"
+type = "float"
+default = 0.10
+min = 0.001
+max = 0.5
+help = "Largest thickness divided by the chord."
+
+[[input]]
+key = "x_max_thickness"
+label = "Position of max. thickness x/c"
+unit = "-"
+type = "float"
+default = 0.5
+min = 0.05
+max = 0.95
+help = "Where the two wedges meet, as a fraction of the chord (0.5 = symmetric front and back)."

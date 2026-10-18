@@ -25,10 +25,15 @@ A case folder holds two required files:
         Theory or exact solution on the same mesh. Keys should match the keys of
         Result.fields so the two can be compared and plotted together.
 
-    geometry(params)              -> WallProfile                    (optional)
-        The duct / nozzle wall r(x) for these inputs (see aeroflowsim/geometry.py). The GUI shows it
+    geometry(params)              -> WallProfile or ShapeProfile    (optional)
+        The duct / nozzle wall r(x) (see aeroflowsim/geometry.py) or the closed outline of a body
+        in a free stream (see aeroflowsim/shapes/profile.py) for these inputs. The GUI shows it
         as a preview in the Setup tab; raise ValueError with a "what to fix" message if the
         inputs do not give a valid geometry (e.g. a bad CSV file).
+
+    estimated_cells(params)       -> int                            (optional)
+        A quick estimate of the number of cells, without building the mesh. The GUI rebuilds the
+        mesh automatically after every input change only while this is below about 50,000 cells.
 
     derived(params)               -> dict {label: (value, unit)}    (optional)
         Read-only numbers that follow from the inputs (e.g. the total inflation thickness).
@@ -57,7 +62,7 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 
 # Functions case.py must define, and optional ones.
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
-OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived"]
+OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells"]
 
 
 def check_module(module, has_solver=True) -> list[str]:
@@ -103,6 +108,14 @@ class Case:
         """Read schema.toml and import case.py of one case folder; ValueError if anything is wrong."""
         folder = Path(folder)
         schema = load_schema(folder / SCHEMA_FILE)
+        if schema.shape_library:   # add the Shape dropdown and every shape's inputs in front
+            from aeroflowsim.schema import check_inputs
+            from aeroflowsim.shapes import shape_parameters
+            schema.inputs = shape_parameters() + schema.inputs
+            try:
+                check_inputs(schema.inputs)
+            except ValueError as error:
+                raise ValueError(f"{SCHEMA_FILE}: {error}") from None
         try:
             module = _load_module(folder.name, folder / "case.py")
         except Exception as error:  # any error inside case.py
@@ -135,6 +148,11 @@ class Case:
     def has_solver(self) -> bool:
         """False for a mesh-only case (schema.toml: solver = false)."""
         return self.schema.solver
+
+    @property
+    def requires(self) -> list:
+        """Optional packages this case needs (schema.toml: requires), e.g. ["gmsh"]."""
+        return list(self.schema.requires)
 
     @property
     def solver_message(self) -> str:

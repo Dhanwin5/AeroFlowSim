@@ -28,7 +28,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from aeroflowsim import mesh_quality
-from aeroflowsim.mesh import Mesh
+from aeroflowsim.mesh import TRIANGLE, Mesh
 
 LEVELS = ("info", "warning", "error")
 
@@ -37,8 +37,14 @@ MAX_MASS_IMBALANCE = 0.5     # largest acceptable inlet/exit mass-flow differenc
 NO_FLOW = 1e-15              # mass flows below this are treated as "no flow" [kg/s]
 MAX_ASPECT_RATIO = 100.0     # largest cell aspect ratio without a warning (no inflation) [-]
 MAX_NON_ORTHOGONALITY = 70.0 # largest angle between face normal and centre line [deg]
-MAX_VOLUME_RATIO = 2.0       # largest volume ratio of two neighbouring cells [-]
+MAX_VOLUME_RATIO = 2.0       # largest volume ratio of two neighbouring cells, quad meshes [-]
+MAX_VOLUME_RATIO_TRIANGLES = 4.0   # ... meshes with triangles: equal-sized triangles of different
+                                   # shapes already differ about 2.5 times in area [-]
 MAX_INFLATION_FRACTION = 0.5 # inflation thicker than this fraction of the throat radius: warning [-]
+MAX_INFLATION_FRACTION_BODY = 0.1  # ... or of the reference length of a body in a free stream [-]
+MIN_ANGLE_WARNING = 20.0     # smallest triangle angle below this: warning [deg]
+MIN_ANGLE_ERROR = 5.0        # smallest triangle angle below this: error, the solver will not run [deg]
+MAX_SKEWNESS = 0.85          # largest equiangle skewness without a warning [-]
 
 
 @dataclass
@@ -158,23 +164,43 @@ def mesh_non_orthogonality(case, params, mesh, result):
     return CheckResult("Non-orthogonality", "info", f"Largest non-orthogonality {worst:.3g}°.", worst, "deg")
 
 
+def _has_triangles(mesh):
+    return bool(np.any(mesh.cell_types == TRIANGLE))
+
+
 def mesh_volume_ratio(case, params, mesh, result):
     """Largest volume ratio of two neighbouring cells (a sudden jump in cell size)."""
     if _face_mesh(mesh) is None:
         return None
     worst = float(np.nanmax(mesh_quality.volume_ratio(mesh)))
-    if worst > MAX_VOLUME_RATIO:
+    limit = MAX_VOLUME_RATIO_TRIANGLES if _has_triangles(mesh) else MAX_VOLUME_RATIO
+    if worst > limit:
+        hint = ""
+        if mesh.info.get("inflation") and str(mesh.info.get("generator", "")).startswith("gmsh"):
+            hint = (" With inflation layers the biggest jumps are where the thin layers meet the triangles and "
+                    "at the corner fans: more layers or a larger growth rate give a smoother transition.")
         return CheckResult("Cell growth", "warning",
                            f"Two neighbouring cells differ {worst:.3g} times in volume (more than "
-                           f"{MAX_VOLUME_RATIO:g}): sudden jumps in cell size cause numerical errors.", worst, "-")
+                           f"{limit:g}): sudden jumps in cell size cause numerical errors.{hint}", worst, "-")
     return CheckResult("Cell growth", "info",
                        f"Largest volume ratio of neighbouring cells {worst:.3g}.", worst, "-")
 
 
 def mesh_inflation(case, params, mesh, result):
-    """Inflation layers must be thin compared with the throat radius and must not overlap."""
+    """Inflation layers must be thin compared with the throat radius (or the body) and must not overlap."""
     if _face_mesh(mesh) is None or not mesh.info.get("inflation"):
         return None
+    if "r_throat" not in mesh.info:      # a body in a free stream: compare with its reference length
+        thickness, length = mesh.info["inflation_thickness"], mesh.info["reference_length"]   # [m]
+        fraction = 100.0 * thickness / length                                                 # [%]
+        if fraction > 100.0 * MAX_INFLATION_FRACTION_BODY:
+            return CheckResult("Inflation layers", "warning",
+                               f"The inflation layers are {fraction:.3g} % of the reference length thick (more "
+                               f"than {100 * MAX_INFLATION_FRACTION_BODY:g} %): much thicker than a boundary layer.",
+                               fraction, "%")
+        return CheckResult("Inflation layers", "info",
+                           f"The inflation layers are {thickness * 1e6:.4g} µm thick, {fraction:.3g} % of the "
+                           "reference length.", fraction, "%")
     thickness, r_throat = mesh.info["inflation_thickness"], mesh.info["r_throat"]   # [m]
     fraction = 100.0 * thickness / r_throat                                         # [%]
     if thickness >= r_throat:
@@ -191,6 +217,35 @@ def mesh_inflation(case, params, mesh, result):
                        "throat radius.", fraction, "%")
 
 
+def mesh_min_angle(case, params, mesh, result):
+    """Smallest corner angle of any triangle (meshes with triangles only)."""
+    if _face_mesh(mesh) is None or not _has_triangles(mesh):
+        return None
+    smallest = float(np.nanmin(mesh_quality.min_angle(mesh)[mesh.cell_types == TRIANGLE]))   # [deg]
+    if smallest < MIN_ANGLE_ERROR:
+        return CheckResult("Smallest angle", "error",
+                           f"A triangle has an angle of only {smallest:.3g}° (less than {MIN_ANGLE_ERROR:g}°): such "
+                           "slivers make the solver fail. The solver will not run on this mesh: change the mesh "
+                           "settings.", smallest, "deg")
+    if smallest < MIN_ANGLE_WARNING:
+        return CheckResult("Smallest angle", "warning",
+                           f"A triangle has an angle of only {smallest:.3g}° (less than {MIN_ANGLE_WARNING:g}°): "
+                           "gradients there are inaccurate.", smallest, "deg")
+    return CheckResult("Smallest angle", "info", f"The smallest triangle angle is {smallest:.3g}°.", smallest, "deg")
+
+
+def mesh_skewness(case, params, mesh, result):
+    """Largest equiangle skewness (0 = perfect cell shapes, 1 = flat cells)."""
+    if _face_mesh(mesh) is None:
+        return None
+    worst = float(np.nanmax(mesh_quality.equiangle_skewness(mesh)))
+    if worst > MAX_SKEWNESS:
+        return CheckResult("Skewness", "warning",
+                           f"Largest equiangle skewness {worst:.3g} (more than {MAX_SKEWNESS:g}): strongly distorted "
+                           "cells reduce accuracy and can slow convergence.", worst, "-")
+    return CheckResult("Skewness", "info", f"Largest equiangle skewness {worst:.3g}.", worst, "-")
+
+
 def mesh_smallest_cell(case, params, mesh, result):
     """The smallest cell size (it sets the time step of an explicit solver)."""
     if _face_mesh(mesh) is None:
@@ -202,7 +257,7 @@ def mesh_smallest_cell(case, params, mesh, result):
 
 # Mesh-only checks: run before the solver, and shown with the other checks. Add new ones here.
 MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mesh_volume_ratio,
-               mesh_inflation, mesh_smallest_cell]
+               mesh_min_angle, mesh_skewness, mesh_inflation, mesh_smallest_cell]
 
 # Every check, in the order shown. Add new checks here.
 CHECKS = [convergence, mass_balance] + MESH_CHECKS

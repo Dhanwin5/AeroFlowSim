@@ -1,0 +1,46 @@
+# Conical nose cone (axisymmetric): flat base, or a cone-cylinder with a cylindrical afterbody.
+
+[shape]
+name = "Conical nose cone"
+group = "Nose cones"
+symmetry = "axisymmetric"
+description = "Axisymmetric cone with its tip at x = 0; flat base or cone-cylinder."
+
+[[input]]
+key = "half_angle"
+label = "Cone half-angle"
+unit = "deg"
+type = "float"
+default = 15.0
+min = 1.0
+max = 60.0
+help = "Angle between the cone surface and the axis."
+
+[[input]]
+key = "length"
+label = "Cone length"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Tip to base (or to the start of the afterbody). Base radius = length x tan(half-angle)."
+
+[[input]]
+key = "base"
+label = "Base"
+type = "choice"
+default = "Flat base"
+options = ["Flat base", "Cone-cylinder"]
+help = "Flat base right behind the cone, or a cylindrical afterbody of the base diameter."
+
+[[input]]
+key = "afterbody_length"
+label = "Afterbody length"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Length of the cylinder behind the cone."
+show_if = { base = "Cone-cylinder" }

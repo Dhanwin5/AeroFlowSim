@@ -1,0 +1,28 @@
+# Wedge: a planar body with a sharp tip and a flat base (supersonic oblique-shock test case).
+# Format of the inputs: see aeroflowsim/schema.py. Lengths in m, angles in degrees.
+
+[shape]
+name = "Wedge"
+group = "Supersonic airfoils"
+symmetry = "planar"
+description = "Planar wedge with a sharp tip at x = 0 and a flat base at x = length."
+
+[[input]]
+key = "half_angle"
+label = "Wedge half-angle"
+unit = "deg"
+type = "float"
+default = 10.0
+min = 1.0
+max = 45.0
+help = "Angle between each wedge surface and the x axis (the oblique-shock deflection angle)."
+
+[[input]]
+key = "length"
+label = "Wedge length (reference length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Distance from the tip to the flat base. Also the reference length (reference area = length x 1 m depth)."

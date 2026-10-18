@@ -15,6 +15,9 @@ They work for any cell type, in 2D and 3D, because they only use faces, owner an
                         Per cell: the worst of its neighbours. 1 = equal sizes.
     cell_size           smallest "thickness" of the cell = volume / largest face area [m]
                         (a 2D rectangle a x b gives min(a, b)).
+    min_angle           smallest inner corner angle of the cell [deg] (60 for an equilateral triangle).
+    equiangle_skewness  how far the corner angles are from the perfect shape's, 0 (perfect) to 1 (flat).
+                        These two use the cell's corners (2D) or the corners of its faces (3D).
 
 The validity checks (aeroflowsim/checks.py) and the GUI's Mesh tab use these numbers.
 """
@@ -70,6 +73,71 @@ def cell_size(mesh) -> np.ndarray:
     return mesh.cell_volumes / _per_cell_max(mesh, mesh.face_areas)
 
 
+def _polygon_angles(nodes, polygons, counts):
+    """Inner corner angles [deg] of polygons (M, 4) with `counts` corners each; padding -> NaN."""
+    angles = np.full(polygons.shape, np.nan)
+    for k in range(polygons.shape[1]):
+        use = k < counts
+        if not np.any(use):
+            continue
+        rows = np.flatnonzero(use)
+        n = counts[rows]
+        here = nodes[polygons[rows, k]]
+        before = nodes[polygons[rows, (k - 1) % n]]
+        after = nodes[polygons[rows, (k + 1) % n]]
+        a, b = before - here, after - here
+        cosine = np.einsum("ij,ij->i", a, b) / np.maximum(np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1),
+                                                          1e-300)
+        angles[rows, k] = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
+    return angles
+
+
+def _polygon_skewness(angles, counts):
+    """Equiangle skewness of polygons from their corner angles (see equiangle_skewness)."""
+    ideal = np.where(counts == 3, 60.0, 90.0)          # equilateral triangle / square [deg]
+    largest, smallest = np.nanmax(angles, axis=1), np.nanmin(angles, axis=1)
+    return np.maximum((largest - ideal) / (180.0 - ideal), (ideal - smallest) / ideal)
+
+
+def _cell_polygons(mesh):
+    """The polygons whose angles describe the cells: 2D = the cells, 3D = their faces.
+
+    Returns (polygons (M, 4) of node numbers, number of corners of each (M,)).
+    """
+    if mesh.dim == 2:
+        polygons = mesh.cell_nodes[:, :4]
+    else:
+        polygons = mesh.face_nodes
+    counts = np.count_nonzero(polygons >= 0, axis=1)
+    return np.maximum(polygons, 0), counts
+
+
+def min_angle(mesh) -> np.ndarray:
+    """(C,) smallest inner corner angle of every cell [deg] (3D: of any of its faces).
+
+    A triangle with a very small angle (a "sliver") gives inaccurate gradients and fluxes.
+    """
+    polygons, counts = _cell_polygons(mesh)
+    smallest = np.nanmin(_polygon_angles(mesh.nodes, polygons, counts), axis=1)
+    if mesh.dim == 2:
+        return smallest
+    return -_per_cell_max(mesh, -smallest)
+
+
+def equiangle_skewness(mesh) -> np.ndarray:
+    """(C,) equiangle skewness of every cell [-]: 0 = perfect shape, 1 = completely flat.
+
+        skewness = max( (theta_max - theta_e) / (180 - theta_e), (theta_e - theta_min) / theta_e )
+    with theta_min / theta_max the smallest / largest corner angle and theta_e the angle of the
+    perfect shape: 60 deg for a triangle, 90 deg for a quad. In 3D the worst face of the cell counts.
+    """
+    polygons, counts = _cell_polygons(mesh)
+    skew = _polygon_skewness(_polygon_angles(mesh.nodes, polygons, counts), counts)
+    if mesh.dim == 2:
+        return skew
+    return _per_cell_max(mesh, skew)
+
+
 def quality_summary(mesh) -> dict:
     """The key quality numbers of the whole mesh {name: value}."""
     return {
@@ -78,4 +146,6 @@ def quality_summary(mesh) -> dict:
         "max_non_orthogonality": float(non_orthogonality(mesh).max()),   # [deg]
         "max_volume_ratio": float(np.nanmax(volume_ratio(mesh))),        # [-]
         "min_cell_size": float(cell_size(mesh).min()),                   # [m]
+        "min_angle": float(np.nanmin(min_angle(mesh))),                  # [deg]
+        "max_skewness": float(np.nanmax(equiangle_skewness(mesh))),      # [-]
     }

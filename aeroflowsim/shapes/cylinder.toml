@@ -1,0 +1,17 @@
+# Circular cylinder: the classic blunt body (bow shock stand-off in supersonic flow).
+
+[shape]
+name = "Circular cylinder"
+group = "Blunt bodies"
+symmetry = "planar"
+description = "Circular cylinder (planar, 1 m deep) from x = 0 to x = D."
+
+[[input]]
+key = "diameter"
+label = "Diameter (reference length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Cylinder diameter. Also the reference length (reference area = D x 1 m depth)."

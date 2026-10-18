@@ -1,0 +1,186 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# The Shape dropdown and the inputs of every shape are added automatically from the shape library
+# (aeroflowsim/shapes/), because of shape_library = true below. Lengths are given as multiples of the
+# shape's reference length (chord, length or diameter), so the same settings fit any body size.
+
+[case]
+name = "Body in free stream - mesh"
+description = "2D or axisymmetric body (wedge, airfoils, cylinder, nose cone, your own coordinates) inside a circular or rectangular far field, meshed with Gmsh: triangles or quad-dominant, optional inflation layers."
+steady = true
+solver = false
+solver_message = "The 2D solver arrives in Prompt 7. For now this case builds, checks and exports the mesh (Mesh and Results tabs)."
+requires = ["gmsh"]
+shape_library = true
+
+# ---- far-field domain ---------------------------------------------------------------------------
+
+[[input]]
+key = "domain_shape"
+label = "Domain shape"
+type = "choice"
+default = "Circle"
+options = ["Circle", "Rectangle"]
+group = "Domain"
+help = "Shape of the far-field boundary around the body. The body stays at zero angle; the flow direction (angle of attack) will be set in the solver (Prompt 7)."
+
+[[input]]
+key = "domain_radius"
+label = "Circle radius / reference length"
+unit = "-"
+type = "float"
+default = 20.0
+min = 2.0
+max = 1000.0
+group = "Domain"
+help = "Radius of the far-field circle, measured from the middle of the body, in reference lengths."
+show_if = { domain_shape = "Circle" }
+
+[[input]]
+key = "upstream"
+label = "Upstream distance / reference length"
+unit = "-"
+type = "float"
+default = 10.0
+min = 0.5
+max = 1000.0
+group = "Domain"
+help = "From the front of the body to the inflow side of the rectangle, in reference lengths."
+show_if = { domain_shape = "Rectangle" }
+
+[[input]]
+key = "downstream"
+label = "Downstream distance / reference length"
+unit = "-"
+type = "float"
+default = 20.0
+min = 0.5
+max = 1000.0
+group = "Domain"
+help = "From the back of the body to the outflow side of the rectangle, in reference lengths."
+show_if = { domain_shape = "Rectangle" }
+
+[[input]]
+key = "height"
+label = "Height above (and below) / reference length"
+unit = "-"
+type = "float"
+default = 10.0
+min = 0.5
+max = 1000.0
+group = "Domain"
+help = "From y = 0 to the top side of the rectangle (and to the bottom side), in reference lengths."
+show_if = { domain_shape = "Rectangle" }
+
+[[input]]
+key = "half_domain"
+label = "Half domain (y >= 0 only)"
+type = "bool"
+default = false
+group = "Domain"
+help = "For bodies symmetric about y = 0 at zero angle: mesh only the upper half, with a symmetry patch on y = 0 (half the cells). Axisymmetric bodies always use the half domain, with an axis patch on y = 0."
+
+# ---- mesh ---------------------------------------------------------------------------------------
+
+[[input]]
+key = "cell_type"
+label = "Cell type"
+type = "choice"
+default = "Triangles"
+options = ["Triangles", "Quad-dominant (recombined)"]
+group = "Mesh"
+help = "Triangles only, or triangles combined into quadrilaterals where possible (Gmsh recombination); a few triangles remain."
+
+[[input]]
+key = "surface_size"
+label = "Surface cell size / reference length"
+unit = "-"
+type = "float"
+default = 0.005
+min = 0.0001
+max = 0.5
+group = "Mesh"
+help = "Cell size on the body, in reference lengths (0.005 = 1/200: 200 cells along a 1 m chord)."
+
+[[input]]
+key = "farfield_size"
+label = "Far-field cell size / reference length"
+unit = "-"
+type = "float"
+default = 2.0
+min = 0.001
+max = 100.0
+group = "Mesh"
+help = "Largest cell size, reached far from the body, in reference lengths. A far-field circle always gets at least 100 faces so that it stays round."
+
+[[input]]
+key = "size_growth"
+label = "Cell growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.01
+max = 2.0
+group = "Mesh"
+help = "How fast cells grow away from the body: each cell is about this many times larger than its neighbour nearer the body."
+
+[[input]]
+key = "edge_refinement"
+label = "Edge refinement"
+type = "bool"
+default = true
+group = "Mesh"
+help = "Four times smaller cells at sharp corners and at the leading and trailing edges."
+
+[[input]]
+key = "save_msh"
+label = "Also save Gmsh .msh file"
+type = "bool"
+default = false
+group = "Mesh"
+help = "Save Gmsh's own mesh file as cases/external_2d/mesh/mesh.msh (not for meshes with inflation layers; the .vtu file is always saved)."
+
+# ---- inflation layers ---------------------------------------------------------------------------
+
+[[input]]
+key = "inflation"
+label = "Inflation layers on the body"
+type = "bool"
+default = false
+group = "Inflation layers"
+help = "Thin quad layers along the body, for boundary layers in laminar/turbulent flow (Phase 4). Not needed for inviscid (Euler) flow."
+
+[[input]]
+key = "first_layer_height"
+label = "First layer height / reference length"
+unit = "-"
+type = "float"
+default = 1e-06
+min = 1e-09
+max = 0.01
+group = "Inflation layers"
+help = "Height of the cell layer touching the body (measured normal to the wall), in reference lengths."
+show_if = { inflation = true }
+
+[[input]]
+key = "n_layers"
+label = "Number of layers"
+unit = "-"
+type = "int"
+default = 10
+min = 1
+max = 100
+group = "Inflation layers"
+help = "Number of quad layers on the body."
+show_if = { inflation = true }
+
+[[input]]
+key = "growth_rate"
+label = "Layer growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.0
+max = 2.0
+group = "Inflation layers"
+help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
+show_if = { inflation = true }

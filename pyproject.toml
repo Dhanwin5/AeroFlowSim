@@ -35,11 +35,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Gmsh meshing will be added here in Prompt 6b:  pip install -e ".[mesh]"
-mesh = []
+# Gmsh: triangle / quad-dominant meshes and external flow domains (optional).
+# Install with:  pip install -e ".[mesh]"   AeroFlowSim works without it (structured meshes only).
+mesh = ["gmsh>=4.13,<5"]
 
 [tool.setuptools]
-packages = ["aeroflowsim", "aeroflowsim.gui"]
+packages = ["aeroflowsim", "aeroflowsim.gui", "aeroflowsim.shapes"]
+
+[tool.setuptools.package-data]
+# Every shape has a .toml file next to its .py module (its inputs and metadata).
+"aeroflowsim.shapes" = ["*.toml"]
 
 [tool.pytest.ini_options]
 # Every case has a file called test_case.py; importlib mode allows identical file names.

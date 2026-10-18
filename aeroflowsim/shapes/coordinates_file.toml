@@ -1,0 +1,34 @@
+# Any body from a coordinates file: Selig or Lednicer .dat (e.g. from the UIUC airfoil database),
+# or a CSV / text file with two columns x, y.
+
+[shape]
+name = "Custom coordinates file"
+group = "Custom"
+symmetry = "either"
+description = "Outline from your own coordinates file (Selig/Lednicer .dat or CSV x,y), scaled to the reference length."
+
+[[input]]
+key = "file"
+label = "Coordinates file"
+type = "file"
+default = "aeroflowsim/shapes/examples/naca2412_selig.dat"
+file_types = ["dat", "csv", "txt"]
+help = "Selig .dat (name line, then x y from the trailing edge over the upper surface to the leading edge and back), Lednicer .dat, or CSV with two columns x,y (header optional). Any unit: the outline is scaled to the reference length."
+
+[[input]]
+key = "body_type"
+label = "Body type"
+type = "choice"
+default = "Planar"
+options = ["Planar", "Axisymmetric"]
+help = "Planar: 2D body, 1 m deep. Axisymmetric: body of revolution about the x axis (give the full silhouette, or only its r >= 0 half, from nose to base)."
+
+[[input]]
+key = "reference_length"
+label = "Reference length (body length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "The outline is scaled so that its length along x equals this. Reference area: length x 1 m (planar) or the largest cross-section pi R² (axisymmetric)."

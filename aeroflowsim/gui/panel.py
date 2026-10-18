@@ -18,7 +18,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from aeroflowsim.parameters import check_values, defaults, is_shown
+from aeroflowsim.parameters import check_values, defaults, install_hint, is_shown, module_available
 
 NO_GROUP = "Inputs"   # heading for inputs without a group in schema.toml
 
@@ -69,14 +69,20 @@ def input_widget(case, p, uploads_dir, project_dir):
     """One input box for parameter p, chosen by its type (float, int, bool, choice or file)."""
     key = widget_key(case.name, p.name)
     if p.type == "choice":
+        missing = {option: package for option, package in p.requires.items() if not module_available(package)}
         st.selectbox(p.label, p.options, key=key, help=p.help or None,
-                     filter_mode=None)   # pick from the list only: no text cursor, no typing
+                     filter_mode=None,   # pick from the list only: no text cursor, no typing
+                     format_func=lambda o: f"{o}  (not installed)" if o in missing else o)
+        for option, package in missing.items():
+            st.caption(f"'{option}' needs {package}: install it with `{install_hint(package)}`.")
+    elif p.type == "text":
+        st.text_input(p.label, key=key, help=p.help or None)
     elif p.type == "bool":
         st.checkbox(p.label, key=key, help=p.help or None)
     elif p.type == "file":
         st.text_input(f"{p.label} (path)", key=key,
                       help=f"{p.help}  \nA path relative to the project folder, or upload a file below.")
-        st.file_uploader(f"Upload {p.label.lower()}", type=["csv"], key=f"upload:{case.name}:{p.name}",
+        st.file_uploader(f"Upload {p.label.lower()}", type=list(p.file_types), key=f"upload:{case.name}:{p.name}",
                          on_change=_on_upload, args=(case.name, p.name, uploads_dir, project_dir))
     else:
         label = f"{p.label} [{p.unit}]"
@@ -105,7 +111,7 @@ def input_panel(case, uploads_dir, project_dir):
     values = current_values(case)
     problems = check_values(case.parameters(), values)
     for group, params in groups_in_order(case.parameters()).items():
-        shown = [p for p in params if is_shown(p, values)]   # e.g. hide the CSV path for "parametric"
+        shown = [p for p in params if is_shown(p, values, case.parameters())]   # e.g. hide the CSV path for "parametric"
         if not shown:
             continue
         st.markdown(f"**{group}**")

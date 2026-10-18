@@ -124,7 +124,17 @@ group = "Geometry"
 help = "Two columns with header x_mm,r_mm: axial position and wall RADIUS in mm, x increasing, at least 5 points."
 show_if = { geometry_source = "Custom profile (CSV)" }
 
-# ---- mesh size ---------------------------------------------------------------------------------
+# ---- mesh ----------------------------------------------------------------------------------------
+
+[[input]]
+key = "mesh_type"
+label = "Mesh type"
+type = "choice"
+default = "Structured"
+options = ["Structured", "Triangles (Gmsh)"]
+requires = { "Triangles (Gmsh)" = "gmsh" }
+group = "Mesh"
+help = "Structured: quad cells on grid lines from the axis to the wall. Triangles (Gmsh): unstructured triangles (or quad-dominant) made by Gmsh. Both give the same patches: inlet, outlet, wall, axis."
 
 [[input]]
 key = "mesh_preset"
@@ -134,6 +144,7 @@ default = "Medium"
 options = ["Coarse", "Medium", "Fine", "Custom"]
 group = "Mesh"
 help = "Cells along x x cells across: Coarse 100 x 20, Medium 200 x 40, Fine 400 x 80, or Custom (type your own)."
+show_if = { mesh_type = "Structured" }
 
 [[input]]
 key = "nx"
@@ -166,6 +177,7 @@ type = "bool"
 default = true
 group = "Mesh"
 help = "Concentrate cells near the throat, where the flow changes fastest (smooth tanh stretching, no jumps)."
+show_if = { mesh_type = "Structured" }
 
 [[input]]
 key = "clustering_strength"
@@ -176,6 +188,70 @@ options = ["Mild", "Moderate", "Strong"]
 group = "Mesh"
 help = "Throat cells about 2x (Mild), 7x (Moderate) or 34x (Strong) smaller than evenly spread cells."
 show_if = { throat_clustering = true }
+
+[[input]]
+key = "cell_type"
+label = "Cell type"
+type = "choice"
+default = "Triangles"
+options = ["Triangles", "Quad-dominant (recombined)"]
+group = "Mesh"
+help = "Triangles only, or triangles combined into quadrilaterals where possible (Gmsh recombination); a few triangles remain."
+show_if = { mesh_type = "Triangles (Gmsh)" }
+
+[[input]]
+key = "surface_size"
+label = "Wall cell size / throat diameter"
+unit = "-"
+type = "float"
+default = 0.04
+min = 0.001
+max = 1.0
+group = "Mesh"
+help = "Cell size along the wall, as a fraction of the throat diameter (0.04 = 25 cells across the throat width at the wall). The absolute size is shown below the inputs."
+show_if = { mesh_type = "Triangles (Gmsh)" }
+
+[[input]]
+key = "max_size"
+label = "Largest cell size / throat diameter"
+unit = "-"
+type = "float"
+default = 0.2
+min = 0.001
+max = 10.0
+group = "Mesh"
+help = "Cells grow away from the wall up to this size (as a fraction of the throat diameter)."
+show_if = { mesh_type = "Triangles (Gmsh)" }
+
+[[input]]
+key = "size_growth"
+label = "Cell growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.01
+max = 2.0
+group = "Mesh"
+help = "How fast cells grow away from the wall: each cell is about this many times larger than its neighbour nearer the wall."
+show_if = { mesh_type = "Triangles (Gmsh)" }
+
+[[input]]
+key = "edge_refinement"
+label = "Edge refinement"
+type = "bool"
+default = true
+group = "Mesh"
+help = "Four times smaller cells at the throat and at sharp corners of the wall."
+show_if = { mesh_type = "Triangles (Gmsh)" }
+
+[[input]]
+key = "save_msh"
+label = "Also save Gmsh .msh file"
+type = "bool"
+default = false
+group = "Mesh"
+help = "Save Gmsh's own mesh file as cases/nozzle_axi/mesh/mesh.msh (not for meshes with inflation layers; the .vtu file is always saved)."
+show_if = { mesh_type = "Triangles (Gmsh)" }
 
 # ---- inflation layers ---------------------------------------------------------------------------
 
@@ -196,7 +272,7 @@ default = 1e-06
 min = 1e-09
 max = 0.01
 group = "Inflation layers"
-help = "Height of the cell layer touching the wall, measured radially (along the vertical grid lines)."
+help = "Height of the cell layer touching the wall. Structured mesh: measured radially (along the vertical grid lines); triangle mesh: measured normal to the wall."
 show_if = { inflation = true }
 
 [[input]]
@@ -208,7 +284,7 @@ default = 10
 min = 1
 max = 100
 group = "Inflation layers"
-help = "Number of inflation layers. They are part of the cells across."
+help = "Number of inflation layers. Structured mesh: they are part of the cells across."
 show_if = { inflation = true }
 
 [[input]]

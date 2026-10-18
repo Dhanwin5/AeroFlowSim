@@ -77,7 +77,8 @@ def by_name(results):
 def test_mesh_checks_pass_on_a_good_mesh_and_skip_1d_meshes():
     from aeroflowsim.mesh import Mesh1D
     found = by_name(checks.run_mesh_checks(STEADY, {}, square_mesh()))
-    assert set(found) == {"Cell volumes", "Aspect ratio", "Non-orthogonality", "Cell growth", "Smallest cell"}
+    assert set(found) == {"Cell volumes", "Aspect ratio", "Non-orthogonality", "Cell growth", "Skewness",
+                          "Smallest cell"}
     assert all(c.level == "info" for c in found.values())
     assert found["Smallest cell"].value == pytest.approx(1.0)
     assert checks.run_mesh_checks(STEADY, {}, Mesh1D(x=np.linspace(0, 1, 5))) == []

@@ -17,6 +17,9 @@ Example (one [case] table, then one [[input]] table per input, in the order show
     steady = true                     # true: marched to a steady state (used by the validity checks)
     solver = true                     # optional (default true); false = mesh only, no solver yet
     solver_message = "..."            # optional: shown instead of the Run button when solver = false
+    requires = ["gmsh"]               # optional: packages the case needs (the GUI says how to install them)
+    shape_library = true              # optional: put the "Shape" dropdown and every shape's inputs
+                                      # (aeroflowsim/shapes/) in front of the inputs below
 
     [[input]]
     key = "d_throat"                  # name used in the code: params["d_throat"]
@@ -31,6 +34,9 @@ Example (one [case] table, then one [[input]] table per input, in the order show
     show_if = { geometry_source = "Parametric (conical)" }   # optional: show only for this choice
 
 A "choice" input lists its options:  options = ["Parametric (conical)", "Custom profile (CSV)"]
+and may name options that need an optional package:  requires = { "Triangles (Gmsh)" = "gmsh" }
+A "file" input may list the file endings it accepts:  file_types = ["dat", "csv"]  (default csv)
+A "text" input may give a regular expression the text must match:  pattern = "[0-9]{4}"
 """
 
 import tomllib
@@ -40,7 +46,8 @@ from pathlib import Path
 from aeroflowsim.parameters import NUMBER_TYPES, TYPES, Parameter, clean_value
 
 SCHEMA_FILE = "schema.toml"
-INPUT_FIELDS = {"key", "label", "unit", "type", "default", "min", "max", "help", "group", "options", "show_if"}
+INPUT_FIELDS = {"key", "label", "unit", "type", "default", "min", "max", "help", "group", "options", "show_if",
+                "file_types", "requires", "pattern"}
 
 
 @dataclass
@@ -53,6 +60,8 @@ class Schema:
     inputs: list[Parameter] = field(default_factory=list)   # in the order they appear in the file
     solver: bool = True         # False: the case has no solver yet (mesh only)
     solver_message: str = "This case has no solver yet."   # shown instead of the Run button
+    requires: list = field(default_factory=list)   # optional packages the case needs, e.g. ["gmsh"]
+    shape_library: bool = False  # True: the shape dropdown and shape inputs are added (aeroflowsim/case.py)
 
 
 def _input_to_parameter(entry: dict, number: int) -> Parameter:
@@ -75,6 +84,9 @@ def _input_to_parameter(entry: dict, number: int) -> Parameter:
             raise ValueError(f"{where}: min must not be larger than max.")
     if kind == "choice" and not entry.get("options"):
         raise ValueError(f"{where}: a choice input needs a list of 'options'.")
+    requires = entry.get("requires", {})
+    if not isinstance(requires, dict) or not set(requires) <= set(entry.get("options", ())):
+        raise ValueError(f"{where}: requires must look like {{ \"<option>\" = \"<package>\" }} with known options.")
     show_if = entry.get("show_if")
     if show_if is not None:
         if not (isinstance(show_if, dict) and len(show_if) == 1):
@@ -85,7 +97,9 @@ def _input_to_parameter(entry: dict, number: int) -> Parameter:
         default = float(default)   # TOML reads "1" as an integer; a float input keeps float values
     p = Parameter(name=entry["key"], label=entry["label"], unit=entry.get("unit", ""), default=default,
                   min=entry.get("min"), max=entry.get("max"), help=entry.get("help", ""), type=kind,
-                  options=tuple(entry.get("options", ())), show_if=show_if, group=entry.get("group", ""))
+                  options=tuple(entry.get("options", ())), show_if=show_if, group=entry.get("group", ""),
+                  file_types=tuple(entry.get("file_types", ("csv",))), requires=dict(requires),
+                  pattern=entry.get("pattern", ""))
     try:
         clean_value(p, default)
     except ValueError as error:
@@ -93,15 +107,18 @@ def _input_to_parameter(entry: dict, number: int) -> Parameter:
     return p
 
 
-def parse_schema(data: dict) -> Schema:
-    """Build a Schema from already-read TOML data (a dict). Raises ValueError if it is invalid."""
-    info = data.get("case")
-    if not isinstance(info, dict):
-        raise ValueError("missing the [case] table (with name, description and steady).")
-    for name, kind in (("name", str), ("description", str), ("steady", bool)):
-        if not isinstance(info.get(name), kind):
-            raise ValueError(f"[case] needs '{name}' ({kind.__name__}).")
-    inputs = [_input_to_parameter(entry, i + 1) for i, entry in enumerate(data.get("input", []))]
+def parse_inputs(entries) -> list[Parameter]:
+    """Turn a list of [[input]] tables into Parameters and check their keys and show_if references.
+
+    Also used for the inputs of the shapes in aeroflowsim/shapes/ (same format).
+    """
+    inputs = [_input_to_parameter(entry, i + 1) for i, entry in enumerate(entries)]
+    check_inputs(inputs)
+    return inputs
+
+
+def check_inputs(inputs):
+    """Raise ValueError if a key is used twice or a show_if refers to an unknown input."""
     keys = [p.name for p in inputs]
     duplicates = sorted({k for k in keys if keys.count(k) > 1})
     if duplicates:
@@ -109,6 +126,29 @@ def parse_schema(data: dict) -> Schema:
     for p in inputs:
         if p.show_if is not None and p.show_if[0] not in keys:
             raise ValueError(f"input '{p.name}': show_if refers to unknown input '{p.show_if[0]}'.")
+
+
+def parse_schema(data: dict) -> Schema:
+    """Build a Schema from already-read TOML data (a dict). Raises ValueError if it is invalid.
+
+    With shape_library = true the shape inputs are added later (Case.load), so the keys are
+    checked there, together with the shape inputs.
+    """
+    info = data.get("case")
+    if not isinstance(info, dict):
+        raise ValueError("missing the [case] table (with name, description and steady).")
+    for name, kind in (("name", str), ("description", str), ("steady", bool)):
+        if not isinstance(info.get(name), kind):
+            raise ValueError(f"[case] needs '{name}' ({kind.__name__}).")
+    shape_library = info.get("shape_library", False)
+    if not isinstance(shape_library, bool):
+        raise ValueError("[case] 'shape_library' must be true or false.")
+    inputs = [_input_to_parameter(entry, i + 1) for i, entry in enumerate(data.get("input", []))]
+    if not shape_library:
+        check_inputs(inputs)
+    requires = info.get("requires", [])
+    if not (isinstance(requires, list) and all(isinstance(r, str) for r in requires)):
+        raise ValueError("[case] 'requires' must be a list of package names, e.g. [\"gmsh\"].")
     solver = info.get("solver", True)
     if not isinstance(solver, bool):
         raise ValueError("[case] 'solver' must be true or false.")
@@ -116,7 +156,7 @@ def parse_schema(data: dict) -> Schema:
     if not isinstance(message, str):
         raise ValueError("[case] 'solver_message' must be text.")
     return Schema(title=info["name"], description=info["description"], steady=info["steady"], inputs=inputs,
-                  solver=solver, solver_message=message)
+                  solver=solver, solver_message=message, requires=requires, shape_library=shape_library)
 
 
 def load_schema(path) -> Schema:

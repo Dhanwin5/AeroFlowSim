@@ -1,0 +1,42 @@
+# NACA 4-digit airfoil (Abbott & von Doenhoff, Theory of Wing Sections, 1959, section 6.4).
+
+[shape]
+name = "NACA 4-digit airfoil"
+group = "Subsonic airfoils"
+symmetry = "planar"
+description = "NACA 4-digit airfoil, e.g. 0012 (symmetric, 12 % thick) or 2412 (2 % camber at 40 % chord)."
+
+[[input]]
+key = "digits"
+label = "NACA digits"
+type = "text"
+default = "0012"
+pattern = "[0-9][0-9][0-9][0-9]"
+help = "Four digits MPTT: M = max camber in % chord, P = its position in tenths of the chord, TT = thickness in % chord (01 to 40). M and P must both be 0 or both non-zero."
+
+[[input]]
+key = "chord"
+label = "Chord (reference length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Leading edge to trailing edge. Also the reference length (reference area = chord x 1 m depth)."
+
+[[input]]
+key = "closed_te"
+label = "Closed (sharp) trailing edge"
+type = "bool"
+default = true
+help = "On: modified last coefficient (-0.1036) so the trailing edge closes to a point. Off: the original equation (-0.1015) with a thin blunt trailing edge (0.25 % chord for 12 % thickness)."
+
+[[input]]
+key = "points_per_side"
+label = "Points per side"
+unit = "-"
+type = "int"
+default = 200
+min = 20
+max = 2000
+help = "Points on the upper and on the lower surface, with cosine spacing (dense at the leading and trailing edges)."

@@ -14,14 +14,35 @@ Input types:
     "bool"    yes / no (a checkbox in the GUI)
     "choice"  one text option out of a list, e.g. the geometry source
     "file"    the path of a file, e.g. a wall-profile CSV
+    "text"    a short text, e.g. the NACA digits "2412" (optionally checked against a pattern)
 An input can be shown only when another input has a given value (show_if), e.g. the CSV file
-only when the geometry source is "Custom profile (CSV)".
+only when the geometry source is "Custom profile (CSV)". If that other input is itself hidden,
+this one is hidden too.
+
+Some choice options need an optional package (e.g. "Triangles (Gmsh)" needs Gmsh): the input's
+`requires` lists them, and choosing such an option without the package gives a clear message
+saying how to install it.
 """
 
-from dataclasses import dataclass
+import importlib.util
+import re
+from dataclasses import dataclass, field
 
-TYPES = ("float", "int", "bool", "choice", "file")
+TYPES = ("float", "int", "bool", "choice", "file", "text")
 NUMBER_TYPES = ("float", "int")
+
+# How to install each optional package (shown when an option needs one that is missing).
+INSTALL_HINTS = {"gmsh": 'pip install -e ".[mesh]"'}
+
+
+def module_available(name: str) -> bool:
+    """True if the Python package `name` can be imported (checked without importing it)."""
+    return importlib.util.find_spec(name) is not None
+
+
+def install_hint(name: str) -> str:
+    """The command that installs the optional package `name`."""
+    return INSTALL_HINTS.get(name, f"pip install {name}")
 
 
 @dataclass
@@ -39,6 +60,9 @@ class Parameter:
     options: tuple = ()           # allowed values of a "choice"
     show_if: tuple | None = None  # (other parameter name, value): show only when it has that value
     group: str = ""               # heading the GUI puts this input under, e.g. "Geometry"
+    file_types: tuple = ("csv",)  # file endings a "file" input accepts in the GUI upload box
+    requires: dict = field(default_factory=dict)  # choice option -> package it needs, e.g. {"Triangles (Gmsh)": "gmsh"}
+    pattern: str = ""             # "text" inputs: regular expression the text must match ("" = any text)
 
     def __post_init__(self):
         if not self.type:   # guess the type from the default value (bool first: True is also an int)
@@ -73,12 +97,22 @@ def file_parameter(name, label, default, help="", show_if=None, group="") -> Par
     return Parameter(name, label, "", default, None, None, help, type="file", show_if=show_if, group=group)
 
 
-def is_shown(p: Parameter, values: dict) -> bool:
-    """True if parameter p should be shown, given the current values of all parameters."""
+def is_shown(p: Parameter, values: dict, param_list=None) -> bool:
+    """True if parameter p should be shown, given the current values of all parameters.
+
+    With param_list, an input whose show_if refers to a hidden input is hidden too (e.g. the
+    number of cells along x of a "Custom" preset, when the preset itself is hidden).
+    """
     if p.show_if is None:
         return True
     other, wanted = p.show_if
-    return values.get(other) == wanted
+    if values.get(other) != wanted:
+        return False
+    if param_list is not None:
+        parent = next((q for q in param_list if q.name == other), None)
+        if parent is not None and parent is not p:
+            return is_shown(parent, values, param_list)
+    return True
 
 
 def defaults(param_list: list[Parameter]) -> dict:
@@ -94,6 +128,17 @@ def clean_value(p: Parameter, value):
     if p.type == "choice":
         if value not in p.options:
             raise ValueError(f"'{p.name}' ({p.label}) = '{value}' is not one of: {', '.join(p.options)}.")
+        package = p.requires.get(value)
+        if package and not module_available(package):
+            raise ValueError(f"'{p.label}' = '{value}' needs {package}, which is not installed. "
+                             f"Install it with: {install_hint(package)}")
+        return value
+    if p.type == "text":
+        value = str(value).strip()
+        if not value:
+            raise ValueError(f"'{p.name}' ({p.label}): please type a value.")
+        if p.pattern and not re.fullmatch(p.pattern, value):
+            raise ValueError(f"'{p.name}' ({p.label}) = '{value}' is not allowed. {p.help}")
         return value
     if p.type == "file":
         value = str(value).strip()

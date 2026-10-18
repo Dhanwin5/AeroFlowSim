@@ -37,13 +37,13 @@ def test_custom_size_and_clustering_off():
 
 def test_default_mesh_passes_every_mesh_check():
     checks = run_mesh_checks(case, DEFAULTS, case.build_mesh(DEFAULTS))
-    assert len(checks) == 5 and all(c.level == "info" for c in checks), [c.message for c in checks]
+    assert len(checks) == 6 and all(c.level == "info" for c in checks), [c.message for c in checks]
 
 
 def test_default_inflation_passes_every_mesh_check_and_shows_its_thickness():
     p = params(inflation=True)
     checks = run_mesh_checks(case, p, case.build_mesh(p))
-    assert len(checks) == 6 and all(c.level == "info" for c in checks), [c.message for c in checks]
+    assert len(checks) == 7 and all(c.level == "info" for c in checks), [c.message for c in checks]
     assert case.derived(p)["Total inflation thickness"][0] == pytest.approx(1e-6 * (1.2**10 - 1) / 0.2)
     assert "Total inflation thickness" not in case.derived(DEFAULTS)
 
