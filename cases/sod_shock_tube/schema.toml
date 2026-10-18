@@ -92,6 +92,7 @@ default = 1.0
 min = 0.001
 max = 1000.0
 group = "Geometry"
+step = "geometry"
 help = "The tube runs from x = 0 to x = L."
 
 [[input]]
@@ -103,6 +104,7 @@ default = 0.5
 min = 0.0
 max = 1000.0
 group = "Geometry"
+step = "geometry"
 help = "Initial position of the diaphragm (0 < x0 < L)."
 
 [[input]]
@@ -125,6 +127,7 @@ default = 400
 min = 10
 max = 20000
 group = "Mesh"
+step = "mesh"
 help = "Number of equal finite-volume cells."
 
 [[input]]

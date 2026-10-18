@@ -1,6 +1,8 @@
 # Inputs of this case. The GUI builds its input panel from this file automatically.
 # Format: see aeroflowsim/schema.py. SI units, except where the unit says otherwise.
 # Types: float, int, bool, choice (needs options = [...]), file. One [[input]] table per input.
+# step = "geometry" | "mesh" | "setup" (default): the workflow page that shows the input. Changing a
+# geometry input marks the mesh and results out of date; changing a mesh input marks the results.
 
 [case]
 name = "TODO short name"
@@ -16,6 +18,7 @@ default = 1.0
 min = 0.01
 max = 10.0
 group = "Geometry"
+step = "geometry"
 help = "TODO help text"
 
 [[input]]
@@ -27,4 +30,5 @@ default = 100
 min = 10
 max = 10000
 group = "Mesh"
+step = "mesh"
 help = "TODO help text"

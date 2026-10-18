@@ -2,123 +2,255 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The input panel of the Setup tab, built automatically from a case's schema.toml.
+"""The Qt input panel, drawn automatically from a case's schema.toml (zero GUI code per case).
 
-A case author writes no GUI code: this module looks at each input's type and draws the matching
-Streamlit widget, under its group heading, with the unit in the label and the help text and
-allowed range in the tooltip. Every value is checked (aeroflowsim.parameters.check_values) and a
-red message appears under any box whose value is not allowed.
+What to show is decided by aeroflowsim/gui/panel_model.py (tested without a window); this module
+only turns each WidgetSpec into a Qt widget:
+    float / int  -> NumberEdit (a text box that accepts 2.8e-4; arrow keys and wheel step the value)
+    bool         -> QCheckBox
+    choice       -> QComboBox (options needing a missing package are greyed out, with the install hint)
+    text         -> QLineEdit
+    file         -> QLineEdit + "Browse..." button (a file dialog)
+Every box has the help text as tooltip and a "?" button; a red message appears under a bad value.
+Groups are collapsible sections; inputs and sections hide and show with show_if.
 
-The values typed by the user live in Streamlit's st.session_state under the key "<case>:<input>",
-e.g. "demo_heat1d:L", so they survive the page re-runs (see app.py for how Streamlit works).
+Qt basics used here: a *signal* is an event a widget announces (e.g. "text edited"), a *slot* is
+the function connected to it. The panel announces every change the user makes with its signal
+value_changed(name, value); the main window decides what to do with it (store it, allow undo,
+mark results out of date). Values set by the program (set_values) do not emit the signal.
 """
 
-import math
 from pathlib import Path
 
-import streamlit as st
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+                               QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
+                               QVBoxLayout, QWidget)
 
-from aeroflowsim.parameters import check_values, defaults, install_hint, is_shown, module_available
+from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, text_to_value, value_to_text
 
-NO_GROUP = "Inputs"   # heading for inputs without a group in schema.toml
-
-
-def widget_key(case_name, param_name):
-    """Session-state key of one input box, e.g. 'demo_heat1d:L'."""
-    return f"{case_name}:{param_name}"
-
-
-def float_step(p):
-    """Step for the +/- buttons of a float input: about 1/10 of the default's order of magnitude."""
-    size = abs(p.default) if p.default != 0 else (p.max - p.min) / 10.0
-    if size <= 0.0:
-        return 1.0
-    return 10.0 ** (math.floor(math.log10(size)) - 1)
+ERROR_STYLE = "color: #d32f2f;"          # readable on light and dark backgrounds
+HINT_STYLE = "color: palette(mid); font-size: 90%;"
 
 
-def init_inputs(case):
-    """First visit of a case: fill its input boxes with the default values."""
-    for name, value in defaults(case.parameters()).items():
-        st.session_state.setdefault(widget_key(case.name, name), value)
+class NumberEdit(QLineEdit):
+    """A text box for one number. Typed text is kept as typed until Enter or leaving the box.
 
-
-def current_values(case):
-    """The values currently in the input boxes: {key: value}."""
-    return {p.name: st.session_state[widget_key(case.name, p.name)] for p in case.parameters()}
-
-
-def set_inputs(case, values):
-    """Put values into the input boxes (only allowed inside a button callback)."""
-    for name, value in values.items():
-        st.session_state[widget_key(case.name, name)] = value
-
-
-def _on_upload(case_name, param_name, uploads_dir, project_dir):
-    """Save an uploaded file to uploads/<case>/ and put its path into the file input box."""
-    uploaded = st.session_state.get(f"upload:{case_name}:{param_name}")
-    if uploaded is None:
-        return
-    folder = Path(uploads_dir) / case_name
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / Path(uploaded.name).name   # keep only the file name, never a folder part
-    path.write_bytes(uploaded.getvalue())
-    st.session_state[widget_key(case_name, param_name)] = path.relative_to(project_dir).as_posix()
-
-
-def input_widget(case, p, uploads_dir, project_dir):
-    """One input box for parameter p, chosen by its type (float, int, bool, choice or file)."""
-    key = widget_key(case.name, p.name)
-    if p.type == "choice":
-        missing = {option: package for option, package in p.requires.items() if not module_available(package)}
-        st.selectbox(p.label, p.options, key=key, help=p.help or None,
-                     filter_mode=None,   # pick from the list only: no text cursor, no typing
-                     format_func=lambda o: f"{o}  (not installed)" if o in missing else o)
-        for option, package in missing.items():
-            st.caption(f"'{option}' needs {package}: install it with `{install_hint(package)}`.")
-    elif p.type == "text":
-        st.text_input(p.label, key=key, help=p.help or None)
-    elif p.type == "bool":
-        st.checkbox(p.label, key=key, help=p.help or None)
-    elif p.type == "file":
-        st.text_input(f"{p.label} (path)", key=key,
-                      help=f"{p.help}  \nA path relative to the project folder, or upload a file below.")
-        st.file_uploader(f"Upload {p.label.lower()}", type=list(p.file_types), key=f"upload:{case.name}:{p.name}",
-                         on_change=_on_upload, args=(case.name, p.name, uploads_dir, project_dir))
-    else:
-        label = f"{p.label} [{p.unit}]"
-        help_text = f"{p.help}  \nAllowed range: {p.min:g} to {p.max:g} {p.unit}."
-        if p.is_integer:
-            st.number_input(label, min_value=int(p.min), max_value=int(p.max), step=1,
-                            key=key, help=help_text)
-        else:
-            st.number_input(label, min_value=float(p.min), max_value=float(p.max),
-                            step=float_step(p), format="%g", key=key, help=help_text)
-
-
-def groups_in_order(param_list):
-    """{group heading: [parameters]} in the order the groups first appear in schema.toml."""
-    groups = {}
-    for p in param_list:
-        groups.setdefault(p.group or NO_GROUP, []).append(p)
-    return groups
-
-
-def input_panel(case, uploads_dir, project_dir):
-    """Draw every (shown) input of the case, grouped, with a message under each bad value.
-
-    Returns the problems found {key: message} (empty dict = all values are fine).
+    A spin box would silently clamp out-of-range values; this box keeps what the user typed and
+    the panel shows why it is not allowed, as every other AeroFlowSim check does.
+    Up/Down arrow keys and the mouse wheel (when the box has focus) add or subtract one step.
     """
-    values = current_values(case)
-    problems = check_values(case.parameters(), values)
-    for group, params in groups_in_order(case.parameters()).items():
-        shown = [p for p in params if is_shown(p, values, case.parameters())]   # e.g. hide the CSV path for "parametric"
+
+    def __init__(self, spec: WidgetSpec, parent=None):
+        super().__init__(parent)
+        self.spec = spec
+        self.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+    def _step(self, direction):
+        value = text_to_value(self.spec, self.text())
+        if isinstance(value, str):
+            return
+        value = value + direction * self.spec.step_size
+        if self.spec.kind == "int":
+            value = int(round(value))
+        else:
+            value = float(f"{value:.12g}")      # no 0.30000000000000004 from repeated steps
+        value = min(max(value, self.spec.minimum), self.spec.maximum)
+        self.setText(value_to_text(value))
+        self.editingFinished.emit()
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Up, Qt.Key_Down):
+            self._step(1 if event.key() == Qt.Key_Up else -1)
+        else:
+            super().keyPressEvent(event)
+
+    def wheelEvent(self, event):
+        if self.hasFocus():                     # never change a value just by scrolling the panel
+            self._step(1 if event.angleDelta().y() > 0 else -1)
+            event.accept()
+        else:
+            event.ignore()
+
+
+class Section(QWidget):
+    """A collapsible group: a bold header button with an arrow, and the inputs below it."""
+
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.header = QToolButton(text=title, checkable=True, checked=True)
+        self.header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.header.setArrowType(Qt.DownArrow)
+        self.header.setStyleSheet("QToolButton { border: none; font-weight: bold; }")
+        self.header.toggled.connect(self._toggle)
+        self.body = QWidget()
+        self.grid = QGridLayout(self.body)
+        self.grid.setContentsMargins(16, 0, 0, 6)
+        self.grid.setColumnStretch(1, 1)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.header)
+        layout.addWidget(self.body)
+
+    def _toggle(self, opened):
+        self.header.setArrowType(Qt.DownArrow if opened else Qt.RightArrow)
+        self.body.setVisible(opened)
+
+
+class InputRow:
+    """The widgets of one input: label, editor, '?' button, hint and error message."""
+
+    def __init__(self, panel, spec: WidgetSpec, section: Section):
+        self.spec = spec
+        self.panel = panel
+        self.label = QLabel(spec.label if spec.kind != "bool" else "")
+        self.label.setToolTip(spec.tooltip)
+        self.editor, editor_widget = self._make_editor()
+        self.editor.setToolTip(spec.tooltip)
+        self.help_button = QToolButton(text="?", autoRaise=True)
+        self.help_button.setToolTip("What is this input?")
+        self.help_button.clicked.connect(self.show_help)
+        self.hint = QLabel("\n".join(spec.missing.values()), wordWrap=True, visible=bool(spec.missing))
+        self.hint.setStyleSheet(HINT_STYLE)
+        self.error = QLabel(wordWrap=True, visible=False)
+        self.error.setStyleSheet(ERROR_STYLE)
+        self.error.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        row = section.grid.rowCount()
+        section.grid.addWidget(self.label, row, 0)
+        section.grid.addWidget(editor_widget, row, 1)
+        section.grid.addWidget(self.help_button, row, 2)
+        section.grid.addWidget(self.hint, row + 1, 1, 1, 2)
+        section.grid.addWidget(self.error, row + 2, 1, 1, 2)
+        self.widgets = [self.label, editor_widget, self.help_button]
+
+    def _make_editor(self):
+        """The editor widget for the input type, and the widget to put in the layout."""
+        s = self.spec
+        if s.kind in ("float", "int"):
+            editor = NumberEdit(s)
+            editor.editingFinished.connect(lambda: self.panel._edited(s.name, text_to_value(s, editor.text())))
+            return editor, editor
+        if s.kind == "bool":
+            editor = QCheckBox(s.label)
+            editor.toggled.connect(lambda checked: self.panel._edited(s.name, checked))
+            return editor, editor
+        if s.kind == "choice":
+            editor = QComboBox()
+            for option in s.options:
+                editor.addItem(f"{option}  (not installed)" if option in s.missing else option, option)
+                if option in s.missing:         # greyed out: cannot be chosen until the package is installed
+                    editor.model().item(editor.count() - 1).setEnabled(False)
+            editor.currentIndexChanged.connect(lambda i: self.panel._edited(s.name, editor.itemData(i)))
+            return editor, editor
+        editor = QLineEdit()
+        editor.editingFinished.connect(lambda: self.panel._edited(s.name, editor.text()))
+        if s.kind == "text":
+            return editor, editor
+        # file: a path box plus a Browse button
+        box = QWidget()
+        layout = QHBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        browse = QPushButton("Browse...")
+        browse.clicked.connect(self.browse)
+        layout.addWidget(editor, 1)
+        layout.addWidget(browse)
+        return editor, box
+
+    def browse(self):
+        start = str(Path(self.editor.text()).parent) if self.editor.text() else str(Path.home())
+        path, _ = QFileDialog.getOpenFileName(self.panel, f"Choose {self.spec.label.lower()}", start,
+                                              self.spec.file_filter)
+        if path:
+            self.panel._edited(self.spec.name, self.panel.file_handler(self.spec.name, path))
+
+    def show_help(self):
+        QMessageBox.information(self.panel, self.spec.label, self.spec.tooltip or "No help text.")
+
+    def display(self, value):
+        """Show a value in the editor without announcing it as a user change."""
+        self.editor.blockSignals(True)
+        if self.spec.kind == "bool":
+            self.editor.setChecked(bool(value))
+        elif self.spec.kind == "choice":
+            index = self.editor.findData(value)
+            if index < 0:                       # a value not in the list (e.g. from an old project)
+                self.editor.addItem(f"{value}  (unknown)", value)
+                index = self.editor.count() - 1
+            self.editor.setCurrentIndex(index)
+        else:
+            self.editor.setText(value_to_text(value))
+        self.editor.blockSignals(False)
+
+    def set_visible(self, shown):
+        for w in self.widgets:
+            w.setVisible(shown)
+        self.hint.setVisible(shown and bool(self.spec.missing))
         if not shown:
-            continue
-        st.markdown(f"**{group}**")
-        columns = st.columns(2)
-        for i, p in enumerate(shown):
-            with columns[i % 2]:
-                input_widget(case, p, uploads_dir, project_dir)
-                if p.name in problems:
-                    st.error(problems[p.name])
-    return problems
+            self.error.setVisible(False)
+
+    def set_problem(self, message):
+        self.error.setText(message or "")
+        self.error.setVisible(bool(message))
+
+
+class InputPanel(QScrollArea):
+    """All inputs of a PanelModel, in collapsible groups. Emits value_changed(name, value) on user edits.
+
+    file_handler(name, chosen_path) -> value to store: lets the owner copy a chosen file into the
+    project folder and store a relative path (default: store the chosen path as it is).
+    """
+
+    value_changed = Signal(str, object)
+
+    def __init__(self, model: PanelModel, values: dict, file_handler=None, parent=None):
+        super().__init__(parent)
+        self.model = model
+        self._values = dict(values)
+        self.file_handler = file_handler or (lambda name, path: path)
+        self.setWidgetResizable(True)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        self.sections, self.rows = {}, {}
+        for group, specs in model.groups().items():
+            section = Section(group)
+            self.sections[group] = section
+            layout.addWidget(section)
+            for spec in specs:
+                self.rows[spec.name] = InputRow(self, spec, section)
+        layout.addStretch(1)
+        content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self.setWidget(content)
+        self.set_values(self._values)
+
+    def values(self) -> dict:
+        return dict(self._values)
+
+    def problems(self) -> dict:
+        return self.model.problems(self._values)
+
+    def set_values(self, values):
+        """Show these values (e.g. after Undo or Open); does not emit value_changed."""
+        self._values.update(values)
+        for name, row in self.rows.items():
+            if name in self._values:
+                row.display(self._values[name])
+        self._refresh()
+
+    def _edited(self, name, value):
+        """Slot for every user edit: store, update visibility and messages, announce the change."""
+        if self._values.get(name) == value and type(self._values.get(name)) is type(value):
+            self._refresh()                     # e.g. Enter pressed without a change
+            return
+        self._values[name] = value
+        self._refresh()
+        self.value_changed.emit(name, value)
+
+    def _refresh(self):
+        shown = self.model.visible(self._values)
+        problems = self.model.problems(self._values)
+        for name, row in self.rows.items():
+            row.set_visible(name in shown)
+            row.set_problem(problems.get(name) if name in shown else None)
+        groups = set(self.model.visible_groups(self._values))
+        for group, section in self.sections.items():
+            section.setVisible(group in groups)

@@ -32,6 +32,7 @@ Example (one [case] table, then one [[input]] table per input, in the order show
     group = "Geometry"                # heading in the GUI
     help = "Smallest diameter."       # tooltip
     show_if = { geometry_source = "Parametric (conical)" }   # optional: show only for this choice
+    step = "geometry"                 # optional: workflow step "geometry", "mesh" or "setup" (default)
 
 A "choice" input lists its options:  options = ["Parametric (conical)", "Custom profile (CSV)"]
 and may name options that need an optional package:  requires = { "Triangles (Gmsh)" = "gmsh" }
@@ -43,11 +44,11 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from aeroflowsim.parameters import NUMBER_TYPES, TYPES, Parameter, clean_value
+from aeroflowsim.parameters import NUMBER_TYPES, STEPS, TYPES, Parameter, clean_value
 
 SCHEMA_FILE = "schema.toml"
 INPUT_FIELDS = {"key", "label", "unit", "type", "default", "min", "max", "help", "group", "options", "show_if",
-                "file_types", "requires", "pattern"}
+                "file_types", "requires", "pattern", "step"}
 
 
 @dataclass
@@ -82,6 +83,8 @@ def _input_to_parameter(entry: dict, number: int) -> Parameter:
                 raise ValueError(f"{where}: a {kind} input needs '{name}'.")
         if not entry["min"] <= entry["max"]:
             raise ValueError(f"{where}: min must not be larger than max.")
+    if entry.get("step", "setup") not in STEPS:
+        raise ValueError(f"{where}: step must be one of {', '.join(STEPS)}.")
     if kind == "choice" and not entry.get("options"):
         raise ValueError(f"{where}: a choice input needs a list of 'options'.")
     requires = entry.get("requires", {})
@@ -99,7 +102,7 @@ def _input_to_parameter(entry: dict, number: int) -> Parameter:
                   min=entry.get("min"), max=entry.get("max"), help=entry.get("help", ""), type=kind,
                   options=tuple(entry.get("options", ())), show_if=show_if, group=entry.get("group", ""),
                   file_types=tuple(entry.get("file_types", ("csv",))), requires=dict(requires),
-                  pattern=entry.get("pattern", ""))
+                  pattern=entry.get("pattern", ""), step=entry.get("step", "setup"))
     try:
         clean_value(p, default)
     except ValueError as error:

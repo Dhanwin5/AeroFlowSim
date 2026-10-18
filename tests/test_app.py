@@ -251,7 +251,7 @@ def test_nozzle_axi_triangle_mesh_type():
 
 
 def test_without_gmsh_the_gui_says_how_to_install_it(monkeypatch):
-    import aeroflowsim.gui.panel as panel
+    import aeroflowsim.gui.streamlit_panel as panel
     import aeroflowsim.parameters as parameters
     missing = lambda name: name != "gmsh" and parameters.importlib.util.find_spec(name) is not None
     monkeypatch.setattr(parameters, "module_available", missing)     # as if Gmsh were not installed

@@ -15,6 +15,7 @@ default = 1.0
 min = 0.01
 max = 10.0
 group = "Geometry"
+step = "geometry"
 help = "Length of the rod."
 
 [[input]]
@@ -70,6 +71,7 @@ default = 41
 min = 3
 max = 101
 group = "Mesh"
+step = "mesh"
 help = "Number of equally spaced nodes, including both ends."
 
 [[input]]

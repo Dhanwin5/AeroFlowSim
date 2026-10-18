@@ -21,6 +21,7 @@ type = "choice"
 default = "Circle"
 options = ["Circle", "Rectangle"]
 group = "Domain"
+step = "geometry"
 help = "Shape of the far-field boundary around the body. The body stays at zero angle; the flow direction (angle of attack) will be set in the solver (Prompt 7)."
 
 [[input]]
@@ -32,6 +33,7 @@ default = 20.0
 min = 2.0
 max = 1000.0
 group = "Domain"
+step = "geometry"
 help = "Radius of the far-field circle, measured from the middle of the body, in reference lengths."
 show_if = { domain_shape = "Circle" }
 
@@ -44,6 +46,7 @@ default = 10.0
 min = 0.5
 max = 1000.0
 group = "Domain"
+step = "geometry"
 help = "From the front of the body to the inflow side of the rectangle, in reference lengths."
 show_if = { domain_shape = "Rectangle" }
 
@@ -56,6 +59,7 @@ default = 20.0
 min = 0.5
 max = 1000.0
 group = "Domain"
+step = "geometry"
 help = "From the back of the body to the outflow side of the rectangle, in reference lengths."
 show_if = { domain_shape = "Rectangle" }
 
@@ -68,6 +72,7 @@ default = 10.0
 min = 0.5
 max = 1000.0
 group = "Domain"
+step = "geometry"
 help = "From y = 0 to the top side of the rectangle (and to the bottom side), in reference lengths."
 show_if = { domain_shape = "Rectangle" }
 
@@ -77,6 +82,7 @@ label = "Half domain (y >= 0 only)"
 type = "bool"
 default = false
 group = "Domain"
+step = "geometry"
 help = "For bodies symmetric about y = 0 at zero angle: mesh only the upper half, with a symmetry patch on y = 0 (half the cells). Axisymmetric bodies always use the half domain, with an axis patch on y = 0."
 
 # ---- mesh ---------------------------------------------------------------------------------------
@@ -88,6 +94,7 @@ type = "choice"
 default = "Triangles"
 options = ["Triangles", "Quad-dominant (recombined)"]
 group = "Mesh"
+step = "mesh"
 help = "Triangles only, or triangles combined into quadrilaterals where possible (Gmsh recombination); a few triangles remain."
 
 [[input]]
@@ -99,6 +106,7 @@ default = 0.005
 min = 0.0001
 max = 0.5
 group = "Mesh"
+step = "mesh"
 help = "Cell size on the body, in reference lengths (0.005 = 1/200: 200 cells along a 1 m chord)."
 
 [[input]]
@@ -110,6 +118,7 @@ default = 2.0
 min = 0.001
 max = 100.0
 group = "Mesh"
+step = "mesh"
 help = "Largest cell size, reached far from the body, in reference lengths. A far-field circle always gets at least 120 faces so that it stays round."
 
 [[input]]
@@ -121,6 +130,7 @@ default = 1.2
 min = 1.01
 max = 2.0
 group = "Mesh"
+step = "mesh"
 help = "How fast cells grow away from the body: each cell is about this many times larger than its neighbour nearer the body."
 
 [[input]]
@@ -129,6 +139,7 @@ label = "Edge refinement"
 type = "bool"
 default = true
 group = "Mesh"
+step = "mesh"
 help = "Four times smaller cells at sharp corners and at the leading and trailing edges."
 
 [[input]]
@@ -137,6 +148,7 @@ label = "Also save Gmsh .msh file"
 type = "bool"
 default = false
 group = "Mesh"
+step = "mesh"
 help = "Save Gmsh's own mesh file as cases/external_2d/mesh/mesh.msh (not for meshes with inflation layers; the .vtu file is always saved)."
 
 # ---- inflation layers ---------------------------------------------------------------------------
@@ -147,6 +159,7 @@ label = "Inflation layers on the body"
 type = "bool"
 default = false
 group = "Inflation layers"
+step = "mesh"
 help = "Thin quad layers along the body, for boundary layers in laminar/turbulent flow (Phase 4). Not needed for inviscid (Euler) flow."
 
 [[input]]
@@ -158,6 +171,7 @@ default = 1e-06
 min = 1e-09
 max = 0.01
 group = "Inflation layers"
+step = "mesh"
 help = "Height of the cell layer touching the body (measured normal to the wall), in reference lengths."
 show_if = { inflation = true }
 
@@ -170,6 +184,7 @@ default = 10
 min = 1
 max = 100
 group = "Inflation layers"
+step = "mesh"
 help = "Number of quad layers on the body."
 show_if = { inflation = true }
 
@@ -182,5 +197,6 @@ default = 1.2
 min = 1.0
 max = 2.0
 group = "Inflation layers"
+step = "mesh"
 help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
 show_if = { inflation = true }

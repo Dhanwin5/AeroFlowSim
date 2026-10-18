@@ -1,0 +1,136 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""What the input panel shows, decided WITHOUT any window (no Qt import), so it can be unit-tested.
+
+The Qt panel (aeroflowsim/gui/panel.py) only draws what this module decides:
+  - one WidgetSpec per input of schema.toml: which kind of box, label with unit, tooltip with the
+    allowed range, options of a dropdown and which of them need a package that is not installed;
+  - the groups (headings) in the order they first appear in schema.toml;
+  - which inputs are visible for the current values (show_if, including nested show_if);
+  - the problem message of every bad value (aeroflowsim.parameters.check_values).
+A new case or shape therefore needs zero GUI code.
+"""
+
+import math
+from dataclasses import dataclass, field
+
+from aeroflowsim.parameters import check_values, install_hint, is_shown, module_available
+
+NO_GROUP = "Inputs"   # heading for inputs without a group in schema.toml
+
+
+def float_step(p):
+    """Step for the arrow keys / wheel of a float input: about 1/10 of the default's order of magnitude."""
+    size = abs(p.default) if p.default != 0 else (p.max - p.min) / 10.0
+    if size <= 0.0:
+        return 1.0
+    return 10.0 ** (math.floor(math.log10(size)) - 1)
+
+
+def file_filter(file_types):
+    """File-dialog filter for the allowed endings, e.g. ('dat', 'csv') -> 'Allowed files (*.dat *.csv)'."""
+    patterns = " ".join(f"*.{t}" for t in file_types)
+    return f"Allowed files ({patterns});;All files (*)"
+
+
+@dataclass(frozen=True)
+class WidgetSpec:
+    """Everything the GUI needs to draw the box of one input."""
+
+    name: str                  # input key, e.g. "d_throat" or "naca4.digits"
+    kind: str                  # "float", "int", "bool", "choice", "text" or "file"
+    label: str                 # shown text, with the unit for numbers, e.g. "Throat diameter [m]"
+    unit: str                  # SI unit ("" for non-numbers)
+    help: str                  # the help text of schema.toml (shown by the "?" button)
+    tooltip: str               # help + allowed range (shown when the mouse rests on the box)
+    group: str                 # heading
+    step: str                  # workflow step: "geometry", "mesh" or "setup"
+    minimum: float | None = None
+    maximum: float | None = None
+    step_size: float = 1.0     # change per arrow key / wheel notch (numbers)
+    options: tuple = ()        # dropdown options (choice)
+    missing: dict = field(default_factory=dict)   # option -> "needs gmsh: install it with ..." (not installed)
+    file_filter: str = ""      # file dialog filter (file)
+
+
+def widget_spec(p) -> WidgetSpec:
+    """The WidgetSpec of one Parameter."""
+    common = dict(name=p.name, kind=p.type, unit=p.unit if p.is_number else "", help=p.help,
+                  group=p.group or NO_GROUP, step=p.step)
+    if p.is_number:
+        tooltip = f"{p.help}\nAllowed range: {p.min:g} to {p.max:g} {p.unit}.".strip()
+        return WidgetSpec(label=f"{p.label} [{p.unit}]", tooltip=tooltip, minimum=p.min, maximum=p.max,
+                          step_size=1.0 if p.is_integer else float_step(p), **common)
+    if p.type == "choice":
+        missing = {option: f"'{option}' needs {package}: install it with  {install_hint(package)}"
+                   for option, package in p.requires.items() if not module_available(package)}
+        return WidgetSpec(label=p.label, tooltip=p.help, options=tuple(p.options), missing=missing, **common)
+    if p.type == "file":
+        tooltip = f"{p.help}\nFile types: {', '.join(p.file_types)}.".strip()
+        return WidgetSpec(label=p.label, tooltip=tooltip, file_filter=file_filter(p.file_types), **common)
+    return WidgetSpec(label=p.label, tooltip=p.help, **common)   # bool and text
+
+
+class PanelModel:
+    """The input panel of one case (all inputs, or only those of one workflow step)."""
+
+    def __init__(self, param_list, step=None):
+        self.all_params = list(param_list)    # show_if may refer to inputs of another step
+        self.params = [p for p in self.all_params if step is None or p.step == step]
+        self.specs = [widget_spec(p) for p in self.params]
+
+    def spec(self, name) -> WidgetSpec:
+        return next(s for s in self.specs if s.name == name)
+
+    def groups(self) -> dict[str, list[WidgetSpec]]:
+        """{heading: [WidgetSpec]} in the order the groups first appear in schema.toml."""
+        groups = {}
+        for s in self.specs:
+            groups.setdefault(s.group, []).append(s)
+        return groups
+
+    def visible(self, values) -> set[str]:
+        """Names of the inputs to show for these values (show_if, nested show_if included)."""
+        return {p.name for p in self.params if is_shown(p, values, self.all_params)}
+
+    def visible_groups(self, values) -> list[str]:
+        """Headings that have at least one visible input (empty groups are hidden)."""
+        shown = self.visible(values)
+        return [g for g, specs in self.groups().items() if any(s.name in shown for s in specs)]
+
+    def problems(self, values) -> dict[str, str]:
+        """{name: message} for every bad value among this panel's inputs (shown or hidden)."""
+        return check_values(self.params, values)
+
+    def shown_problems(self, values) -> dict[str, str]:
+        """Only the problems of visible inputs: the ones the user can see and fix in this panel."""
+        shown = self.visible(values)
+        return {k: v for k, v in self.problems(values).items() if k in shown}
+
+
+def text_to_value(spec: WidgetSpec, text: str):
+    """Typed text -> value for a number box: a float/int when it reads as a number, else the text.
+
+    The text is kept as it is when it is not a number, so check_values gives the usual message
+    ("must be a number") instead of the box silently changing what the user typed.
+    """
+    text = text.strip()
+    try:
+        number = float(text)
+    except ValueError:
+        return text
+    if spec.kind == "int" and number == int(number):
+        return int(number)
+    return number
+
+
+def value_to_text(value) -> str:
+    """Value -> text for a number box: short, but exact (repr round-trips every float)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, int):
+        return str(value)
+    short = f"{value:g}"
+    return short if float(short) == value else repr(value)

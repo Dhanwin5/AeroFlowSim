@@ -32,6 +32,12 @@ dependencies = [
     "streamlit>=1.65",
     "PyYAML>=6.0",
     "pytest>=9.1",
+    # Desktop GUI: Qt (only the core modules; the full "PySide6" adds an unused web engine) + PyVista/VTK
+    "PySide6-Essentials>=6.12,<7",
+    "vtk>=9.7",
+    "pyvista>=0.49",
+    "pyvistaqt>=0.13",
+    "pytest-qt>=4.5",
 ]
 
 [project.optional-dependencies]

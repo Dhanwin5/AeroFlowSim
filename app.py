@@ -13,7 +13,7 @@ running job, input values) are kept in st.session_state, a dictionary that Strea
 This file only draws the screen. All real work is done by the case (through the contract in
 aeroflowsim/case.py) and by helper modules in aeroflowsim/ that know nothing about Streamlit.
 The Setup-tab input panel is built automatically from each case's schema.toml by
-aeroflowsim/gui/panel.py, so adding a case needs no change here.
+aeroflowsim/gui/streamlit_panel.py, so adding a case needs no change here.
 """
 
 import io
@@ -28,7 +28,7 @@ from aeroflowsim.case import get_derived, get_geometry
 from aeroflowsim.checks import run_mesh_checks
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.geometry import WallProfile, profile_summary
-from aeroflowsim.gui.panel import current_values, init_inputs, input_panel, set_inputs
+from aeroflowsim.gui.streamlit_panel import current_values, init_inputs, input_panel, set_inputs
 from aeroflowsim.job import RunJob
 from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
 from aeroflowsim.mesh_quality import quality_summary

@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 
 TYPES = ("float", "int", "bool", "choice", "file", "text")
 NUMBER_TYPES = ("float", "int")
+STEPS = ("geometry", "mesh", "setup")   # workflow step an input belongs to (Geometry, Mesh or Setup page)
 
 # How to install each optional package (shown when an option needs one that is missing).
 INSTALL_HINTS = {"gmsh": 'pip install -e ".[mesh]"'}
@@ -63,6 +64,8 @@ class Parameter:
     file_types: tuple = ("csv",)  # file endings a "file" input accepts in the GUI upload box
     requires: dict = field(default_factory=dict)  # choice option -> package it needs, e.g. {"Triangles (Gmsh)": "gmsh"}
     pattern: str = ""             # "text" inputs: regular expression the text must match ("" = any text)
+    step: str = "setup"           # workflow step (one of STEPS): which GUI page shows it, and which
+                                  # results become out of date when it changes
 
     def __post_init__(self):
         if not self.type:   # guess the type from the default value (bool first: True is also an int)
@@ -74,6 +77,8 @@ class Parameter:
                 self.type = "float"
         if self.type not in TYPES:
             raise ValueError(f"Input '{self.name}': unknown type '{self.type}' (use one of {', '.join(TYPES)}).")
+        if self.step not in STEPS:
+            raise ValueError(f"Input '{self.name}': unknown step '{self.step}' (use one of {', '.join(STEPS)}).")
 
     @property
     def is_number(self) -> bool:

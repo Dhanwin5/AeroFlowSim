@@ -13,6 +13,7 @@ type = "choice"
 default = "Parametric (conical)"
 options = ["Parametric (conical)", "Custom profile (CSV)"]
 group = "Geometry"
+step = "geometry"
 help = "Built-in conical nozzle, or your own wall profile r(x) from a CSV file."
 
 [[input]]
@@ -24,6 +25,7 @@ default = 0.002
 min = 1e-05
 max = 1.0
 group = "Geometry"
+step = "geometry"
 help = "Diameter of the straight inlet section."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -36,6 +38,7 @@ default = 0.00133
 min = 0.0
 max = 10.0
 group = "Geometry"
+step = "geometry"
 help = "Length of the straight (cylindrical) inlet before the convergent cone."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -48,6 +51,7 @@ default = 30.0
 min = 1.0
 max = 89.0
 group = "Geometry"
+step = "geometry"
 help = "Half-angle of the convergent cone."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -60,6 +64,7 @@ default = 0.00028
 min = 1e-06
 max = 1.0
 group = "Geometry"
+step = "geometry"
 help = "Smallest diameter. It stays exact also with a rounded throat."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -72,6 +77,7 @@ default = 15.0
 min = 1.0
 max = 89.0
 group = "Geometry"
+step = "geometry"
 help = "Half-angle of the divergent cone."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -84,6 +90,7 @@ default = 0.000911
 min = 1e-06
 max = 1.0
 group = "Geometry"
+step = "geometry"
 help = "Diameter at the nozzle exit."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -96,6 +103,7 @@ default = 0.0
 min = 0.0
 max = 10.0
 group = "Geometry"
+step = "geometry"
 help = "Radius of curvature of the wall just upstream of the throat, divided by the throat radius. 0 = sharp throat. Typical: 1.5. The arc is tangent to the convergent cone; the cone gets shorter."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -108,6 +116,7 @@ default = 0.0
 min = 0.0
 max = 10.0
 group = "Geometry"
+step = "geometry"
 help = "Radius of curvature of the wall just downstream of the throat, divided by the throat radius. 0 = sharp throat. Typical: 0.4. The arc is tangent to the divergent cone; the cone gets shorter."
 show_if = { geometry_source = "Parametric (conical)" }
 
@@ -117,6 +126,7 @@ label = "Wall profile CSV"
 type = "file"
 default = "cases/quasi1d_nozzle/examples/n2_conical_nozzle.csv"
 group = "Geometry"
+step = "geometry"
 help = "Two columns with header x_mm,r_mm: axial position and wall RADIUS in mm, x increasing, at least 5 points."
 show_if = { geometry_source = "Custom profile (CSV)" }
 
@@ -184,6 +194,7 @@ default = 300
 min = 20
 max = 20000
 group = "Mesh"
+step = "mesh"
 help = "Finite-volume cells along the nozzle."
 
 [[input]]
@@ -195,6 +206,7 @@ default = 10.0
 min = 1.0
 max = 100.0
 group = "Mesh"
+step = "mesh"
 help = "Cells at the throat are this many times smaller than evenly spread cells; they grow by a constant factor towards both ends. 1 = uniform cells."
 
 [[input]]

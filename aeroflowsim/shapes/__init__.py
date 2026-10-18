@@ -112,13 +112,13 @@ def shape_parameters() -> list[Parameter]:
     names = [s.name for s in shapes]
     help_text = "Body in the free stream. " + " ".join(f"{s.name}: {s.description}" for s in shapes)
     params = [Parameter(SHAPE_KEY, "Shape", "", names[0], type="choice", options=tuple(names),
-                        help=help_text, group=SHAPE_GROUP)]
+                        help=help_text, group=SHAPE_GROUP, step="geometry")]
     for s in shapes:
         for p in s.inputs:
             show_if = (f"{s.key}.{p.show_if[0]}", p.show_if[1]) if p.show_if else (SHAPE_KEY, s.name)
             params.append(Parameter(
                 f"{s.key}.{p.name}", p.label, p.unit, p.default, p.min, p.max, p.help, p.type, p.options,
-                show_if, SHAPE_GROUP, p.file_types, dict(p.requires), p.pattern))
+                show_if, SHAPE_GROUP, p.file_types, dict(p.requires), p.pattern, step="geometry"))
     return params
 
 
