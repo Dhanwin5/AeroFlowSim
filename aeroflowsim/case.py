@@ -10,14 +10,16 @@ A case folder holds two required files:
                   The GUI builds the input panel from it automatically.
     case.py       the physics, as plain functions:
 
-    build_mesh(params)            -> Mesh1D
+    build_mesh(params)            -> Mesh1D or Mesh
         params is a dict {key: value} with the inputs of schema.toml. Returns the mesh
-        (see aeroflowsim/mesh.py).
+        (see aeroflowsim/mesh.py: Mesh1D for 1D cases, the face-based Mesh for 2D/3D cases).
 
     run(params, mesh, progress)   -> Result
         Solves the problem. While iterating it calls progress(iteration, residual)
         so the GUI or the command line can show how the solution is converging.
         Returns a Result (see aeroflowsim/results.py).
+        Not needed when schema.toml says solver = false (a mesh-only case, e.g. before its
+        solver exists); the GUI then shows solver_message instead of the Run button.
 
     reference(params, mesh)       -> dict[str, Field] or None      (optional)
         Theory or exact solution on the same mesh. Keys should match the keys of
@@ -27,6 +29,10 @@ A case folder holds two required files:
         The duct / nozzle wall r(x) for these inputs (see aeroflowsim/geometry.py). The GUI shows it
         as a preview in the Setup tab; raise ValueError with a "what to fix" message if the
         inputs do not give a valid geometry (e.g. a bad CSV file).
+
+    derived(params)               -> dict {label: (value, unit)}    (optional)
+        Read-only numbers that follow from the inputs (e.g. the total inflation thickness).
+        The GUI shows them under the input panel; they cannot be typed in.
 
     reference_lines(params, mesh) -> list[Line]                     (optional)
         Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
@@ -51,13 +57,18 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 
 # Functions case.py must define, and optional ones.
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
-OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry"]
+OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived"]
 
 
-def check_module(module) -> list[str]:
-    """Return a list of problems with a loaded case.py module (empty list = valid)."""
+def check_module(module, has_solver=True) -> list[str]:
+    """Return a list of problems with a loaded case.py module (empty list = valid).
+
+    has_solver=False (schema.toml: solver = false): run() is not required.
+    """
     problems = []
     for name in REQUIRED_FUNCTIONS:
+        if name == "run" and not has_solver:
+            continue
         if not callable(getattr(module, name, None)):
             problems.append(f"missing function {name}()")
     for name in OPTIONAL_FUNCTIONS:
@@ -96,7 +107,7 @@ class Case:
             module = _load_module(folder.name, folder / "case.py")
         except Exception as error:  # any error inside case.py
             raise ValueError(f"could not import case.py: {error!r}") from None
-        problems = check_module(module)
+        problems = check_module(module, has_solver=schema.solver)
         if problems:
             raise ValueError("; ".join(problems))
         return cls(folder, schema, module)
@@ -119,6 +130,16 @@ class Case:
     def steady(self) -> bool:
         """True if the case marches to a steady state (its residual must drop)."""
         return self.schema.steady
+
+    @property
+    def has_solver(self) -> bool:
+        """False for a mesh-only case (schema.toml: solver = false)."""
+        return self.schema.solver
+
+    @property
+    def solver_message(self) -> str:
+        """Text shown instead of the Run button when the case has no solver."""
+        return self.schema.solver_message
 
     def parameters(self):
         """The inputs of the case (list of Parameter), in schema.toml order."""
@@ -147,6 +168,13 @@ def get_geometry(case, params):
     if hasattr(case, "geometry"):
         return case.geometry(params)
     return None
+
+
+def get_derived(case, params):
+    """Call the case's derived() if it has one; otherwise return an empty dict."""
+    if hasattr(case, "derived"):
+        return case.derived(params)
+    return {}
 
 
 def get_reference_lines(case, params, mesh):

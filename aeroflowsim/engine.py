@@ -11,18 +11,25 @@
 Because the GUI (through aeroflowsim/job.py) and the command line (aeroflowsim/cli.py) both call
 this same function, the same case with the same inputs gives identical numbers in both.
 
-Steps: load case -> check inputs -> mesh -> solve -> reference -> validity checks -> (save files).
+Steps: load case -> check inputs -> mesh -> mesh checks -> solve -> reference -> validity checks
+-> (save files). If a mesh check reports an error (e.g. a cell with negative volume), the solver
+is not started and MeshError is raised. A case without a solver yet (solver = false in its
+schema.toml) raises ValueError with the case's message.
 """
 
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from aeroflowsim.case import get_reference, get_reference_lines
-from aeroflowsim.checks import CheckResult, run_checks
+from aeroflowsim.checks import CheckResult, run_checks, run_mesh_checks
 from aeroflowsim.discovery import load_case
 from aeroflowsim.parameters import defaults, validate
 from aeroflowsim.results import Result
 from aeroflowsim.runner import save_outputs
+
+
+class MeshError(ValueError):
+    """The mesh failed a mesh check at "error" level, so the solver was not started."""
 
 
 @dataclass
@@ -59,8 +66,13 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None) -> Ru
     if hasattr(case, "parameters"):          # fill in defaults, then check every value
         param_list = case.parameters()
         values = validate(param_list, {**defaults(param_list), **values})
+    if not getattr(case, "has_solver", True):
+        raise ValueError(case.solver_message)
     if mesh is None:
         mesh = case.build_mesh(values)
+    mesh_errors = [c for c in run_mesh_checks(case, values, mesh) if c.level == "error"]
+    if mesh_errors:   # e.g. inverted cells: the solver must not run on this mesh
+        raise MeshError(" ".join(f"{c.name}: {c.message}" for c in mesh_errors))
 
     result = case.run(values, mesh, progress or _no_progress)
     output = RunOutput(case=case, params=values, mesh=mesh, result=result,

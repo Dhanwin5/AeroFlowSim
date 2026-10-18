@@ -10,8 +10,13 @@ Each check is ONE function with the same signature:
 
 It returns a CheckResult (level "info" = fine, "warning" = be careful, "error" = do not trust
 the result) or None when the check does not apply to this case (e.g. no mass flow to balance).
-All checks are listed in CHECKS; run_checks() runs them all. To add a check later (mesh quality,
-Knudsen number, ideal-gas validity, y+ ...), write one function and add it to CHECKS.
+All checks are listed in CHECKS; run_checks() runs them all. To add a check later (Knudsen
+number, ideal-gas validity, y+ ...), write one function and add it to CHECKS.
+
+Mesh quality checks (MESH_CHECKS) only look at the mesh, so they can run BEFORE the solver:
+run_mesh_checks() is called by the run engine, which refuses to start the solver when one of
+them reports an error (e.g. a cell with zero or negative volume). They apply to face-based
+meshes (aeroflowsim.mesh.Mesh) only; for 1D meshes they return None (= does not apply).
 
 The GUI shows the results in the "Validity checks" box of the Results tab, the command line
 prints them, and summary.yaml stores them. Nothing here depends on the GUI.
@@ -20,11 +25,20 @@ prints them, and summary.yaml stores them. Nothing here depends on the GUI.
 import math
 from dataclasses import dataclass
 
+import numpy as np
+
+from aeroflowsim import mesh_quality
+from aeroflowsim.mesh import Mesh
+
 LEVELS = ("info", "warning", "error")
 
 MIN_RESIDUAL_DROP = 6.0      # orders of magnitude a steady case's residual should drop [-]
 MAX_MASS_IMBALANCE = 0.5     # largest acceptable inlet/exit mass-flow difference [%]
 NO_FLOW = 1e-15              # mass flows below this are treated as "no flow" [kg/s]
+MAX_ASPECT_RATIO = 100.0     # largest cell aspect ratio without a warning (no inflation) [-]
+MAX_NON_ORTHOGONALITY = 70.0 # largest angle between face normal and centre line [deg]
+MAX_VOLUME_RATIO = 2.0       # largest volume ratio of two neighbouring cells [-]
+MAX_INFLATION_FRACTION = 0.5 # inflation thicker than this fraction of the throat radius: warning [-]
 
 
 @dataclass
@@ -96,14 +110,111 @@ def mass_balance(case, params, mesh, result):
                        f"Inlet and exit mass flow agree within {imbalance:.2g} %.", imbalance, "%")
 
 
+# ---- mesh quality (face-based meshes only) -----------------------------------------------------
+
+def _face_mesh(mesh):
+    """The mesh if it is a face-based Mesh, else None (the mesh checks then do not apply)."""
+    return mesh if isinstance(mesh, Mesh) else None
+
+
+def mesh_cell_volumes(case, params, mesh, result):
+    """Every cell must have a positive volume; otherwise the solver must not run."""
+    if _face_mesh(mesh) is None:
+        return None
+    bad = int(np.count_nonzero(mesh.cell_volumes <= 0.0))
+    if bad:
+        return CheckResult("Cell volumes", "error",
+                           f"{bad} cell(s) have zero or negative volume (inverted or collapsed cells). "
+                           "The solver will not run on this mesh: fix the geometry or the mesh settings.",
+                           bad, "cells")
+    return CheckResult("Cell volumes", "info", "All cell volumes are positive.", 0, "cells")
+
+
+def mesh_aspect_ratio(case, params, mesh, result):
+    """Largest cell aspect ratio; thin cells are expected (info only) inside inflation layers."""
+    if _face_mesh(mesh) is None:
+        return None
+    worst = float(np.nanmax(mesh_quality.aspect_ratio(mesh)))
+    if worst > MAX_ASPECT_RATIO and mesh.info.get("inflation"):
+        return CheckResult("Aspect ratio", "info",
+                           f"Largest aspect ratio {worst:.3g}: thin cells in the inflation layers are intended.",
+                           worst, "-")
+    if worst > MAX_ASPECT_RATIO:
+        return CheckResult("Aspect ratio", "warning",
+                           f"Largest aspect ratio {worst:.3g} (more than {MAX_ASPECT_RATIO:g}): very stretched "
+                           "cells can slow convergence and reduce accuracy.", worst, "-")
+    return CheckResult("Aspect ratio", "info", f"Largest aspect ratio {worst:.3g}.", worst, "-")
+
+
+def mesh_non_orthogonality(case, params, mesh, result):
+    """Largest angle between a face normal and the line joining the two cell centres."""
+    if _face_mesh(mesh) is None:
+        return None
+    worst = float(mesh_quality.non_orthogonality(mesh).max())
+    if worst > MAX_NON_ORTHOGONALITY:
+        return CheckResult("Non-orthogonality", "warning",
+                           f"Largest non-orthogonality {worst:.3g}° (more than {MAX_NON_ORTHOGONALITY:g}°): "
+                           "gradients and diffusive fluxes become inaccurate.", worst, "deg")
+    return CheckResult("Non-orthogonality", "info", f"Largest non-orthogonality {worst:.3g}°.", worst, "deg")
+
+
+def mesh_volume_ratio(case, params, mesh, result):
+    """Largest volume ratio of two neighbouring cells (a sudden jump in cell size)."""
+    if _face_mesh(mesh) is None:
+        return None
+    worst = float(np.nanmax(mesh_quality.volume_ratio(mesh)))
+    if worst > MAX_VOLUME_RATIO:
+        return CheckResult("Cell growth", "warning",
+                           f"Two neighbouring cells differ {worst:.3g} times in volume (more than "
+                           f"{MAX_VOLUME_RATIO:g}): sudden jumps in cell size cause numerical errors.", worst, "-")
+    return CheckResult("Cell growth", "info",
+                       f"Largest volume ratio of neighbouring cells {worst:.3g}.", worst, "-")
+
+
+def mesh_inflation(case, params, mesh, result):
+    """Inflation layers must be thin compared with the throat radius and must not overlap."""
+    if _face_mesh(mesh) is None or not mesh.info.get("inflation"):
+        return None
+    thickness, r_throat = mesh.info["inflation_thickness"], mesh.info["r_throat"]   # [m]
+    fraction = 100.0 * thickness / r_throat                                         # [%]
+    if thickness >= r_throat:
+        return CheckResult("Inflation layers", "warning",
+                           f"The inflation layers ({thickness * 1e3:.4g} mm) are thicker than the throat "
+                           "radius: layers from the wall would overlap at the axis.", fraction, "%")
+    if fraction > 100.0 * MAX_INFLATION_FRACTION:
+        return CheckResult("Inflation layers", "warning",
+                           f"The inflation layers are {fraction:.3g} % of the throat radius thick (more than "
+                           f"{100 * MAX_INFLATION_FRACTION:g} %): they fill much of the throat. Use a smaller "
+                           "first layer height, fewer layers or a smaller growth rate.", fraction, "%")
+    return CheckResult("Inflation layers", "info",
+                       f"The inflation layers are {thickness * 1e6:.4g} µm thick, {fraction:.3g} % of the "
+                       "throat radius.", fraction, "%")
+
+
+def mesh_smallest_cell(case, params, mesh, result):
+    """The smallest cell size (it sets the time step of an explicit solver)."""
+    if _face_mesh(mesh) is None:
+        return None
+    smallest = float(mesh_quality.cell_size(mesh).min())   # [m]
+    return CheckResult("Smallest cell", "info", f"The smallest cell is {smallest * 1e6:.4g} µm thick.",
+                       smallest, "m")
+
+
+# Mesh-only checks: run before the solver, and shown with the other checks. Add new ones here.
+MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mesh_volume_ratio,
+               mesh_inflation, mesh_smallest_cell]
+
 # Every check, in the order shown. Add new checks here.
-CHECKS = [convergence, mass_balance]
+CHECKS = [convergence, mass_balance] + MESH_CHECKS
 
 
-def run_checks(case, params, mesh, result) -> list[CheckResult]:
-    """Run every check that applies; a check that crashes is reported as an error, not raised."""
+def run_checks(case, params, mesh, result, checks=None) -> list[CheckResult]:
+    """Run every check that applies; a check that crashes is reported as an error, not raised.
+
+    checks: the check functions to run (default: all of CHECKS).
+    """
     results = []
-    for check in CHECKS:
+    for check in CHECKS if checks is None else checks:
         try:
             outcome = check(case, params, mesh, result)
         except Exception as error:   # a broken check must never hide the solver's result
@@ -111,6 +222,11 @@ def run_checks(case, params, mesh, result) -> list[CheckResult]:
         if outcome is not None:
             results.append(outcome)
     return results
+
+
+def run_mesh_checks(case, params, mesh) -> list[CheckResult]:
+    """Run only the mesh quality checks (possible before the solver has run)."""
+    return run_checks(case, params, mesh, None, checks=MESH_CHECKS)
 
 
 def worst_level(results: list[CheckResult]) -> str:

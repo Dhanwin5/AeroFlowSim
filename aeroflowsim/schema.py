@@ -15,6 +15,8 @@ Example (one [case] table, then one [[input]] table per input, in the order show
     name = "Quasi-1D nozzle"          # shown in the case list
     description = "Steady ..."        # one or two sentences
     steady = true                     # true: marched to a steady state (used by the validity checks)
+    solver = true                     # optional (default true); false = mesh only, no solver yet
+    solver_message = "..."            # optional: shown instead of the Run button when solver = false
 
     [[input]]
     key = "d_throat"                  # name used in the code: params["d_throat"]
@@ -49,6 +51,8 @@ class Schema:
     description: str            # one or two sentences
     steady: bool                # True: steady case (residual must drop); False: time-accurate case
     inputs: list[Parameter] = field(default_factory=list)   # in the order they appear in the file
+    solver: bool = True         # False: the case has no solver yet (mesh only)
+    solver_message: str = "This case has no solver yet."   # shown instead of the Run button
 
 
 def _input_to_parameter(entry: dict, number: int) -> Parameter:
@@ -105,7 +109,14 @@ def parse_schema(data: dict) -> Schema:
     for p in inputs:
         if p.show_if is not None and p.show_if[0] not in keys:
             raise ValueError(f"input '{p.name}': show_if refers to unknown input '{p.show_if[0]}'.")
-    return Schema(title=info["name"], description=info["description"], steady=info["steady"], inputs=inputs)
+    solver = info.get("solver", True)
+    if not isinstance(solver, bool):
+        raise ValueError("[case] 'solver' must be true or false.")
+    message = info.get("solver_message", Schema.solver_message)
+    if not isinstance(message, str):
+        raise ValueError("[case] 'solver_message' must be text.")
+    return Schema(title=info["name"], description=info["description"], steady=info["steady"], inputs=inputs,
+                  solver=solver, solver_message=message)
 
 
 def load_schema(path) -> Schema:

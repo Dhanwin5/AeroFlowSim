@@ -60,3 +60,65 @@ def test_check_result_rejects_unknown_level_and_stores_plain_floats():
     with pytest.raises(ValueError):
         CheckResult("x", "fatal", "message")
     assert type(CheckResult("x", "info", "m", np.float64(2.0)).value) is float
+
+
+# ---- mesh quality checks --------------------------------------------------------------------
+
+def square_mesh(order=(0, 1, 2, 3), nodes=((0, 0), (1, 0), (1, 1), (0, 1)), info=None):
+    from aeroflowsim.mesh import QUAD, Mesh
+    return Mesh.from_cells(np.array(nodes, dtype=float), QUAD, [list(order)],
+                           {"all": ("wall", [[0, 1], [1, 2], [2, 3], [3, 0]])}, info=info)
+
+
+def by_name(results):
+    return {c.name: c for c in results}
+
+
+def test_mesh_checks_pass_on_a_good_mesh_and_skip_1d_meshes():
+    from aeroflowsim.mesh import Mesh1D
+    found = by_name(checks.run_mesh_checks(STEADY, {}, square_mesh()))
+    assert set(found) == {"Cell volumes", "Aspect ratio", "Non-orthogonality", "Cell growth", "Smallest cell"}
+    assert all(c.level == "info" for c in found.values())
+    assert found["Smallest cell"].value == pytest.approx(1.0)
+    assert checks.run_mesh_checks(STEADY, {}, Mesh1D(x=np.linspace(0, 1, 5))) == []
+
+
+def test_inverted_cell_is_an_error_and_the_engine_refuses_to_run():
+    from aeroflowsim.engine import MeshError, run_case
+    bad = square_mesh(order=(0, 3, 2, 1))                    # clockwise: negative volume
+    assert by_name(checks.run_mesh_checks(STEADY, {}, bad))["Cell volumes"].level == "error"
+    ran = []
+    case = SimpleNamespace(steady=True, run=lambda *args: ran.append(1))
+    with pytest.raises(MeshError, match="negative volume"):
+        run_case(case, {}, mesh=bad)
+    assert ran == []                                          # the solver was never called
+
+
+def test_stretched_cell_warns_unless_it_is_an_inflation_layer():
+    thin = ((0, 0), (200, 0), (200, 1), (0, 1))               # aspect ratio 200
+    assert by_name(checks.run_mesh_checks(STEADY, {}, square_mesh(nodes=thin)))["Aspect ratio"].level == "warning"
+    info = {"inflation": True, "inflation_thickness": 1e-6, "r_throat": 1.0}
+    found = by_name(checks.run_mesh_checks(STEADY, {}, square_mesh(nodes=thin, info=info)))
+    assert found["Aspect ratio"].level == "info"
+    assert found["Inflation layers"].level == "info"
+
+
+@pytest.mark.parametrize("thickness, level", [(0.2, "info"), (0.6, "warning"), (1.5, "warning")])
+def test_inflation_thicker_than_half_the_throat_radius_warns(thickness, level):
+    info = {"inflation": True, "inflation_thickness": thickness, "r_throat": 1.0}
+    assert checks.mesh_inflation(STEADY, {}, square_mesh(info=info), None).level == level
+
+
+def test_volume_jump_and_skewed_cells_warn():
+    from aeroflowsim.mesh import QUAD, Mesh
+    # Two cells side by side: widths 1 and 3 -> volume ratio 3.
+    nodes = np.array([[0, 0], [1, 0], [4, 0], [4, 1], [1, 1], [0, 1]], dtype=float)
+    mesh = Mesh.from_cells(nodes, QUAD, [[0, 1, 4, 5], [1, 2, 3, 4]],
+                           {"all": ("wall", [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]])})
+    assert checks.mesh_volume_ratio(STEADY, {}, mesh, None).value == pytest.approx(3.0)
+    assert checks.mesh_volume_ratio(STEADY, {}, mesh, None).level == "warning"
+    # Two strongly sheared cells on top of each other: the centre line is far from the face normal.
+    nodes = np.array([[0, 0], [1, 0], [5, 1], [4, 1], [9, 2], [10, 2]], dtype=float)
+    mesh = Mesh.from_cells(nodes, QUAD, [[0, 1, 2, 3], [3, 2, 5, 4]],
+                           {"all": ("wall", [[0, 1], [1, 2], [2, 5], [5, 4], [4, 3], [3, 0]])})
+    assert checks.mesh_non_orthogonality(STEADY, {}, mesh, None).level == "warning"
