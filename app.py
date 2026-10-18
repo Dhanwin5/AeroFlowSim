@@ -24,14 +24,18 @@ import pandas as pd
 import streamlit as st
 
 from aeroflowsim import __version__
-from aeroflowsim.case import get_geometry
+from aeroflowsim.case import get_derived, get_geometry
+from aeroflowsim.checks import run_mesh_checks
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.geometry import profile_summary
 from aeroflowsim.gui.panel import current_values, init_inputs, input_panel, set_inputs
 from aeroflowsim.job import RunJob
-from aeroflowsim.mesh import Mesh1D, Mesh2D
+from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
+from aeroflowsim.mesh_quality import quality_summary
 from aeroflowsim.parameters import defaults, validate
-from aeroflowsim.plots import field_figure, mesh_figure, profile_figure, residual_figure
+from aeroflowsim.plots import (QUALITY_COLORINGS, face_mesh_figure, field_figure, mesh_figure, profile_figure,
+                               residual_figure)
+from aeroflowsim.vtk import save_mesh_files
 from aeroflowsim.runner import fields_csv_text, max_errors, plot_fields
 from aeroflowsim.settings import list_settings, load_settings, save_settings, settings_dir
 from aeroflowsim.visualise import COLORMAPS, contour_2d, figure_png, shape_view, xt_diagram
@@ -81,7 +85,8 @@ st.sidebar.caption(f"Folder: `cases/{case_name}/`")
 
 # When the user switches case, forget the mesh and run of the previous case.
 if state.get("case_name") != case_name:
-    for key in ("mesh", "mesh_params", "mesh_error", "job", "run_params", "run_mesh", "job_shown_done"):
+    for key in ("mesh", "mesh_params", "mesh_error", "mesh_files", "job", "run_params", "run_mesh",
+                "job_shown_done"):
         state.pop(key, None)
     state.case_name = case_name
 
@@ -127,9 +132,25 @@ def geometry_preview(values):
     st.plotly_chart(profile_figure(profile), key="profile_plot")
 
 
+def derived_values(values):
+    """Setup tab: read-only numbers that follow from the inputs (the case's derived() function)."""
+    try:
+        numbers = get_derived(case, validate(param_list, values))
+    except ValueError:
+        return   # the input panel already shows what is wrong
+    if not numbers:
+        return
+    cols = st.columns(len(numbers))
+    for col, (label, (value, unit)) in zip(cols, numbers.items()):
+        text = value if isinstance(value, str) else f"{value:.4g}"
+        col.metric(f"{label} [{unit}]" if unit else label, text)
+    st.caption("Calculated from the inputs above (read-only).")
+
+
 with setup_tab:
     st.subheader("Inputs")
     input_panel(case, UPLOADS_DIR, PROJECT_DIR)   # built from cases/<case>/schema.toml
+    derived_values(current_values(case))
     st.button("Reset to defaults", on_click=on_reset)
     if hasattr(case, "geometry"):
         geometry_preview(current_values(case))
@@ -171,6 +192,7 @@ def make_mesh():
     state.mesh_error and shown in the Mesh and Run tabs instead of crashing the app.
     """
     state.pop("mesh_error", None)
+    state.pop("mesh_files", None)
     try:
         state.mesh = case.build_mesh(params)
     except ValueError as error:
@@ -178,7 +200,41 @@ def make_mesh():
         state.mesh_error = str(error)
         return False
     state.mesh_params = dict(params)
+    if isinstance(state.mesh, Mesh):   # face-based mesh: save mesh.npz + mesh.vtu in cases/<case>/mesh/
+        state.mesh_files = save_mesh_files(state.mesh, case.folder)
     return True
+
+
+def face_mesh_view(mesh):
+    """Mesh tab for a face-based mesh: summary box, zoomable picture, quality colours, .vtu download."""
+    q = quality_summary(mesh)
+    with st.container(border=True):
+        st.markdown("**Mesh summary**")
+        cols = st.columns(4)
+        cols[0].metric("Cells", f"{mesh.n_cells:,}")
+        cols[1].metric("Faces", f"{mesh.n_faces:,}")
+        cols[2].metric("Nodes", f"{mesh.n_nodes:,}")
+        cols[3].metric("Memory (approx.) [MB]", f"{mesh.memory_bytes() / 1e6:.3g}")
+        cols = st.columns(4)
+        cols[0].metric("Smallest cell [µm]", f"{q['min_cell_size'] * 1e6:.4g}")
+        cols[1].metric("Max aspect ratio [-]", f"{q['max_aspect_ratio']:.3g}")
+        cols[2].metric("Max non-orthogonality [deg]", f"{q['max_non_orthogonality']:.3g}")
+        cols[3].metric("Max neighbour volume ratio [-]", f"{q['max_volume_ratio']:.3g}")
+        st.caption("Patches: " + ", ".join(f"{p.name} ({p.type}, {p.count} faces)" for p in mesh.patches)
+                   + ". Full quality checks: **Results** tab.")
+    color_by = st.selectbox("Colour cells by", ["Nothing"] + list(QUALITY_COLORINGS), key="mesh_color_by",
+                            filter_mode=None)
+    st.plotly_chart(face_mesh_figure(mesh, None if color_by == "Nothing" else color_by), key="mesh_plot",
+                    config={"scrollZoom": True})
+    st.caption("Zoom: drag a box or use the mouse wheel; double-click to see the whole mesh. "
+               "Click a legend entry to hide or show it.")
+    files = state.get("mesh_files")
+    if files:
+        npz, vtu = files
+        st.download_button("Download .vtu (ParaView)", vtu.read_bytes(), file_name=f"{case_name}_mesh.vtu",
+                           mime="application/xml", on_click="ignore", key="download_vtu")
+        st.caption(f"Also saved in `{vtu.relative_to(PROJECT_DIR).as_posix()}` and "
+                   f"`{npz.relative_to(PROJECT_DIR).as_posix()}`.")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -190,14 +246,18 @@ with mesh_tab:
         st.error(params_error)
     if st.button("Generate mesh", type="primary", key="generate_mesh", disabled=params is None):
         make_mesh()
+    elif state.get("mesh") is not None and params is not None and state.mesh_params != params:
+        make_mesh()   # the Setup inputs changed since the last mesh: update it automatically
     if "mesh_error" in state:
         st.error(f"Could not build the mesh: {state.mesh_error}")
     mesh = state.get("mesh")
     if mesh is None:
         st.info("Press **Generate mesh** to build the mesh from the Setup inputs.")
-    else:
-        if state.mesh_params != params:
-            st.warning("The Setup inputs changed since this mesh was made. Press **Generate mesh** again.")
+    elif state.mesh_params != params:
+        st.warning("The Setup inputs are not valid; this mesh was made with earlier inputs.")
+    if isinstance(mesh, Mesh):
+        face_mesh_view(mesh)
+    elif mesh is not None:
         col1, col2, col3 = st.columns(3)
         col1.metric("Nodes", mesh.n_nodes)
         col2.metric("Cells", mesh.n_cells)
@@ -260,11 +320,15 @@ def live_view():
         st.rerun()
 
 
-with run_tab:
+def run_tab_view():
+    """Run / Stop buttons and the live view (or the case's message if it has no solver yet)."""
     if params_error:
         st.error(params_error)
     if "mesh_error" in state:
         st.error(f"Could not build the mesh: {state.mesh_error}")
+    if not case.has_solver:
+        st.info(case.solver_message)
+        return
     job = state.get("job")
     running = job is not None and job.running
     col_run, col_stop, _ = st.columns([1, 1, 6])
@@ -273,6 +337,10 @@ with run_tab:
     col_stop.button("Stop", on_click=on_stop, disabled=not running, key="stop")
     # A "fragment" is a part of the page that can refresh on its own on a timer.
     st.fragment(live_view, run_every=0.3 if running else None)()
+
+
+with run_tab:
+    run_tab_view()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -360,7 +428,13 @@ def contours_section(result, reference_lines, mesh):
 
 with results_tab:
     job = state.get("job")
-    if job is None or job.status != "finished":
+    if not case.has_solver:   # mesh-only case: the results are the mesh quality checks
+        if state.get("mesh") is None:
+            st.info("No mesh yet. Press **Generate mesh** in the **Mesh** tab.")
+        else:
+            st.caption("This case has no solver yet: these are the mesh quality checks.")
+            validity_box(run_mesh_checks(case, state.mesh_params, state.mesh))
+    elif job is None or job.status != "finished":
         st.info("No results yet. Run the case in the **Run** tab.")
     else:
         result, reference, mesh = job.result, job.reference, state.run_mesh

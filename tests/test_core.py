@@ -137,3 +137,12 @@ def test_command_line_run_and_list(tmp_path, capsys):
     assert (tmp_path / "summary.yaml").exists()
     assert cli.main(["run", "cases/demo_heat1d", "--set", "L=99"]) == 1      # outside the allowed range
     assert "outside the allowed range" in capsys.readouterr().out
+
+
+def test_mesh_only_case_needs_no_run_function(tmp_path):
+    schema = GOOD_SCHEMA + 'solver = false\nsolver_message = "Solver comes later."\n'
+    _make_case(tmp_path / "mesh_only", "def build_mesh(p): pass\n", schema)
+    _make_case(tmp_path / "bad_flag", GOOD_CASE, GOOD_SCHEMA + 'solver = "no"\n')
+    cases, problems = find_cases(tmp_path)
+    assert not cases["mesh_only"].has_solver and cases["mesh_only"].solver_message == "Solver comes later."
+    assert "solver" in problems["bad_flag"]

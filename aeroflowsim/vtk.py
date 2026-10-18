@@ -106,3 +106,17 @@ def write_vtu(path, mesh, cell_data=None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(vtu_text(mesh, cell_data), encoding="utf-8", newline="\n")
     return path
+
+
+MESH_FOLDER = "mesh"   # cases/<case>/mesh/ holds the generated mesh files (git-ignored)
+
+
+def save_mesh_files(mesh, case_folder) -> tuple[Path, Path]:
+    """Save a mesh into cases/<case>/mesh/: mesh.npz (to reload it exactly) and mesh.vtu (ParaView).
+
+    Returns (npz path, vtu path).
+    """
+    folder = Path(case_folder) / MESH_FOLDER
+    npz = mesh.save(folder / "mesh.npz")
+    vtu = write_vtu(folder / "mesh.vtu", mesh, mesh_cell_data(mesh))
+    return npz, vtu

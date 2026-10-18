@@ -11,7 +11,8 @@ and tests can check them without a browser. Nothing here imports the GUI.
 import numpy as np
 import plotly.graph_objects as go
 
-from aeroflowsim.mesh import Mesh1D, Mesh2D
+from aeroflowsim import mesh_quality
+from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
 from aeroflowsim.runner import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE
 
 MAX_PLOT_POINTS = 5000  # residual curves longer than this are thinned so the browser stays fast
@@ -64,7 +65,69 @@ def mesh_figure(mesh):
         _layout(fig, title, "x [m]", "y [m]", height=450)
         fig.update_layout(hovermode="closest")
         return fig
+    if isinstance(mesh, Mesh):
+        return face_mesh_figure(mesh)
     raise TypeError(f"Cannot plot a mesh of type {type(mesh).__name__}.")
+
+
+# Colours of the boundary patch types in the mesh picture.
+PATCH_COLORS = {"inlet": "#1f77b4", "outlet": "#ff7f0e", "wall": "#222222", "axis": "#2ca02c",
+                "farfield": "#9467bd", "symmetry": "#17becf"}
+
+# Quality metrics the cells can be coloured by: label -> (function of the mesh, unit).
+QUALITY_COLORINGS = {
+    "Aspect ratio": (mesh_quality.aspect_ratio, "-"),
+    "Non-orthogonality": (mesh_quality.non_orthogonality, "deg"),
+    "Neighbour volume ratio": (mesh_quality.volume_ratio, "-"),
+    "Cell size": (mesh_quality.cell_size, "m"),
+}
+
+
+def _face_lines(mesh, faces, scale):
+    """x, y of the given 2D faces (edges) as one polyline with NaN gaps (fast to draw)."""
+    ends = mesh.nodes[mesh.face_nodes[faces, :2]] * scale        # (n, 2, 3)
+    gap = np.full((len(faces), 1), np.nan)
+    x = np.hstack([ends[:, :, 0], gap]).ravel()
+    y = np.hstack([ends[:, :, 1], gap]).ravel()
+    return x, y
+
+
+def face_mesh_figure(mesh, color_by=None):
+    """Zoomable picture of a 2D face-based Mesh, in mm.
+
+    Interior faces are thin grey lines; every boundary patch has its own colour (and legend
+    entry). color_by = one of QUALITY_COLORINGS: every cell gets a coloured dot at its centre,
+    with the value shown when the mouse is over it.
+    """
+    if mesh.dim != 2:
+        raise ValueError("Only 2D meshes can be drawn here; open 3D meshes in ParaView (.vtu).")
+    scale = 1e3                                                   # m -> mm
+    Scatter = go.Scattergl if mesh.n_faces > 2000 else go.Scatter  # WebGL for big meshes
+    fig = go.Figure()
+    x, y = _face_lines(mesh, np.arange(mesh.n_interior_faces), scale)
+    fig.add_trace(Scatter(x=x, y=y, mode="lines", name="cells", hoverinfo="skip",
+                          line=dict(color="rgba(90,90,90,0.55)", width=0.7)))
+    for p in mesh.patches:
+        x, y = _face_lines(mesh, p.faces, scale)
+        fig.add_trace(Scatter(x=x, y=y, mode="lines", name=f"{p.name} ({p.type})", hoverinfo="skip",
+                              line=dict(color=PATCH_COLORS.get(p.type, COLOR_NUMERICAL), width=3)))
+    if color_by is not None:
+        function, unit = QUALITY_COLORINGS[color_by]
+        values = function(mesh)
+        c = mesh.cell_centres * scale
+        fig.add_trace(Scatter(
+            x=c[:, 0], y=c[:, 1], mode="markers", name=color_by, showlegend=False,
+            marker=dict(size=5, color=values, colorscale="Viridis",
+                        colorbar=dict(title=f"{color_by} [{unit}]", thickness=14)),
+            customdata=np.column_stack([np.arange(mesh.n_cells), values]),
+            hovertemplate="cell %{customdata[0]}<br>" + color_by + " = %{customdata[1]:.4g} " + unit
+                          + "<br>x = %{x:.4f} mm, r = %{y:.4f} mm<extra></extra>"))
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)               # true shape
+    y_title = "r [mm]" if mesh.axisymmetric else "y [mm]"
+    _layout(fig, f"2D mesh: {mesh.n_cells:,} cells, {mesh.n_faces:,} faces", "x [mm]", y_title, height=520)
+    fig.update_layout(hovermode="closest", dragmode="zoom", margin=dict(l=60, r=20, t=50, b=90),
+                      legend=dict(orientation="h", yanchor="top", y=-0.14, xanchor="left", x=0.0))
+    return fig
 
 
 def residual_figure(iterations, residuals, tol=None):

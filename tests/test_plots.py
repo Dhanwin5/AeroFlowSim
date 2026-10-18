@@ -97,3 +97,16 @@ def test_profile_figure_mirrors_wall_and_marks_throat():
     assert np.allclose(np.array(mirror.y), -np.array(wall.y))
     assert np.allclose(throat.x, [2.0, 2.0]) and np.allclose(throat.y, [-0.2, 0.2])   # mm
     assert len(points.x) == 5
+
+
+def test_face_mesh_figure_has_one_trace_per_patch_and_optional_quality_colours():
+    import math
+    from aeroflowsim.geometry import conical_nozzle
+    from aeroflowsim.nozzle_mesh import structured_nozzle_mesh
+    from aeroflowsim.plots import face_mesh_figure
+    profile = conical_nozzle(0.002, 0.00133, math.radians(30), 0.00028, math.radians(15), 0.000911)
+    mesh = structured_nozzle_mesh(profile, 20, 5)
+    fig = mesh_figure(mesh)
+    assert [t.name for t in fig.data] == ["cells", "inlet (inlet)", "outlet (outlet)", "wall (wall)", "axis (axis)"]
+    fig = face_mesh_figure(mesh, "Aspect ratio")
+    assert len(fig.data[-1].x) == mesh.n_cells and fig.data[-1].marker.colorbar.title.text.startswith("Aspect")

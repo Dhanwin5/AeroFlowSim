@@ -113,6 +113,14 @@ def validate_folder(folder: Path) -> CaseValidation:
     return CaseValidation(folder.name, header["title"], header["case"], comparisons)
 
 
+def error_text(error_percent) -> str:
+    """Error for the report: 3 decimals, or 2 significant digits for errors below 0.01 %
+    (so a very small error, e.g. on a fine mesh, still shows how small it is)."""
+    if 0.0 < error_percent < 0.01:
+        return f"{error_percent:.2g}"
+    return f"{error_percent:.3f}"
+
+
 def write_report(validations: list[CaseValidation], path: Path = REPORT) -> Path:
     """Write the pass/fail tables as Markdown."""
     overall = all(v.passed for v in validations)
@@ -139,7 +147,7 @@ def write_report(validations: list[CaseValidation], path: Path = REPORT) -> Path
             r = c.reference
             unit = "" if r.unit == "-" else f" {r.unit}"
             lines.append(f"| {r.quantity} | {r.value:.6g}{unit} | {c.measured:.6g}{unit} | "
-                         f"{c.error_percent:.3f} | {r.tolerance_percent:g} | {'PASS' if c.passed else 'FAIL'} |")
+                         f"{error_text(c.error_percent)} | {r.tolerance_percent:g} | {'PASS' if c.passed else 'FAIL'} |")
         lines += ["", "Sources:", ""]
         for source in dict.fromkeys(c.reference.source for c in v.comparisons):
             lines.append(f"- {source}")

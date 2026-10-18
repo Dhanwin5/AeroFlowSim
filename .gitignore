@@ -21,3 +21,6 @@ results/
 # Files uploaded in the GUI and personal saved settings of each case
 uploads/
 cases/*/settings/
+
+# Generated mesh files of each case (mesh.npz, mesh.vtu)
+cases/*/mesh/

@@ -26,7 +26,11 @@ Clarity matters more than speed.
 - **One engine:** `aeroflowsim.run_case(case_folder, params)` is used by the GUI (via
   `aeroflowsim/job.py`), the command line and scripts, so all give identical results.
 - **Validity checks** (`aeroflowsim/checks.py`): one function per check, results shown in the
-  Results tab, printed by the command line, stored in `summary.yaml`.
+  Results tab, printed by the command line, stored in `summary.yaml`. Mesh checks run before the
+  solver; an error-level mesh check (e.g. negative cell volume) stops the run.
+- **One mesh format:** every 2D/3D generator produces the face-based `Mesh` of `aeroflowsim/mesh.py`
+  (VTK cell types, OpenFOAM-style owner/neighbour faces) and every 2D/3D solver consumes it.
+- A case may be **mesh-only** (`solver = false` + `solver_message` in `schema.toml`; no `run()`).
 
 Layout:
 
@@ -42,13 +46,19 @@ aeroflowsim/               the Python package
     job.py                 background run for the GUI (live progress, Stop)
     runner.py              output files: CSV, YAML summary, PNG plots
     geometry.py            shared wall profiles (parametric, CSV) for nozzle/duct cases
-    euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, mesh.py, results.py, plots.py, visualise.py
+    mesh.py                Mesh1D (1D cases) and the face-based Mesh (2D/axisymmetric/3D): nodes, cells,
+                           faces with owner/neighbour, patches, geometry, save/load (.npz)
+    mesh_quality.py        aspect ratio, non-orthogonality, volume ratio, cell size (per cell)
+    nozzle_mesh.py         structured axisymmetric nozzle mesh (throat clustering, inflation layers)
+    vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
+    euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
     gui/panel.py           auto-generated input panel (the GUI layer; only place with streamlit)
 cases/<case_name>/         one folder per case
     schema.toml            inputs (key, label, unit, type, default, min, max, group, help, show_if)
     case.py                build_mesh(), run() (+ optional reference, geometry, reference_lines)
     README.md              physics and assumptions
     test_case.py           pytest validation test
+    mesh/                  generated mesh.npz + mesh.vtu (git-ignored)
 cases/_template/           copy-me skeleton for a new case (ignored by discovery and pytest)
 validation/<case_name>/    reference.toml (values, sources, tolerances) + validate.py
 validation/run_all.py      runs all validation cases, writes validation/report.md
@@ -99,12 +109,26 @@ Commands (from the project folder):
 11. Ask before deleting files or making changes that were not requested.
 12. **Privacy:** the GUI listens on localhost only and sends no usage statistics
     (`.streamlit/config.toml`, tested). Never change this without asking. User data (results/,
-    uploads/, cases/*/settings/) is git-ignored and must never be committed.
+    uploads/, cases/*/settings/, cases/*/mesh/) is git-ignored and must never be committed.
+
+## Intelligence
+- **Principle:** intelligence assists, never replaces physics. Every suggestion is shown to the
+  user, is editable, and is verified by the validity checks. The core software must work fully
+  offline without any AI.
+- **Smart rules (from Prompt 7 onwards):** auto-setup (mesh size, inflation first layer height
+  from Re and target y+, CFL), failure diagnosis with suggested fixes, and result sanity checks
+  against theory. Each rule is one small function, like a check.
+- **Adaptive mesh refinement:** after Prompt 8 (Numba).
+- **Shape optimisation** (nozzle contour for maximum thrust/Isp, nose cone for minimum drag):
+  Phase 5 headline feature.
+- **Optional AI assistant** (natural-language setup and result explanation): Phase 5 plugin. It
+  fills schema inputs only, never runs its own code, is opt-in, and has a local-model option for
+  confidential designs.
 
 ## Roadmap
 - **Phase 1 - 2D foundations and supersonic:**
   - 5.5 foundations (done);
-  - 6 face-based mesh format + structured nozzle mesh with inflation controls + VTK export;
+  - 6 face-based mesh format + structured nozzle mesh with inflation controls + VTK export (done);
   - 6b Gmsh 2D mesh (optional install) + shape library (nozzles: conical, bell, CSV; intakes: ramp,
     spike; supersonic airfoils: wedge, diamond, biconvex; subsonic airfoils: NACA 4/5-digit,
     coordinate file; nose cones: conical, tangent ogive, von Karman, power-law; blunt bodies:

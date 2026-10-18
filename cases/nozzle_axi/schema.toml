@@ -1,0 +1,200 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# Format: see aeroflowsim/schema.py. SI units, except where the unit says otherwise.
+
+[case]
+name = "Axisymmetric nozzle (2D mesh)"
+description = "2D axisymmetric mesh of a converging-diverging nozzle (conical or CSV wall profile), from the axis to the wall, with throat clustering, optional inflation layers and mesh quality checks."
+steady = true
+solver = false
+solver_message = "The 2D axisymmetric Euler solver arrives in Prompt 7. For now this case builds, checks and exports the mesh (Mesh and Results tabs)."
+
+# ---- geometry (same inputs as the quasi-1D nozzle) --------------------------------------------
+
+[[input]]
+key = "geometry_source"
+label = "Geometry source"
+type = "choice"
+default = "Parametric (conical)"
+options = ["Parametric (conical)", "Custom profile (CSV)"]
+group = "Geometry"
+help = "Built-in conical nozzle, or your own wall profile r(x) from a CSV file."
+
+[[input]]
+key = "d_inlet"
+label = "Inlet diameter"
+unit = "m"
+type = "float"
+default = 0.002
+min = 1e-05
+max = 1.0
+group = "Geometry"
+help = "Diameter of the straight inlet section."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "L_inlet"
+label = "Straight inlet length"
+unit = "m"
+type = "float"
+default = 0.00133
+min = 0.0
+max = 10.0
+group = "Geometry"
+help = "Length of the straight (cylindrical) inlet before the convergent cone."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "half_angle_conv"
+label = "Convergent half-angle"
+unit = "deg"
+type = "float"
+default = 30.0
+min = 1.0
+max = 89.0
+group = "Geometry"
+help = "Half-angle of the convergent cone."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "d_throat"
+label = "Throat diameter"
+unit = "m"
+type = "float"
+default = 0.00028
+min = 1e-06
+max = 1.0
+group = "Geometry"
+help = "Smallest diameter (sharp-cornered throat)."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "half_angle_div"
+label = "Divergent half-angle"
+unit = "deg"
+type = "float"
+default = 15.0
+min = 1.0
+max = 89.0
+group = "Geometry"
+help = "Half-angle of the divergent cone."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "d_exit"
+label = "Exit diameter"
+unit = "m"
+type = "float"
+default = 0.000911
+min = 1e-06
+max = 1.0
+group = "Geometry"
+help = "Diameter at the nozzle exit."
+show_if = { geometry_source = "Parametric (conical)" }
+
+[[input]]
+key = "profile_csv"
+label = "Wall profile CSV"
+type = "file"
+default = "cases/nozzle_axi/examples/n2_conical_nozzle.csv"
+group = "Geometry"
+help = "Two columns with header x_mm,r_mm: axial position and wall RADIUS in mm, x increasing, at least 5 points."
+show_if = { geometry_source = "Custom profile (CSV)" }
+
+# ---- mesh size ---------------------------------------------------------------------------------
+
+[[input]]
+key = "mesh_preset"
+label = "Mesh size preset"
+type = "choice"
+default = "Medium"
+options = ["Coarse", "Medium", "Fine", "Custom"]
+group = "Mesh"
+help = "Cells along x x cells across: Coarse 100 x 20, Medium 200 x 40, Fine 400 x 80, or Custom (type your own)."
+
+[[input]]
+key = "nx"
+label = "Cells along x"
+unit = "-"
+type = "int"
+default = 200
+min = 4
+max = 5000
+group = "Mesh"
+help = "Number of cells from the inlet to the exit."
+show_if = { mesh_preset = "Custom" }
+
+[[input]]
+key = "nr"
+label = "Cells across (axis to wall)"
+unit = "-"
+type = "int"
+default = 40
+min = 2
+max = 1000
+group = "Mesh"
+help = "Number of cells from the axis to the wall, including any inflation layers."
+show_if = { mesh_preset = "Custom" }
+
+[[input]]
+key = "throat_clustering"
+label = "Throat clustering"
+type = "bool"
+default = true
+group = "Mesh"
+help = "Concentrate cells near the throat, where the flow changes fastest (smooth tanh stretching, no jumps)."
+
+[[input]]
+key = "clustering_strength"
+label = "Throat clustering strength"
+type = "choice"
+default = "Moderate"
+options = ["Mild", "Moderate", "Strong"]
+group = "Mesh"
+help = "Throat cells about 2x (Mild), 7x (Moderate) or 34x (Strong) smaller than evenly spread cells."
+show_if = { throat_clustering = true }
+
+# ---- inflation layers ---------------------------------------------------------------------------
+
+[[input]]
+key = "inflation"
+label = "Inflation layers at the wall"
+type = "bool"
+default = false
+group = "Inflation layers"
+help = "Thin cell layers along the wall, for boundary layers in laminar/turbulent flow (Phase 4). Not needed for inviscid (Euler) flow."
+
+[[input]]
+key = "first_layer_height"
+label = "First layer height"
+unit = "m"
+type = "float"
+default = 1e-06
+min = 1e-09
+max = 0.01
+group = "Inflation layers"
+help = "Height of the cell layer touching the wall, measured radially (along the vertical grid lines)."
+show_if = { inflation = true }
+
+[[input]]
+key = "n_layers"
+label = "Number of layers"
+unit = "-"
+type = "int"
+default = 10
+min = 1
+max = 100
+group = "Inflation layers"
+help = "Number of inflation layers. They are part of the cells across."
+show_if = { inflation = true }
+
+[[input]]
+key = "growth_rate"
+label = "Growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.0
+max = 2.0
+group = "Inflation layers"
+help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
+show_if = { inflation = true }

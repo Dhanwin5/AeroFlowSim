@@ -90,7 +90,7 @@ def test_bad_schema_gives_clear_message(text, message):
 def test_every_real_case_has_a_valid_schema_with_groups_and_help():
     cases, problems = find_cases()
     assert problems == {}
-    assert {"demo_heat1d", "sod_shock_tube", "quasi1d_nozzle"} <= set(cases)
+    assert {"demo_heat1d", "sod_shock_tube", "quasi1d_nozzle", "nozzle_axi"} <= set(cases)
     for case in cases.values():
         for p in case.parameters():
             assert p.group and p.help, f"{case.name}: input {p.name} needs a group and a help text"

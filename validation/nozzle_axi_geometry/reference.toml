@@ -1,0 +1,81 @@
+# Axisymmetric nozzle mesh: geometry of the mesh vs the exact geometry of the default conical
+# N2 thruster nozzle (inlet r = 1.0 mm, straight inlet 1.33 mm, 30 deg convergent cone,
+# throat r = 0.140 mm, 15 deg divergent cone, exit r = 0.4555 mm).
+# Cone lengths: L_c = (r_in - r_t) / tan 30 deg = 1.489564 mm, L_d = (r_e - r_t) / tan 15 deg = 1.177462 mm.
+# The mesh walls are straight lines between grid stations; the throat is always a station, the
+# inlet/cone corner is not, so the error falls as the mesh is refined (Coarse -> Medium -> Fine).
+
+title = "Axisymmetric nozzle mesh geometry (default conical nozzle)"
+case = "cases/nozzle_axi"
+
+[[reference]]
+id = "area_coarse"
+quantity = "Planar area of the half-nozzle profile, Coarse mesh"
+value = 2.529640625
+unit = "mm²"
+tolerance_percent = 0.5
+source = "Exact: r_in L_in + (r_in + r_t) L_c / 2 + (r_t + r_e) L_d / 2 (rectangle + two trapezoids)"
+
+[[reference]]
+id = "volume_coarse"
+quantity = "Volume of revolution (2 pi x sum of axisymmetric cell volumes), Coarse mesh"
+value = 6.345769169
+unit = "mm³"
+tolerance_percent = 0.5
+source = "Exact: pi r_in² L_in + pi L/3 (r1² + r1 r2 + r2²) for each cone frustum"
+
+[[reference]]
+id = "wall_coarse"
+quantity = "Wall patch length, Coarse mesh"
+value = 4.268998393
+unit = "mm"
+tolerance_percent = 0.5
+source = "Exact: L_in + L_c / cos 30 deg + L_d / cos 15 deg"
+
+[[reference]]
+id = "area_medium"
+quantity = "Planar area of the half-nozzle profile, Medium mesh"
+value = 2.529640625
+unit = "mm²"
+tolerance_percent = 0.1
+source = "Exact: r_in L_in + (r_in + r_t) L_c / 2 + (r_t + r_e) L_d / 2 (rectangle + two trapezoids)"
+
+[[reference]]
+id = "volume_medium"
+quantity = "Volume of revolution (2 pi x sum of axisymmetric cell volumes), Medium mesh"
+value = 6.345769169
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi r_in² L_in + pi L/3 (r1² + r1 r2 + r2²) for each cone frustum"
+
+[[reference]]
+id = "wall_medium"
+quantity = "Wall patch length, Medium mesh"
+value = 4.268998393
+unit = "mm"
+tolerance_percent = 0.1
+source = "Exact: L_in + L_c / cos 30 deg + L_d / cos 15 deg"
+
+[[reference]]
+id = "area_fine"
+quantity = "Planar area of the half-nozzle profile, Fine mesh"
+value = 2.529640625
+unit = "mm²"
+tolerance_percent = 0.1
+source = "Exact: r_in L_in + (r_in + r_t) L_c / 2 + (r_t + r_e) L_d / 2 (rectangle + two trapezoids)"
+
+[[reference]]
+id = "volume_fine"
+quantity = "Volume of revolution (2 pi x sum of axisymmetric cell volumes), Fine mesh"
+value = 6.345769169
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: pi r_in² L_in + pi L/3 (r1² + r1 r2 + r2²) for each cone frustum"
+
+[[reference]]
+id = "wall_fine"
+quantity = "Wall patch length, Fine mesh"
+value = 4.268998393
+unit = "mm"
+tolerance_percent = 0.1
+source = "Exact: L_in + L_c / cos 30 deg + L_d / cos 15 deg"
