@@ -1,0 +1,148 @@
+# AeroFlowSim developer guide: the desktop GUI
+
+This guide explains how the desktop GUI is built, for anyone who wants to change or extend it.
+It assumes Python, not Qt. Physics and numerics are in `docs/theory_manual.md`.
+
+## 1. The big picture
+
+```
+                 ┌──────────────────────── aeroflowsim/gui/  (the ONLY place with Qt / VTK) ───────────────┐
+ python -m       │  app.py ── MainWindow (main_window.py)                                                  │
+ aeroflowsim gui │            ├─ pages: steps/geometry.py, mesh.py, setup.py, run.py, results.py, welcome  │
+                 │            ├─ InputPanel (panel.py)  ◀── PanelModel (panel_model.py, no Qt)             │
+                 │            ├─ WorkflowStrip (workflow_strip.py)                                         │
+                 │            ├─ MeshView (vtk_view.py), PlotCanvas (figures.py)                           │
+                 │            └─ JobRunner (jobs.py) ── QTimer polls ──┐                                   │
+                 └──────────────────────────────────────────────────────│───────────────────────────────────┘
+                                                                        ▼
+   no GUI code:  project.py (Project, fingerprints)   tasks.py (Worker: warm helper process)
+                 result_io.py (run.npz)               engine.run_case  ◀── also used by cli.py and scripts
+                 geometry_preview.py                  cases/<template>/schema.toml + case.py
+```
+
+Rules that keep this healthy (all tested):
+
+- Only `aeroflowsim/gui/` (and the old `app.py`) may import PySide6, PyVista, VTK or streamlit
+  (`tests/test_no_gui_in_solver.py`). The command line works with Qt not installed.
+- The GUI has no network code and opens only local files (`tests/test_gui_privacy.py`).
+- Decisions are kept out of widgets where possible (`panel_model.py`, `gui/logic.py`,
+  `project.py`), so they are unit-tested without a window.
+
+## 2. Qt in five ideas
+
+1. **QApplication and the event loop.** `app.py` creates one `QApplication`, shows the window
+   and calls `app.exec()`. From then on Qt waits for events (clicks, keys, timers) and calls
+   your functions. Never block in a function called by Qt: long work goes to the background worker.
+2. **Widgets** are the visible pieces (`QPushButton`, `QComboBox`, `QDockWidget`, ...). They sit in
+   layouts (`QVBoxLayout`, `QHBoxLayout`, `QGridLayout`) that size them automatically.
+3. **Signals and slots.** A widget *emits a signal* when something happens; any function
+   *connected* to it (a slot) is then called:
+   ```python
+   button.clicked.connect(window.generate_mesh)       # click -> generate_mesh()
+   panel.value_changed.connect(window.on_panel_edit)   # our own signal: (name, value)
+   ```
+   Prefer connecting methods over lambdas for long-lived connections: Qt disconnects a method by
+   itself when its object is deleted (a lambda can call a deleted window, which we hit in testing).
+4. **QMainWindow** gives the menu bar, toolbars, a central widget and dockable panels
+   (`QDockWidget`). Each dock has an `objectName`, so `saveState()`/`restoreState()` remember the
+   layout between sessions (stored with the theme and recent projects in an INI file via `QSettings`).
+5. **Actions** (`QAction`) are commands with a text, shortcut and tooltip, shared by menus and
+   toolbars (`MainWindow.build_actions`).
+
+## 3. The main window and the workflow
+
+`MainWindow` owns the state: `project` (a `Project`), `mesh`, `mesh_checks`, `results` (the run
+payload), the `JobRunner` and the undo stack. Pages only display this state and call window
+methods (`generate_mesh`, `run_case`, `cancel_job`, `reset_inputs`, `show_properties`, `log`).
+
+- **Pages** (`gui/steps/`): one per workflow step. Each has `refresh()`, called after anything changed.
+- **Workflow strip** (`workflow_strip.py`): a chip per step coloured by `Project.status(step)`;
+  clicking a chip calls `MainWindow.go_to(step)`. A running job shows its progress and a ✕ (Cancel)
+  inside its own chip. It replaces a status bar and a step tree.
+- **Docks:** Inputs (the panel of the current step), Properties (clicked cell/boundary), Messages
+  (log), Validity checks.
+
+### Adding a step page
+
+1. Write `gui/steps/<name>.py` with a `QWidget` subclass taking `window`, with `refresh()`.
+2. Add it to `MainWindow.pages` and to `WORKFLOW` in `project.py` (with its status rule in
+   `Project.status`) and `TITLES`/`SHORTCUTS` in `workflow_strip.py`.
+
+## 4. The input panel (zero GUI code per template)
+
+`PanelModel(param_list, step)` turns every `Parameter` of a template into a `WidgetSpec` (kind,
+label with unit, tooltip with range, options and which need a missing package, file filter) and
+answers `visible(values)` (show_if, nested) and `problems(values)` (the usual value checks).
+`InputPanel` draws the specs: number boxes keep exactly what was typed (no silent clamping; the
+red message explains), arrow keys/wheel step a value, groups collapse, "?" shows the help.
+
+Each input has a `step` in `schema.toml` (`geometry`, `mesh` or `setup`, default `setup`); the window
+makes one panel per step. Changing a value: panel emits `value_changed` → `MainWindow.on_panel_edit`
+pushes a `SetInputs` undo command → its `redo()` calls `apply_values`, which updates the project,
+every panel, the statuses, and schedules the geometry redraw / automatic re-mesh.
+
+## 5. The VTK view
+
+`MeshView` (`vtk_view.py`) holds a `pyvistaqt.QtInteractor`: a VTK render window inside a Qt widget.
+
+- `mesh_to_grid(mesh)` re-packs our face-based `Mesh` (already VTK cell types and node order)
+  into a `pv.UnstructuredGrid`; `patch_lines(mesh)` makes the boundary faces lines with patch data.
+- 2D view: parallel projection, "2D style" (left drag pans, wheel zooms), `fit()` fits width *and*
+  height, `zoom_to_body()` for bodies in a large far field.
+- Picking: a click is a press + release without moving. Cells: the cell *containing* the clicked
+  point (exact; VTK's cell picker uses a tolerance and returned neighbours on small cells). Boundary
+  edges: the edge with the smallest exact distance, within 8 pixels.
+- The view needs OpenGL; Qt's "offscreen" platform has none, so GUI tests use a real (or virtual,
+  Xvfb) display - see `tests/gui/conftest.py` and the CI workflow.
+
+1D results and plots use matplotlib: `PlotCanvas` (`figures.py`) embeds a `Figure` with its standard
+toolbar (zoom, pan, save). `visualise.py` figures (contour, shape view, x-t diagram) are reused unchanged.
+
+## 6. Background jobs
+
+`aeroflowsim/tasks.py` (no GUI code):
+
+- `Worker` starts **one helper process** (`multiprocessing`, "spawn") and keeps it warm, because
+  starting Python with numpy/scipy costs ~1.4 s on Windows while a small mesh takes 0.04 s.
+- `Worker.submit(Job("mesh" | "run", case_folder, params, out_dir, mesh))` sends a job; the helper
+  loads the template itself and calls the same functions as the command line (`case.build_mesh`,
+  `engine.run_case`), so GUI, command line and scripts give identical results (tested).
+- Messages come back through a queue: stage text, residual batches (every 0.1 s), done/stopped/error.
+- **Stop** of a run: a shared flag makes the progress callback raise `StopRequested` between two
+  iterations (clean). **Cancel** of a mesh (Gmsh cannot be interrupted) or a run that does not stop
+  within 3 s: the helper process is terminated and a new one started.
+- `__main__.py` must keep its `if __name__ == "__main__":` guard: "spawn" imports it again in the helper.
+
+`gui/jobs.py` (`JobRunner`) polls the worker with a `QTimer` and emits `started/updated/ended`.
+The window takes the project fingerprint when a job is *sent* (the user may keep editing).
+
+## 7. The project file
+
+```
+My Nozzle.afsproj/
+    project.yaml   format_version, aeroflowsim_version, template, template_fingerprint,
+                   created, modified, inputs {name: value}, steps {mesh: {...}, run: {...}}
+    geometry/      copied input files (relative paths in inputs)
+    mesh/          mesh.npz (exact), mesh.vtu (ParaView), mesh1d.npz (1D templates)
+    results/       run.npz (exact results, reopened by the GUI) + fields.csv, residuals.csv,
+                   summary.yaml, PNG plots (as the command line writes them)
+```
+
+**Status by fingerprints.** A fingerprint is a SHA-256 of everything a product depends on: the
+inputs of the relevant steps (geometry → mesh → run), the contents of input files, the template's
+`schema.toml` and `case.py` and the AeroFlowSim version. `Project.status(step)` compares the stored
+fingerprint of the mesh or run with the current one: ok (green), outdated (amber), none (grey),
+error (red, until the inputs change), disabled (mesh-only templates). Undoing a change brings the
+old fingerprint back, so the status turns green again without recomputing.
+
+Making a mesh or a run saves the project (the files on disk always match `project.yaml`).
+
+## 8. Tests
+
+- `tests/test_panel_model.py`, `tests/test_gui_logic.py`, `tests/test_project.py`,
+  `tests/test_tasks.py`: no window.
+- `tests/gui/` (pytest-qt): the panel, the job runner and the main window driven like a user
+  (mesh, click a cell, automatic re-mesh, undo/redo, run and reopen, cancel, theme).
+  Preferences go to a temporary INI file, never the user's own.
+
+Run them all: `.venv\Scripts\python.exe -m pytest` (test windows appear briefly on Windows).

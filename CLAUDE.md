@@ -15,16 +15,36 @@ explain plans, code and tools simply, in plain words; CFD concepts need no simpl
 Clarity matters more than speed.
 
 ## Architecture
-- Each simulation is a **case** in its own folder under `cases/`. The app runs **one case at a time**.
-- Every case has the same two files: `schema.toml` (name, description, steady flag and inputs —
-  no code) and `case.py` (physics, contract in `aeroflowsim/case.py`). New cases are found
-  automatically and never require changes to old ones.
-- GUI: **Streamlit** web app in `app.py` with tabs **Setup, Mesh, Run, Results**. The Setup input
-  panel is generated from `schema.toml` by `aeroflowsim/gui/panel.py` — zero GUI code per case.
-- Solver code must **not depend on the GUI**: only `app.py` and `aeroflowsim/gui/` may import
-  streamlit (tested), so the GUI can later be swapped (e.g. Qt) without touching solvers.
-- **One engine:** `aeroflowsim.run_case(case_folder, params)` is used by the GUI (via
-  `aeroflowsim/job.py`), the command line and scripts, so all give identical results.
+- **Templates and projects.** A *template* (also called a case) is a folder under `cases/` with the
+  physics; a *project* is the user's own work: a folder `<name>.afsproj/` (default in
+  `Documents/AeroFlowSim Projects`, never in the code folder) with `project.yaml` (version, template,
+  inputs, step records), `geometry/` (copied input files, relative paths), `mesh/` and `results/`
+  (`run.npz` = exact results). A zipped project reproduces its results exactly (`aeroflowsim/project.py`).
+  The GUI works on one project (one template) at a time.
+- Every template has the same two files: `schema.toml` (name, description, steady flag and inputs —
+  no code) and `case.py` (physics, contract in `aeroflowsim/case.py`). New templates are found
+  automatically and never require changes to old ones. Each input has a workflow `step`
+  (`geometry`, `mesh` or `setup`, default `setup`); shape-library inputs are `geometry`.
+- **Desktop GUI:** Qt (PySide6) + PyVista/VTK in `aeroflowsim/gui/`, started with
+  `python -m aeroflowsim gui`. Workflow steps **Geometry → Mesh → Setup → Run → Results**, shown as a
+  *workflow strip* at the bottom (status colours: green up to date, amber needs update, grey not
+  started, red error; a running job shows progress and ✕ Cancel in its chip; no status bar, no step
+  tree - the GUI must not look like an ANSYS clone). Dockable panels: Inputs, Properties, Messages,
+  Validity checks. Undo/redo of input changes. Architecture: `docs/developer_guide.md`.
+- **Out-of-date status by fingerprints:** a mesh or run stores a SHA-256 of the inputs it depends on
+  (+ input-file contents, template code, version); a changed upstream input marks everything
+  downstream "needs update", and old results are always labelled out of date, never shown as current.
+- The input panel is generated from `schema.toml`: the logic (`gui/panel_model.py`, no Qt) is separate
+  from the drawing (`gui/panel.py`) — zero GUI code per template or shape.
+- Solver code must **not depend on the GUI**: only `aeroflowsim/gui/` (and the old `app.py`) may import
+  PySide6, PyVista, VTK or streamlit (tested); the command line works without Qt.
+- **Long work never freezes the GUI:** meshing and solving run in a warm helper process
+  (`aeroflowsim/tasks.py`, Qt side `gui/jobs.py`) with progress, Stop (clean, between iterations)
+  and Cancel (terminates the helper, e.g. inside Gmsh).
+- **One engine:** `aeroflowsim.run_case(case_folder, params)` is used by the GUI (via the helper
+  process), the command line (templates and projects) and scripts, so all give identical results.
+- The old **Streamlit** GUI (`app.py`, `gui/streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) stays
+  until the user confirms the desktop GUI has full parity; then ask before deleting it.
 - **Validity checks** (`aeroflowsim/checks.py`): one function per check, results shown in the
   Results tab, printed by the command line, stored in `summary.yaml`. Mesh checks run before the
   solver; an error-level mesh check (e.g. negative cell volume) stops the run.
@@ -35,15 +55,19 @@ Clarity matters more than speed.
 Layout:
 
 ```
-app.py                     Streamlit GUI (Setup / Mesh / Run / Results)
+app.py                     old Streamlit GUI (kept until the desktop GUI is approved)
 aeroflowsim/               the Python package
     case.py                case contract + Case object (schema.toml + case.py)
     schema.py              reads schema.toml (tomllib)
     parameters.py          input types (float/int/bool/choice/file) and value checks
     engine.py              run_case(): the one run engine
-    cli.py, __main__.py    python -m aeroflowsim run cases/<case_name>  |  list
+    cli.py, __main__.py    python -m aeroflowsim run cases/<case_name> | run <project>.afsproj | list | gui
+    project.py             projects: create/open/save/duplicate, fingerprints and step status
+    result_io.py           exact save/load of a run (results/run.npz, no pickle)
+    tasks.py               background Worker: warm helper process for mesh and run jobs (Stop, Cancel)
+    geometry_preview.py    template geometry as named boundary curves (Geometry step)
     checks.py              validity checks (convergence, mass balance, ...)
-    job.py                 background run for the GUI (live progress, Stop)
+    job.py                 old thread-based run for the Streamlit GUI
     runner.py              output files: CSV, YAML summary, PNG plots
     geometry.py            shared wall profiles (parametric, CSV) for nozzle/duct cases
     mesh.py                Mesh1D (1D cases) and the face-based Mesh (2D/axisymmetric/3D): nodes, cells,
@@ -55,9 +79,16 @@ aeroflowsim/               the Python package
     shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
-    gui/panel.py           auto-generated input panel (the GUI layer; only place with streamlit)
+    gui/                   desktop GUI (the ONLY place with Qt / PyVista / VTK / streamlit):
+        app.py, main_window.py   start-up, main window (menus, docks, jobs, undo)
+        panel_model.py, panel.py input panel: logic (no Qt) + Qt drawing
+        workflow_strip.py        step chips with status and progress
+        steps/                   one page per step (geometry, mesh, setup, run, results) + welcome
+        vtk_view.py, figures.py  VTK view (meshes, picking), embedded matplotlib plots
+        jobs.py, undo.py, logic.py, theme.py, widgets.py, dialogs.py, app_info.py
+        streamlit_panel.py       old Streamlit input panel
 cases/<case_name>/         one folder per case
-    schema.toml            inputs (key, label, unit, type, default, min, max, group, help, show_if)
+    schema.toml            inputs (key, label, unit, type, default, min, max, group, step, help, show_if)
     case.py                build_mesh(), run() (+ optional reference, geometry, reference_lines)
     README.md              physics and assumptions
     test_case.py           pytest validation test
@@ -65,9 +96,12 @@ cases/<case_name>/         one folder per case
 cases/_template/           copy-me skeleton for a new case (ignored by discovery and pytest)
 cases/external_2d/         body in a free stream (shape library + Gmsh), mesh only until Prompt 7
 docs/theory_manual.md      equations and methods, with references and where they are in the code
+docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK view, jobs, projects)
+docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)
+spikes/                    throwaway proofs of concept (not part of the package)
 validation/<case_name>/    reference.toml (values, sources, tolerances) + validate.py
 validation/run_all.py      runs all validation cases, writes validation/report.md
-tests/                     tests for aeroflowsim/
+tests/                     tests for aeroflowsim/ (tests/gui/: pytest-qt tests of the desktop GUI)
 run_case.py                old command line, thin wrapper around aeroflowsim.cli
 results/<case_name>/       output of the command line (not committed)
 pyproject.toml             package metadata, dependencies, pytest settings (marker "validation")
@@ -79,8 +113,10 @@ Commands (from the project folder):
 - Fast tests: `.venv\Scripts\python.exe -m pytest`
 - Validation tests: `.venv\Scripts\python.exe -m pytest -m validation`
 - Validation report: `.venv\Scripts\python.exe validation/run_all.py`
-- GUI: `.venv\Scripts\python.exe -m streamlit run app.py`
-- Command line: `.venv\Scripts\python.exe -m aeroflowsim run cases/<case_name>`
+- Desktop GUI: `.venv\Scripts\python.exe -m aeroflowsim gui` (optionally followed by a project folder)
+- Old Streamlit GUI: `.venv\Scripts\python.exe -m streamlit run app.py`
+- Command line: `.venv\Scripts\python.exe -m aeroflowsim run cases/<case_name>`, or
+  `... run "<path>/<name>.afsproj"` for a project (its inputs; mesh and results stored in it)
 
 ## Geometry input (all nozzle and duct cases)
 - **Level 1:** built-in parametric geometry (diameters, angles, lengths typed in the Setup tab).
@@ -109,12 +145,15 @@ Commands (from the project folder):
 8. After each working step, make a **git commit** with a clear message.
 9. Use a Python virtual environment in **`.venv`**; the project is installed into it with
    `pip install -e .`. Dependencies (pyproject.toml): numpy, scipy, matplotlib, plotly, streamlit,
-   pyyaml, pytest. Optional group `mesh` (Gmsh): `pip install -e ".[mesh]"`. AeroFlowSim must start
+   pyyaml, pytest, PySide6-Essentials, vtk, pyvista, pyvistaqt, pytest-qt (exact versions in
+   requirements.txt). Optional group `mesh` (Gmsh): `pip install -e ".[mesh]"`. AeroFlowSim must start
    and work without it; tests that need it use `pytest.importorskip("gmsh")`.
 10. Every `.py` file starts with the AeroFlowSim licence header (GPL-3.0-or-later).
 11. Ask before deleting files or making changes that were not requested.
-12. **Privacy:** the GUI listens on localhost only and sends no usage statistics
-    (`.streamlit/config.toml`, tested). Never change this without asking. User data (results/,
+12. **Privacy:** the desktop GUI makes no network connections, contains no web addresses, opens only
+    local files and collects no usage statistics (`tests/test_gui_privacy.py`); the old Streamlit GUI
+    listens on localhost only without statistics (`.streamlit/config.toml`, tested). Never change
+    this without asking. User data (results/,
     uploads/, cases/*/settings/, cases/*/mesh/) is git-ignored and must never be committed.
 13. **Verification and validation:** every new numerical method gets a Method of Manufactured
     Solutions (MMS) order-of-accuracy test where possible, plus validation against theory or
@@ -131,42 +170,57 @@ Commands (from the project folder):
 17. **Adding a shape** (shape library): two files in `aeroflowsim/shapes/` - `<name>.toml` (name,
     group, symmetry, inputs) and `<name>.py` (`profile(inputs) -> ShapeProfile`: closed,
     counter-clockwise, corners marked, reference length and area) - plus tests. No GUI or case code.
+18. **Gap register:** read `docs/gap_register.md` at the start of every prompt. At the end, update it
+    (status of the items that moved, new gaps found) and report both to the user.
 
 ## Intelligence
 - **Principle:** intelligence assists, never replaces physics. Every suggestion is shown to the
   user, is editable, and is verified by the validity checks. The core software must work fully
   offline without any AI.
-- **Smart rules (from Prompt 7 onwards):** auto-setup (mesh size, inflation first layer height
-  from Re and target y+, CFL), failure diagnosis with suggested fixes, and result sanity checks
-  against theory. Each rule is one small function, like a check.
-- **Adaptive mesh refinement:** after Prompt 8 (Numba).
-- **Shape optimisation** (nozzle contour for maximum thrust/Isp, nose cone for minimum drag):
-  Phase 5 headline feature.
-- **Optional AI assistant** (natural-language setup and result explanation): Phase 5 plugin. It
-  fills schema inputs only, never runs its own code, is opt-in, and has a local-model option for
-  confidential designs.
+- **Smart rules:** setup suggestions (mesh size, inflation first-layer height from Re and target y+,
+  suggested enclosure, CFL) from **Prompt 6d**; failure diagnosis with suggested fixes and result sanity
+  checks against theory from **Prompt 7**. Each rule is one small function, like a check.
+- **Adaptive mesh refinement:** **Prompt 8c**.
+- **Optional AI assistant plugin:** **Prompt 7c** (natural-language setup and result explanation). It
+  works only through the schema inputs (fills them, never runs its own code), so every new feature
+  becomes available to it automatically; opt-in, with a local-model option for confidential designs.
+- **Surrogate models and shape optimisation** (nozzle contour for maximum thrust/Isp, nose cone for
+  minimum drag): **Phase 5** headline feature.
 
 ## Roadmap
-- **Phase 1 - 2D foundations and supersonic:**
-  - 5.5 foundations (done);
-  - 6 face-based mesh format + structured nozzle mesh with inflation controls + VTK export (done);
-  - 6b Gmsh 2D mesh (optional install), external flow domain, rounded throat, shape library with the
-    first 6 shapes: wedge, diamond airfoil, NACA 4-digit, circular cylinder, conical nose cone,
-    custom coordinates file (done);
-  - 6b-2 remaining shapes with the same pattern: bell nozzle, intakes (ramp, spike), biconvex airfoil,
-    NACA 5-digit, nose cones (tangent ogive, von Karman, power-law), sphere, hemisphere-cylinder,
-    sphere-cone;
-  - 6c gas library + custom gas (designed so mixtures can be added later);
-  - 7 2D Euler solver (2D + axisymmetric) **with local time stepping** for steady cases, carbuncle
-    fix, far-field BC, thrust/Isp/Cf, Cp/Cl/Cd/Cm;
-  - 7b validation cases (wedge, diamond airfoil, cone Taylor-Maccoll, cylinder bow shock stand-off,
-    Back-Massier-Gier nozzle, NACA 0012 transonic) + **verification by the Method of Manufactured
-    Solutions (MMS)**: show the designed order of accuracy on structured and triangle meshes. Then a
-    **2D alpha release** on GitHub for early users.
-- **Phase 2 - speed and all speeds:** 8 Numba speed-up + **implicit time stepping** (for example
-  LU-SGS) for steady cases - speed comes before 3D; 8b low-Mach preconditioning; 8c **3D viewer in the
-  GUI with PyVista/trame** (Kitware), before 3D solving starts.
-- **Phase 3 - 3D:** 9 3D Gmsh mesh + STEP import; 10 3D Euler + ParaView export.
-- **Phase 4 - viscous:** laminar NS, Spalart-Allmaras, k-omega SST (2D and 3D); wall heat flux.
-- **Phase 5 - advanced and release:** high-temperature gas, GPU speed-up, GCI mesh-independence
-  tool, docs and theory manual, GitHub release, Zenodo DOI, JOSS paper.
+- **Phase 1 - platform and 2D supersonic:**
+  - 6c desktop GUI (Qt + PyVista), Workbench-style steps and status, projects, undo/redo, gap register (done).
+  - 6d geometry workspace (clickable): import CSV/DAT, DXF and 2D STEP/IGES; shape templates; edit
+    (move, rotate, scale, mirror, point table, drag points); sketch (line, arc, spline); enclosure tool
+    (box, circle, C-shape around the body; inlet plenum and plume region for nozzles); booleans (Gmsh
+    OpenCASCADE); name boundaries by clicking; refinement regions; smart rule: suggested enclosure and
+    mesh sizes.
+  - 6e remaining shapes (bell nozzle, ramp and spike intakes, biconvex, NACA 5-digit, ogive, von Karman,
+    power-law, sphere, hemisphere-cylinder, sphere-cone); structured C-grid / O-grid meshes via Gmsh
+    (transfinite); mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh).
+  - 6f materials: gas library + custom gas (designed for mixtures, real gas and liquids later); units
+    system (SI, mm, imperial in the GUI; SI inside).
+  - 7 2D Euler solver (2D + axisymmetric) with local time stepping; full boundary-condition set
+    (total-pressure inlet, mass-flow inlet, pressure outlet, supersonic inlet/outlet, far-field, slip wall,
+    symmetry, axis) taken from the named boundaries; initialisation options; live monitors (residuals,
+    forces, mass flow); restart from a saved solution; carbuncle fix; thrust/Isp/Cf, Cp/Cl/Cd/Cm; smart
+    rules for failure diagnosis.
+  - 7b post-processing (contours, streamlines, line probes, surface plots such as Cp vs x, image/CSV/VTK
+    export); validation suite + MMS verification; automatic report (HTML/PDF); first tutorials; Windows
+    installer; then the 2D alpha release.
+  - 7c AI assistant plugin v1 (opt-in; fills schema inputs only; local-model option).
+- **Phase 2 - speed and all speeds:** 8 Numba + implicit time stepping (LU-SGS) + multi-core parallel;
+  8b low-Mach preconditioning; 8c adaptive mesh refinement; 8d parametric studies and batch runs (lift
+  polars, thrust vs back pressure); 8e unsteady flow (dual time stepping).
+- **Phase 3 - 3D:** 9 3D geometry workspace (STEP) + 3D Gmsh meshes (tetrahedra, prism inflation);
+  10 3D Euler; multiple zones.
+- **Phase 4 - viscous and liquids:** laminar Navier-Stokes (with slip-wall option for rarefied
+  micro-nozzles), Spalart-Allmaras, k-omega SST, wall heat flux; constant-density liquids
+  (preconditioned) + classic cases (lid-driven cavity vs Ghia, backward-facing step, cylinder at
+  Re = 100); cross-code comparison with SU2/OpenFOAM.
+- **Phase 5 - advanced propulsion and version 1.0:** real-gas model (Peng-Robinson; for example
+  R-236fa), multi-species and combustion (scramjet), high-temperature gas, surrogate models + shape
+  optimisation (headline feature), GPU, GCI mesh-independence tool, full docs and tutorials, Zenodo
+  DOI, JOSS paper. Later list: two-phase/condensation, cavitation, conjugate heat transfer, optional
+  web demo.
+- **Out of scope:** rotating machinery, free-surface flows, structures.

@@ -15,7 +15,8 @@ Contents
 7. [The face-based mesh](#7-the-face-based-mesh)
 8. [Mesh generation: structured nozzle, Gmsh, inflation layers](#8-mesh-generation-structured-nozzle-gmsh-inflation-layers)
 9. [Geometry: rounded throat and the shape library](#9-geometry-rounded-throat-and-the-shape-library)
-10. [References](#10-references)
+10. [Reproducibility: projects, fingerprints and background runs](#10-reproducibility-projects-fingerprints-and-background-runs)
+11. [References](#11-references)
 
 ---
 
@@ -378,7 +379,48 @@ area $\pi R^2$). Examples:
 
 ---
 
-## 10. References
+## 10. Reproducibility: projects, fingerprints and background runs
+
+Numerical results are only useful if one can say *exactly* which inputs produced them. AeroFlowSim
+therefore separates the physics (a **template**, `cases/<name>/`) from the user's work (a **project**,
+a folder `<name>.afsproj/`), and records for every product (mesh, run) a **fingerprint** of what it
+was made from.
+
+**Fingerprint.** For a product $P$ (mesh or run) with input set $I_P$,
+
+$$F_P = \mathrm{SHA256}\big(\,T \,\|\, v \,\|\, P \,\|\, (k, x_k)_{k \in I_P} \,\|\, \text{bytes of every input file in } I_P\big),$$
+
+where $T$ is the SHA-256 of the template's `schema.toml` and `case.py`, $v$ the AeroFlowSim version
+and $(k, x_k)$ the input names and values in schema order. The input sets are nested,
+
+$$I_\text{mesh} = I_\text{geometry} \cup I_\text{mesh inputs}, \qquad I_\text{run} = I_\text{geometry} \cup I_\text{mesh inputs} \cup I_\text{setup},$$
+
+so any change upstream changes every fingerprint downstream. A product is **up to date** when its
+stored fingerprint equals the one computed from today's inputs, **out of date** otherwise. SHA-256 is a
+cryptographic hash: two different input sets giving the same fingerprint is, for all practical
+purposes, impossible ($2^{-128}$ collision resistance). Line endings in files are normalised first,
+so a project gives the same fingerprints on Windows and Linux. Because the mesh generators and
+solvers are deterministic, equal fingerprints imply equal meshes and results; going back to earlier
+inputs (e.g. with Undo) makes old results current again without recomputing.
+
+**Exact storage.** Results are saved as NumPy arrays (`results/run.npz`), bit-for-bit, together with
+the inputs; a project folder copied to another computer reopens with the same numbers, and a new run
+from it reproduces them exactly (tested). No Python pickle is used, so opening a shared project can
+never execute code.
+
+**Background runs.** Meshing and solving run in a separate operating-system process that calls the
+same engine (`aeroflowsim.run_case`) as the command line, with the same inputs; process boundaries do
+not change floating-point results, so GUI, command line and scripts give identical numbers (tested
+array-for-array). Stopping a run raises an exception between two iterations, so no half-updated
+solution is ever stored.
+
+**In the code:** `aeroflowsim/project.py` (`Project.fingerprint`, `Project.status`),
+`aeroflowsim/result_io.py` (`save_run`, `load_run`), `aeroflowsim/tasks.py` (`Worker`, `_run_job`).
+The GUI side is described in `docs/developer_guide.md`.
+
+---
+
+## 11. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.
 - Anderson, J. D. (2003). *Modern Compressible Flow*, 3rd ed. McGraw-Hill.
