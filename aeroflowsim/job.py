@@ -24,10 +24,7 @@ import threading
 import time
 
 from aeroflowsim.engine import run_case
-
-
-class StopRequested(Exception):
-    """Raised inside the progress callback to end a run early."""
+from aeroflowsim.tasks import StopRequested   # one definition, shared with the process-based Worker
 
 
 class RunJob:
