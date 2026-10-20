@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, Q
                                QLineEdit, QPushButton, QSplitter, QVBoxLayout, QWidget)
 
 from aeroflowsim.gui.figures import PlotCanvas, field_figure
+from aeroflowsim.gui.theme import paper_style
 from aeroflowsim.gui.logic import available_views, key_number_rows, key_result_tiles, run_status_text
 from aeroflowsim.gui.widgets import Banner, SummaryCard, ValueTable
 from aeroflowsim.runner import fields_csv_text, plot_fields
@@ -78,7 +79,7 @@ class ResultsPage(QWidget):
         self.mesh_lines = QCheckBox("Show mesh lines")
         self.mirror = QCheckBox("Mirror about the axis")
         self.range_note = QLabel()
-        self.range_note.setStyleSheet("color: #b26a00;")
+        self.range_note.setObjectName("note")
         contour_png = QPushButton("Save picture...")
         contour_png.clicked.connect(self.save_contour)
         grid = QGridLayout()
@@ -267,8 +268,9 @@ class ResultsPage(QWidget):
         key = self.field.currentData()
         path = self._ask("Save field plot", f"{self.window.project.name}_{key}.png", "PNG pictures (*.png)")
         if path:
-            plot_fields(path, self.window.project.case, self.window.mesh, payload["result"], payload.get("reference"),
-                        keys=[key])
+            with paper_style():                  # saved pictures: light "paper" style in both themes
+                plot_fields(path, self.window.project.case, self.window.mesh, payload["result"],
+                            payload.get("reference"), keys=[key])
             self.window.log(f"Plot saved to {path}")
 
     def save_contour(self):
@@ -276,5 +278,6 @@ class ResultsPage(QWidget):
         path = self._ask("Save picture", f"{self.window.project.name}_{view}_{self.cfield.currentData()}.png",
                          "PNG pictures (*.png)")
         if path:
-            self.contour_plot.figure.savefig(path, dpi=150)
+            with paper_style():                  # same picture, drawn again in the light style
+                self.contour_figure().savefig(path, dpi=150)
             self.window.log(f"Picture saved to {path}")

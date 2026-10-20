@@ -25,6 +25,7 @@ class ProjectPlaceDialog(QDialog):
         if templates:
             layout.addWidget(QLabel("<b>Template</b> (the physics; you can change every input later)"))
             self.templates = QListWidget()
+            self.templates.setWordWrap(True)
             for key, case in templates.items():
                 item = QListWidgetItem(f"{case.title}\n    {case.description}")
                 item.setData(Qt.UserRole, key)
@@ -50,7 +51,7 @@ class ProjectPlaceDialog(QDialog):
         form.addRow("Location", place)
         layout.addLayout(form)
         self.message = QLabel()
-        self.message.setStyleSheet("color: #c62828;")
+        self.message.setObjectName("error")
         layout.addWidget(self.message)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._accept)

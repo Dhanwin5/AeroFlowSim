@@ -9,6 +9,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSplitter, QTextBrowser, QVBoxLayout, QWidget
 
 from aeroflowsim.case import get_derived
+from aeroflowsim.gui.logic import readable
 from aeroflowsim.gui.widgets import Banner, ValueTable
 
 
@@ -60,5 +61,4 @@ class SetupPage(QWidget):
         except ValueError as error:
             self.banner.show_message(str(error), "error")
             derived = {}
-        self.derived.set_rows([(label, value if isinstance(value, str) else f"{value:.6g}", unit)
-                               for label, (value, unit) in derived.items()])
+        self.derived.set_rows([(label, *readable(value, unit, 5)) for label, (value, unit) in derived.items()])

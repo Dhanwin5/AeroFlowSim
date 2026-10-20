@@ -29,10 +29,9 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QGridL
                                QLineEdit, QPushButton, QScrollArea, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
+from aeroflowsim.gui.theme import colour
 from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, text_to_value, value_to_text
 
-ERROR_STYLE = "color: #d32f2f;"          # readable on light and dark backgrounds
-HINT_STYLE = "color: palette(mid); font-size: 90%;"
 INPUT_PROPERTY = "aeroflowsim_input"     # Qt property naming the input a widget belongs to (for Details)
 DETAILS_PROMPT = "Click an input (or move to it with Tab) to see what it means, its unit and allowed range."
 
@@ -85,7 +84,7 @@ class Section(QWidget):
         self.header = QToolButton(text=title, checkable=True, checked=True)
         self.header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.header.setArrowType(Qt.DownArrow)
-        self.header.setStyleSheet("QToolButton { border: none; font-weight: bold; color: palette(window-text); }")
+        self.header.setObjectName("section")          # styled by the theme (aeroflowsim/gui/theme.py)
         self.header.toggled.connect(self._toggle)
         self.body = QWidget()
         self.grid = QGridLayout(self.body)
@@ -112,9 +111,9 @@ class InputRow:
         self.editor, editor_widget = self._make_editor()
         self.editor.setToolTip(spec.tooltip)
         self.hint = QLabel("\n".join(spec.missing.values()), wordWrap=True, visible=bool(spec.missing))
-        self.hint.setStyleSheet(HINT_STYLE)
+        self.hint.setObjectName("hint")
         self.error = QLabel(wordWrap=True, visible=False)
-        self.error.setStyleSheet(ERROR_STYLE)
+        self.error.setObjectName("error")
         self.error.setTextInteractionFlags(Qt.TextSelectableByMouse)
         row = section.grid.rowCount()
         section.grid.addWidget(self.label, row, 0)
@@ -201,12 +200,12 @@ class DetailsBox(QFrame):
         super().__init__(parent)
         self.setFrameShape(QFrame.StyledPanel)
         self.setObjectName("details")
-        self.setStyleSheet("#details { background: palette(base); }")
         self.title = QLabel(wordWrap=True)
         self.help = QLabel(wordWrap=True)
         self.facts = QLabel(wordWrap=True)
         self.problem = QLabel(wordWrap=True)
-        self.problem.setStyleSheet(ERROR_STYLE)
+        self.problem.setObjectName("error")
+        self.facts.setObjectName("detailsfacts")
         for label in (self.help, self.facts, self.problem):
             label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout = QVBoxLayout(self)
@@ -227,7 +226,8 @@ class DetailsBox(QFrame):
         self.name = spec.name
         self.title.setText(f"<b>{spec.label}</b>")
         self.help.setText(spec.help or "No description given in the template.")
-        rows = "".join(f"<tr><td style='padding-right:10px; color:gray'>{label}</td><td>{text}</td></tr>"
+        muted = colour("muted")
+        rows = "".join(f"<tr><td style='padding-right:10px; color:{muted}'>{label}</td><td>{text}</td></tr>"
                        for label, text in details(spec))
         self.facts.setText(f"<table>{rows}</table>")
         self.problem.setText(problem or "")
@@ -265,6 +265,11 @@ class InputPanel(QWidget):
             for spec in specs:
                 self.rows[spec.name] = InputRow(self, spec, section)
         layout.addStretch(1)
+        # Every group has its own grid, so give all labels the width of the longest one: then all
+        # input boxes of the panel start in one column, whatever group they are in.
+        label_width = max((row.label.sizeHint().width() for row in self.rows.values()), default=0)
+        for row in self.rows.values():
+            row.label.setFixedWidth(label_width)
         content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.scroll.setWidget(content)
         self.set_values(self._values)
@@ -276,6 +281,13 @@ class InputPanel(QWidget):
             if name in self.rows:
                 self.show_details(name)
         return False                             # never swallow the event: the widget still gets it
+
+    def restyle(self):
+        """After a theme change: the Details text carries colours, so draw it again."""
+        if self.details.name in self.rows:
+            self.show_details(self.details.name)
+        else:
+            self.details.clear()
 
     def show_details(self, name):
         problem = self.model.shown_problems(self._values).get(name)

@@ -19,7 +19,7 @@ import numpy as np
 import yaml
 
 # Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
-from aeroflowsim.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png,
+from aeroflowsim.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png, length_axes,
                                    shape_view, style_axes, xt_diagram)
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"   # default output folder
@@ -146,7 +146,7 @@ def plot_fields(path, case, mesh, result, reference, keys=None):
             ax.plot(x, reference[key].values, color=COLOR_REFERENCE, linewidth=2,
                     linestyle="--", label="exact")
             ax.legend(frameon=False)
-        ax.set_xlabel("x [m]")
+        length_axes(ax, x[-1] - x[0], "x")
         ax.set_ylabel(f"{f.label} [{f.unit}]")
         ax.set_title(f"{case.title}: {f.label}")
         style_axes(ax)

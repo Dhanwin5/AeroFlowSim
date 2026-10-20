@@ -14,15 +14,12 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QLabel, QSplitter, QVBoxLayout, QWidget
 
 from aeroflowsim.geometry_preview import geometry_preview
+from aeroflowsim.gui.logic import readable
 from aeroflowsim.gui.theme import PATCH_COLOURS
 from aeroflowsim.gui.vtk_view import MeshView
 from aeroflowsim.gui.widgets import Banner, ValueTable
 
 
-def _value_text(value, unit):
-    if isinstance(value, str):
-        return value
-    return f"{value:.6g}"
 
 
 class GeometryPage(QWidget):
@@ -34,6 +31,7 @@ class GeometryPage(QWidget):
         self.summary = ValueTable(["Quantity", "Value", "Unit"])
         self.boundaries = ValueTable(["Boundary", "Type"])
         side = QWidget()
+        side.setMinimumWidth(340)                # the Value and Unit columns always fit
         side_layout = QVBoxLayout(side)
         side_layout.addWidget(QLabel("<b>Dimensions</b>"))
         side_layout.addWidget(self.summary, 2)
@@ -74,7 +72,7 @@ class GeometryPage(QWidget):
         else:
             self.banner.hide_message()
         self.view.show_curves(self.preview)
-        self.summary.set_rows([(label, _value_text(v, u), u) for label, (v, u) in self.preview.summary.items()])
+        self.summary.set_rows([(label, *readable(v, u, 5)) for label, (v, u) in self.preview.summary.items()])
         seen = []
         for curve in self.preview.curves:
             if (curve.name, curve.type) not in seen:

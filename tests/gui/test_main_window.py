@@ -5,8 +5,8 @@
 """Smoke tests of the desktop GUI, driven like a user would (offscreen, no window on the screen)."""
 
 import pytest
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtWidgets import QMessageBox, QPushButton
 
 from aeroflowsim.gui.main_window import MainWindow
 from aeroflowsim.project import Project
@@ -155,3 +155,102 @@ def test_results_card_shows_the_nozzle_key_results(qtbot, window, tmp_path):
         assert title in text
     m_exit = window.results["result"].key_numbers["M_exit"][0]
     assert f"{m_exit:.4g}" in text and "Converged" in card.status.text()
+
+
+def _real_double_click(widget, pos):
+    """Press, release, double-click, release: the event sequence of a real mouse (qtbot.mouseDClick
+    sends only the double-click event, which does not make a list 'activate' its item)."""
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
+    pos = QPointF(pos)
+    for kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick,
+                 QEvent.MouseButtonRelease):
+        buttons = Qt.NoButton if kind == QEvent.MouseButtonRelease else Qt.LeftButton
+        QApplication.sendEvent(widget, QMouseEvent(kind, pos, widget.mapToGlobal(pos), Qt.LeftButton, buttons,
+                                                   Qt.NoModifier))
+
+
+def test_double_click_on_a_template_creates_a_project(qtbot, window, tmp_path, monkeypatch):
+    import aeroflowsim.project as project_module
+    monkeypatch.setattr(project_module, "default_projects_dir", lambda: tmp_path / "Projects")
+    page = window.pages["welcome"]
+    item = next(page.templates.item(i) for i in range(page.templates.count())
+                if page.templates.item(i).data(0x0100) == "demo_heat1d")
+    page.templates.setCurrentItem(item)
+    _real_double_click(page.templates.viewport(), page.templates.visualItemRect(item).center())
+    assert window.project is not None and window.project.case.name == "demo_heat1d"
+    assert window.project.folder.parent == tmp_path / "Projects"
+    assert page.templates.wordWrap()
+
+
+def test_new_project_dialog_preselects_the_highlighted_template(qtbot, window, monkeypatch):
+    from aeroflowsim.gui import main_window as mw
+    seen = {}
+
+    class FakeDialog:
+        def __init__(self, title, parent=None, templates=None, template=None, name=""):
+            seen["template"] = template
+
+        def exec(self):
+            return False
+
+    monkeypatch.setattr(mw, "ProjectPlaceDialog", FakeDialog)
+    page = window.pages["welcome"]
+    for i in range(page.templates.count()):
+        if page.templates.item(i).data(0x0100) == "sod_shock_tube":
+            page.templates.setCurrentRow(i)
+    next(b for b in page.findChildren(QPushButton) if b.text() == "New project...").click()
+    assert seen["template"] == "sod_shock_tube"
+
+
+def test_dialog_preselects_its_template(qtbot):
+    from aeroflowsim.discovery import find_cases
+    from aeroflowsim.gui.dialogs import ProjectPlaceDialog
+    dialog = ProjectPlaceDialog("New project", templates=find_cases()[0], template="quasi1d_nozzle")
+    qtbot.addWidget(dialog)
+    assert dialog.template() == "quasi1d_nozzle" and dialog.name.text() == "My Quasi-1D nozzle"
+
+
+def test_input_boxes_line_up_in_one_column(qtbot, window, tmp_path):
+    _open(window, tmp_path, "quasi1d_nozzle")
+    panel = window.panels["setup"]
+    window.go_to("setup")
+    qtbot.wait(50)
+    lefts = {row.editor.mapTo(panel, row.editor.rect().topLeft()).x() for row in panel.rows.values()
+             if row.editor.isVisibleTo(panel)}
+    assert len(lefts) == 1, lefts                               # every box starts at the same x
+
+
+def test_dark_theme_restyles_everything(qtbot, window, tmp_path):
+    import matplotlib
+    from aeroflowsim.gui.theme import TOKENS
+    project = _open(window, tmp_path, "quasi1d_nozzle", n_cells=60)
+    window.run_case()
+    _wait_job(qtbot, window)
+    qtbot.waitUntil(lambda: window.runner.busy or window.results is not None, timeout=10_000)
+    _wait_job(qtbot, window)
+    window.set_dark(True)
+    dark = TOKENS[True]
+    section = next(iter(window.panels["setup"].sections.values())).header
+    assert section.palette().color(section.foregroundRole()).name() == dark["text"]   # heading readable
+    chip_title = window.strip.chips["mesh"].title
+    assert chip_title.palette().color(chip_title.foregroundRole()).name() == dark["text"]
+    assert matplotlib.rcParams["figure.facecolor"] == dark["plot_bg"]
+    fig = window.pages["results"].field_plot.figure
+    assert matplotlib.colors.to_hex(fig.get_facecolor()) == dark["plot_bg"]           # plots redrawn dark
+    window.set_dark(False)
+    assert matplotlib.colors.to_hex(window.pages["results"].field_plot.figure.get_facecolor()) == "#ffffff"
+    assert project.folder.exists()
+
+
+def test_quasi1d_setup_shows_derived_numbers_and_geometry_units(qtbot, window, tmp_path):
+    _open(window, tmp_path, "quasi1d_nozzle")
+    window.go_to("setup")
+    rows = {r[0]: r for r in window.pages["setup"].derived.rows()}
+    assert rows["Design exit Mach number"][1].startswith("3.986")
+    assert rows["Throat area"][2] == "mm²" and rows["Choked mass flow"][2] == "mg/s"
+    window.go_to("geometry")
+    dims = {r[0]: r for r in window.pages["geometry"].summary.rows()}
+    assert dims["d throat"][1:] == ("280", "µm") and dims["d inlet"][1:] == ("2", "mm")
+    assert dims["area ratio"][2] == ""

@@ -9,13 +9,8 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QFrame, QGridLayout, QHeaderView, QLabel, QListWidget,
                                QListWidgetItem, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from aeroflowsim.gui.theme import CHECK_COLOURS, CHECK_ICONS
+from aeroflowsim.gui.theme import CHECK_ICONS, check_colour, colour, repolish
 
-BANNER_STYLES = {
-    "info": "background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9;",
-    "warning": "background: #fff8e1; color: #5d4037; border: 1px solid #f9a825;",
-    "error": "background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a;",
-}
 
 
 class Banner(QLabel):
@@ -23,13 +18,15 @@ class Banner(QLabel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("banner")             # colours come from the theme, by the "level" property
         self.setWordWrap(True)
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.setVisible(False)
 
     def show_message(self, text, level="info"):
         self.setText(text)
-        self.setStyleSheet(f"QLabel {{ {BANNER_STYLES[level]} border-radius: 4px; padding: 6px 10px; }}")
+        self.setProperty("level", level)
+        repolish(self)
         self.setVisible(bool(text))
 
     def hide_message(self):
@@ -86,7 +83,7 @@ class CheckList(QListWidget):
                 self.addItem(QListWidgetItem("    No checks apply."))
             for check in checks:
                 line = QListWidgetItem(f"{CHECK_ICONS[check.level]}  {check.name}: {check.message}")
-                line.setForeground(QColor(CHECK_COLOURS[check.level]))
+                line.setForeground(QColor(check_colour(check.level)))
                 line.setToolTip(f"{check.level}: {check.message}")
                 self.addItem(line)
         if not sections:
@@ -103,6 +100,7 @@ class SummaryCard(QFrame):
         self.setObjectName("card")
         self.status = QLabel()
         self.status.setWordWrap(True)
+        self._content = ("", [])
         self.grid = QGridLayout()
         self.grid.setHorizontalSpacing(10)
         layout = QVBoxLayout(self)
@@ -114,27 +112,33 @@ class SummaryCard(QFrame):
 
     def set_results(self, status_text, tiles):
         """tiles: [(title, value text, unit)]."""
+        self._content = (status_text, tiles)
         self.status.setText(f"<b>Key results</b> &nbsp;·&nbsp; {status_text}")
-        for tile in self.tiles:
+        for tile in self.tiles:                   # hide and detach at once (see PlotCanvas.set_figure)
             self.grid.removeWidget(tile)
+            tile.hide()
+            tile.setParent(None)
             tile.deleteLater()
         self.tiles = []
+        muted = colour("muted")
         for i, (title, value, unit) in enumerate(tiles):
             tile = QLabel(f"<div style='font-size:18pt; font-weight:600'>{value}"
                           f"<span style='font-size:10pt; font-weight:normal'>&nbsp;{unit}</span></div>"
-                          f"<div style='color:gray'>{title}</div>")
+                          f"<div style='color:{muted}'>{title}</div>")
             tile.setObjectName("tile")
-            tile.setStyleSheet("#tile { background: palette(base); border: 1px solid palette(mid); "
-                               "border-radius: 6px; padding: 6px 10px; }")
             tile.setTextInteractionFlags(Qt.TextSelectableByMouse)
             self.grid.addWidget(tile, i // self.COLUMNS, i % self.COLUMNS)
             self.tiles.append(tile)
 
     def set_outdated(self, outdated):
         """Amber border and a note when the results come from older inputs."""
-        colour = "#f9a825" if outdated else "palette(mid)"
-        self.setStyleSheet(f"#card {{ border: 2px solid {colour}; border-radius: 8px; }}")
+        self.setProperty("outdated", bool(outdated))
+        repolish(self)
         self.setToolTip("These results come from older inputs: run again to update them." if outdated else "")
+
+    def restyle(self):
+        """Redraw the tiles after a theme change (their caption colour is part of their text)."""
+        self.set_results(*self._content)
 
     def tile_texts(self):
         """Plain text of every tile (for tests)."""

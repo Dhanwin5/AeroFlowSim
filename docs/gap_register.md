@@ -21,7 +21,7 @@ Last updated: Prompt 6c (2026-10-20).
 | Out-of-date tracking (fingerprints) and clearly labelled old results | done | P1 | `project.py` |
 | Background jobs with progress and Cancel, GUI never freezes | done | P1 | warm helper process, `tasks.py` |
 | Undo / redo of input changes | done | P1 | QUndoStack; geometry edits (6d) must also become undoable commands |
-| Light / dark theme, remembered | done | P2 | plots stay white ("paper" look) |
+| Light / dark theme, remembered | done | P2 | one app-wide style sheet per theme; plots follow the theme, saved pictures keep the light "paper" style |
 | Dockable panels, menus, toolbar, shortcuts | done | P1 | |
 | Right-click (context) menus in the views | later | P2 | comes with the geometry workspace (6d) |
 | Parity check of the desktop GUI against Streamlit by the user | partial | P1 | user checks every template; then remove `app.py` + streamlit (ask first) |

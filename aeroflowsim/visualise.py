@@ -18,8 +18,10 @@ Common options of every function:
 
 import io
 
+import matplotlib
 import numpy as np
 from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 
 # Plot colours (also used by the line plots in aeroflowsim/runner.py)
 COLOR_NUMERICAL = "#2a78d6"
@@ -37,6 +39,27 @@ OVERLAY_COLORS = ["white", "black", "#eb6834", "#00c2c7", "#ff4fd8"]
 def length_unit(size):
     """("mm", 1e3) for small geometry (nozzles), ("m", 1.0) for bodies of half a metre or more."""
     return ("m", 1.0) if size >= 0.5 else ("mm", 1e3)
+
+
+def length_axes(ax, size, x_label="x", y_label=None):
+    """Label length axes in a readable unit: mm when the geometry is smaller than 0.5 m.
+
+    The data stay in metres (SI inside); only the tick labels are scaled, so round tick positions
+    in metres stay round numbers in millimetres. size: the largest extent drawn [m].
+    """
+    unit, scale = length_unit(abs(size))
+    formatter = FuncFormatter(lambda value, _: f"{value * scale:.6g}")
+    ax.xaxis.set_major_formatter(formatter)
+    ax.set_xlabel(f"{x_label} [{unit}]")
+    if y_label is not None:
+        ax.yaxis.set_major_formatter(formatter)
+        ax.set_ylabel(f"{y_label} [{unit}]")
+
+
+def _ink():
+    """Colour of outlines and mesh lines: the text colour of the current matplotlib style
+    (black on the usual white plots, light on the dark plots of the GUI's dark theme)."""
+    return matplotlib.rcParams["text.color"]
 
 
 def style_axes(ax):
@@ -104,14 +127,13 @@ def contour_2d(X, Y, field, name, unit, cmap="viridis", vmin=None, vmax=None,
     if show_mesh:
         for sign in ((1, -1) if mirror else (1,)):
             # Lines of constant j run along i, lines of constant i run along j.
-            ax.plot(X, sign * Y, color="k", linewidth=0.4, alpha=0.5)
-            ax.plot(X.T, sign * Y.T, color="k", linewidth=0.4, alpha=0.5)
+            ax.plot(X, sign * Y, color=_ink(), linewidth=0.4, alpha=0.5)
+            ax.plot(X.T, sign * Y.T, color=_ink(), linewidth=0.4, alpha=0.5)
     if mirror:
         ax.axhline(0.0, color=COLOR_MUTED, linestyle="-.", linewidth=0.8)  # symmetry axis
     fig.colorbar(quad, ax=ax, label=f"{name} [{unit}]")
     ax.set_aspect("equal")
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
+    length_axes(ax, max(np.ptp(X), np.ptp(Y)), "x", "y")
     ax.set_title(title or name)
     return fig
 
@@ -145,12 +167,11 @@ def shape_view(x, r_of_x, field, name, unit, cmap="viridis", vmin=None, vmax=Non
     ax = fig.subplots()
     quad = _draw_quad_field(ax, X, Y, F2, cmap, lo, hi, mirror=False)
     # Outline: upper and lower walls plus the two end caps.
-    ax.plot(np.r_[x, x[::-1], x[0]], np.r_[r, -r[::-1], r[0]], color="k", linewidth=1.2)
+    ax.plot(np.r_[x, x[::-1], x[0]], np.r_[r, -r[::-1], r[0]], color=_ink(), linewidth=1.2)
     ax.axhline(0.0, color=COLOR_MUTED, linestyle="-.", linewidth=0.8)   # axis
     fig.colorbar(quad, ax=ax, label=f"{name} [{unit}]")
     ax.set_aspect("equal")
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("r [m]")
+    length_axes(ax, max(x[-1] - x[0], 2.0 * np.max(r)), "x", "r")
     ax.set_title((title or name) + "\n" + (note or "1D result: varies along x only"), fontsize=11)
     return fig
 
@@ -183,7 +204,7 @@ def xt_diagram(x, t, field_xt, name, unit, cmap="viridis", vmin=None, vmax=None,
     ax.set_ylim(t[0], t[-1])
     cbar = fig.colorbar(filled, ax=ax, label=f"{name} [{unit}]")
     cbar.set_ticks(np.linspace(lo, hi, 6))
-    ax.set_xlabel("x [m]")
+    length_axes(ax, x[-1] - x[0], "x")
     ax.set_ylabel("t [s]")
     ax.set_title(title or f"{name}: x-t diagram")
     return fig

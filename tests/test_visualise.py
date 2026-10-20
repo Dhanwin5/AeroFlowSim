@@ -107,3 +107,16 @@ def test_shape_view_custom_note():
     x = np.linspace(0.0, 1.0, 10)
     fig = shape_view(x, 0.1 + 0.0 * x, x, "Mach number", "-", note="quasi-1D: varies along x only")
     assert "quasi-1D: varies along x only" in fig.axes[0].get_title()
+
+
+def test_small_geometry_axes_are_labelled_in_mm():
+    from aeroflowsim.visualise import shape_view
+    x = np.linspace(0.0, 0.004, 20)                 # a 4 mm nozzle [m]
+    fig = shape_view(x, 0.0005 + 0.0 * x, x, "Mach number", "-")
+    ax = fig.axes[0]
+    assert ax.get_xlabel() == "x [mm]" and ax.get_ylabel() == "r [mm]"
+    fig.canvas.draw()
+    labels = [t.get_text() for t in ax.get_xticklabels() if t.get_text()]
+    assert "2" in labels or "2.0" in labels          # 0.002 m is written as 2 (mm)
+    big = shape_view(np.linspace(0.0, 1.0, 20), None, np.ones(20), "Density", "kg/m³")
+    assert big.axes[0].get_xlabel() == "x [m]"

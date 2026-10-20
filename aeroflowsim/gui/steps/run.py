@@ -44,6 +44,7 @@ class RunPage(QWidget):
         layout.addWidget(self.banner)
         layout.addWidget(self.plot, 1)
         self._last_draw = 0.0
+        self._history = ([], [], None)          # what the plot shows: iterations, residuals, tolerance
 
     def refresh(self):
         w = self.window
@@ -89,12 +90,23 @@ class RunPage(QWidget):
         now = time.perf_counter()
         if force or now - self._last_draw > REDRAW_S:
             self._last_draw = now
-            residual_figure(task.iterations, task.residuals, params.get("tol"), figure=self.plot.figure)
-            self.plot.canvas.draw_idle()
+            self._history = (task.iterations, task.residuals, params.get("tol"))
+            self.redraw()
+
+    def reset(self):
+        """Empty progress, text and plot (a project was opened)."""
+        self.info.setText("")
+        self.progress.setValue(0)
+        self._history = ([], [], None)
+        self.redraw()
+
+    def redraw(self):
+        """Draw the residual plot again (new data, or a theme change)."""
+        residual_figure(*self._history, figure=self.plot.figure)
+        self.plot.canvas.draw_idle()
 
     def show_history(self, result, tol):
         """The residual history of finished results (e.g. after opening a project)."""
-        its = list(range(1, len(result.residuals) + 1))
-        residual_figure(its, result.residuals, tol, figure=self.plot.figure)
-        self.plot.canvas.draw_idle()
+        self._history = (list(range(1, len(result.residuals) + 1)), result.residuals, tol)
+        self.redraw()
         self.progress.setValue(1000 if result.converged else self.progress.value())

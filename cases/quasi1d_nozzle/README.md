@@ -142,6 +142,13 @@ Geometry source (Setup tab):
 * Shocks outside the nozzle (over-expanded jet) are not modelled. The exit stays supersonic until
   the back pressure is high enough to push a normal shock inside.
 
+## Derived design numbers (shown under the inputs, `derived()` in `case.py`)
+
+Ideal isentropic nozzle theory, before any run: throat and exit area, area ratio, design exit Mach
+number, pressure and temperature, choked mass flow, ideal vacuum thrust and Isp, the flow regime at
+the chosen back pressure, and the two critical back pressures: p_b1 (above it the nozzle is not
+choked) and p_b2 (normal shock exactly at the exit; below it the exit flow is supersonic).
+
 ## Validation (`test_case.py`, default geometry, p0 = 5 bar, T0 = 293.15 K)
 
 1. p_back = 1 kPa: M_exit 3.99 (±2 %), p_exit 3.36 kPa (±5 %), ṁ 71.5 mg/s (±2 %),

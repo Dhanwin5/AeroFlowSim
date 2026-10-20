@@ -10,6 +10,7 @@ builders below only build Figures (no Qt), like aeroflowsim/visualise.py, whose 
 x-t figures are shown here unchanged. 2D/3D fields and meshes use VTK (aeroflowsim/gui/vtk_view.py).
 """
 
+import matplotlib
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.colors import LogNorm
@@ -17,7 +18,8 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import NullFormatter
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from aeroflowsim.visualise import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, style_axes
+from aeroflowsim.gui.logic import readable
+from aeroflowsim.visualise import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, length_axes, style_axes
 
 MAX_PLOT_POINTS = 5000   # longer residual histories are thinned (the curve still ends at the last value)
 
@@ -34,8 +36,10 @@ class PlotCanvas(QWidget):
 
     def set_figure(self, figure):
         for widget in (self.toolbar, self.canvas):
-            if widget is not None:
-                self._layout.removeWidget(widget)
+            if widget is not None:                # hide and detach at once: deleteLater alone leaves the
+                self._layout.removeWidget(widget)  # old plot visible until Qt's main loop runs again
+                widget.hide()
+                widget.setParent(None)
                 widget.deleteLater()
         self.figure = figure
         self.canvas = FigureCanvasQTAgg(figure)
@@ -55,6 +59,7 @@ def residual_figure(iterations, residuals, tol=None, figure=None):
     if figure is None:
         figure = Figure(figsize=(7, 3.5), layout="constrained")
     figure.clear()
+    figure.set_facecolor(matplotlib.rcParams["figure.facecolor"])   # follows the theme when reused
     ax = figure.add_subplot()
     it = np.asarray(iterations)
     res = np.maximum(np.asarray(residuals, dtype=float), 1e-300)   # 0 cannot be drawn on a log axis
@@ -82,7 +87,7 @@ def field_figure(mesh, field, ref_field=None):
     if ref_field is not None:
         ax.plot(mesh.positions(len(ref_field.values)), ref_field.values, "--", color=COLOR_REFERENCE, lw=1.6,
                 label="reference (exact)")
-    ax.set_xlabel("x [m]")
+    length_axes(ax, x[-1] - x[0], "x")
     ax.set_ylabel(f"{field.label} [{field.unit}]")
     ax.set_title(field.label)
     ax.legend(loc="best", frameon=False)
@@ -103,13 +108,14 @@ def mesh1d_figure(mesh, edges=True):
     bands = ax.pcolormesh(mesh.x, [-0.3, 0.3], width[None, :], cmap="viridis", norm=norm, shading="flat")
     if edges:                                                     # nodes as ticks under the band (density visible,
         ax.vlines(mesh.x, -0.42, -0.33, color=COLOR_MUTED, lw=0.5)   # colours of tiny cells not covered)
-    bar = fig.colorbar(bands, ax=ax, orientation="horizontal", pad=0.25, aspect=50, label="cell width [m]")
+    bar = fig.colorbar(bands, ax=ax, orientation="horizontal", pad=0.25, aspect=50)
     ticks = [width.min(), float(np.sqrt(width.min() * width.max())), width.max()]   # smallest, middle, largest
-    bar.set_ticks(ticks, labels=[f"{t:.3g}" for t in ticks])
+    bar.set_ticks(ticks, labels=[" ".join(readable(t, "m", 3)) for t in ticks])   # e.g. "1.33 µm"
+    bar.set_label("cell width")
     bar.ax.xaxis.set_minor_formatter(NullFormatter())             # no crowded extra labels
     ax.set_ylim(-0.5, 0.4)
     ax.set_yticks([])
-    ax.set_xlabel("x [m]")
+    length_axes(ax, mesh.x[-1] - mesh.x[0], "x")
     ax.set_title(f"1D mesh: {mesh.n_nodes} nodes, {mesh.n_cells} cells (colour = cell width)")
     style_axes(ax)
     return fig

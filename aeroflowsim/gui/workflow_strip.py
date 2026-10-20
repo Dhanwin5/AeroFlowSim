@@ -13,7 +13,7 @@ button that cancels the job. The strip replaces both a status bar and a step tre
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QToolButton, QWidget
 
-from aeroflowsim.gui.theme import STATUS_COLOURS, STATUS_TEXT
+from aeroflowsim.gui.theme import STATUS_TEXT, repolish
 from aeroflowsim.project import WORKFLOW
 
 TITLES = {"geometry": "Geometry", "mesh": "Mesh", "setup": "Setup", "run": "Run", "results": "Results"}
@@ -36,6 +36,7 @@ class StepChip(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 4, 8, 4)
         self.dot = QLabel("●")
+        self.dot.setObjectName("dot")
         self.title = QPushButton(TITLES[step], flat=True)
         self.title.setCursor(Qt.PointingHandCursor)
         self.title.clicked.connect(lambda: self.clicked.emit(self.step))
@@ -51,8 +52,7 @@ class StepChip(QFrame):
 
     def set_status(self, status, detail=""):
         self.status = status
-        fill, text = STATUS_COLOURS[status]
-        self.dot.setStyleSheet(f"color: {fill}; font-size: 16px;")
+        self.setProperty("status", status)       # the theme colours the dot by this property
         tip = f"{TITLES[self.step]}: {STATUS_TEXT[status]}" + (f"\n{detail}" if detail else "")
         self.setToolTip(f"{tip}\n({SHORTCUTS[self.step]})")
         self.title.setEnabled(status != "disabled")
@@ -63,15 +63,13 @@ class StepChip(QFrame):
         self._restyle()
 
     def _restyle(self):
-        fill, _ = STATUS_COLOURS[self.status]
-        border = f"2px solid {fill}" if self.current else "1px solid palette(mid)"
-        weight = "bold" if self.current else "normal"
-        self.setStyleSheet(f"#chip {{ border: {border}; border-radius: 14px; }}"
-                           f"#chip QPushButton {{ font-weight: {weight}; border: none; padding: 0 2px; }}")
+        self.setProperty("current", self.current)
+        repolish(self)
 
     def set_busy(self, fraction=None, text=""):
         """fraction: 0..1, or None for an 'unknown' (moving) bar. Call set_idle() when done."""
-        self.dot.setStyleSheet(f"color: {STATUS_COLOURS['busy'][0]}; font-size: 16px;")
+        self.setProperty("busy", True)
+        repolish(self)
         self.progress.setVisible(True)
         self.cancel_button.setVisible(True)
         if fraction is None:
@@ -85,6 +83,7 @@ class StepChip(QFrame):
     def set_idle(self):
         self.progress.setVisible(False)
         self.cancel_button.setVisible(False)
+        self.setProperty("busy", False)
         self.set_status(self.status)
 
 
@@ -103,7 +102,7 @@ class WorkflowStrip(QWidget):
         for i, step in enumerate(WORKFLOW):
             if i:
                 arrow = QLabel("━━▶")
-                arrow.setStyleSheet("color: palette(mid);")
+                arrow.setObjectName("arrow")
                 layout.addWidget(arrow)
             chip = StepChip(step)
             chip.clicked.connect(self.step_clicked.emit)
@@ -112,7 +111,7 @@ class WorkflowStrip(QWidget):
             layout.addWidget(chip)
         layout.addStretch(1)
         self.message = QLabel()
-        self.message.setStyleSheet("color: palette(mid);")
+        self.message.setObjectName("stripmessage")
         layout.addWidget(self.message)
 
     def set_statuses(self, statuses: dict, details=None):

@@ -18,23 +18,32 @@ KEY_RESULTS = (("M_exit", "Exit Mach number"), ("p_exit", "Exit pressure"), ("md
                ("F_vacuum", "Thrust (vacuum)"), ("F_at_p_back", "Thrust at back pressure"),
                ("Isp_vacuum", "Specific impulse (vacuum)"))
 PREFIXES = ((1e9, "G"), (1e6, "M"), (1e3, "k"), (1.0, ""), (1e-3, "m"), (1e-6, "µ"), (1e-9, "n"))
-SCALABLE_UNITS = ("Pa", "N", "W", "J", "m", "g/s")   # units that get k / m / µ prefixes for reading
+SCALABLE_UNITS = ("Pa", "N", "W", "J", "m", "m²", "kg/s")   # units that get k / m / µ prefixes for reading
+LENGTH_UNITS = ("m", "m²")                                     # only these in the full-precision tables
+AREA_PREFIXES = ((1.0, ""), (1e-6, "m"), (1e-12, "µ"))         # m², mm², µm²
 
 
-def readable(value, unit):
+def readable(value, unit, digits=4, units=SCALABLE_UNITS):
     """(value text, unit) with an SI prefix that keeps the number between 1 and 1000, e.g.
-    3369.88 Pa -> ("3.37", "kPa"), 7.16e-5 kg/s -> ("71.6", "mg/s"). Four significant digits."""
+    3369.88 Pa -> ("3.37", "kPa"), 7.16e-5 kg/s -> ("71.6", "mg/s"), 2.8e-4 m -> ("280", "µm"),
+    6.16e-8 m² -> ("0.06158", "mm²"). digits = significant digits; units = which units may be scaled
+    (other values keep their SI unit). Never changes a value, only how it is written."""
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return str(value), unit
+    value = float(value)
+    if unit not in units or value == 0.0 or not math.isfinite(value):
+        return f"{value:.{digits}g}", "" if unit == "-" else unit
+    if unit == "m²":                         # area: the prefix is squared (1 mm² = 1e-6 m²)
+        for factor, prefix in AREA_PREFIXES:
+            if abs(value) >= 1e-2 * factor or factor == AREA_PREFIXES[-1][0]:
+                return f"{value / factor:.{digits}g}", f"{prefix}m²"
     if unit == "kg/s":                       # prefixes go on the gram: g/s, mg/s, ...
+        if abs(value) >= 1.0:
+            return f"{value:.{digits}g}", "kg/s"
         value, unit = value * 1e3, "g/s"
-    if unit in SCALABLE_UNITS and value != 0.0 and math.isfinite(value):
-        for factor, prefix in PREFIXES:
-            if abs(value) >= factor or factor == PREFIXES[-1][0]:
-                if unit == "g/s" and prefix in ("k", "M", "G"):
-                    return f"{value / 1e3:.4g}", "kg/s"
-                return f"{value / factor:.4g}", prefix + unit
-    return f"{value:.4g}", "" if unit == "-" else unit
+    for factor, prefix in PREFIXES:
+        if abs(value) >= factor or factor == PREFIXES[-1][0]:
+            return f"{value / factor:.{digits}g}", prefix + unit
 
 
 def key_result_tiles(result):
@@ -96,7 +105,7 @@ def key_number_rows(result, reference, run_s=None):
             ("final residual", f"{result.residuals[-1]:.3e}" if len(result.residuals) else "-", "-")]
     if run_s is not None:
         rows.append(("run time", f"{run_s:.3g}", "s"))
-    rows += [(name, f"{value:.6g}", unit) for name, (value, unit) in result.key_numbers.items()]
+    rows += [(name, *readable(value, unit, 6, LENGTH_UNITS)) for name, (value, unit) in result.key_numbers.items()]
     rows += [(f"max |{name} − {name}_exact|", f"{err:.3e}", unit)
              for name, (err, unit) in max_errors(result, reference).items()]
     return rows
@@ -106,7 +115,7 @@ def mesh_summary_rows(mesh, quality):
     """[(label, value text)] summarising a face-based mesh; quality = mesh_quality.quality_summary(mesh)."""
     rows = [("cells", f"{mesh.n_cells:,}"), ("faces", f"{mesh.n_faces:,}"), ("nodes", f"{mesh.n_nodes:,}"),
             ("memory", f"{mesh.memory_bytes() / 1e6:.3g} MB"),
-            ("smallest cell", f"{quality['min_cell_size'] * 1e6:.4g} µm"),
+            ("smallest cell", " ".join(readable(quality["min_cell_size"], "m"))),
             ("max aspect ratio", f"{quality['max_aspect_ratio']:.3g}"),
             ("max non-orthogonality", f"{quality['max_non_orthogonality']:.3g}°"),
             ("max volume ratio", f"{quality['max_volume_ratio']:.3g}"),
@@ -115,14 +124,15 @@ def mesh_summary_rows(mesh, quality):
     for key in ("reference_length", "reference_area"):
         if key in mesh.info:
             unit = "m" if key == "reference_length" else "m²"
-            rows.append((key.replace("_", " "), f"{mesh.info[key]:.4g} {unit}"))
+            rows.append((key.replace("_", " "), " ".join(readable(mesh.info[key], unit))))
     return rows
 
 
 def mesh_1d_rows(mesh):
     rows = [("nodes", f"{mesh.n_nodes:,}"), ("cells", f"{mesh.n_cells:,}")]
     if len(mesh.x) > 1:
-        rows += [("smallest spacing", f"{mesh.dx.min():.4g} m"), ("largest spacing", f"{mesh.dx.max():.4g} m")]
+        rows += [("smallest spacing", " ".join(readable(mesh.dx.min(), "m"))),
+                 ("largest spacing", " ".join(readable(mesh.dx.max(), "m")))]
     return rows
 
 

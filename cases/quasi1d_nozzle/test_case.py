@@ -109,3 +109,18 @@ def test_stop_signal_ends_run_cleanly():
     job.wait(timeout=30)
     assert job.status == "stopped"
     assert job.iterations == [1]
+
+
+def test_derived_design_numbers_match_the_theory_references():
+    """The read-only numbers under the inputs (case.derived) agree with validation/quasi1d_nozzle."""
+    d = case.derived(defaults(case.parameters()))
+    assert np.isclose(d["Area ratio A_exit/A_throat"][0], 10.59, rtol=1e-3)
+    assert np.isclose(d["Design exit Mach number"][0], 3.99, rtol=3e-3)
+    assert np.isclose(d["Design exit pressure"][0], 3.36e3, rtol=5e-3)
+    assert np.isclose(d["Choked mass flow"][0], 71.5e-6, rtol=3e-3)
+    assert np.isclose(d["Ideal vacuum thrust"][0], 50.8e-3, rtol=3e-3)
+    assert d["Flow at this back pressure"][0] == "supersonic exit"
+    p_b1, p_b2 = d["Back pressure: choking limit p_b1"][0], d["Back pressure: shock at exit p_b2"][0]
+    assert d["Design exit pressure"][0] < p_b2 < p_b1 < 5e5        # supersonic < shock in nozzle < subsonic
+    shock = case.derived({**defaults(case.parameters()), "p_back": 2.5e5})
+    assert shock["Flow at this back pressure"][0] == "shock in nozzle"

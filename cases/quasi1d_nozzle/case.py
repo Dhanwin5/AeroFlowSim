@@ -103,6 +103,42 @@ def theory(params, profile):
     return info
 
 
+def derived(params):
+    """Read-only design numbers shown under the inputs (ideal isentropic nozzle theory, no solver run).
+
+    Design exit state: supersonic isentropic flow at A_exit/A_throat. Critical back pressures: above
+    p_b1 the nozzle is not choked (subsonic everywhere); between p_b1 and p_b2 a normal shock stands
+    inside the divergent part; below p_b2 the flow leaves the exit supersonic.
+    """
+    g, R, p0, T0, pb = params["gamma"], params["R"], params["p0"], params["T0"], params["p_back"]
+    profile = geometry(params)
+    A_t = math.pi * profile.r_throat**2                  # [m²]
+    A_e = math.pi * profile.r[-1] ** 2                   # [m²]
+    ratio = A_e / A_t                                    # [-]
+    M_e = gd.mach_from_area_ratio(ratio, g, supersonic=True)
+    p_e = p0 / gd.p0_over_p(M_e, g)                      # [Pa]
+    T_e = T0 / gd.t0_over_t(M_e, g)                      # [K]
+    u_e = M_e * math.sqrt(g * R * T_e)                   # [m/s]
+    mdot = gd.choked_mass_flow(p0, T0, A_t, g, R)        # [kg/s]
+    F_vac = mdot * u_e + p_e * A_e                       # [N]
+    p_b1 = p0 / gd.p0_over_p(gd.mach_from_area_ratio(ratio, g, supersonic=False), g)   # [Pa]
+    p_b2 = gd.exit_pressure_with_shock(p0, ratio, ratio, g)                             # [Pa]
+    return {
+        "Throat area": (A_t, "m²"),
+        "Exit area": (A_e, "m²"),
+        "Area ratio A_exit/A_throat": (ratio, "-"),
+        "Design exit Mach number": (M_e, "-"),
+        "Design exit pressure": (p_e, "Pa"),
+        "Design exit temperature": (T_e, "K"),
+        "Choked mass flow": (mdot, "kg/s"),
+        "Ideal vacuum thrust": (F_vac, "N"),
+        "Ideal vacuum Isp": (F_vac / (mdot * G0), "s"),
+        "Flow at this back pressure": (gd.nozzle_flow_regime(p0, pb, ratio, g)["regime"], ""),
+        "Back pressure: choking limit p_b1": (p_b1, "Pa"),
+        "Back pressure: shock at exit p_b2": (p_b2, "Pa"),
+    }
+
+
 def _isentropic_state(M, p0, T0, gamma, R):
     """Primitive states [rho, u, p] for Mach numbers M with total conditions p0 [Pa], T0 [K]."""
     T = T0 / gd.t0_over_t(M, gamma)      # [K]

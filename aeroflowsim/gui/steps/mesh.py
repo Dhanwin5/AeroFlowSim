@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, Q
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from aeroflowsim.gui.figures import PlotCanvas, mesh1d_figure
-from aeroflowsim.gui.logic import is_face_mesh, mesh_1d_rows, mesh_summary_rows
+from aeroflowsim.gui.logic import is_face_mesh, mesh_1d_rows, mesh_summary_rows, readable
 from aeroflowsim.gui.vtk_view import MeshView
 from aeroflowsim.gui.widgets import Banner, ValueTable
 from aeroflowsim.mesh import CELL_TYPES
@@ -142,9 +142,9 @@ class MeshPage(QWidget):
         mesh = self.window.mesh
         c = mesh.cell_centres[cell]
         rows = [("type", CELL_TYPES[int(mesh.cell_types[cell])].name, ""),
-                ("centre x", f"{c[0]:.6g}", "m"), ("centre y", f"{c[1]:.6g}", "m"),
+                ("centre x", *readable(c[0], "m", 6)), ("centre y", *readable(c[1], "m", 6)),
                 ("volume (per m depth)", f"{mesh.cell_volumes[cell]:.4g}", "m³")]
-        rows += [(name, f"{self.quality(name)[cell]:.4g}", unit) for name, (_, unit) in QUALITY_COLORINGS.items()]
+        rows += [(name, *readable(self.quality(name)[cell], unit)) for name, (_, unit) in QUALITY_COLORINGS.items()]
         self.window.show_properties(f"Cell #{cell}", rows)
 
     def edge_picked(self, patch_index, face):
@@ -152,8 +152,8 @@ class MeshPage(QWidget):
         patch = mesh.patches[patch_index]
         c = mesh.face_centres[face]
         rows = [("boundary", patch.name, ""), ("type", patch.type, ""), ("faces in boundary", f"{patch.count}", ""),
-                ("face number", f"{face}", ""), ("centre x", f"{c[0]:.6g}", "m"), ("centre y", f"{c[1]:.6g}", "m"),
-                ("edge length", f"{mesh.face_areas[face]:.4g}", "m")]
+                ("face number", f"{face}", ""), ("centre x", *readable(c[0], "m", 6)),
+                ("centre y", *readable(c[1], "m", 6)), ("edge length", *readable(mesh.face_areas[face], "m"))]
         self.window.show_properties(f"Boundary '{patch.name}'", rows)
 
     def export_vtu(self):

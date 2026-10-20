@@ -4,6 +4,8 @@
 
 """The start page (no project open): new project from a template, open, recent projects."""
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout,
@@ -20,7 +22,8 @@ class WelcomePage(QWidget):
         logo = QLabel()
         logo.setPixmap(QPixmap(str(LOGO)).scaledToWidth(520, Qt.SmoothTransformation))
         new = QPushButton("New project...")
-        new.clicked.connect(lambda: window.new_project())
+        new.setToolTip("Choose a template, a name and a place (the template highlighted below is preselected)")
+        new.clicked.connect(lambda: window.new_project(self.selected_template()))
         open_ = QPushButton("Open project...")
         open_.clicked.connect(lambda: window.open_project())
         self.import_old = QPushButton("Import old settings...")
@@ -30,8 +33,14 @@ class WelcomePage(QWidget):
             buttons.addWidget(b)
         buttons.addStretch(1)
         self.templates = QListWidget()
-        self.templates.itemActivated.connect(lambda item: window.new_project(item.data(Qt.UserRole)))
+        self.templates.setObjectName("templates")
+        self.templates.setWordWrap(True)        # long descriptions wrap instead of being cut off
+        self.templates.setToolTip("Double-click (or Enter) to create a project from a template right away")
+        # Double-click or Enter ("activated") creates a project from the template at once.
+        self.templates.itemActivated.connect(lambda item: window.create_from_template(item.data(Qt.UserRole)))
         self.recent = QListWidget()
+        self.recent.setObjectName("recent")
+        self.recent.setWordWrap(True)
         self.recent.itemActivated.connect(lambda item: window.open_project(item.data(Qt.UserRole)))
         lists = QHBoxLayout()
         for title, widget in (("Start from a template (double-click)", self.templates),
@@ -46,16 +55,26 @@ class WelcomePage(QWidget):
         layout.addLayout(buttons)
         layout.addLayout(lists, 1)
 
+    def selected_template(self):
+        """Key of the highlighted template, or None."""
+        item = self.templates.currentItem()
+        return item.data(Qt.UserRole) if item is not None else None
+
     def refresh(self):
+        previous = self.selected_template()
         self.templates.clear()
         for name, case in self.window.templates().items():
             item = QListWidgetItem(f"{case.title}\n    {case.description}")
             item.setData(Qt.UserRole, name)
             item.setToolTip(case.description)
             self.templates.addItem(item)
+            if name == previous:
+                self.templates.setCurrentItem(item)
         self.recent.clear()
         for path in self.window.recent_projects():
-            item = QListWidgetItem(path)
+            folder = Path(path)
+            item = QListWidgetItem(f"{folder.stem}\n    {folder.parent}")   # name first, then where it is
+            item.setToolTip(path)
             item.setData(Qt.UserRole, path)
             self.recent.addItem(item)
         self.import_old.setVisible(bool(old_settings_files()))

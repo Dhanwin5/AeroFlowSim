@@ -295,6 +295,10 @@ class MainWindow(QMainWindow):
 
     def show_welcome(self):
         self.current_step = None
+        self.checks.set_sections([])             # nothing from a closed project stays on screen
+        self.properties_title.setText("")
+        self.properties.set_rows([])
+        self.docks["inputs"].setWindowTitle("Inputs")
         self.stack.setCurrentWidget(self.pages["welcome"])
         self.pages["welcome"].refresh()
         self.strip.setVisible(False)
@@ -327,6 +331,21 @@ class MainWindow(QMainWindow):
                 view.set_dark(dark)
         if save:
             self.settings.setValue("theme", "dark" if dark else "light")
+        self.redraw_for_theme()
+
+    def redraw_for_theme(self):
+        """Things that carry colours inside their content (plots, check list, Details, card) are
+        drawn again; everything else follows the new style sheet by itself."""
+        for panel in self.panels.values():
+            panel.restyle()
+        self.update_checks()
+        results = self.pages["results"]
+        results._shown = None                  # re-create its plots with the new matplotlib colours
+        results.card.restyle()
+        self.pages["mesh"]._shown = None if not is_face_mesh(self.mesh) else self.pages["mesh"]._shown
+        self.pages["run"].redraw()
+        if self.current_step:
+            self.pages[self.current_step].refresh()
 
     # ================================================================================== projects
 
@@ -359,6 +378,26 @@ class MainWindow(QMainWindow):
             return
         self.load_project(project)
 
+    def create_from_template(self, template):
+        """Start page double-click: a new project from this template at once, named "My <template>"
+        (numbered if that exists) in the default projects folder."""
+        if not template or not self.maybe_save():
+            return
+        case = self.templates().get(template)
+        if case is None:
+            return
+        folder, n = folder_for(f"My {case.title}"), 2
+        while folder.exists():
+            folder = folder_for(f"My {case.title} {n}")
+            n += 1
+        try:
+            project = Project.create(template, folder)
+        except (ValueError, OSError) as error:
+            QMessageBox.warning(self, "New project", str(error))
+            return
+        self.log(f"New project {folder.name} from the template '{case.title}'")
+        self.load_project(project)
+
     def open_project(self, folder=None):
         if not self.maybe_save():
             return
@@ -387,6 +426,7 @@ class MainWindow(QMainWindow):
             self.inputs.addWidget(panel)
         self.mesh = self.results = None
         self.mesh_checks = []
+        self.pages["run"].reset()                # no progress text left from another project
         try:
             self.mesh = project.load_mesh()
             if self.mesh is not None:
@@ -424,6 +464,8 @@ class MainWindow(QMainWindow):
             self.runner.cancel()
         for panel in self.panels.values():
             self.inputs.removeWidget(panel)
+            panel.hide()
+            panel.setParent(None)
             panel.deleteLater()
         self.panels = {}
         self.project = self.mesh = self.results = None

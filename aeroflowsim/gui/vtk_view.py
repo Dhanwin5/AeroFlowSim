@@ -129,7 +129,9 @@ class MeshView(QWidget):
             self.mesh_actor = p.add_mesh(self.grid, scalars=title or "value", cmap="viridis", nan_color="gray",
                                          scalar_bar_args={"title": title, "color": colours["text"],
                                                           "vertical": False, "position_x": 0.25,
-                                                          "position_y": 0.02, "width": 0.5, "height": 0.07},
+                                                          "position_y": 0.05, "width": 0.5, "height": 0.05,
+                                                          "n_labels": 3, "fmt": "%.3g",    # no overlapping labels
+                                                          "title_font_size": 12, "label_font_size": 11},
                                          **style)
         else:
             self.mesh_actor = p.add_mesh(self.grid, color="#c7d7ea" if not self.dark else "#3b4a5c", **style)
