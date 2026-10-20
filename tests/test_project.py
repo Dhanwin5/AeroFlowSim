@@ -195,16 +195,22 @@ def test_workspace_history_is_saved_and_part_of_the_fingerprints(tmp_path):
     project = Project.create("external_2d", tmp_path / "P.afsproj")
     before = project.fingerprint("mesh")
     document = project.geometry_document()            # no history.json: the template's own geometry
-    assert document.is_template_only() and not project.history_path.exists()
+    assert document.is_template_only() and project.edited_geometry is None
     document.add(Transform(kind="rotate", angle=5.0))
     project.set_geometry_document(document)
-    assert project.history_path.is_file()
+    assert project.dirty and not project.history_path.exists()     # written only by save()
     assert project.fingerprint("mesh") != before
+    project.save()
+    assert project.history_path.is_file()
     assert Project.open(project.folder).geometry_document() == document
     # Back to the unedited template geometry: the file goes and the old fingerprint returns.
     document.remove(document.operations[-1].id)
     project.set_geometry_document(document)
-    assert not project.history_path.exists()
     assert project.fingerprint("mesh") == before
-    project.set_geometry_document(GeometryDocument())   # an empty workspace is kept as a file
+    project.save()
+    assert not project.history_path.exists()
+    project.set_geometry_document(GeometryDocument())   # an empty workspace is an edit, kept as a file
+    project.save()
     assert project.history_path.is_file()
+    copy = project.duplicate(tmp_path / "Q.afsproj")
+    assert copy.geometry_document() == GeometryDocument()

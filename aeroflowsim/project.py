@@ -110,6 +110,7 @@ class Project:
         self.modified = modified or self.created
         self.warnings = list(warnings or [])   # shown to the user after opening
         self.dirty = False                  # inputs changed since the last save
+        self._history, self._history_loaded = None, False   # workspace history (see edited_geometry)
 
     # ---- creating, opening, saving -------------------------------------------------------------
 
@@ -185,6 +186,11 @@ class Project:
         tmp = self.folder / (PROJECT_FILE + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         tmp.replace(self.folder / PROJECT_FILE)    # never a half-written project.yaml
+        if self._history_loaded:                   # the workspace history, if the geometry was edited
+            if self._history is None:
+                self.history_path.unlink(missing_ok=True)
+            else:
+                self._history.save(self.history_path)
         self.dirty = False
 
     def duplicate(self, new_folder) -> "Project":
@@ -194,6 +200,7 @@ class Project:
             raise ValueError(f"{new_folder} already exists; choose another name.")
         shutil.copytree(self.folder, new_folder, ignore=shutil.ignore_patterns("*.tmp"))
         copy = Project(new_folder, self.case, self.values, json.loads(json.dumps(self.steps)), _now())
+        copy.set_geometry_document(self.edited_geometry)      # unsaved geometry edits go with the copy
         copy.save()
         return copy
 
@@ -273,35 +280,46 @@ class Project:
         from aeroflowsim.geometry_model import HISTORY_FILE
         return self.folder / GEOMETRY_DIR / HISTORY_FILE
 
+    @property
+    def edited_geometry(self):
+        """The workspace history if the geometry has been edited (a GeometryDocument), else None.
+
+        Kept in memory like the inputs: geometry/history.json is read on first use and written by
+        save(), so "discard changes" also discards geometry edits.
+        """
+        if not self._history_loaded:
+            from aeroflowsim.geometry_model import GeometryDocument
+            self._history = GeometryDocument.load(self.history_path) if self.history_path.is_file() else None
+            self._history_loaded = True
+        return self._history
+
     def geometry_document(self):
-        """The workspace history (GeometryDocument): geometry/history.json, or the template's own
-        geometry if the project has none (then everything works exactly as before the workspace)."""
-        from aeroflowsim.geometry_model import GeometryDocument, template_document
-        if self.history_path.is_file():
-            return GeometryDocument.load(self.history_path)
-        return template_document(self.case)
+        """A copy of the workspace history: the edited one, or the template's own geometry (then
+        everything works exactly as before the workspace existed)."""
+        from aeroflowsim.geometry_model import template_document
+        edited = self.edited_geometry
+        return edited.copy() if edited is not None else template_document(self.case)
 
     def set_geometry_document(self, document):
-        """Save the workspace history; None (or the unedited template geometry) removes the file."""
-        template = self._template_document()
+        """Use this workspace history; None (or the unedited template geometry) means "not edited"."""
+        from aeroflowsim.geometry_model import template_document
+        template = template_document(self.case)
         if document is None or (document.is_template_only() and
                                 document.to_dict()["operations"] == template.to_dict()["operations"]):
-            self.history_path.unlink(missing_ok=True)
+            new = None
         else:
-            document.save(self.history_path)
-        self.dirty = True
-
-    def _template_document(self):
-        from aeroflowsim.geometry_model import template_document
-        return template_document(self.case)
+            new = document.copy()
+        if new != self.edited_geometry:
+            self._history, self._history_loaded = new, True
+            self.dirty = True
 
     def geometry_files(self) -> list:
         """Project-relative paths of the files imported by workspace operations (their contents
         are part of the fingerprints)."""
-        if not self.history_path.is_file():
+        edited = self.edited_geometry
+        if edited is None:
             return []
-        document = self.geometry_document()
-        return sorted({op.params["file"] for op in document.operations if "file" in op.params and op.params["file"]})
+        return sorted({op.params["file"] for op in edited.operations if op.params.get("file")})
 
     def replay_context(self, params=None):
         """What a replay of the workspace history needs: template, its geometry inputs, the folder."""
@@ -316,8 +334,8 @@ class Project:
         """SHA-256 of everything a product ('geometry', 'mesh' or 'run') depends on."""
         h = hashlib.sha256()
         h.update(f"{template_fingerprint(self.case)}|{__version__}|{product}".encode())
-        if self.history_path.is_file():      # only then: old projects keep their fingerprints
-            h.update(b"history|" + _file_bytes(self.history_path))
+        if self.edited_geometry is not None:      # only then: old projects keep their fingerprints
+            h.update(b"history|" + self.edited_geometry.to_json().encode())
             for name in self.geometry_files():
                 path = self.folder / name
                 h.update(name.encode() + (_file_bytes(path) if path.is_file() else b"<missing file>"))

@@ -181,6 +181,70 @@ class Delete(Operation):
         kernel.edge_meta = {t: m for t, m in kernel.edge_meta.items() if t in live}
 
 
+class Fillet(Operation):
+    """Round the sharp corner between two edges that meet at a point with an arc of `radius` [m]
+    (e.g. a nozzle throat or a leading edge). The two edges are trimmed and keep their ids; the
+    arc is "<op>:fillet"."""
+
+    type, title = "fillet", "Fillet"
+    DEFAULTS = {"edges": [], "radius": 0.001}
+
+    def summary(self) -> str:
+        return f"Fillet r = {self.params['radius']:.4g} m"
+
+    def apply(self, kernel, context):
+        p = self.params
+        if len(p["edges"]) != 2:
+            raise ValueError("a fillet needs the two edges that meet at the corner")
+        if not p["radius"] > 0.0:
+            raise ValueError("the fillet radius must be positive")
+        model, occ = kernel.gmsh.model, kernel.occ
+        a, b = (kernel.edge_by_id(e) for e in p["edges"])
+        faces = sorted(set(model.getAdjacencies(1, a)[0]) & set(model.getAdjacencies(1, b)[0]))
+        snap = kernel.snapshot()
+        rebuilt = []
+        for face in faces:                       # take the faces off their curves (rebuilt below)
+            _, loops = occ.getCurveLoops(face)
+            rebuilt.append((kernel.face_meta.pop(face, None), [[abs(int(c)) for c in loop] for loop in loops]))
+        if faces:
+            occ.remove([(2, f) for f in faces])
+            kernel.sync()
+        try:
+            arc = occ.fillet2D(a, b, float(p["radius"]))
+        except Exception:
+            raise ValueError(f"no fillet of radius {p['radius']:.4g} m fits between these edges (they must meet "
+                             "at a point, and the radius must be smaller than the edges allow)") from None
+        kernel.sync()
+        old_curves = {arc}
+        for meta, loops in rebuilt:
+            new_loops = []
+            for loop in loops:
+                old_curves.update(loop)
+                n = len(loop)
+                for k in range(n):               # put the arc between a and b where they follow each other
+                    if {loop[k], loop[(k + 1) % n]} == {a, b}:
+                        loop = loop[:k + 1] + [arc] + loop[k + 1:]
+                        break
+                new_loops.append(occ.addCurveLoop(loop))
+            surface = occ.addPlaneSurface(new_loops)
+            if meta is not None:
+                kernel.name_face(surface, meta.id, meta.role)
+        kernel.sync()
+        leftover = [(1, c) for c in old_curves if c in kernel.curve_tags() and len(model.getAdjacencies(1, c)[0]) == 0]
+        if faces and leftover:                   # OCC copied the curves into the new face; drop the old ones
+            occ.remove(leftover, recursive=True)
+        ends = [kernel.edge_meta[a], kernel.edge_meta[b]]
+        kernel.relabel(snap, self.id, "fillet")
+        # The arc carries the lineage of both edges, so their boundary names (default or the user's)
+        # also apply to it: a filleted wall stays one wall.
+        for tag, meta in kernel.edge_meta.items():
+            if meta.id == f"{self.id}:fillet":
+                same = ends[0].default_name == ends[1].default_name
+                kernel.edge_meta[tag] = type(meta)(meta.id, ends[0].sources + ends[1].sources,
+                                                   ends[0].default_name if same else "",
+                                                   ends[0].default_type if same else "")
+
+
 class BooleanOp(Operation):
     """Union, subtract or intersect faces: objects (op) tools."""
 
@@ -538,7 +602,7 @@ def _copy_entities(kernel, targets, op_id):
     return copies
 
 
-OPERATIONS = {cls.type: cls for cls in (TemplateShape, TemplateEnclosure, Transform, Delete, BooleanOp, SetRole,
+OPERATIONS = {cls.type: cls for cls in (TemplateShape, TemplateEnclosure, Transform, Delete, Fillet, BooleanOp, SetRole,
                                         ImportFile, Enclosure, NameBoundary, Refinement)}
 
 

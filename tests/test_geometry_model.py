@@ -17,7 +17,7 @@ from aeroflowsim.geometry_model import (
     FLUID, SOLID, GeometryDocument, ReplayContext, operation_from_dict, replay, template_document)
 from aeroflowsim.geometry_model import boundaries, picking
 from aeroflowsim.geometry_model.operations import (
-    BooleanOp, Delete, Enclosure, NameBoundary, Refinement, SetRole, TemplateShape, Transform)
+    BooleanOp, Delete, Enclosure, Fillet, NameBoundary, Refinement, SetRole, TemplateShape, Transform)
 from aeroflowsim.parameters import defaults, validate
 
 EXTERNAL = load_case("external_2d")
@@ -301,3 +301,31 @@ def test_distance_to_segments_formula():
     a, b = np.array([[0.0, 0.0], [0.0, 0.0]]), np.array([[1.0, 0.0], [0.0, 1.0]])
     assert picking.distance_to_segments(np.array([0.5, 0.2]), a, b) == pytest.approx([0.2, 0.5])
     assert picking.distance_to_segments(np.array([2.0, 0.0]), a, b) == pytest.approx([1.0, 2.0])
+
+
+def test_fillet_rounds_a_corner_exactly_and_keeps_ids():
+    doc = template_document(NOZZLE)                    # conical nozzle: sharp throat between wall.1/2/3 lines
+    ctx = context(NOZZLE, Rcu_ratio=0.0, Rcd_ratio=0.0)
+    sharp = replay(doc, ctx)
+    walls = sorted(e for e in sharp.edges if e.startswith("op1:wall"))
+    throat = next(v for v in sharp.vertices.values() if set(walls[1:3]) == set(v.edges))
+    doc.add(Fillet(edges=list(throat.edges), radius=0.5e-3))
+    built = replay(doc, ctx)
+    assert not built.errors()
+    assert "op2:fillet" in built.edges and built.edges["op2:fillet"].kind == "arc"
+    assert set(walls) <= set(built.edges)                       # trimmed edges keep their ids
+    assert set(built.patches()) == {"wall", "inlet", "outlet", "axis"}
+    assert built.names["op2:fillet"].name == "wall"             # the arc is part of the wall
+    # Area change of a fillet in a corner with turning angle phi: r² (tan(phi/2) - phi/2) - added to the
+    # fluid at a concave (throat) corner.
+    a, b = (sharp.edges[e].points for e in throat.edges)
+    t1 = a[-1] - a[0] if np.allclose(a[-1], throat.xy) else a[0] - a[-1]
+    t2 = b[-1] - b[0] if np.allclose(b[0], throat.xy) else b[0] - b[-1]
+    phi = math.acos(np.dot(t1, t2) / np.linalg.norm(t1) / np.linalg.norm(t2))
+    change = (0.5e-3) ** 2 * (math.tan(phi / 2) - phi / 2)
+    old_area = next(iter(sharp.faces.values())).area
+    new_area = next(iter(built.faces.values())).area
+    assert abs(new_area - old_area) == pytest.approx(change, rel=1e-9)
+    too_big = template_document(NOZZLE)
+    too_big.add(Fillet(edges=list(throat.edges), radius=1.0))
+    assert "no fillet of radius" in replay(too_big, ctx).errors()[0]
