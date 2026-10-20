@@ -2,11 +2,11 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Unstructured 2D meshes made with Gmsh (optional install), returned as a face-based Mesh.
+"""Unstructured 2D meshes made with Gmsh, returned as a face-based Mesh.
 
 Gmsh (https://gmsh.info, C. Geuzaine and J.-F. Remacle, 2009) is a free, widely used mesh
-generator with a Python interface. It is OPTIONAL: install it with  pip install -e ".[mesh]".
-Without it AeroFlowSim still works (structured meshes only), and this module says how to install it.
+generator with a Python interface. It is installed with AeroFlowSim (since Prompt 6d it is also the
+geometry workspace's CAD kernel); if it is missing anyway, this module says how to install it.
 
 What this module does, in plain words:
   1. Describe the geometry to Gmsh: points, curves (straight lines, smooth splines through the

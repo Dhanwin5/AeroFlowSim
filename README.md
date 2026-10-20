@@ -22,6 +22,13 @@ still change between versions. Not yet published on PyPI.
 | `quasi1d_nozzle` | Steady quasi-1D Euler flow of N2 through a conical or CSV-profile nozzle | Isentropic area-Mach and normal-shock theory |
 | `nozzle_axi` | 2D axisymmetric nozzle mesh (structured, or triangles with Gmsh), sharp or rounded throat; solver in Prompt 7 | Exact nozzle area and volume |
 | `external_2d` | Mesh of a body in a free stream (wedge, airfoils, cylinder, nose cone, your own coordinates) with Gmsh; solver in Prompt 7 | Exact domain areas and volumes |
+| `geometry_2d` | Your own 2D geometry from the geometry workspace (DXF, STEP, IGES, CSV, .dat, or sketched), meshed with Gmsh; solver in Prompt 7 | Exact areas and volumes |
+
+- **Geometry workspace** (Geometry step of the 2D templates): import DXF / STEP / IGES / coordinates,
+  sketch, transform, fillet, booleans, enclosures (circle, rectangle, C-domain, nozzle plume region
+  and plenum), name boundaries by clicking, refinement regions, suggested sizes, export. Tutorials:
+  [nozzle with a plume region](docs/tutorials/nozzle_plume.md),
+  [airfoil in a C-domain](docs/tutorials/airfoil_c_domain.md).
 
 - **GUI** (Streamlit, in the web browser) with Setup, Mesh, Run and Results tabs. The input panel
   of each case is generated automatically from the case's `schema.toml`.
@@ -53,12 +60,8 @@ Install AeroFlowSim and its dependencies (`-e` = "editable": your edits take eff
 python -m pip install -e .
 ```
 
-Optional: the Gmsh mesher, for triangle meshes and bodies in a free stream (AeroFlowSim works
-without it; the GUI says when a case needs it):
-
-```bash
-python -m pip install -e ".[mesh]"
-```
+This also installs Gmsh (meshes and the geometry workspace's CAD kernel, OpenCASCADE) and ezdxf
+(DXF files). The old command `python -m pip install -e ".[mesh]"` still works.
 
 `requirements.txt` lists the exact versions used during development
 (`python -m pip install -r requirements.txt`).

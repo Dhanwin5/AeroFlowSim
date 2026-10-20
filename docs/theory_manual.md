@@ -333,7 +333,7 @@ most CFD meshers), because Gmsh's BoundaryLayer field failed for many nozzle siz
 
 ---
 
-## 9. Geometry: rounded throat and the shape library
+## 9. Geometry: rounded throat, shape library and the geometry workspace
 
 ### 9.1 Rounded throat
 
@@ -376,6 +376,74 @@ area $\pi R^2$). Examples:
 
 **In the code:** `aeroflowsim/shapes/` (`profile.py`, one `.py` + `.toml` per shape, registry in
 `__init__.py`).
+
+### 9.3 The geometry workspace: a history of operations
+
+The workspace (Geometry step) stores a geometry as the **recipe** that makes it, like the feature
+tree of a CAD program: an ordered list of operations (template shape, import, sketch, transform,
+fillet, boolean, enclosure, boundary name, refinement region). The geometry is obtained by
+**replaying** the list from the top in the OpenCASCADE kernel (through Gmsh's `gmsh.model.occ`);
+editing an earlier operation re-runs the later ones, and undo/redo swaps one list for another. The
+list is saved as `geometry/history.json`. Replaying is deterministic, so the same list always gives
+the same geometry (tested).
+
+**Stable edge ids (lineage).** OpenCASCADE renumbers curves after a boolean, so boundary names
+cannot refer to curve numbers. Every edge carries an id naming the operation that made it
+(`op3:farfield.top`). After a topology change, each new curve is matched to the old curves
+geometrically: five interior points of the new curve are compared with densely sampled old curves
+(2000 points); if all five lie within $10^{-5}$ of the geometry size of one old curve, the new curve
+is that curve or a piece of it (pieces numbered along it: `#1`, `#2`, ...); points on several old
+curves mean a merge (`a+b`); otherwise the curve is new. A boundary name given to an id applies to
+the edge, its pieces and merges, so names survive edits.
+
+**Areas and centroids (Green's theorem).** For a face bounded by closed loops,
+$$A = \tfrac12\oint (x\,dy - y\,dx),\qquad A\,x_c = \tfrac12\oint x^2\,dy,\qquad A\,y_c = -\tfrac12\oint y^2\,dx,$$
+evaluated on the **exact** curves with 8-point Gauss-Legendre quadrature on 2, 4, 8 ... parameter
+pieces until the result changes by less than $10^{-14}$ of the size squared. Each loop is summed in its
+own direction and taken positive; holes are subtracted. (OpenCASCADE's own surface integration was
+0.2 % off on scaled faces.) The volume of revolution of an axisymmetric face follows from Pappus:
+$V = 2\pi A\,y_c$.
+
+**Picking (what was clicked).** The click becomes a world point $\mathbf p$ and a tolerance of 8 pixels
+in metres. The distance from $\mathbf p$ to a segment $\mathbf a \to \mathbf b$ is
+$$d = \left|\mathbf a + t(\mathbf b - \mathbf a) - \mathbf p\right|,\qquad
+t = \operatorname{clip}\!\left(\frac{(\mathbf p - \mathbf a)\cdot(\mathbf b - \mathbf a)}{|\mathbf b - \mathbf a|^2}, 0, 1\right),$$
+computed for every segment of every edge's points; the nearest corner point within the tolerance wins,
+else the nearest edge, else the smallest face containing $\mathbf p$ (even-odd ray-casting test: a ray
+from $\mathbf p$ to $+x$ crosses the loops an odd number of times). Snapping while sketching moves a
+click to a corner, an earlier sketch point, an edge midpoint, or the nearest grid point
+($1, 2, 5 \times 10^n$, about a twentieth of the geometry).
+
+**Healing of imported files.** Point lists lose repeated points, are closed and turned
+counter-clockwise; curves (DXF, IGES/STEP wires) are glued with an OpenCASCADE *fragment* using a
+tolerance ($10^{-5}$ of the size by default): ends closer than it become one point, identical curves
+one curve, crossing curves are split. Closed loops are found by walking from point to point (every
+point joining exactly two curves); loops inside loops become holes; open chains and branching points
+are reported. CAD units: OpenCASCADE reads STEP/IGES in mm (converted from the file's unit); Gmsh's
+import scaling turns that into metres exactly (lines stay lines, circles stay circles).
+
+**Meshing an edited geometry.** Boundary names become Gmsh physical groups and therefore mesh patches.
+Sizes: $h(d) = \min(h_{max}, h_w + (g-1)d)$ from the walls (as in 8.2); corners from $h_w/4$;
+refinement box and circle: Gmsh *Box* and *Ball* fields, size $h_r$ inside, growing outside over
+$(h_{max} - h_r)/(g - 1)$; wake line: the same ramp starting at half its width from the line. Far-field
+arcs keep at least 120 faces per full circle. Inflation layers (8.3) on walls marked for them: the
+nodes along the wall chain come from a 1D mesh, the layers are grown with the fluid on the right-hand
+side, the region they cover is cut out of the fluid face by a boolean (neighbouring straight
+boundaries are trimmed and keep their names), and Gmsh meshes the rest with one edge per layer-top
+segment. An unedited template geometry still uses the template's own mesher, so validated meshes are
+unchanged.
+
+**Suggested sizes (first smart rule).** With $L$ the reference length (length along $x$ of the bodies,
+or of the whole fluid region) and $\ell_{min}$ the shortest wall edge:
+$h_w = \min(L/100,\ \ell_{min}/4)$; $h_{max} = \min(2L, D/20)$ around bodies or $D/25$ for internal
+flow ($D$: domain diagonal); subsonic far field at least $20L$ from the body; supersonic ($M > 1$):
+a rectangle $2L$ upstream (disturbances cannot travel upstream), $5L$ downstream and high enough that
+Mach waves at $\mu = \arcsin(1/M)$ leave through the outlet: $H \ge \tan\mu\,(2 + 1 + 5)L + L$.
+Every suggestion is shown with its reason and applied only by the user.
+
+**In the code:** `aeroflowsim/geometry_model/` (`document.py` replay, `kernel.py` lineage and
+`face_integrals`, `picking.py`, `snapping.py`, `healing.py`, `importers.py`, `export.py`),
+`aeroflowsim/workspace_mesh.py`, `aeroflowsim/smart_rules.py`, geometry checks in `aeroflowsim/checks.py`.
 
 ---
 
@@ -428,6 +496,8 @@ The GUI side is described in `docs/developer_guide.md`.
 - Geuzaine, C., Remacle, J.-F. (2009). Gmsh: a 3-D finite element mesh generator with built-in pre- and
   post-processing facilities. *Int. J. Numer. Meth. Engng.* 79(11), 1309-1331.
 - Gottlieb, S., Shu, C.-W. (1998). Total variation diminishing Runge-Kutta schemes. *Math. Comp.* 67, 73-85.
+- Moitzi, M. *ezdxf: a Python package to create and modify DXF documents*, version 1.4 (MIT licence).
+- Open Cascade SAS. *Open CASCADE Technology*, version 7.9 (used through Gmsh's OCC interface).
 - Moukalled, F., Mangani, L., Darwish, M. (2016). *The Finite Volume Method in Computational Fluid
   Dynamics*. Springer.
 - Toro, E. F. (2009). *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed. Springer.

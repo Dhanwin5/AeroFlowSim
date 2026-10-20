@@ -34,6 +34,14 @@ Clarity matters more than speed.
 - **Out-of-date status by fingerprints:** a mesh or run stores a SHA-256 of the inputs it depends on
   (+ input-file contents, template code, version); a changed upstream input marks everything
   downstream "needs update", and old results are always labelled out of date, never shown as current.
+- **Geometry workspace** (Geometry step of 2D templates, `aeroflowsim/geometry_model/`): the geometry is a
+  history of operations (template shape, import, sketch, transform, fillet, boolean, enclosure, boundary
+  names, refinement regions) replayed in OpenCASCADE (Gmsh `occ`, only in `kernel.py`); edge ids are
+  stable across edits (lineage); saved as `geometry/history.json`; every edit is one undoable command.
+  Unedited template geometry keeps the template's own mesher (`workspace_mesh.mesh_for`); edited geometry
+  is meshed by `workspace_mesh.py` with boundary names as patches. A template joins with
+  `workspace_settings(params, built)` (+ `size_inputs` for the suggested sizes). Page logic without Qt
+  in `gui/geometry_logic.py`. Units in the workspace GUI: mm.
 - The input panel is generated from `schema.toml`: the logic (`gui/panel_model.py`, no Qt) is separate
   from the drawing (`gui/panel.py`) — zero GUI code per template or shape.
 - Solver code must **not depend on the GUI**: only `aeroflowsim/gui/` (and the old `app.py`) may import
@@ -65,7 +73,12 @@ aeroflowsim/               the Python package
     project.py             projects: create/open/save/duplicate, fingerprints and step status
     result_io.py           exact save/load of a run (results/run.npz, no pickle)
     tasks.py               background Worker: warm helper process for mesh and run jobs (Stop, Cancel)
-    geometry_preview.py    template geometry as named boundary curves (Geometry step)
+    geometry_preview.py    template geometry as named boundary curves (1D templates' Geometry step)
+    geometry_model/        geometry workspace (no Qt): document.py (history, replay), operations.py,
+                           kernel.py (OCC, stable edge ids), built.py, importers.py, healing.py,
+                           boundaries.py, picking.py, snapping.py, export.py
+    workspace_mesh.py      mesh_for(): template mesher, or Gmsh mesh of an edited workspace geometry
+    smart_rules.py         suggestions with reasons (sizes, enclosure); applied only by the user
     checks.py              validity checks (convergence, mass balance, ...)
     job.py                 old thread-based run for the Streamlit GUI
     runner.py              output files: CSV, YAML summary, PNG plots
@@ -83,7 +96,8 @@ aeroflowsim/               the Python package
         app.py, main_window.py   start-up, main window (menus, docks, jobs, undo)
         panel_model.py, panel.py input panel: logic (no Qt) + Qt drawing
         workflow_strip.py        step chips with status and progress
-        steps/                   one page per step (geometry, mesh, setup, run, results) + welcome
+        steps/                   one page per step (geometry = the workspace, mesh, setup, run, results) + welcome
+        geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt), view, dialogs
         vtk_view.py, figures.py  VTK view (meshes, picking), embedded matplotlib plots
         jobs.py, undo.py, logic.py, theme.py, widgets.py, dialogs.py, app_info.py
         streamlit_panel.py       old Streamlit input panel
@@ -95,9 +109,11 @@ cases/<case_name>/         one folder per case
     mesh/                  generated mesh.npz + mesh.vtu (git-ignored)
 cases/_template/           copy-me skeleton for a new case (ignored by discovery and pytest)
 cases/external_2d/         body in a free stream (shape library + Gmsh), mesh only until Prompt 7
+cases/geometry_2d/         custom 2D geometry from the workspace (import / sketch), mesh only until Prompt 7
 docs/theory_manual.md      equations and methods, with references and where they are in the code
 docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK view, jobs, projects)
 docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)
+docs/tutorials/            step-by-step tutorials (nozzle with plume region, airfoil in a C-domain)
 spikes/                    throwaway proofs of concept (not part of the package)
 validation/<case_name>/    reference.toml (values, sources, tolerances) + validate.py
 validation/run_all.py      runs all validation cases, writes validation/report.md
@@ -145,9 +161,9 @@ Commands (from the project folder):
 8. After each working step, make a **git commit** with a clear message.
 9. Use a Python virtual environment in **`.venv`**; the project is installed into it with
    `pip install -e .`. Dependencies (pyproject.toml): numpy, scipy, matplotlib, plotly, streamlit,
-   pyyaml, pytest, PySide6-Essentials, vtk, pyvista, pyvistaqt, pytest-qt (exact versions in
-   requirements.txt). Optional group `mesh` (Gmsh): `pip install -e ".[mesh]"`. AeroFlowSim must start
-   and work without it; tests that need it use `pytest.importorskip("gmsh")`.
+   pyyaml, pytest, PySide6-Essentials, vtk, pyvista, pyvistaqt, pytest-qt, gmsh (meshes and the
+   workspace's OpenCASCADE kernel; required since 6d), ezdxf (DXF files) - exact versions in
+   requirements.txt. The old `pip install -e ".[mesh]"` still works (empty group).
 10. Every `.py` file starts with the AeroFlowSim licence header (GPL-3.0-or-later).
 11. Ask before deleting files or making changes that were not requested.
 12. **Privacy:** the desktop GUI makes no network connections, contains no web addresses, opens only
@@ -194,7 +210,7 @@ Commands (from the project folder):
     (move, rotate, scale, mirror, point table, drag points); sketch (line, arc, spline); enclosure tool
     (box, circle, C-shape around the body; inlet plenum and plume region for nozzles); booleans (Gmsh
     OpenCASCADE); name boundaries by clicking; refinement regions; smart rule: suggested enclosure and
-    mesh sizes.
+    mesh sizes (done).
   - 6e remaining shapes (bell nozzle, ramp and spike intakes, biconvex, NACA 5-digit, ogive, von Karman,
     power-law, sphere, hemisphere-cylinder, sphere-cone); structured C-grid / O-grid meshes via Gmsh
     (transfinite); mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh).

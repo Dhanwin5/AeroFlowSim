@@ -137,12 +137,52 @@ old fingerprint back, so the status turns green again without recomputing.
 
 Making a mesh or a run saves the project (the files on disk always match `project.yaml`).
 
-## 8. Tests
+## 8. The geometry workspace
+
+The Geometry step of 2D templates (those whose `case.py` has `workspace_settings`) is a small CAD
+program. Its parts, from the bottom up:
+
+| Layer | Module | Qt? |
+|---|---|---|
+| History, operations, replay | `geometry_model/document.py`, `operations.py` | no |
+| CAD kernel (only place calling `gmsh.model.occ`), stable edge ids | `geometry_model/kernel.py` | no |
+| Replayed geometry as plain data (vertices, edges, faces, names, regions) | `geometry_model/built.py` | no |
+| Import, healing, export; picking; snapping; boundary types and suggestions | `geometry_model/*.py` | no |
+| Page logic: fields of each operation, prefilled operations, boundary table, handles | `gui/geometry_logic.py` | no |
+| Drawing, picking clicks, drag modes | `gui/geometry_view.py` | yes |
+| Forms and dialogs (generated from `FIELDS`) | `gui/geometry_forms.py` | yes |
+| The page (tool bar, History / Boundaries / Dimensions tabs, sketch bar) | `gui/steps/geometry.py` | yes |
+| Mesher for edited geometry | `workspace_mesh.py` | no |
+
+**Data flow.** The project holds the history in memory (`Project.edited_geometry`, written to
+`geometry/history.json` by Save; `None` = not edited, the template's own geometry). The page replays
+it (`replay(document, project.replay_context())`) only when the history or the geometry inputs
+changed, draws the result and keeps the selection as `(kind, id)` pairs. Every edit builds a NEW
+document and calls `window.edit_geometry(document, text)`, which pushes one `SetGeometry` undo
+command (old and new history); undo/redo call `window.apply_geometry`.
+
+**Adding an operation.** One class in `geometry_model/operations.py` (`type`, `title`, `DEFAULTS`,
+`apply(kernel, context)`), listed in `OPERATIONS`; one `FIELDS` entry in `gui/geometry_logic.py` for
+its settings form; a branch in `operation_for()` if it is pre-filled from the selection; a tool bar
+entry in `TOOLS`. Name new curves with `kernel.name_edge` (or let `kernel.relabel` match them after a
+boolean).
+
+**Templates.** A template joins the workspace with `workspace_settings(params, built)` (its Gmsh
+settings) and, for the suggested sizes, `size_inputs(params, built)`. Its own geometry is the
+`TemplateShape` operation (and `TemplateEnclosure` for a far field), whose parameters are the
+template's geometry inputs. `workspace_mesh.mesh_for()` uses the template's own `build_mesh` while
+the history is unedited, so validated meshes never change by accident.
+
+**Meshing jobs.** `Job.geometry` carries the edited history (a dict) to the helper process;
+`tasks._mesh_job` calls `mesh_for(case, params, document, folder)` like the command line.
+
+## 9. Tests
 
 - `tests/test_panel_model.py`, `tests/test_gui_logic.py`, `tests/test_project.py`,
-  `tests/test_tasks.py`: no window.
+  `tests/test_tasks.py`, `tests/test_geometry_*.py`, `tests/test_workspace_mesh.py`: no window.
 - `tests/gui/` (pytest-qt): the panel, the job runner and the main window driven like a user
-  (mesh, click a cell, automatic re-mesh, undo/redo, run and reopen, cancel, theme).
+  (mesh, click a cell, automatic re-mesh, undo/redo, run and reopen, cancel, theme; geometry
+  workspace: click, name, undo, sketch, every tool, import -> name -> refine -> mesh).
   Preferences go to a temporary INI file, never the user's own.
 
 Run them all: `.venv\Scripts\python.exe -m pytest` (test windows appear briefly on Windows).
