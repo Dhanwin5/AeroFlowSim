@@ -20,9 +20,11 @@ The decisions are in gui/geometry_logic.py (no Qt); this page only draws and for
 
 from pathlib import Path
 
+import numpy as np
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QFileDialog, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
+from PySide6.QtWidgets import (QCheckBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QInputDialog, QLabel, QListWidget, QListWidgetItem,
                                QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTabWidget, QToolBar,
                                QToolButton, QVBoxLayout,
                                QWidget)
@@ -30,7 +32,8 @@ from PySide6.QtWidgets import (QFileDialog, QGridLayout, QHBoxLayout, QInputDial
 from aeroflowsim.geometry_model import has_workspace, replay, template_document
 from aeroflowsim.geometry_model.boundaries import BOUNDARY_TYPES
 from aeroflowsim.geometry_model.importers import file_format, read_coordinate_points, read_wall_profile_points
-from aeroflowsim.geometry_model.operations import TEMPLATE_TYPES, ImportFile, Transform
+from aeroflowsim.geometry_model import snapping
+from aeroflowsim.geometry_model.operations import TEMPLATE_TYPES, ImportFile, Sketch, Transform
 from aeroflowsim.geometry_preview import geometry_preview
 from aeroflowsim.gui import geometry_logic as logic
 from aeroflowsim.gui.geometry_forms import ImportDialog, OperationDialog, OperationForm, PointTableDialog
@@ -44,6 +47,16 @@ IMPORT_FILTER = ("Geometry files (*.dxf *.step *.stp *.iges *.igs *.csv *.dat *.
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
 EDIT_MENU = ("transform", "fillet", "delete", "set_role", "boolean")   # in the Edit menu button
+SKETCHES = (  # (kind, menu text, what to click)
+    ("polyline", "Line / polyline", "Click the points; click the first point again to close it, or press Finish."),
+    ("arc3", "Arc (3 points)", "Click the start, a point on the arc, and the end."),
+    ("arc", "Arc (centre and ends)", "Click the centre, the start, and a point in the direction of the end "
+                                     "(counter-clockwise)."),
+    ("spline", "Spline", "Click the points the smooth curve goes through; click the first point again to close it, "
+                         "or press Finish."),
+    ("rectangle", "Rectangle", "Click two opposite corners."),
+    ("circle", "Circle", "Click the centre and a point on the circle."),
+)
 TOOLS = (   # (operation kind, button text, tooltip)
     ("transform", "Transform…", "Move, rotate (angle of attack), scale or mirror the selected faces (or everything)"),
     ("fillet", "Fillet…", "Round the selected corner (a point where two edges meet)"),
@@ -65,6 +78,8 @@ class GeometryPage(QWidget):
         self.view.picked.connect(self.on_picked)
         self.view.moved.connect(self.on_moved)
         self.view.point_moved.connect(self.on_point_moved)
+        self.view.clicked.connect(self.on_sketch_click)
+        self.sketch_kind, self.sketch_points = None, []
         self.preview = None              # 1D templates: the read-only GeometryPreview
         self.built = None                # workspace: the replayed geometry (BuiltGeometry)
         self.document = None             # the history that self.built shows
@@ -121,14 +136,15 @@ class GeometryPage(QWidget):
         splitter.addWidget(self.tabs)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
+        self.sketch_bar = self._build_sketch_bar()
         layout = QVBoxLayout(self)
         layout.addWidget(self.toolbar)
+        layout.addWidget(self.sketch_bar)
         layout.addWidget(self.banner)
         layout.addWidget(splitter, 1)
         QShortcut(QKeySequence.Delete, self, activated=lambda: self.add_operation("delete"),
                   context=Qt.WidgetWithChildrenShortcut)
-        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=lambda: self.set_selection([]),
-                  context=Qt.WidgetWithChildrenShortcut)
+        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self.escape, context=Qt.WidgetWithChildrenShortcut)
 
     def _build_toolbar(self):
         bar = QToolBar()
@@ -148,6 +164,14 @@ class GeometryPage(QWidget):
         self.act_import.setToolTip("Coordinates (CSV, .dat), nozzle wall CSV (x_mm,r_mm), DXF, STEP or IGES")
         self.act_points = bar.addAction("Point table…", self.edit_points)
         self.act_points.setToolTip("Edit the points of the selected outline in a table (mm)")
+        sketch_menu = QMenu(self)
+        for kind, text, _ in SKETCHES:
+            sketch_menu.addAction(text, lambda k=kind: self.start_sketch(k))
+        sketch_button = QToolButton(text="Sketch", popupMode=QToolButton.InstantPopup,
+                                    toolTip="Draw lines, arcs, splines, rectangles and circles (snaps to corners, "
+                                            "midpoints and the grid; points can be typed in mm)")
+        sketch_button.setMenu(sketch_menu)
+        bar.addWidget(sketch_button)
         bar.addSeparator()
         self.tool_actions = {}
         edit_menu = QMenu(self)
@@ -171,6 +195,26 @@ class GeometryPage(QWidget):
         bar.addAction(self.act_axi)
         self.act_revert = bar.addAction("Back to template", self.revert)
         self.act_revert.setToolTip("Forget the workspace edits: the template's own geometry again")
+        return bar
+
+    def _build_sketch_bar(self):
+        bar = QWidget()
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(4, 0, 4, 0)
+        self.sketch_help = QLabel(wordWrap=True)
+        self.sketch_entry = QLineEdit(placeholderText="x, y in mm, then Enter")
+        self.sketch_entry.setMaximumWidth(200)
+        self.sketch_entry.returnPressed.connect(self.type_sketch_point)
+        self.sketch_grid = QCheckBox("Snap to grid")
+        finish, cancel = QPushButton("Finish"), QPushButton("Cancel")
+        finish.clicked.connect(self.finish_sketch)
+        cancel.clicked.connect(self.cancel_sketch)
+        row.addWidget(self.sketch_help, 1)
+        row.addWidget(self.sketch_entry)
+        row.addWidget(self.sketch_grid)
+        row.addWidget(finish)
+        row.addWidget(cancel)
+        bar.setVisible(False)
         return bar
 
     # ================================================================================== refreshing
@@ -611,6 +655,87 @@ class GeometryPage(QWidget):
         kind = self.built.names[edges[0]].type
         self.commit(logic.set_boundary_type(self.document, self.built, name, kind, inflation=on),
                     f"inflation {'on' if on else 'off'} for {name}")
+
+    # ---- sketching --------------------------------------------------------------------------------
+
+    def start_sketch(self, kind):
+        if self.built is None:
+            return
+        self.sketch_kind, self.sketch_points = kind, []
+        step = snapping.grid_step(self.built.size if not self.built.empty else 1.0)
+        self.sketch_grid.setText(f"Snap to grid ({logic.mm(step)} mm)")
+        self._grid_step = step
+        self.sketch_help.setText(f"<b>{dict((k, t) for k, t, _ in SKETCHES)[kind]}</b>: "
+                                 + dict((k, h) for k, _, h in SKETCHES)[kind])
+        self.sketch_bar.setVisible(True)
+        self.view.set_mode("click")
+        for action in self.mode_actions.values():
+            action.setChecked(False)
+        self.sketch_entry.setFocus()
+
+    def on_sketch_click(self, x, y, tolerance):
+        if self.sketch_kind is None:
+            return
+        grid = self._grid_step if self.sketch_grid.isChecked() else None
+        point, what = snapping.snap(self.built, (x, y), tolerance, self.sketch_points, grid)
+        closes = what == "sketch point" and len(self.sketch_points) >= 3 and \
+            np.allclose(point, self.sketch_points[0]) and self.sketch_kind in ("polyline", "spline")
+        if closes:
+            self.finish_sketch(closed=True)
+            return
+        self.add_sketch_point(point)
+
+    def type_sketch_point(self):
+        text = self.sketch_entry.text().replace(";", ",")
+        try:
+            x, y = (float(v) for v in text.split(","))
+        except ValueError:
+            self.banner.show_message("Type a point as two numbers in mm: x, y (for example 12.5, 3).", "warning")
+            return
+        self.sketch_entry.clear()
+        self.add_sketch_point(np.array([x, y]) * logic.MM)
+
+    def add_sketch_point(self, point):
+        self.sketch_points.append(np.asarray(point, dtype=float))
+        pts = np.array(self.sketch_points)
+        self.view.set_handles(pts)
+        self.view.set_preview(pts)
+        self.banner.show_message(f"Point {len(pts)}: ({logic.mm(pts[-1][0])}, {logic.mm(pts[-1][1])}) mm")
+        if len(pts) == Sketch.COUNTS.get(self.sketch_kind, 0):
+            self.finish_sketch()
+
+    def finish_sketch(self, closed=False):
+        kind, pts = self.sketch_kind, [p.tolist() for p in self.sketch_points]
+        if kind is None:
+            return
+        needed = Sketch.COUNTS.get(kind, 2)
+        if len(pts) < needed:
+            self.banner.show_message(f"This needs {needed} points; {len(pts)} so far.", "warning")
+            return
+        op = Sketch(kind=kind, points=pts, closed=closed)
+        self.cancel_sketch()
+        if closed or kind in ("rectangle", "circle"):
+            dialog = OperationDialog(op, "Sketch", "A closed shape becomes a face: a solid body, or a fluid domain.",
+                                     self)
+            if not dialog.exec():
+                return
+            op = dialog.result_op
+        document = self.document.copy()
+        document.add(op)
+        self.commit(document, op.summary())
+
+    def cancel_sketch(self):
+        self.sketch_kind, self.sketch_points = None, []
+        self.sketch_bar.setVisible(False)
+        self.view.set_preview(None)
+        self.view.set_handles(None)
+        self.set_mode("select")
+
+    def escape(self):
+        if self.sketch_kind is not None:
+            self.cancel_sketch()
+        else:
+            self.set_selection([])
 
     # ---- whole document ---------------------------------------------------------------------------
 

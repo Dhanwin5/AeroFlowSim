@@ -107,6 +107,11 @@ FIELDS = {
         Field("width", "Width", "length", show_if=("shape", ("wake",))),
         Field("size", "Cell size", "length"),
     ),
+    "sketch": (
+        Field("closed", "Closed (back to the first point; makes a face)", "bool",
+              show_if=("kind", ("polyline", "spline"))),
+        Field("role", "A closed shape is", "choice", ROLE_CHOICES),
+    ),
     "import": (
         Field("unit", "Unit of the numbers", "choice", (("file", "As the file says"),) + _choices(UNITS)),
         Field("role", "The faces are", "choice", (("auto", "Decide (edge on y = 0: fluid)"),) + ROLE_CHOICES),

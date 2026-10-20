@@ -363,6 +363,96 @@ class ImportFile(Operation):
             healing.name_faces(kernel, tags, self.id, p["role"])
 
 
+class Sketch(Operation):
+    """A sketched entity from points [m]:
+        polyline   straight lines through the points (closed: back to the first point, making a face)
+        spline     a smooth curve through the points (closed: a smooth closed curve, making a face)
+        arc3       a circle arc from point 1 through point 2 to point 3
+        arc        a circle arc around point 1 (the centre), counter-clockwise from point 2 to point 3's direction
+        rectangle  two opposite corners -> a face
+        circle     the centre and a point on the circle -> a face
+    Closed shapes become faces with the given role (solid: a body; fluid: a domain).
+    Edges get ids "<op>:e1", "<op>:e2" ... in drawing order. A full constraint solver (parallel,
+    tangent, driving dimensions) is not part of it (see docs/gap_register.md).
+    """
+
+    type, title = "sketch", "Sketch"
+    DEFAULTS = {"kind": "polyline", "points": [], "closed": False, "role": SOLID}
+    KINDS = ("polyline", "spline", "arc3", "arc", "rectangle", "circle")
+    COUNTS = {"arc3": 3, "arc": 3, "rectangle": 2, "circle": 2}      # fixed numbers of points
+
+    def summary(self) -> str:
+        p = self.params
+        closed = p["closed"] or p["kind"] in ("rectangle", "circle")
+        names = {"polyline": "polyline", "spline": "spline", "arc3": "arc (3 points)", "arc": "arc (centre and ends)",
+                 "rectangle": "rectangle", "circle": "circle"}
+        text = f"Sketch {names.get(p['kind'], p['kind'])}, {len(p['points'])} points"
+        return text + (f", closed ({p['role']})" if closed else "")
+
+    def apply(self, kernel, context):
+        p = self.params
+        kind = p["kind"]
+        pts = np.asarray(p["points"], dtype=float).reshape(-1, 2)
+        if kind not in self.KINDS:
+            raise ValueError(f"unknown sketch entity '{kind}'")
+        if kind in self.COUNTS and len(pts) != self.COUNTS[kind]:
+            raise ValueError(f"a {kind} needs exactly {self.COUNTS[kind]} points")
+        if len(pts) < 2:
+            raise ValueError("a sketch needs at least two points")
+        if p["role"] not in (FLUID, SOLID):
+            raise ValueError("a face is either fluid or solid")
+        occ, P = kernel.occ, kernel.point
+        size = float(np.ptp(pts, axis=0).max())
+        if size <= 0.0:
+            raise ValueError("the sketch points are all at the same place")
+        curves, closed = [], False
+        if kind == "polyline":
+            closed = bool(p["closed"]) and len(pts) >= 3
+            tags = [P(*q) for q in pts]
+            pairs = list(zip(tags, tags[1:] + (tags[:1] if closed else [])))
+            if any(np.linalg.norm(pts[i] - pts[(i + 1) % len(pts)]) <= 1e-12 * size for i in range(len(pairs))):
+                raise ValueError("two neighbouring sketch points are at the same place")
+            curves = [occ.addLine(a, b) for a, b in pairs]
+        elif kind == "spline":
+            closed = bool(p["closed"]) and len(pts) >= 3
+            tags = [P(*q) for q in pts]
+            curves = [occ.addSpline(tags + tags[:1] if closed else tags)]
+        elif kind == "arc3":
+            a, m, b = (P(*q) for q in pts)
+            try:
+                curves = [occ.addCircleArc(a, m, b, center=False)]
+            except Exception:
+                raise ValueError("the three arc points lie on a straight line") from None
+        elif kind == "arc":
+            c, s, e = pts
+            r = float(np.linalg.norm(s - c))
+            a0 = math.atan2(s[1] - c[1], s[0] - c[0])
+            a1 = math.atan2(e[1] - c[1], e[0] - c[0])
+            while a1 <= a0:
+                a1 += 2.0 * math.pi
+            if not r > 0.0:
+                raise ValueError("the arc's start point is at its centre")
+            curves = [occ.addCircle(c[0], c[1], 0.0, r, angle1=a0, angle2=a1)]
+        elif kind == "rectangle":
+            (x0, y0), (x1, y1) = pts.min(axis=0), pts.max(axis=0)
+            if not (x1 > x0 and y1 > y0):
+                raise ValueError("the rectangle needs two opposite corners")
+            tags = [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)]
+            curves = [occ.addLine(tags[k], tags[(k + 1) % 4]) for k in range(4)]
+            closed = True
+        else:                                                     # circle
+            c, q = pts
+            r = float(np.linalg.norm(q - c))
+            if not r > 0.0:
+                raise ValueError("the circle needs a centre and a point on it")
+            curves = [occ.addCircle(c[0], c[1], 0.0, r)]
+            closed = True
+        for k, tag in enumerate(curves, start=1):
+            kernel.name_edge(tag, f"{self.id}:e{k}")
+        if closed:
+            kernel.add_face(curves, f"{self.id}:face", p["role"])
+
+
 # =============================================================================================
 # Domain, names and mesh controls
 # =============================================================================================
@@ -672,7 +762,7 @@ def _copy_entities(kernel, targets, op_id):
 
 
 OPERATIONS = {cls.type: cls for cls in (TemplateShape, TemplateEnclosure, Transform, Delete, Fillet, BooleanOp, SetRole,
-                                        ImportFile, Enclosure, NameBoundary, Refinement)}
+                                        ImportFile, Sketch, Enclosure, NameBoundary, Refinement)}
 
 
 def operation_from_dict(data) -> Operation:

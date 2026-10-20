@@ -14,7 +14,7 @@ It builds on MeshView (gui/vtk_view.py: camera, Fit, click-versus-pan). What it 
   - modes: "select" (left drag pans), "move" (drag the selection: emits moved(dx, dy) [m]),
     "points" (drag one of the handle points - outline points, enclosure size, region corners -:
     emits point_moved(index, x, y) [m]),
-    "click" (sketching: emits clicked(x, y) [m]). In the drag modes the mouse wheel still zooms.
+    "click" (sketching: emits clicked(x, y, tolerance) [m]). In those modes the mouse wheel still zooms.
 """
 
 import numpy as np
@@ -68,7 +68,7 @@ class GeometryView(MeshView):
     picked = Signal(str, str, bool)          # kind ("vertex", "edge", "face" or "" for nothing), id, add
     moved = Signal(float, float)             # drag of the selection ended: dx, dy [m]
     point_moved = Signal(int, float, float)  # a handle point was dragged to x, y [m]
-    clicked = Signal(float, float)           # a click in "click" mode at x, y [m]
+    clicked = Signal(float, float, float)    # a click in "click" mode at x, y [m], with the pick tolerance [m]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -146,7 +146,7 @@ class GeometryView(MeshView):
         if entries:
             colours = [[name, UNNAMED if kind == "_unnamed" else PATCH_COLOURS.get(kind, "gray")]
                        for name, kind in entries]
-            self.plotter.add_legend(colours, bcolor=None, face="line", size=(0.16, 0.045 * len(entries)),
+            self.plotter.add_legend(colours, bcolor=None, face="line", size=(0.24, 0.045 * len(entries)),
                                     loc="upper right", font_family="arial")
 
     def _draw_selection(self):
@@ -187,6 +187,16 @@ class GeometryView(MeshView):
         if self.built is not None and not self.closed:
             self._draw_handles()
 
+    def set_preview(self, points):
+        """A thin line through the points of the sketch being drawn ((n, 2) [m]); None removes it."""
+        if getattr(self, "_sketch_actor", None) is not None:
+            self.plotter.remove_actor(self._sketch_actor)
+            self._sketch_actor = None
+        if points is not None and len(points) >= 2:
+            self._sketch_actor = self.plotter.add_mesh(_lines([np.asarray(points)], 2 * self._dz), color="#ea4335",
+                                                       line_width=2, reset_camera=False)
+        self.plotter.render()
+
     def _draw_handles(self):
         if getattr(self, "_handle_actor", None) is not None:
             self.plotter.remove_actor(self._handle_actor)
@@ -198,7 +208,7 @@ class GeometryView(MeshView):
         self.plotter.render()
 
     def clear(self, message=""):
-        self._handle_actor = None
+        self._handle_actor = self._sketch_actor = None
         super().clear(message)
         self.highlight = None
 
@@ -300,7 +310,7 @@ class GeometryView(MeshView):
         if moved_pixels > CLICK_PIXELS:
             return                                           # it was a pan
         if self.mode == "click":
-            self.clicked.emit(float(p[0]), float(p[1]))
+            self.clicked.emit(float(p[0]), float(p[1]), self.tolerance(x, y))
             return
         self.pick_at(x, y, bool(interactor.GetShiftKey() or interactor.GetControlKey()))
 

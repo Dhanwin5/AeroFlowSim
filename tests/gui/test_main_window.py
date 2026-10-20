@@ -4,6 +4,8 @@
 
 """Smoke tests of the desktop GUI, driven like a user would (offscreen, no window on the screen)."""
 
+import math
+
 import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QMessageBox, QPushButton
@@ -290,3 +292,33 @@ def test_one_dimensional_template_keeps_the_read_only_drawing(qtbot, window, tmp
     _open(window, tmp_path, "quasi1d_nozzle")
     page = window.pages["geometry"]
     assert not page.toolbar.isVisible() and page.preview is not None and page.built is None
+
+
+def test_sketch_typed_and_clicked_points(qtbot, window, tmp_path, monkeypatch):
+    from aeroflowsim.gui import geometry_forms
+    from aeroflowsim.gui.steps import geometry as geometry_step
+    _open(window, tmp_path, "geometry_2d")
+    page = window.pages["geometry"]
+    assert page.document.operations == [] and page.built.empty
+
+    class Accept:                                      # the role dialog: keep the defaults, press OK
+        def __init__(self, op, *args, **kwargs):
+            self.result_op = op
+
+        def exec(self):
+            return True
+
+    monkeypatch.setattr(geometry_step, "OperationDialog", Accept)
+    page.start_sketch("rectangle")
+    assert page.sketch_bar.isVisibleTo(page) and page.view.mode == "click"
+    for text in ("-50, -50", "50; 50"):
+        page.sketch_entry.setText(text)
+        page.type_sketch_point()
+    assert page.sketch_kind is None and "op1:face" in page.built.faces          # finished after 2 corners
+    assert page.built.faces["op1:face"].area == pytest.approx(0.01)
+    page.start_sketch("circle")
+    page.on_sketch_click(0.0, 0.0, 1e-3)
+    page.on_sketch_click(0.01, 0.0, 1e-3)
+    assert page.built.faces["op2:face"].area == pytest.approx(math.pi * 1e-4, rel=1e-9)
+    assert window.undo.count() == 2
+    assert geometry_forms.OperationDialog is not Accept
