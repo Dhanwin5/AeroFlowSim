@@ -80,7 +80,7 @@ class TemplateShape(Operation):
             build_body(kernel, self.id, profile)
 
     def summary(self) -> str:
-        return "Template shape (from the geometry inputs)"
+        return "Template shape (follows the geometry inputs)"
 
 
 class TemplateEnclosure(Operation):
@@ -103,7 +103,7 @@ class TemplateEnclosure(Operation):
         build_enclosure(kernel, self.id, kind, dims, half)
 
     def summary(self) -> str:
-        return "Template far field (from the geometry inputs)"
+        return "Template far field (follows the geometry inputs)"
 
 
 # =============================================================================================

@@ -39,6 +39,12 @@ A case folder holds two required files:
         Read-only numbers that follow from the inputs (e.g. the total inflation thickness).
         The GUI shows them under the input panel; they cannot be typed in.
 
+    workspace_settings(params)    -> GmshSettings                   (optional)
+        Only for templates that make 2D meshes: their geometry can then be edited in the geometry
+        workspace (aeroflowsim/geometry_model/). When the geometry has been edited there, the mesh is
+        made by aeroflowsim/workspace_mesh.py with these Gmsh settings (sizes in metres) instead of
+        build_mesh(); an unedited geometry still uses build_mesh(), exactly as before.
+
     reference_lines(params, mesh) -> list[Line]                     (optional)
         Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
         (see aeroflowsim/results.py). Kept apart from reference() because reference() returns
@@ -62,7 +68,8 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 
 # Functions case.py must define, and optional ones.
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
-OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells"]
+OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells",
+                      "workspace_settings"]
 
 
 def check_module(module, has_solver=True) -> list[str]:

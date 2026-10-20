@@ -52,7 +52,7 @@ def test_window_opens_on_the_welcome_page_with_every_template(window):
 def test_nozzle_project_geometry_mesh_and_picking(qtbot, window, tmp_path):
     _open(window, tmp_path, "nozzle_axi")
     geometry = window.pages["geometry"]
-    assert geometry.preview is not None and {c.name for c in geometry.preview.curves} == {"wall", "inlet", "outlet", "axis"}
+    assert geometry.built is not None and set(geometry.built.patches()) == {"wall", "inlet", "outlet", "axis"}
     assert window.strip.chips["mesh"].status == "none"
     assert window.strip.chips["run"].status == "disabled"          # mesh-only template
     window.go_to("mesh")
@@ -254,3 +254,39 @@ def test_quasi1d_setup_shows_derived_numbers_and_geometry_units(qtbot, window, t
     dims = {r[0]: r for r in window.pages["geometry"].summary.rows()}
     assert dims["d throat"][1:] == ("280", "µm") and dims["d inlet"][1:] == ("2", "mm")
     assert dims["area ratio"][2] == ""
+
+
+
+# ---- geometry workspace ----------------------------------------------------------------------------------
+
+def test_workspace_click_name_undo_and_save(qtbot, window, tmp_path):
+    from aeroflowsim.geometry_model.operations import NameBoundary
+    project = _open(window, tmp_path, "nozzle_axi")
+    page = window.pages["geometry"]
+    assert page.toolbar.isVisible() and page.history.count() == 1
+    # Select the inlet edge as a click would (picked signal), then name it like the dialog does.
+    page.on_picked("edge", "op1:inlet", False)
+    assert page.selection == [("edge", "op1:inlet")]
+    assert window.properties.rows()[0][1] == "op1:inlet"
+    document = page.document.copy()
+    document.add(NameBoundary(edges=["op1:inlet"], name="chamber", kind="inlet"))
+    page.commit(document, "name the inlet")
+    assert "chamber" in page.built.patches() and page.history.count() == 2
+    assert window.strip.chips["mesh"].status == "none" and project.dirty
+    window.undo.undo()
+    assert "chamber" not in page.built.patches() and page.history.count() == 1
+    window.undo.redo()
+    window.save()
+    assert project.history_path.is_file()
+    needs_rendering(page.view)
+    page.view.fit()
+    edge = page.built.edges["op1:inlet"]
+    x, y = page.view.display_point(edge.midpoint)
+    page.view.pick_at(int(round(x)), int(round(y)))
+    assert page.selection == [("edge", "op1:inlet")]
+
+
+def test_one_dimensional_template_keeps_the_read_only_drawing(qtbot, window, tmp_path):
+    _open(window, tmp_path, "quasi1d_nozzle")
+    page = window.pages["geometry"]
+    assert not page.toolbar.isVisible() and page.preview is not None and page.built is None

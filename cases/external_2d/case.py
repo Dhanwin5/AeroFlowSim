@@ -44,6 +44,11 @@ def settings(params, profile):
                         msh_path=CASE_DIR / "mesh" / "mesh.msh" if params["save_msh"] else None)
 
 
+def workspace_settings(params):
+    """Gmsh settings for a geometry edited in the geometry workspace (sizes x the shape's reference length)."""
+    return settings(params, geometry(params))
+
+
 def build_mesh(params):
     """Gmsh mesh of the fluid around the body (patches wall, farfield, and symmetry or axis)."""
     profile = geometry(params)

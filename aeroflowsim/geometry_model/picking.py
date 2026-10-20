@@ -6,7 +6,8 @@
 
 The view turns the mouse position (pixels) into a world point (x, y) [m] and a tolerance
 (a few pixels converted to metres). Then:
-  - a VERTEX is picked if one lies within the tolerance (the nearest one);
+  - a VERTEX (a corner; smooth joints between curves are skipped) is picked if one lies within
+    the tolerance (the nearest one);
   - else an EDGE: the distance from the point to every straight segment of every edge's points
     is computed exactly, and the nearest edge within the tolerance wins;
   - else a FACE: the smallest face whose loops contain the point (even-odd ray-casting test).
@@ -50,7 +51,9 @@ def nearest_vertex(built, xy, tolerance):
     """(vertex id, distance [m]) of the nearest vertex within tolerance, or None."""
     if not built.vertices:
         return None
-    ids = list(built.vertices)
+    ids = [i for i, v in built.vertices.items() if v.corner]     # smooth joints of curves cannot be picked
+    if not ids:
+        return None
     pts = np.array([built.vertices[i].xy for i in ids])
     d = np.linalg.norm(pts - np.asarray(xy, dtype=float), axis=1)
     k = int(d.argmin())

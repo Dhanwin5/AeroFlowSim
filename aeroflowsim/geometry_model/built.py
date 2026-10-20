@@ -34,6 +34,8 @@ class Vertex:
     id: str
     xy: np.ndarray                  # (2,) [m]
     edges: list = field(default_factory=list)   # ids of the edges that end here
+    corner: bool = True             # a real corner (the outline turns here, or not exactly two edges meet);
+                                    # False where two curves join smoothly (shown and picked only if True)
 
 
 @dataclass

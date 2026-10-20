@@ -62,6 +62,11 @@ def gmsh_settings(params, profile):
         msh_path=CASE_DIR / "mesh" / "mesh.msh" if params["save_msh"] else None)
 
 
+def workspace_settings(params):
+    """Gmsh settings for a geometry edited in the geometry workspace (sizes x the throat diameter input)."""
+    return gmsh_settings(params, geometry(params))
+
+
 def build_mesh(params):
     """Mesh from the axis (r = 0) to the wall, inlet to exit (a face-based Mesh): structured or Gmsh."""
     profile = geometry(params)

@@ -164,7 +164,7 @@ def run_operations(kernel, document, context):
             continue
         try:
             op.apply(kernel, context)
-            kernel.sync()
+            kernel.remove_free_points()
         except Exception as error:      # any kernel error becomes a message, never a crash
             text = str(error) or type(error).__name__
             kernel.message(f"{op.title} ({op.id}) failed: {text}", "error")

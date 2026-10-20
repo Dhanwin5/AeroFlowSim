@@ -42,7 +42,7 @@ from aeroflowsim.gui.steps.run import RunPage
 from aeroflowsim.gui.steps.setup import SetupPage
 from aeroflowsim.gui.steps.welcome import WelcomePage
 from aeroflowsim.gui.theme import apply_theme
-from aeroflowsim.gui.undo import SetInputs
+from aeroflowsim.gui.undo import SetGeometry, SetInputs
 from aeroflowsim.gui.widgets import CheckList, ValueTable
 from aeroflowsim.gui.workflow_strip import SHORTCUTS, TITLES, WorkflowStrip
 from aeroflowsim.mesh import Mesh
@@ -576,6 +576,21 @@ class MainWindow(QMainWindow):
             self.auto_mesh_note = ""
             self.auto_mesh_timer.start()
         self.refresh_all()
+
+    def edit_geometry(self, document, text):
+        """Slot of the geometry workspace: a new history -> an undoable command."""
+        old = self.project.geometry_document()
+        if document.to_dict()["operations"] != old.to_dict()["operations"] or                 document.axisymmetric != old.axisymmetric:
+            self.undo.push(SetGeometry(self, old, document, text))
+
+    def apply_geometry(self, document):
+        """Use a geometry history (called by undo/redo commands)."""
+        self.project.set_geometry_document(document)
+        self.auto_mesh_note = ""
+        self.auto_mesh_timer.start()
+        self.refresh_all()
+        if self.current_step != "geometry":
+            self.pages["geometry"].refresh()
 
     # ================================================================================== jobs
 

@@ -45,6 +45,7 @@ LINEAGE_SAMPLES = 2000      # points along a curved edge when matching edges aft
 LINEAGE_TOLERANCE = 1e-5    # a point "lies on" an old curve if closer than this x geometry size [-]
 QUADRATURE_TOLERANCE = 1e-14   # face integrals: stop refining when the change is below this x size² [-]
 QUADRATURE_MAX_PIECES = 4096   # at most this many quadrature pieces per curve [-]
+CORNER_ANGLE = 5.0           # a vertex where the outline turns more than this is a corner [deg]
 KINDS = {"Line": "line", "Circle": "arc", "Ellipse": "ellipse", "BSpline": "spline", "Bezier": "spline"}
 
 _models = itertools.count(1)
@@ -170,6 +171,16 @@ class Kernel:
 
     def faces_with_role(self, role) -> list:
         return [tag for tag in self.face_tags() if self.face_meta.get(tag, FaceMeta("", "")).role == role]
+
+    def remove_free_points(self):
+        """Delete points no curve uses: the points a spline was drawn through and arc centres, which
+        OCC keeps as loose points (they would show up as clickable points and as mesh nodes)."""
+        self.sync()
+        loose = [(0, t) for _, t in self.gmsh.model.getEntities(0)
+                 if len(self.gmsh.model.getAdjacencies(0, t)[0]) == 0]
+        if loose:
+            self.occ.remove(loose)
+            self.sync()
 
     def free_curves(self) -> list:
         """Curve tags not used by any face (e.g. an open sketch line)."""
@@ -489,3 +500,20 @@ def _stable_vertex_ids(built):
     built.vertices = {rename[v]: Vertex(rename[v], vx.xy, vx.edges) for v, vx in built.vertices.items()}
     for edge in built.edges.values():
         edge.start, edge.end = rename.get(edge.start, edge.start), rename.get(edge.end, edge.end)
+    for vertex in built.vertices.values():
+        vertex.corner = len(vertex.edges) != 2 or turning_angle(built, vertex) > CORNER_ANGLE
+
+
+def turning_angle(built, vertex) -> float:
+    """How much the outline turns at a vertex where two edges meet [deg] (0 = smooth)."""
+    directions = []
+    for k, edge_id in enumerate(vertex.edges[:2]):
+        p = built.edges[edge_id].points
+        at_start = np.linalg.norm(p[0] - vertex.xy) <= np.linalg.norm(p[-1] - vertex.xy)
+        d = (p[1] - p[0]) if at_start else (p[-1] - p[-2])        # the edge's direction at that end
+        if k == 0:
+            d = -d if at_start else d                             # walk INTO the vertex along edge 1
+        else:
+            d = d if at_start else -d                             # and OUT of it along edge 2
+        directions.append(d / max(np.linalg.norm(d), 1e-300))
+    return float(np.degrees(np.arccos(np.clip(np.dot(*directions), -1.0, 1.0))))
