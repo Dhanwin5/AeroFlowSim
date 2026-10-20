@@ -1,0 +1,394 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Projects: the user's own work, saved in a folder that can be zipped and shared.
+
+A *template* is a case folder (cases/<name>/: schema.toml + case.py): the physics, the same for
+everyone. A *project* is one user's use of a template, in its own folder, e.g.
+
+    Documents/AeroFlowSim Projects/My Nozzle.afsproj/
+        project.yaml     AeroFlowSim version, template name, every input value, step records
+        geometry/        copies of input files (CSV profiles, coordinate files) - paths stored relative
+        mesh/            mesh.npz (exact mesh), mesh.vtu (ParaView)
+        results/         run.npz (exact results, reopened by the GUI) + the command line's files
+                         (fields.csv, residuals.csv, summary.yaml, PNG plots)
+
+Because input files are copied in and stored with relative paths, someone who opens a zipped
+copy gets exactly the same inputs and therefore exactly the same results.
+
+Up-to-date status ("fingerprints"): when a mesh or a run is produced, the project stores a short
+code (SHA-256) made from every input it depends on, the contents of the input files and the
+template's code. The status of a step compares that code with today's:
+    "ok"        produced from exactly the current inputs              (green)
+    "outdated"  produced, but an input it depends on changed since    (amber)
+    "none"      never produced                                        (grey)
+    "error"     the last attempt with the current inputs failed, or the inputs are invalid (red)
+    "disabled"  the template has no solver (mesh-only)
+Geometry inputs feed the mesh and the run; mesh inputs feed the run; so a geometry change marks
+Mesh, Run and Results "outdated" automatically, and old results are never shown as current.
+
+No GUI code here: the command line uses projects too (python -m aeroflowsim run "<folder>").
+"""
+
+import hashlib
+import json
+import re
+import shutil
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import yaml
+
+from aeroflowsim import __version__
+from aeroflowsim.discovery import CASES_DIR, PROJECT_DIR, load_case
+from aeroflowsim.mesh import Mesh, Mesh1D
+from aeroflowsim.parameters import STEPS as INPUT_STEPS
+from aeroflowsim.parameters import check_values, defaults, validate
+from aeroflowsim.result_io import RUN_FILE, load_run, save_run
+
+SUFFIX = ".afsproj"
+PROJECT_FILE = "project.yaml"
+FORMAT_VERSION = 1
+GEOMETRY_DIR, MESH_DIR, RESULTS_DIR = "geometry", "mesh", "results"
+WORKFLOW = ("geometry", "mesh", "setup", "run", "results")   # the steps of the workflow strip, in order
+MESH_1D_FILE = "mesh1d.npz"
+
+# Which input steps each product depends on.
+DEPENDS_ON = {"geometry": ("geometry",), "mesh": ("geometry", "mesh"), "run": INPUT_STEPS}
+
+
+def default_projects_dir() -> Path:
+    """Where new projects go by default: Documents/AeroFlowSim Projects (never the code folder)."""
+    return Path.home() / "Documents" / "AeroFlowSim Projects"
+
+
+def folder_for(name, parent=None) -> Path:
+    """Project folder for a name typed by the user, e.g. 'My Nozzle' -> .../My Nozzle.afsproj."""
+    clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
+    if not clean:
+        raise ValueError("Please give the project a name.")
+    if clean.lower().endswith(SUFFIX):
+        clean = clean[: -len(SUFFIX)]
+    return Path(parent or default_projects_dir()) / f"{clean}{SUFFIX}"
+
+
+def is_project(path) -> bool:
+    return (Path(path) / PROJECT_FILE).is_file()
+
+
+def _now() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _file_bytes(path) -> bytes:
+    """File contents with Windows line endings made Unix-like, so a project checked out on another
+    system has the same fingerprints."""
+    return Path(path).read_bytes().replace(b"\r\n", b"\n")
+
+
+def template_fingerprint(case) -> str:
+    """SHA-256 of the template's schema.toml and case.py: a code change makes old results outdated."""
+    h = hashlib.sha256()
+    for name in ("schema.toml", "case.py"):
+        h.update(_file_bytes(Path(case.folder) / name))
+    return h.hexdigest()
+
+
+class Project:
+    """One project folder: inputs, step records and the files produced."""
+
+    def __init__(self, folder, case, values, steps=None, created=None, modified=None, warnings=None):
+        self.folder = Path(folder)
+        self.case = case
+        self.values = dict(values)          # {input name: value}, file paths relative to the folder
+        self.steps = dict(steps or {})      # {"mesh": {...}, "run": {...}}: what was produced from what
+        self.created = created or _now()
+        self.modified = modified or self.created
+        self.warnings = list(warnings or [])   # shown to the user after opening
+        self.dirty = False                  # inputs changed since the last save
+
+    # ---- creating, opening, saving -------------------------------------------------------------
+
+    @classmethod
+    def create(cls, template, folder, values=None) -> "Project":
+        """New project from a template (case name or folder). The folder must not exist yet (or be empty)."""
+        folder = Path(folder)
+        if folder.exists() and any(folder.iterdir()):
+            raise ValueError(f"The folder {folder} already exists and is not empty; choose another name.")
+        case = load_case(template)
+        project = cls(folder, case, defaults(case.parameters()))
+        folder.mkdir(parents=True, exist_ok=True)
+        for sub in (GEOMETRY_DIR, MESH_DIR, RESULTS_DIR):
+            (folder / sub).mkdir(exist_ok=True)
+        for p in case.parameters():         # copy the template's example files in: the project is self-contained
+            if p.type == "file":
+                source = project._absolute(project.values[p.name], base=PROJECT_DIR)
+                if source.is_file():
+                    project.values[p.name] = project.import_file(source)
+        if values:
+            project.values.update(values)
+        project.save()
+        return project
+
+    @classmethod
+    def open(cls, folder) -> "Project":
+        folder = Path(folder)
+        path = folder / PROJECT_FILE
+        if not path.is_file():
+            raise ValueError(f"{folder} is not an AeroFlowSim project (no {PROJECT_FILE}).")
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if data.get("format_version", 0) > FORMAT_VERSION:
+            raise ValueError(f"{folder.name} was saved by a newer AeroFlowSim ({data.get('aeroflowsim_version')}); "
+                             "please update AeroFlowSim to open it.")
+        template = data.get("template")
+        if (CASES_DIR / str(template)).is_dir():
+            case = load_case(CASES_DIR / template)
+        else:
+            raise ValueError(f"{folder.name} uses the template '{template}', which is not installed.")
+        warnings = []
+        if data.get("template_fingerprint") not in (None, template_fingerprint(case)):
+            warnings.append(f"The template '{case.title}' has changed since this project was saved; "
+                            "results made before may differ from a new run.")
+        values = defaults(case.parameters())
+        saved = data.get("inputs") or {}
+        unknown = sorted(set(saved) - set(values))
+        if unknown:
+            warnings.append(f"Inputs no longer used by the template were ignored: {', '.join(unknown)}.")
+        missing = sorted(set(values) - set(saved))
+        if missing:
+            warnings.append(f"New inputs got their default values: {', '.join(missing)}.")
+        values.update({k: v for k, v in saved.items() if k in values})
+        return cls(folder, case, values, data.get("steps"), data.get("created"), data.get("modified"), warnings)
+
+    def to_dict(self) -> dict:
+        return {
+            "format_version": FORMAT_VERSION,
+            "aeroflowsim_version": __version__,
+            "template": Path(self.case.folder).name,
+            "template_title": self.case.title,
+            "template_fingerprint": template_fingerprint(self.case),
+            "created": self.created,
+            "modified": self.modified,
+            "inputs": self.values,
+            "steps": self.steps,
+        }
+
+    def save(self):
+        """Write project.yaml (the produced files are already in the folder)."""
+        self.modified = _now()
+        self.folder.mkdir(parents=True, exist_ok=True)
+        text = yaml.safe_dump(self.to_dict(), sort_keys=False, allow_unicode=True)
+        tmp = self.folder / (PROJECT_FILE + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(self.folder / PROJECT_FILE)    # never a half-written project.yaml
+        self.dirty = False
+
+    def duplicate(self, new_folder) -> "Project":
+        """A full copy (inputs, files, mesh, results) in new_folder; this project stays as it is."""
+        new_folder = Path(new_folder)
+        if new_folder.exists():
+            raise ValueError(f"{new_folder} already exists; choose another name.")
+        shutil.copytree(self.folder, new_folder, ignore=shutil.ignore_patterns("*.tmp"))
+        copy = Project(new_folder, self.case, self.values, json.loads(json.dumps(self.steps)), _now())
+        copy.save()
+        return copy
+
+    def save_as(self, new_folder):
+        """Copy everything to new_folder and continue working there (the old folder stays as saved)."""
+        copy = self.duplicate(new_folder)
+        self.folder, self.created, self.modified = copy.folder, copy.created, copy.modified
+        self.save()
+
+    @property
+    def name(self) -> str:
+        return self.folder.name[: -len(SUFFIX)] if self.folder.name.endswith(SUFFIX) else self.folder.name
+
+    # ---- inputs ----------------------------------------------------------------------------------
+
+    def set_value(self, name, value):
+        if self.values.get(name) != value or type(self.values.get(name)) is not type(value):
+            self.values[name] = value
+            self.dirty = True
+
+    def _absolute(self, value, base=None) -> Path:
+        path = Path(str(value))
+        return path if path.is_absolute() else Path(base or self.folder) / path
+
+    def import_file(self, source) -> str:
+        """Copy a chosen input file into geometry/ and return its relative path (stored in the inputs)."""
+        source = Path(source)
+        target_dir = self.folder / GEOMETRY_DIR
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / source.name
+        if source.resolve() == target.resolve():
+            return f"{GEOMETRY_DIR}/{target.name}"
+        stem, n = target.stem, 2
+        while target.exists() and _file_bytes(target) != _file_bytes(source):   # same name, other content
+            target = target_dir / f"{stem}_{n}{source.suffix}"
+            n += 1
+        if not target.exists():
+            shutil.copy2(source, target)
+        return f"{GEOMETRY_DIR}/{target.name}"
+
+    def resolved_values(self) -> dict:
+        """The inputs with file paths made absolute (what the case code and the engine receive)."""
+        values = dict(self.values)
+        for p in self.case.parameters():
+            if p.type == "file" and isinstance(values.get(p.name), str) and values[p.name].strip():
+                values[p.name] = str(self._absolute(values[p.name]))
+        return values
+
+    def params(self) -> dict:
+        """Validated inputs ready for the engine (ValueError naming the first problem)."""
+        return validate(self.case.parameters(), self.resolved_values())
+
+    def problems(self, steps=INPUT_STEPS) -> dict:
+        """{input: message} for every bad value among the inputs of the given steps."""
+        chosen = [p for p in self.case.parameters() if p.step in steps]
+        return check_values(chosen, self.resolved_values())
+
+    # ---- fingerprints and status -----------------------------------------------------------------
+
+    def fingerprint(self, product) -> str:
+        """SHA-256 of everything a product ('geometry', 'mesh' or 'run') depends on."""
+        h = hashlib.sha256()
+        h.update(f"{template_fingerprint(self.case)}|{__version__}|{product}".encode())
+        resolved = self.resolved_values()
+        for p in self.case.parameters():
+            if p.step not in DEPENDS_ON[product]:
+                continue
+            h.update(json.dumps([p.name, self.values.get(p.name)], sort_keys=True, default=str).encode())
+            if p.type == "file":
+                path = Path(str(resolved.get(p.name, "")))
+                h.update(_file_bytes(path) if path.is_file() else b"<missing file>")
+        return h.hexdigest()
+
+    def status(self, step) -> str:
+        """'ok', 'outdated', 'none', 'error' or 'disabled' for a workflow step (see the module text)."""
+        if step == "geometry":
+            return "error" if self.problems(("geometry",)) else "ok"
+        if step == "setup":
+            return "error" if self.problems(("setup",)) else "ok"
+        product = "run" if step in ("run", "results") else "mesh"
+        if product == "run" and not self.case.has_solver:
+            return "disabled"
+        record = self.steps.get(product) or {}
+        current = self.fingerprint(product)
+        if record.get("error") and record.get("error_fingerprint") == current:
+            return "error"
+        if not record.get("fingerprint"):
+            return "none"
+        return "ok" if record["fingerprint"] == current else "outdated"
+
+    def statuses(self) -> dict:
+        return {step: self.status(step) for step in WORKFLOW}
+
+    # ---- produced files --------------------------------------------------------------------------
+
+    @property
+    def mesh_dir(self) -> Path:
+        return self.folder / MESH_DIR
+
+    @property
+    def results_dir(self) -> Path:
+        return self.folder / RESULTS_DIR
+
+    def record_mesh(self, mesh, info=None):
+        """Remember that the mesh files in mesh/ were made from the current inputs."""
+        if isinstance(mesh, Mesh1D):
+            self.mesh_dir.mkdir(parents=True, exist_ok=True)
+            np.savez(self.mesh_dir / MESH_1D_FILE, x=mesh.x)
+        cells = mesh.n_cells
+        self.steps["mesh"] = {"fingerprint": self.fingerprint("mesh"), "time": _now(), "cells": int(cells),
+                              **(info or {})}
+        self.save()
+
+    def record_failure(self, product, message):
+        """Remember that making a product failed with the current inputs (status 'error')."""
+        record = dict(self.steps.get(product) or {})
+        record.update(error=str(message), error_fingerprint=self.fingerprint(product), error_time=_now())
+        self.steps[product] = record
+        self.save()
+
+    def record_run(self, payload, mesh):
+        """Save a finished run (results/run.npz) and remember which inputs it came from."""
+        save_run(self.results_dir, payload, mesh)
+        result = payload["result"]
+        self.steps["run"] = {"fingerprint": self.fingerprint("run"), "time": _now(),
+                             "converged": bool(result.converged), "iterations": int(result.iterations),
+                             "run_s": payload.get("run_s")}
+        self.save()
+
+    def load_mesh(self):
+        """The saved mesh (Mesh or Mesh1D), or None if there is none."""
+        if (self.mesh_dir / "mesh.npz").is_file():
+            return Mesh.load(self.mesh_dir / "mesh.npz")
+        if (self.mesh_dir / MESH_1D_FILE).is_file():
+            with np.load(self.mesh_dir / MESH_1D_FILE) as data:
+                return Mesh1D(data["x"])
+        return None
+
+    def load_results(self):
+        """The saved run payload (result, reference, checks, ...), or None if there is none."""
+        path = self.results_dir / RUN_FILE
+        return load_run(path) if path.is_file() else None
+
+    # ---- old settings files ----------------------------------------------------------------------
+
+    @classmethod
+    def from_old_settings(cls, settings_file, folder) -> "Project":
+        """Turn an old cases/<case>/settings/<name>.yaml file (Streamlit GUI) into a project."""
+        data = yaml.safe_load(Path(settings_file).read_text(encoding="utf-8")) or {}
+        project = cls.create(data.get("case") or Path(settings_file).parents[1].name, folder)
+        saved = data.get("parameters") or {}
+        for p in project.case.parameters():
+            if p.name not in saved:
+                continue
+            value = saved[p.name]
+            if p.type == "file":
+                source = project._absolute(value, base=PROJECT_DIR)
+                value = project.import_file(source) if source.is_file() else value
+            project.values[p.name] = value
+        project.save()
+        return project
+
+
+def old_settings_files() -> list[Path]:
+    """Every cases/*/settings/*.yaml file left by the Streamlit GUI."""
+    return sorted(CASES_DIR.glob("*/settings/*.yaml")) + sorted(CASES_DIR.glob("*/settings/*.yml"))
+
+
+def build_project_mesh(project):
+    """Build the mesh from the current inputs, save it in mesh/ and record it (command line).
+
+    The GUI does the same in its background worker (aeroflowsim/tasks.py, _mesh_job).
+    """
+    from aeroflowsim.vtk import mesh_cell_data, write_vtu
+
+    mesh = project.case.build_mesh(project.params())
+    if isinstance(mesh, Mesh):
+        project.mesh_dir.mkdir(parents=True, exist_ok=True)
+        mesh.save(project.mesh_dir / "mesh.npz")
+        write_vtu(project.mesh_dir / "mesh.vtu", mesh, mesh_cell_data(mesh))
+    project.record_mesh(mesh)
+    return mesh
+
+
+def run_project(project, progress=None):
+    """Mesh (if needed) and solve a project with the one engine; store mesh and results in it.
+
+    Used by the command line; the GUI does the same steps in its background worker.
+    """
+    from aeroflowsim.engine import run_case
+
+    params = project.params()
+    mesh = project.load_mesh() if project.status("mesh") == "ok" else None
+    if mesh is None:
+        mesh = build_project_mesh(project)
+    output = run_case(project.case, params, mesh=mesh, progress=progress, out_dir=project.results_dir)
+    payload = {"result": output.result, "reference": output.reference, "reference_lines": output.reference_lines,
+               "checks": output.checks, "params": output.params}
+    project.record_run(payload, mesh)
+    return output
