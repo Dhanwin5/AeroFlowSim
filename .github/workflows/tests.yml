@@ -1,6 +1,7 @@
-# Automatic testing on GitHub: every push and pull request runs the fast tests and then the
-# validation tests, on Windows and on Ubuntu Linux, with Python 3.13, with the optional Gmsh
-# mesher installed (the fast tests also pass without it; tests that need it are then skipped).
+# Automatic testing on GitHub: every push and pull request runs the fast tests (including the
+# desktop-GUI tests) and then the validation tests, on Windows and on Ubuntu Linux, with Python 3.13,
+# with the optional Gmsh mesher installed (the fast tests also pass without it; tests that need it
+# are then skipped).
 name: tests
 
 on:
@@ -29,6 +30,14 @@ jobs:
       - name: Libraries the Gmsh wheel needs (Ubuntu only)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libglu1-mesa libxcursor1 libxft2 libxinerama1
+
+      - name: A display with OpenGL for the GUI tests (virtual screen on Linux, software OpenGL on Windows)
+        uses: pyvista/setup-headless-display-action@v5
+        with:
+          qt: true                          # Linux: the libraries Qt needs
+          wm: herbstluftwm                  # Linux: Xvfb virtual screen with a window manager
+          pyvista: false                    # keep PyVista's normal (Qt-embedded) render window
+          install-mesa3d-offscreen: false   # Windows: real OpenGL windows, not off-screen only
 
       - name: Install AeroFlowSim, its dependencies and the optional Gmsh mesher
         run: |
