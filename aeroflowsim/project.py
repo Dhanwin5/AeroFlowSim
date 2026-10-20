@@ -244,6 +244,21 @@ class Project:
         """Validated inputs ready for the engine (ValueError naming the first problem)."""
         return validate(self.case.parameters(), self.resolved_values())
 
+    def params_for(self, steps) -> dict:
+        """Validated inputs of the given steps; any OTHER input that is invalid gets its default.
+
+        Lets a page work while an unrelated input is being typed (e.g. the geometry drawing stays
+        while a solver tolerance is half-typed). ValueError if an input of these steps is invalid.
+        """
+        values = self.resolved_values()
+        problems = check_values(self.case.parameters(), values)
+        own = [p for p in self.case.parameters() if p.step in steps and p.name in problems]
+        if own:
+            raise ValueError(problems[own[0].name])
+        base = defaults(self.case.parameters())
+        fixed = {name: (base[name] if name in problems else value) for name, value in values.items()}
+        return validate(self.case.parameters(), fixed)
+
     def problems(self, steps=INPUT_STEPS) -> dict:
         """{input: message} for every bad value among the inputs of the given steps."""
         chosen = [p for p in self.case.parameters() if p.step in steps]
@@ -295,28 +310,34 @@ class Project:
     def results_dir(self) -> Path:
         return self.folder / RESULTS_DIR
 
-    def record_mesh(self, mesh, info=None):
-        """Remember that the mesh files in mesh/ were made from the current inputs."""
+    def record_mesh(self, mesh, info=None, fingerprint=None):
+        """Remember that the mesh files in mesh/ were made from the current inputs.
+
+        fingerprint: the mesh fingerprint taken when the job was SENT (the GUI lets the user keep
+        editing while a job runs, so the inputs may have changed since). Default: current inputs.
+        """
         if isinstance(mesh, Mesh1D):
             self.mesh_dir.mkdir(parents=True, exist_ok=True)
             np.savez(self.mesh_dir / MESH_1D_FILE, x=mesh.x)
         cells = mesh.n_cells
-        self.steps["mesh"] = {"fingerprint": self.fingerprint("mesh"), "time": _now(), "cells": int(cells),
+        self.steps["mesh"] = {"fingerprint": fingerprint or self.fingerprint("mesh"), "time": _now(), "cells": int(cells),
                               **(info or {})}
         self.save()
 
-    def record_failure(self, product, message):
-        """Remember that making a product failed with the current inputs (status 'error')."""
+    def record_failure(self, product, message, fingerprint=None):
+        """Remember that making a product failed with these inputs (status 'error' while they stay)."""
         record = dict(self.steps.get(product) or {})
-        record.update(error=str(message), error_fingerprint=self.fingerprint(product), error_time=_now())
+        record.update(error=str(message), error_fingerprint=fingerprint or self.fingerprint(product),
+                      error_time=_now())
         self.steps[product] = record
         self.save()
 
-    def record_run(self, payload, mesh):
-        """Save a finished run (results/run.npz) and remember which inputs it came from."""
+    def record_run(self, payload, mesh, fingerprint=None):
+        """Save a finished run (results/run.npz) and remember which inputs it came from
+        (fingerprint taken when the run was sent; default: current inputs)."""
         save_run(self.results_dir, payload, mesh)
         result = payload["result"]
-        self.steps["run"] = {"fingerprint": self.fingerprint("run"), "time": _now(),
+        self.steps["run"] = {"fingerprint": fingerprint or self.fingerprint("run"), "time": _now(),
                              "converged": bool(result.converged), "iterations": int(result.iterations),
                              "run_s": payload.get("run_s")}
         self.save()

@@ -132,14 +132,14 @@ def command_run_project(args):
     return print_report(out)
 
 
-def command_gui():
+def command_gui(project=None):
     """Start the desktop GUI (imported only here, so the command line works without Qt)."""
     try:
         from aeroflowsim.gui.app import main as gui_main
     except ImportError as error:
         print(f"Error: the desktop GUI needs PySide6 and PyVista ({error}). Install with: pip install -e .")
         return 1
-    return gui_main()
+    return gui_main(["aeroflowsim"] + ([project] if project else []))
 
 
 def print_report(out):
@@ -173,12 +173,13 @@ def main(argv=None):
     run.add_argument("--out", default=None, help="output folder (default: results/<case_name>/)")
     run.add_argument("--print-every", type=int, default=1000, metavar="N",
                      help="print the residual every N iterations (default 1000)")
-    commands.add_parser("gui", help="start the desktop GUI")
+    gui = commands.add_parser("gui", help="start the desktop GUI")
+    gui.add_argument("project", nargs="?", default=None, help="project folder to open (optional)")
     args = parser.parse_args(argv)
     if args.command == "list":
         return command_list()
     if args.command == "gui":
-        return command_gui()
+        return command_gui(args.project)
     return command_run(args)
 
 

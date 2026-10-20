@@ -13,7 +13,9 @@ import plotly.graph_objects as go
 
 from aeroflowsim import mesh_quality
 from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
+from aeroflowsim.mesh_quality import QUALITY_COLORINGS  # noqa: F401  (used by app.py through this module)
 from aeroflowsim.runner import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE
+from aeroflowsim.visualise import length_unit
 
 MAX_PLOT_POINTS = 5000  # residual curves longer than this are thinned so the browser stays fast
 
@@ -75,21 +77,6 @@ PATCH_COLORS = {"inlet": "#1f77b4", "outlet": "#ff7f0e", "wall": "#222222", "axi
                 "farfield": "#9467bd", "symmetry": "#17becf"}
 
 # Quality metrics the cells can be coloured by: label -> (function of the mesh, unit).
-QUALITY_COLORINGS = {
-    "Aspect ratio": (mesh_quality.aspect_ratio, "-"),
-    "Non-orthogonality": (mesh_quality.non_orthogonality, "deg"),
-    "Neighbour volume ratio": (mesh_quality.volume_ratio, "-"),
-    "Cell size": (mesh_quality.cell_size, "m"),
-    "Smallest angle": (mesh_quality.min_angle, "deg"),
-    "Equiangle skewness": (mesh_quality.equiangle_skewness, "-"),
-}
-
-
-def length_unit(size):
-    """("mm", 1e3) for small geometry (nozzles), ("m", 1.0) for bodies of half a metre or more."""
-    return ("m", 1.0) if size >= 0.5 else ("mm", 1e3)
-
-
 def _face_lines(mesh, faces, scale):
     """x, y of the given 2D faces (edges) as one polyline with NaN gaps (fast to draw)."""
     ends = mesh.nodes[mesh.face_nodes[faces, :2]] * scale        # (n, 2, 3)

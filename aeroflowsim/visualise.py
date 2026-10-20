@@ -34,6 +34,11 @@ COLORMAPS = ["viridis", "plasma", "inferno", "magma", "cividis", "coolwarm", "Rd
 OVERLAY_COLORS = ["white", "black", "#eb6834", "#00c2c7", "#ff4fd8"]
 
 
+def length_unit(size):
+    """("mm", 1e3) for small geometry (nozzles), ("m", 1.0) for bodies of half a metre or more."""
+    return ("m", 1.0) if size >= 0.5 else ("mm", 1e3)
+
+
 def style_axes(ax):
     """Light grid and muted axes so the data stands out."""
     ax.grid(True, color=COLOR_MUTED, alpha=0.3, linewidth=0.5)

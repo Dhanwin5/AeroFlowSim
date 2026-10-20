@@ -149,3 +149,14 @@ def quality_summary(mesh) -> dict:
         "min_angle": float(np.nanmin(min_angle(mesh))),                  # [deg]
         "max_skewness": float(np.nanmax(equiangle_skewness(mesh))),      # [-]
     }
+
+
+# Per-cell quality fields a GUI can colour the cells by: {name: (function(mesh) -> values, unit)}
+QUALITY_COLORINGS = {
+    "Aspect ratio": (aspect_ratio, "-"),
+    "Non-orthogonality": (non_orthogonality, "deg"),
+    "Neighbour volume ratio": (volume_ratio, "-"),
+    "Cell size": (cell_size, "m"),
+    "Smallest angle": (min_angle, "deg"),
+    "Equiangle skewness": (equiangle_skewness, "-"),
+}
