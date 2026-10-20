@@ -43,6 +43,8 @@ from aeroflowsim.gmsh_mesh import _LOCK, _add_chain, _import_gmsh
 DRAW_SAMPLES = 129          # points along a curved edge for drawing and picking [-]
 LINEAGE_SAMPLES = 2000      # points along a curved edge when matching edges after a boolean [-]
 LINEAGE_TOLERANCE = 1e-5    # a point "lies on" an old curve if closer than this x geometry size [-]
+QUADRATURE_TOLERANCE = 1e-14   # face integrals: stop refining when the change is below this x size² [-]
+QUADRATURE_MAX_PIECES = 4096   # at most this many quadrature pieces per curve [-]
 KINDS = {"Line": "line", "Circle": "arc", "Ellipse": "ellipse", "BSpline": "spline", "Bezier": "spline"}
 
 _models = itertools.count(1)
@@ -137,6 +139,14 @@ class Kernel:
             self.name_edge(tag, f"{op_id}:{label}.{k}", default_name, default_type)
         return chain
 
+    def label_new(self, tags, op_id, label="e"):
+        """Ids "<op>:<label>1", "<op>:<label>2" ... for new curves, numbered by position (x, then y of
+        their midpoint), so the same file gives the same ids every time it is replayed."""
+        mids = {t: self.sample(t, 3)[1] for t in tags}
+        order = sorted(tags, key=lambda t: (round(float(mids[t][0]), 12), round(float(mids[t][1]), 12)))
+        for n, tag in enumerate(order, start=1):
+            self.name_edge(tag, f"{op_id}:{label}{n}")
+
     def add_face(self, curves, face_id, role) -> int:
         """A plane face bounded by curve tags given in order round the loop."""
         loop = self.occ.addCurveLoop([abs(c) for c in curves])
@@ -187,6 +197,67 @@ class Kernel:
         lo, hi = model.getParametrizationBounds(1, tag)
         t = np.linspace(lo[0], hi[0], n)
         return np.asarray(model.getValue(1, tag, t), dtype=float).reshape(-1, 3)[:, :2]
+
+    def face_integrals(self, loops):
+        """(area [m²], centroid (2,) [m]) of a face from its loops of curve tags (outer loop and holes).
+
+        Green's theorem turns the area integrals into integrals along the boundary:
+            A = 1/2 loop-integral (x dy - y dx),  A x_c = 1/2 loop-integral x² dy,  A y_c = -1/2 loop-integral y² dx
+        evaluated with Gauss-Legendre quadrature on the EXACT curves (OpenCASCADE's own surface
+        integration loses accuracy, about 0.2 %, on faces that were scaled). Each loop is summed
+        in its own direction and taken as positive; holes are subtracted.
+        """
+        parts = []
+        for loop in loops:
+            sums, current = np.zeros(3), None
+            for tag in loop:
+                part, start, end = self._curve_integrals(tag)
+                if current is None and len(loop) > 1:       # first curve: point it towards the second
+                    nxt = self.sample(loop[1], 2)
+                    if min(np.linalg.norm(start - q) for q in nxt) < min(np.linalg.norm(end - q) for q in nxt):
+                        part, start, end = -part, end, start
+                elif current is not None and np.linalg.norm(end - current) < np.linalg.norm(start - current):
+                    part, start, end = -part, end, start    # this curve runs against the loop
+                sums += part
+                current = end
+            parts.append(sums if sums[0] >= 0.0 else -sums)  # every loop counted positive
+        parts.sort(key=lambda s: -s[0])                      # outer loop (largest area) first, then holes
+        total = parts[0] - sum(parts[1:], np.zeros(3))
+        area = float(total[0])
+        return area, (total[1:] / area if area > 0.0 else np.zeros(2))
+
+    def _curve_integrals(self, tag, order=8):
+        """(1/2 int (x dy - y dx), 1/2 int x² dy, -1/2 int y² dx) along a curve, start and end points.
+
+        Gauss-Legendre quadrature on 2, 4, 8 ... equal parameter pieces until the result stops
+        changing (exact curves converge at once; B-spline approximations need more pieces).
+        """
+        model = self.gmsh.model
+        lo, hi = model.getParametrizationBounds(1, tag)
+        nodes, weights = np.polynomial.legendre.leggauss(order)
+
+        def integrate(n):
+            edges = np.linspace(lo[0], hi[0], n + 1)
+            half = 0.5 * np.diff(edges)
+            t = (0.5 * (edges[:-1] + edges[1:])[:, None] + half[:, None] * nodes[None, :]).ravel()
+            w = (half[:, None] * weights[None, :]).ravel()
+            xyz = np.asarray(model.getValue(1, tag, t), dtype=float).reshape(-1, 3)
+            d = np.asarray(model.getDerivative(1, tag, t), dtype=float).reshape(-1, 3)
+            x, y, dx, dy = xyz[:, 0], xyz[:, 1], d[:, 0], d[:, 1]
+            return np.array([0.5 * np.sum(w * (x * dy - y * dx)), 0.5 * np.sum(w * x * x * dy),
+                             -0.5 * np.sum(w * y * y * dx)])
+
+        n, part = 2, integrate(2)
+        scale = max(float(np.ptp(self.sample(tag, 9), axis=0).max()), 1e-300)
+        while n < QUADRATURE_MAX_PIECES:
+            n *= 2
+            finer = integrate(n)
+            converged = np.all(np.abs(finer - part) <= QUADRATURE_TOLERANCE * scale**2 * (1.0 + scale))
+            part = finer
+            if converged:
+                break
+        ends = np.asarray(model.getValue(1, tag, [lo[0], hi[0]]), dtype=float).reshape(-1, 3)[:, :2]
+        return part, ends[0], ends[1]
 
     def model_size(self) -> float:
         self.sync()
@@ -320,8 +391,8 @@ class Kernel:
             meta = self.face_meta.get(tag) or FaceMeta(f"face{tag}", FLUID)
             _, loop_curves = self.occ.getCurveLoops(tag)
             loops = [[edge_ids[abs(int(c))] for c in curves] for curves in loop_curves]
-            centre = np.asarray(self.occ.getCenterOfMass(2, tag), dtype=float)[:2]
-            face = Face(meta.id, meta.role, loops, float(self.occ.getMass(2, tag)), centre)
+            area, centre = self.face_integrals([[abs(int(c)) for c in curves] for curves in loop_curves])
+            face = Face(meta.id, meta.role, loops, area, centre)
             built.faces[meta.id] = face
         for face in built.faces.values():         # outer loop first (the one enclosing the largest area)
             if len(face.loops) > 1:

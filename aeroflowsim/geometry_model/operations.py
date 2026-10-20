@@ -215,6 +215,90 @@ class SetRole(Operation):
             kernel.face_meta[kernel.face_by_id(face_id)].role = self.params["role"]
 
 
+class ImportFile(Operation):
+    """Geometry from a file: coordinates (CSV, Selig/Lednicer .dat), a nozzle wall profile (CSV with
+    header x_mm,r_mm), DXF, STEP or IGES. See importers.py and healing.py.
+
+    Coordinate files store their points here (file units), so they can be edited in the point
+    table; CAD files are copied into the project's geometry/ folder and read again on every replay.
+    unit: "file" (what the file says) or "mm", "m", "inch" (what the numbers are).
+    role: "auto", "fluid" or "solid" for the faces made; tolerance: healing tolerance x size [-];
+    section: the plane ("xy", "xz", "yz") that cuts a 3D solid.
+    """
+
+    type, title = "import", "Import"
+    DEFAULTS = {"format": "", "file": "", "source": "", "unit": "file", "points": [], "role": "auto",
+                "tolerance": 1e-5, "section": "xy"}
+
+    def summary(self) -> str:
+        p = self.params
+        name = p["source"] or p["file"].split("/")[-1]
+        return f"Import {name} ({p['format'].replace('_', ' ')}, unit {p['unit']})"
+
+    def apply(self, kernel, context):
+        from aeroflowsim.geometry_model import healing, importers
+        p = self.params
+        fmt = p["format"]
+        if p["unit"] not in ("file", *importers.UNITS):
+            raise ValueError(f"unknown unit '{p['unit']}'")
+        if p["role"] not in ("auto", FLUID, SOLID):
+            raise ValueError(f"unknown role '{p['role']}'")
+        if fmt == "wall_profile":
+            from aeroflowsim.geometry import profile_from_rows
+            if p["unit"] not in ("file", "mm"):
+                raise ValueError("a nozzle wall profile (x_mm,r_mm) is always in millimetres")
+            rows = [["x_mm", "r_mm"]] + [[repr(float(x)), repr(float(r))] for x, r in p["points"]]
+            build_nozzle(kernel, self.id, profile_from_rows(rows, source=p["source"] or "the profile"))
+            return
+        if fmt == "coordinates":
+            from aeroflowsim.shapes.profile import turning_corners
+            scale = importers.UNITS["m" if p["unit"] == "file" else p["unit"]]
+            pts, closed, messages = healing.clean_outline(np.asarray(p["points"], dtype=float) * scale,
+                                                          p["tolerance"])
+            for level, text in messages:
+                kernel.message(text, level)
+            if closed:
+                corners = turning_corners(pts)
+            else:
+                corners = np.zeros(len(pts), dtype=bool)
+                corners[[0, -1]] = True
+            chain = kernel.add_chain(pts, corners, closed, self.id, "outline")
+            if closed:
+                kernel.add_face(chain.curves, f"{self.id}:face", SOLID if p["role"] == "auto" else p["role"])
+            return
+        if fmt not in ("dxf", "step", "iges"):
+            raise ValueError(f"unknown file format '{fmt}'")
+        path = context.path(p["file"])
+        if not path.is_file():
+            raise ValueError(f"the file {p['file']} is missing from the project (import it again)")
+        before = set(kernel.curve_tags())
+        if fmt == "dxf":
+            unit = p["unit"]
+            if unit == "file":
+                stated = importers.dxf_unit(path)
+                unit = stated or "mm"
+                if stated is None:
+                    kernel.message("The DXF file does not state its unit; millimetres assumed. Choose the unit "
+                                   "if that is wrong.", "warning")
+            specs, notes = importers.read_dxf(path, importers.UNITS[unit])
+            for note in notes:
+                kernel.message(note, "info")
+            size = _specs_size(specs)
+            curves = importers.make_curves(kernel, specs, p["tolerance"] * size)
+            dim = 1
+        else:
+            dim, tags = importers.import_cad(kernel, path, p["unit"], p["section"])
+            curves = [t for t in kernel.curve_tags() if t not in before]
+            size = kernel.model_size()
+        if dim == 1:
+            curves = healing.glue(kernel, curves, p["tolerance"] * size)
+            kernel.label_new(curves, self.id)
+            healing.build_faces(kernel, curves, self.id, p["role"])
+        else:
+            kernel.label_new(curves, self.id)
+            healing.name_faces(kernel, tags, self.id, p["role"])
+
+
 # =============================================================================================
 # Domain, names and mesh controls
 # =============================================================================================
@@ -400,6 +484,21 @@ def build_enclosure(kernel, op_id, kind, dims, half):
             raise ValueError("the body fills the whole enclosure; make the enclosure larger")
 
 
+def _specs_size(specs) -> float:
+    """Size (bounding-box diagonal) of curve specs [m]."""
+    pts = []
+    for spec in specs:
+        if spec[0] == "line":
+            pts += [spec[1], spec[2]]
+        elif spec[0] in ("arc", "circle"):
+            c, r = np.asarray(spec[1]), spec[2]
+            pts += [c - r, c + r]
+        else:
+            pts += list(np.asarray(spec[1], dtype=float))
+    pts = np.asarray(pts, dtype=float)
+    return max(float(np.linalg.norm(np.ptp(pts, axis=0))), 1e-300)
+
+
 def _bbox(kernel, dim_tags):
     """(x0, y0, x1, y1) of some faces / curves [m], from points on their curves.
 
@@ -440,7 +539,7 @@ def _copy_entities(kernel, targets, op_id):
 
 
 OPERATIONS = {cls.type: cls for cls in (TemplateShape, TemplateEnclosure, Transform, Delete, BooleanOp, SetRole,
-                                        Enclosure, NameBoundary, Refinement)}
+                                        ImportFile, Enclosure, NameBoundary, Refinement)}
 
 
 def operation_from_dict(data) -> Operation:

@@ -54,7 +54,9 @@ def suggestions(built) -> dict:
       - an edge that came from a solid body (it is a piece of a solid face's edge) -> wall;
       - an edge on the outer loop of the fluid -> farfield when the fluid has holes (bodies),
         otherwise left unnamed (inlet / outlet / wall need the user's judgement);
-      - an edge of a hole in the fluid (a body cut out) -> wall.
+      - an edge of a hole in the fluid (a body cut out) -> wall;
+      - axisymmetric fluid without holes (a nozzle domain): the edge across the flow (x = const)
+        touching the axis at the smallest x -> inlet, at the largest x -> outlet.
     """
     out = {}
     size = built.size
@@ -75,7 +77,23 @@ def suggestions(built) -> dict:
             out[edge_id] = Boundary("wall", "wall", origin="suggested")
         elif edge_id in outer and has_holes:
             out[edge_id] = Boundary("farfield", "farfield", origin="suggested")
+    if built.axisymmetric and not has_holes:
+        across = [e for e in built.boundary_edges() if e not in built.names and e not in out
+                  and _across_flow_from_axis(built.edges[e], size)]
+        if across:
+            x = {e: float(built.edges[e].points[0, 0]) for e in across}
+            first, last = min(across, key=x.get), max(across, key=x.get)
+            out[first] = Boundary("inlet", "inlet", origin="suggested")
+            if last != first:
+                out[last] = Boundary("outlet", "outlet", origin="suggested")
     return out
+
+
+def _across_flow_from_axis(edge, size) -> bool:
+    """A straight edge at constant x that starts or ends on the axis (y = 0)."""
+    p = edge.points
+    straight_x = np.ptp(p[:, 0]) <= AXIS_TOLERANCE * size * 1e3
+    return bool(straight_x and min(abs(p[0, 1]), abs(p[-1, 1])) <= AXIS_TOLERANCE * size * 1e3)
 
 
 def boundary_problems(built) -> list:
