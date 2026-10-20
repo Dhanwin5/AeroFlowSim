@@ -120,3 +120,20 @@ def test_nozzle_with_plume_region_meshes_with_the_right_volume():
     assert_valid_mesh(mesh, {"wall", "inlet", "outlet", "axis", "farfield"})
     exact = 2 * math.pi * face.area * face.centroid[1]                     # Pappus on the exact geometry
     assert 2 * math.pi * mesh.axi_cell_volumes.sum() == pytest.approx(exact, rel=1e-4)
+
+
+def test_circle_and_wake_refinement_regions():
+    doc, p = c_domain("Diamond airfoil")
+    base = mesh_for(EXTERNAL, p, doc)
+    doc.add(Refinement(shape="circle", xc=-1.0, yc=0.5, radius=0.3, size=0.01))
+    doc.add(Refinement(shape="wake", x0=1.0, y0=0.0, x1=6.0, y1=0.0, width=0.2, size=0.02))
+    mesh = mesh_for(EXTERNAL, p, doc)
+    assert_valid_mesh(mesh, {"wall", "farfield"})
+    c = mesh.cell_centres[:, :2]
+    h = np.sqrt(mesh.cell_volumes / DEPTH_2D)
+    h0 = np.sqrt(base.cell_volumes / DEPTH_2D)
+    in_circle = np.hypot(c[:, 0] + 1.0, c[:, 1] - 0.5) < 0.25
+    in_wake = (c[:, 0] > 2.0) & (c[:, 0] < 5.5) & (np.abs(c[:, 1]) < 0.08)
+    assert np.median(h[in_circle]) < 0.02 and np.median(h[in_wake]) < 0.04
+    base_wake = (base.cell_centres[:, 0] > 2.0) & (base.cell_centres[:, 0] < 5.5) & (np.abs(base.cell_centres[:, 1]) < 0.08)
+    assert np.median(h0[base_wake]) > 2 * np.median(h[in_wake])

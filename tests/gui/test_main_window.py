@@ -322,3 +322,19 @@ def test_sketch_typed_and_clicked_points(qtbot, window, tmp_path, monkeypatch):
     assert page.built.faces["op2:face"].area == pytest.approx(math.pi * 1e-4, rel=1e-9)
     assert window.undo.count() == 2
     assert geometry_forms.OperationDialog is not Accept
+
+
+def test_geometry_checks_suggestions_and_export(qtbot, window, tmp_path):
+    _open(window, tmp_path, "external_2d", edge_refinement=False)
+    page = window.pages["geometry"]
+    sections = [window.checks.item(i).text() for i in range(window.checks.count())]
+    assert any("Geometry" in s for s in sections) and any("Boundary names" in s for s in sections)
+    found = {s.title: s for s in page.suggestions()}
+    assert {"Wall cell size", "Largest cell size", "Corner refinement"} <= set(found)
+    page.apply_suggestion(found["Corner refinement"])
+    assert window.project.values["edge_refinement"] is True
+    window.undo.undo()
+    assert window.project.values["edge_refinement"] is False
+    from aeroflowsim.geometry_model.export import export_geometry
+    export_geometry(page.document, window.project.replay_context(), page.built, tmp_path / "g.dxf")
+    assert (tmp_path / "g.dxf").stat().st_size > 1000

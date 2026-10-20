@@ -49,6 +49,12 @@ def workspace_settings(params, built=None):
     return settings(params, geometry(params))
 
 
+def size_inputs(params, built=None):
+    """Where the cell sizes are (for the suggested-sizes smart rule): an input value = metres / scale."""
+    L = geometry(params).reference_length                 # the shape's reference length [m]
+    return {"surface": ("surface_size", L), "max": ("farfield_size", L), "edge_refinement": "edge_refinement"}
+
+
 def build_mesh(params):
     """Gmsh mesh of the fluid around the body (patches wall, farfield, and symmetry or axis)."""
     profile = geometry(params)

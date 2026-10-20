@@ -36,7 +36,8 @@ from aeroflowsim.geometry_model import snapping
 from aeroflowsim.geometry_model.operations import TEMPLATE_TYPES, ImportFile, Sketch, Transform
 from aeroflowsim.geometry_preview import geometry_preview
 from aeroflowsim.gui import geometry_logic as logic
-from aeroflowsim.gui.geometry_forms import ImportDialog, OperationDialog, OperationForm, PointTableDialog
+from aeroflowsim.gui.geometry_forms import (ImportDialog, OperationDialog, OperationForm, PointTableDialog,
+                                             SuggestionsDialog)
 from aeroflowsim.gui.geometry_view import GeometryView
 from aeroflowsim.gui.logic import readable
 from aeroflowsim.gui.theme import PATCH_COLOURS, colour
@@ -193,8 +194,18 @@ class GeometryPage(QWidget):
                                toolTip="Axisymmetric about the x axis (y = r >= 0); otherwise planar 2D")
         self.act_axi.triggered.connect(self.set_axisymmetric)
         bar.addAction(self.act_axi)
-        self.act_revert = bar.addAction("Back to template", self.revert)
+        bar.addSeparator()
+        self.act_suggest = bar.addAction("Suggestions…", self.show_suggestions)
+        self.act_suggest.setToolTip("Suggested cell sizes and far-field size from the geometry, each with its reason")
+        more = QMenu(self)
+        more.setToolTipsVisible(True)
+        self.act_export = more.addAction("Export geometry…", self.export)
+        self.act_export.setToolTip("Save the geometry as STEP, DXF or CSV")
+        self.act_revert = more.addAction("Back to the template geometry", self.revert)
         self.act_revert.setToolTip("Forget the workspace edits: the template's own geometry again")
+        more_button = QToolButton(text="More", popupMode=QToolButton.InstantPopup, toolTip="Export, back to template")
+        more_button.setMenu(more)
+        bar.addWidget(more_button)
         return bar
 
     def _build_sketch_bar(self):
@@ -736,6 +747,53 @@ class GeometryPage(QWidget):
             self.cancel_sketch()
         else:
             self.set_selection([])
+
+    # ---- suggestions and export ------------------------------------------------------------------
+
+    def suggestions(self):
+        """The smart rule's suggestions for the current geometry and inputs (empty if not possible)."""
+        from aeroflowsim import smart_rules
+        project = self.project
+        if self.built is None or not hasattr(project.case, "size_inputs"):
+            return []
+        try:
+            params = project.params_for(("geometry", "mesh"))
+            sizes = project.case.size_inputs(params, self.built)
+        except (ValueError, AttributeError):
+            return []
+        mach = params.get("mach")
+        context = smart_rules.SizeContext(params, sizes, mach, self.document)
+        return smart_rules.suggestions(self.built, context)
+
+    def show_suggestions(self):
+        SuggestionsDialog(self.suggestions(), self.apply_suggestion, self).exec()
+
+    def apply_suggestion(self, suggestion):
+        if suggestion.kind == "input":
+            self.window.set_inputs(suggestion.inputs, f"suggested {suggestion.title.lower()}")
+            return
+        document = self.document.copy()
+        op = suggestion.operation
+        if op.id:
+            document.replace(op)
+        else:
+            document.add(op)
+        self.commit(document, f"suggested {suggestion.title.lower()}")
+
+    def export(self):
+        from aeroflowsim.geometry_model.export import export_geometry
+        if self.built is None or self.built.empty:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export geometry", str(self.project.folder / "geometry.step"),
+                                              "STEP (*.step *.stp);;DXF (*.dxf);;CSV points (*.csv)")
+        if not path:
+            return
+        try:
+            export_geometry(self.document, self.project.replay_context(), self.built, path)
+        except (ValueError, OSError) as error:
+            QMessageBox.warning(self, "Export", str(error))
+            return
+        self.window.log(f"Geometry exported to {path}")
 
     # ---- whole document ---------------------------------------------------------------------------
 

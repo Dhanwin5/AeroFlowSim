@@ -18,6 +18,10 @@ run_mesh_checks() is called by the run engine, which refuses to start the solver
 them reports an error (e.g. a cell with zero or negative volume). They apply to face-based
 meshes (aeroflowsim.mesh.Mesh) only; for 1D meshes they return None (= does not apply).
 
+Geometry checks (GEOMETRY_CHECKS) look at the workspace geometry (aeroflowsim/geometry_model/)
+BEFORE meshing; their signature is  def my_check(built, settings) -> CheckResult | None  (built: the
+replayed geometry, settings: the GmshSettings or None). run_geometry_checks() runs them.
+
 The GUI shows the results in the "Validity checks" box of the Results tab, the command line
 prints them, and summary.yaml stores them. Nothing here depends on the GUI.
 """
@@ -45,6 +49,8 @@ MAX_INFLATION_FRACTION_BODY = 0.1  # ... or of the reference length of a body in
 MIN_ANGLE_WARNING = 20.0     # smallest triangle angle below this: warning [deg]
 MIN_ANGLE_ERROR = 5.0        # smallest triangle angle below this: error, the solver will not run [deg]
 MAX_SKEWNESS = 0.85          # largest equiangle skewness without a warning [-]
+MIN_CELLS_PER_FEATURE = 2.0  # the smallest wall feature should be at least this many surface cells long [-]
+AXIS_TOLERANCE = 1e-9        # a point is below the axis if y < -this x geometry size [-]
 
 
 @dataclass
@@ -261,6 +267,111 @@ MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mes
 
 # Every check, in the order shown. Add new checks here.
 CHECKS = [convergence, mass_balance] + MESH_CHECKS
+
+
+# ---- geometry checks (before meshing) ------------------------------------------------------------
+
+def geometry_replay(built, settings):
+    """Every step of the geometry history worked."""
+    if built.failed_operation:
+        return CheckResult("Geometry steps", "error", " ".join(built.errors()) or
+                           f"Step {built.failed_operation} failed.")
+    return CheckResult("Geometry steps", "info", "Every step of the geometry history worked.")
+
+
+def geometry_closed_loops(built, settings):
+    """Every curve belongs to a closed face (free curves are not meshed)."""
+    free = [e for e in built.edges.values() if not e.faces]
+    if free:
+        return CheckResult("Closed loops", "warning", f"{len(free)} curve(s) are not part of a closed face, so they "
+                           "are not meshed. Close them (sketch a line over the gap) or delete them.", len(free))
+    return CheckResult("Closed loops", "info", "Every curve is part of a closed face.")
+
+
+def geometry_self_intersections(built, settings):
+    """No outline crosses itself."""
+    from aeroflowsim.shapes.profile import count_self_intersections
+    crossings = sum(count_self_intersections(built.loop_points(loop)) for f in built.faces.values() for loop in f.loops)
+    if crossings:
+        return CheckResult("Self-intersections", "error", f"Face outlines cross themselves ({crossings} crossing(s)); "
+                           "such a face cannot be meshed.", crossings)
+    branching = [t for level, t in built.messages if "cross or branch" in t or "crosses itself" in t]
+    if branching:
+        return CheckResult("Self-intersections", "error", branching[0])
+    return CheckResult("Self-intersections", "info", "No outline crosses itself.")
+
+
+def geometry_bodies_inside(built, settings):
+    """Solid bodies are cut out of the fluid (inside an enclosure); left-over solid faces are not meshed."""
+    from aeroflowsim.geometry_model import FLUID, SOLID
+    solids, fluid = built.faces_with_role(SOLID), built.faces_with_role(FLUID)
+    if not fluid:
+        return CheckResult("Body inside the domain", "error", "There is no fluid region: add an enclosure around the "
+                           "body, or mark a face as fluid.")
+    if solids:
+        return CheckResult("Body inside the domain", "warning", f"{len(solids)} solid face(s) are not cut out of the "
+                           "fluid (outside the domain, or overlapping it without a boolean); they are not meshed.",
+                           len(solids))
+    return CheckResult("Body inside the domain", "info", "Every body is cut out of the fluid region.")
+
+
+def geometry_boundary_names(built, settings):
+    """Every boundary edge has a name and a type; a name has only one type."""
+    from aeroflowsim.geometry_model.boundaries import boundary_problems
+    problems = [text for level, text in boundary_problems(built) if level == "error" and "fluid region" not in text]
+    if problems:
+        return CheckResult("Boundary names", "error", " ".join(problems))
+    return CheckResult("Boundary names", "info", f"All boundary edges are named ({len(built.patches())} boundaries).",
+                       len(built.patches()))
+
+
+def geometry_feature_size(built, settings):
+    """The smallest wall feature is resolved by the surface cell size."""
+    if settings is None:
+        return None
+    walls = [built.edges[e] for e in built.boundary_edges() if e in built.names and built.names[e].type == "wall"]
+    if not walls:
+        return None
+    feature = min(e.length for e in walls)                      # [m]
+    cells = feature / settings.surface_size
+    text = (f"The smallest wall feature is {feature * 1e3:.4g} mm long: {cells:.3g} surface cells "
+            f"of {settings.surface_size * 1e3:.4g} mm.")
+    if cells < MIN_CELLS_PER_FEATURE:
+        return CheckResult("Smallest feature", "warning", text + " Use smaller wall cells (see Suggestions) to "
+                           "resolve it.", cells, "cells")
+    return CheckResult("Smallest feature", "info", text, cells, "cells")
+
+
+def geometry_axisymmetric(built, settings):
+    """Axisymmetric geometry: y >= 0 everywhere and an axis boundary on y = 0."""
+    if not built.axisymmetric:
+        return None
+    y_min = min((float(e.points[:, 1].min()) for e in built.edges.values()), default=0.0)
+    if y_min < -AXIS_TOLERANCE * built.size:
+        return CheckResult("Axisymmetric rules", "error", f"Part of the geometry is below the axis (y = "
+                           f"{y_min * 1e3:.4g} mm); axisymmetric geometry must have y = r >= 0.", y_min, "m")
+    axis = [e for e in built.boundary_edges() if e in built.names and built.names[e].type == "axis"]
+    if built.faces and not axis:
+        return CheckResult("Axisymmetric rules", "error", "An axisymmetric geometry needs a boundary of type axis "
+                           "on y = 0.")
+    return CheckResult("Axisymmetric rules", "info", "y >= 0 everywhere and the axis is on y = 0.")
+
+
+GEOMETRY_CHECKS = [geometry_replay, geometry_closed_loops, geometry_self_intersections, geometry_bodies_inside,
+                   geometry_boundary_names, geometry_feature_size, geometry_axisymmetric]
+
+
+def run_geometry_checks(built, settings=None) -> list[CheckResult]:
+    """Run the geometry checks on a replayed workspace geometry (settings: GmshSettings or None)."""
+    results = []
+    for check in GEOMETRY_CHECKS:
+        try:
+            outcome = check(built, settings)
+        except Exception as error:
+            outcome = CheckResult(check.__name__, "error", f"The check itself failed: {error!r}")
+        if outcome is not None:
+            results.append(outcome)
+    return results
 
 
 def run_checks(case, params, mesh, result, checks=None) -> list[CheckResult]:

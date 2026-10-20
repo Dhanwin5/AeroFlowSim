@@ -46,6 +46,11 @@ A case folder holds two required files:
         build_mesh(); an unedited geometry still uses build_mesh(), exactly as before. built is the
         replayed geometry (BuiltGeometry), e.g. for sizes relative to built.reference_length().
 
+    size_inputs(params, built)    -> dict                           (optional, with workspace_settings)
+        Where the cell-size inputs are, for the suggested-sizes smart rule (aeroflowsim/smart_rules.py):
+        {"surface": (input key, scale [m]), "max": (input key, scale [m]), "edge_refinement": input key};
+        an input value = size in metres / scale.
+
     reference_lines(params, mesh) -> list[Line]                     (optional)
         Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
         (see aeroflowsim/results.py). Kept apart from reference() because reference() returns
@@ -70,7 +75,7 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 # Functions case.py must define, and optional ones.
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
 OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells",
-                      "workspace_settings"]
+                      "workspace_settings", "size_inputs"]
 
 
 def check_module(module, has_solver=True) -> list[str]:

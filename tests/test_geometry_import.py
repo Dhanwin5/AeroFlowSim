@@ -199,3 +199,18 @@ def test_axisymmetric_nozzle_domain_gets_axis_inlet_and_outlet_suggestions():
             for e, b in boundaries.suggestions(built).items()}
     assert sorted(sugg.values()) == ["axis", "inlet", "outlet"]
     assert sugg[[0.0, 0.0015].__repr__()] == "inlet" and sugg[[0.02, 0.003].__repr__()] == "outlet"
+
+
+def test_a_dxf_circle_inside_a_rectangle_is_a_hole(tmp_path):
+    import ezdxf
+    doc = ezdxf.new()
+    doc.header["$INSUNITS"] = 4                      # millimetres (a new drawing says metres)
+    msp = doc.modelspace()
+    msp.add_lwpolyline([(0, 0), (40, 0), (40, 20), (0, 20)], close=True)
+    msp.add_circle((20, 10), 5)
+    doc.saveas(tmp_path / "plate.dxf")
+    built = replay(GeometryDocument([ImportFile("op1", format="dxf", file="plate.dxf", role="fluid")]),
+                   ReplayContext(folder=tmp_path))
+    (face,) = built.faces.values()
+    assert not built.errors() and len(face.loops) == 2
+    assert face.area == pytest.approx((800 - 25 * math.pi) * MM2, rel=1e-9)

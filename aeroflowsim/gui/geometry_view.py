@@ -146,7 +146,7 @@ class GeometryView(MeshView):
         if entries:
             colours = [[name, UNNAMED if kind == "_unnamed" else PATCH_COLOURS.get(kind, "gray")]
                        for name, kind in entries]
-            self.plotter.add_legend(colours, bcolor=None, face="line", size=(0.24, 0.045 * len(entries)),
+            self.plotter.add_legend(colours, bcolor=None, face="line", size=(0.14, 0.035 * len(entries)),
                                     loc="upper right", font_family="arial")
 
     def _draw_selection(self):

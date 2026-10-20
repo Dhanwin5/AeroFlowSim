@@ -73,6 +73,12 @@ def workspace_settings(params, built=None):
     return gmsh_settings(params, geometry(params))
 
 
+def size_inputs(params, built=None):
+    """Where the Gmsh cell sizes are (for the suggested-sizes smart rule): an input value = metres / scale."""
+    d_throat = 2.0 * geometry(params).r_throat            # [m]
+    return {"surface": ("surface_size", d_throat), "max": ("max_size", d_throat), "edge_refinement": "edge_refinement"}
+
+
 def build_mesh(params):
     """Mesh from the axis (r = 0) to the wall, inlet to exit (a face-based Mesh): structured or Gmsh."""
     profile = geometry(params)

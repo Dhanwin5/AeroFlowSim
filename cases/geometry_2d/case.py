@@ -26,6 +26,12 @@ def workspace_settings(params, built):
                         quads=params["cell_type"] != "Triangles", inflation=layers)
 
 
+def size_inputs(params, built):
+    """Where the cell sizes are (for the suggested-sizes smart rule): an input value = metres / scale."""
+    L = built.reference_length()
+    return {"surface": ("surface_size", L), "max": ("max_size", L), "edge_refinement": "edge_refinement"}
+
+
 def build_mesh(params):
     """Called only when the workspace is still empty (an edited geometry is meshed by workspace_mesh)."""
     raise ValueError("There is no geometry yet: import a file or draw one in the Geometry step, then name its "

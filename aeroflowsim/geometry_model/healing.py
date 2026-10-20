@@ -111,7 +111,7 @@ def build_faces(kernel, curves, op_id, role="auto"):
     ends = {c: [t for _, t in model.getBoundary([(1, c)], combined=False, oriented=False)] for c in curves}
     degree = {}
     for c, pts in ends.items():
-        for p in pts:
+        for p in set(pts):                       # a closed curve (circle) starts and ends at one point: counts 2
             degree[p] = degree.get(p, 0) + (2 if len(set(pts)) == 1 else 1)
     branch = [p for p, n in degree.items() if n > 2]
     for p in branch:

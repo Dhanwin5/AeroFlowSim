@@ -9,6 +9,7 @@
     OperationDialog   that form in a dialog with OK / Cancel (to add a new operation)
     ImportDialog      unit, fluid/solid, healing tolerance, cutting plane - with a live preview
     PointTableDialog  the points of an outline in a table (mm): edit, insert, delete rows
+    SuggestionsDialog the smart rule's suggested sizes, each with its reason and an Apply button
 """
 
 import numpy as np
@@ -176,6 +177,39 @@ class ImportDialog(QDialog):
             self.notes.setText(str(error))
             return
         super().accept()
+
+
+class SuggestionsDialog(QDialog):
+    """Suggested sizes (aeroflowsim/smart_rules.py): title, value, reason, Apply. Nothing is applied by itself."""
+
+    def __init__(self, suggestions, apply, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Suggested sizes")
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Suggestions from the geometry. Each one is applied only when you press its Apply "
+                                "button (and can be undone); the validity checks then check the result.",
+                                wordWrap=True))
+        self.buttons = []
+        if not suggestions:
+            layout.addWidget(QLabel("<i>No suggestions: the sizes already follow the rules.</i>"))
+        for suggestion in suggestions:
+            box = QFormLayout()
+            title = QLabel(f"<b>{suggestion.title}</b>: {suggestion.text}")
+            reason = QLabel(suggestion.reason, wordWrap=True, objectName="hint")
+            button = QPushButton("Apply")
+            button.clicked.connect(lambda _=False, s=suggestion, b=button: (apply(s), b.setEnabled(False),
+                                                                             b.setText("Applied")))
+            row = QHBoxLayout()
+            row.addWidget(title, 1)
+            row.addWidget(button)
+            box.addRow(row)
+            box.addRow(reason)
+            layout.addLayout(box)
+            self.buttons.append(button)
+        close = QDialogButtonBox(QDialogButtonBox.Close)
+        close.rejected.connect(self.reject)
+        layout.addWidget(close)
+        self.resize(560, 120 + 90 * len(suggestions))
 
 
 class PointTableDialog(QDialog):

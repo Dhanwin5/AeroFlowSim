@@ -277,12 +277,27 @@ class MainWindow(QMainWindow):
     def refresh_all(self):
         self.refresh_status()
         self.update_title()
-        self.update_checks()
         if self.current_step:
             self.pages[self.current_step].refresh()
+        self.update_checks()                     # after the page: the geometry checks use its replayed geometry
+
+    def geometry_checks(self):
+        """Validity checks of the workspace geometry (before meshing), or [] for templates without one."""
+        from aeroflowsim.checks import run_geometry_checks
+        built = self.pages["geometry"].built
+        if self.project is None or built is None:
+            return []
+        try:
+            settings = self.project.case.workspace_settings(self.project.params_for(("geometry", "mesh")), built)
+        except (ValueError, AttributeError):
+            settings = None
+        return run_geometry_checks(built, settings)
 
     def update_checks(self):
         sections = []
+        geometry = self.geometry_checks()
+        if geometry:
+            sections.append(("Geometry", geometry))
         if self.mesh is not None and self.project is not None:
             note = "" if self.project.status("mesh") == "ok" else " (out of date)"
             sections.append((f"Mesh{note}", self.mesh_checks))
@@ -551,6 +566,12 @@ class MainWindow(QMainWindow):
         old = self.project.values.get(name)
         label = next((p.label for p in self.project.case.parameters() if p.name == name), name)
         self.undo.push(SetInputs(self, {name: (old, value)}, f"change {label}"))
+
+    def set_inputs(self, values, text):
+        """Change several inputs as one undoable step (e.g. an applied suggestion)."""
+        changes = {k: (self.project.values.get(k), v) for k, v in values.items() if self.project.values.get(k) != v}
+        if changes:
+            self.undo.push(SetInputs(self, changes, text))
 
     def reset_inputs(self):
         if self.project is None:
