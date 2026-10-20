@@ -1,0 +1,111 @@
+# Geometry workspace: geometries made from workspace histories (sketch, enclosure, plume region),
+# meshed by aeroflowsim/workspace_mesh.py, against exact areas and volumes. No solver is run.
+#
+# Circle minus cylinder (template geometry_2d): far-field circle R = 20 m and cylinder D = 1 m, both
+# sketched, cylinder subtracted; wall cells 0.005 L and largest cells 2 L (L = 1 m), then / 2 and / 4.
+# C-domain minus NACA 0012 (template external_2d, own far field off): radius 10 c, 15 c downstream,
+# c = 1 m; the template's default sizes, then / 2 and / 4. NACA 0012 area with the closed trailing edge
+# (coefficient -0.1036): 2 x 5t x (2/3 0.2969 - 1/2 0.1260 - 1/3 0.3516 + 1/4 0.2843 - 1/5 0.1036), t = 0.12.
+# Nozzle + plume region (template nozzle_axi, triangles): the default conical N2 nozzle (exact volume as
+# in validation/nozzle_axi_geometry) plus a plume region 10 x 5 exit diameters (D_e = 0.911 mm).
+# Far-field circles are polygons of at least 120 faces, so the areas are slightly too small; the error
+# falls as the mesh is refined.
+
+title = "Geometry workspace: sketched, enclosed and plume geometries"
+case = "cases/geometry_2d"
+
+[[reference]]
+id = "cylinder_area_default"
+quantity = "Circle R = 20 m minus cylinder D = 1 m: domain area, default mesh"
+value = 1255.8516632725198
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi (R² - (D/2)²)"
+
+[[reference]]
+id = "cylinder_area_fine"
+quantity = "Circle R = 20 m minus cylinder D = 1 m: domain area, fine mesh (sizes / 2)"
+value = 1255.8516632725198
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi (R² - (D/2)²)"
+
+[[reference]]
+id = "cylinder_area_finer"
+quantity = "Circle R = 20 m minus cylinder D = 1 m: domain area, finer mesh (sizes / 4)"
+value = 1255.8516632725198
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi (R² - (D/2)²)"
+
+[[reference]]
+id = "cylinder_wall_default"
+quantity = "Circle minus cylinder: wall patch length, default mesh"
+value = 3.141592653589793
+unit = "m"
+tolerance_percent = 0.1
+source = "Exact: circumference pi D"
+
+[[reference]]
+id = "cylinder_wall_fine"
+quantity = "Circle minus cylinder: wall patch length, fine mesh (sizes / 2)"
+value = 3.141592653589793
+unit = "m"
+tolerance_percent = 0.1
+source = "Exact: circumference pi D"
+
+[[reference]]
+id = "cylinder_wall_finer"
+quantity = "Circle minus cylinder: wall patch length, finer mesh (sizes / 4)"
+value = 3.141592653589793
+unit = "m"
+tolerance_percent = 0.1
+source = "Exact: circumference pi D"
+
+[[reference]]
+id = "naca_area_default"
+quantity = "C-domain minus NACA 0012: domain area, default mesh"
+value = 466.9979266794897
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R²/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c²"
+
+[[reference]]
+id = "naca_area_fine"
+quantity = "C-domain minus NACA 0012: domain area, fine mesh (sizes / 2)"
+value = 466.9979266794897
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R²/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c²"
+
+[[reference]]
+id = "naca_area_finer"
+quantity = "C-domain minus NACA 0012: domain area, finer mesh (sizes / 4)"
+value = 466.9979266794897
+unit = "m²"
+tolerance_percent = 0.1
+source = "Exact: pi R²/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c²"
+
+[[reference]]
+id = "plume_volume_default"
+quantity = "Nozzle + plume region: volume of revolution, default mesh"
+value = 600.1523581383
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: nozzle volume 6.345769169 mm³ + pi (5 D_e)² (10 D_e)"
+
+[[reference]]
+id = "plume_volume_fine"
+quantity = "Nozzle + plume region: volume of revolution, fine mesh (sizes / 2)"
+value = 600.1523581383
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: nozzle volume 6.345769169 mm³ + pi (5 D_e)² (10 D_e)"
+
+[[reference]]
+id = "plume_volume_finer"
+quantity = "Nozzle + plume region: volume of revolution, finer mesh (sizes / 4)"
+value = 600.1523581383
+unit = "mm³"
+tolerance_percent = 0.1
+source = "Exact: nozzle volume 6.345769169 mm³ + pi (5 D_e)² (10 D_e)"

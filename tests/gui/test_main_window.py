@@ -338,3 +338,72 @@ def test_geometry_checks_suggestions_and_export(qtbot, window, tmp_path):
     from aeroflowsim.geometry_model.export import export_geometry
     export_geometry(page.document, window.project.replay_context(), page.built, tmp_path / "g.dxf")
     assert (tmp_path / "g.dxf").stat().st_size > 1000
+
+
+def test_import_name_refine_and_mesh_in_the_window(qtbot, window, tmp_path, monkeypatch):
+    """The Prompt 6d flow: import a file, select edges, name them, add a refinement box, mesh, see the patches."""
+    from pathlib import Path
+    import numpy as np
+    from aeroflowsim.geometry_model.operations import ImportFile
+    from aeroflowsim.gui.steps import geometry as geometry_step
+    project = _open(window, tmp_path, "geometry_2d")
+    page = window.pages["geometry"]
+    sample = Path(__file__).resolve().parents[1] / "data" / "nozzle_domain.dxf"
+    document = page.document.copy()
+    document.add(ImportFile(format="dxf", file=project.import_file(sample), source=sample.name))
+    document.axisymmetric = True
+    page.commit(document, "import")
+    page.accept_suggestions()                                  # axis, inlet, outlet
+    rest = [e for e in page.built.boundary_edges() if e not in page.built.names]
+    top = [e for e in rest if np.allclose(page.built.edges[e].points[:, 1], 0.006)]
+
+    class Ok:                                                  # the operation dialog, as if OK was pressed
+        def __init__(self, op, *args, **kwargs):
+            self.result_op = op
+            if op.type == "name_boundary":
+                op.params.update(name=Ok.name, kind=Ok.kind)
+
+        def exec(self):
+            return True
+
+    monkeypatch.setattr(geometry_step, "OperationDialog", Ok)
+    for edges, Ok.name, Ok.kind in ((top, "ambient", "farfield"), ([e for e in rest if e not in top], "nozzle_wall",
+                                                                    "wall")):
+        page.set_selection([("edge", e) for e in edges])
+        page.add_operation("name_boundary")
+    page.set_selection([("edge", e) for e in page.built.edges if "nozzle_wall" == page.built.names[e].name])
+    page.add_operation("refinement")
+    assert page.built.regions and not page.banner.isVisible()
+    window.go_to("mesh")
+    window.generate_mesh()
+    _wait_job(qtbot, window)
+    assert window.strip.chips["mesh"].status == "ok"
+    assert {p.name for p in window.mesh.patches} == {"axis", "inlet", "outlet", "ambient", "nozzle_wall"}
+    assert not [c for c in window.mesh_checks if c.level == "error"]
+
+
+def test_every_geometry_tool_opens_without_crashing(qtbot, window, tmp_path, monkeypatch):
+    from aeroflowsim.gui.steps import geometry as geometry_step
+    _open(window, tmp_path, "external_2d")
+    page = window.pages["geometry"]
+
+    class Cancel:                                              # every dialog cancelled
+        def __init__(self, op, *args, **kwargs):
+            self.result_op = op
+
+        def exec(self):
+            return False
+
+    monkeypatch.setattr(geometry_step, "OperationDialog", Cancel)
+    corner = next(v for v in page.built.vertices.values() if v.corner and len(v.edges) == 2)
+    for kind, _, _ in geometry_step.TOOLS:
+        for selection in ([], [("vertex", corner.id)], [("edge", corner.edges[0])], [("face", "op2:domain")]):
+            page.set_selection(selection)
+            page.add_operation(kind)                           # a dialog, or "select first" - never an exception
+            while window.undo.count():                         # Delete has no dialog: take it back
+                window.undo.undo()
+                window.undo.clear()
+    for kind, _, _ in geometry_step.SKETCHES:
+        page.start_sketch(kind)
+        page.cancel_sketch()
+    assert page.history.count() == 2 and window.undo.count() == 0

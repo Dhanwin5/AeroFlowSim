@@ -381,7 +381,7 @@ class GeometryPage(QWidget):
         self.set_selection(selection)
 
     def set_selection(self, selection):
-        self.selection = list(selection)
+        self.selection = [s for s in selection if self.built is None or self._exists(s)]   # never a stale id
         self.view.set_selection(self.selection)
         if self.built is not None:
             self.window.show_properties("Selection" if self.selection else "Nothing selected",
@@ -417,9 +417,10 @@ class GeometryPage(QWidget):
             return
         if kind != "delete":
             notes = {"transform": "Applies to the selected faces; with nothing selected, to everything.",
-                     "enclosure": "Sizes are in reference lengths L = the length of the solid bodies along x.",
-                     "name_boundary": f"{len(op.params['edges'])} edge(s) selected."}
-            dialog = OperationDialog(op, op.title, notes.get(kind, ""), self)
+                     "enclosure": "Around bodies: sizes in reference lengths L (the length of the solid bodies "
+                                  "along x). Nozzle plume region / plenum: in exit / inlet diameters."}
+            note = f"{len(op.params['edges'])} edge(s) selected." if kind == "name_boundary" else notes.get(kind, "")
+            dialog = OperationDialog(op, op.title, note, self)
             if not dialog.exec():
                 return
             op = dialog.result_op

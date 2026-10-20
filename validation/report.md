@@ -1,8 +1,8 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.1.0.dev0, generated 2026-10-18 by `python validation/run_all.py`.
+AeroFlowSim 0.1.0.dev0, generated 2026-10-21 by `python validation/run_all.py`.
 
-**Overall: PASS** (4 of 4 cases pass)
+**Overall: PASS** (5 of 5 cases pass)
 
 ## Gmsh mesh geometry: external domains and rounded-throat nozzle: PASS
 
@@ -40,6 +40,32 @@ Sources:
 - Exact: pi R² - L² tan 10 deg (circle minus triangle)
 - Exact: 4/3 pi R³ - pi R_b² L / 3 (sphere minus cone), R_b = L tan 15 deg
 - Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t
+
+## Geometry workspace: sketched, enclosed and plume geometries: PASS
+
+Case: `cases/geometry_2d`, references: `validation/geometry_workspace/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Circle R = 20 m minus cylinder D = 1 m: domain area, default mesh | 1255.85 m² | 1255.29 m² | 0.045 | 0.1 | PASS |
+| Circle R = 20 m minus cylinder D = 1 m: domain area, fine mesh (sizes / 2) | 1255.85 m² | 1255.33 m² | 0.041 | 0.1 | PASS |
+| Circle R = 20 m minus cylinder D = 1 m: domain area, finer mesh (sizes / 4) | 1255.85 m² | 1255.72 m² | 0.010 | 0.1 | PASS |
+| Circle minus cylinder: wall patch length, default mesh | 3.14159 m | 3.14158 m | 0.00042 | 0.1 | PASS |
+| Circle minus cylinder: wall patch length, fine mesh (sizes / 2) | 3.14159 m | 3.14159 m | 0.00011 | 0.1 | PASS |
+| Circle minus cylinder: wall patch length, finer mesh (sizes / 4) | 3.14159 m | 3.14159 m | 2.7e-05 | 0.1 | PASS |
+| C-domain minus NACA 0012: domain area, default mesh | 466.998 m² | 466.928 m² | 0.015 | 0.1 | PASS |
+| C-domain minus NACA 0012: domain area, fine mesh (sizes / 2) | 466.998 m² | 466.928 m² | 0.015 | 0.1 | PASS |
+| C-domain minus NACA 0012: domain area, finer mesh (sizes / 4) | 466.998 m² | 466.935 m² | 0.014 | 0.1 | PASS |
+| Nozzle + plume region: volume of revolution, default mesh | 600.152 mm³ | 600.152 mm³ | 1.3e-11 | 0.1 | PASS |
+| Nozzle + plume region: volume of revolution, fine mesh (sizes / 2) | 600.152 mm³ | 600.152 mm³ | 1.3e-11 | 0.1 | PASS |
+| Nozzle + plume region: volume of revolution, finer mesh (sizes / 4) | 600.152 mm³ | 600.152 mm³ | 1.3e-11 | 0.1 | PASS |
+
+Sources:
+
+- Exact: pi (R² - (D/2)²)
+- Exact: circumference pi D
+- Exact: pi R²/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c²
+- Exact: nozzle volume 6.345769169 mm³ + pi (5 D_e)² (10 D_e)
 
 ## Axisymmetric nozzle mesh geometry (default conical nozzle): PASS
 
