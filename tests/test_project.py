@@ -187,3 +187,24 @@ def test_old_settings_file_becomes_a_project(tmp_path):
     assert project.values["d_exit"] == 0.0012
     assert project.values["profile_csv"] == "geometry/n2_conical_nozzle.csv"
     assert project.params()["geometry_source"] == "Custom profile (CSV)"
+
+
+def test_workspace_history_is_saved_and_part_of_the_fingerprints(tmp_path):
+    from aeroflowsim.geometry_model import GeometryDocument
+    from aeroflowsim.geometry_model.operations import Transform
+    project = Project.create("external_2d", tmp_path / "P.afsproj")
+    before = project.fingerprint("mesh")
+    document = project.geometry_document()            # no history.json: the template's own geometry
+    assert document.is_template_only() and not project.history_path.exists()
+    document.add(Transform(kind="rotate", angle=5.0))
+    project.set_geometry_document(document)
+    assert project.history_path.is_file()
+    assert project.fingerprint("mesh") != before
+    assert Project.open(project.folder).geometry_document() == document
+    # Back to the unedited template geometry: the file goes and the old fingerprint returns.
+    document.remove(document.operations[-1].id)
+    project.set_geometry_document(document)
+    assert not project.history_path.exists()
+    assert project.fingerprint("mesh") == before
+    project.set_geometry_document(GeometryDocument())   # an empty workspace is kept as a file
+    assert project.history_path.is_file()

@@ -38,15 +38,17 @@ dependencies = [
     "pyvista>=0.49",
     "pyvistaqt>=0.13",
     "pytest-qt>=4.5",
+    # Geometry workspace and unstructured meshes: Gmsh (with its OpenCASCADE CAD kernel) and DXF files
+    "gmsh>=4.13,<5",
+    "ezdxf>=1.4",
 ]
 
 [project.optional-dependencies]
-# Gmsh: triangle / quad-dominant meshes and external flow domains (optional).
-# Install with:  pip install -e ".[mesh]"   AeroFlowSim works without it (structured meshes only).
-mesh = ["gmsh>=4.13,<5"]
+# Kept so that old install commands  pip install -e ".[mesh]"  still work; Gmsh is now always installed.
+mesh = []
 
 [tool.setuptools]
-packages = ["aeroflowsim", "aeroflowsim.gui", "aeroflowsim.shapes"]
+packages = ["aeroflowsim", "aeroflowsim.gui", "aeroflowsim.gui.steps", "aeroflowsim.shapes", "aeroflowsim.geometry_model"]
 
 [tool.setuptools.package-data]
 # Every shape has a .toml file next to its .py module (its inputs and metadata).

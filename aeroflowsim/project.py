@@ -9,7 +9,9 @@ everyone. A *project* is one user's use of a template, in its own folder, e.g.
 
     Documents/AeroFlowSim Projects/My Nozzle.afsproj/
         project.yaml     AeroFlowSim version, template name, every input value, step records
-        geometry/        copies of input files (CSV profiles, coordinate files) - paths stored relative
+        geometry/        copies of input files (CSV profiles, coordinate files, CAD files) - paths stored
+                         relative - and history.json, the geometry workspace history (only once the
+                         geometry has been edited in the workspace; see aeroflowsim/geometry_model/)
         mesh/            mesh.npz (exact mesh), mesh.vtu (ParaView)
         results/         run.npz (exact results, reopened by the GUI) + the command line's files
                          (fields.csv, residuals.csv, summary.yaml, PNG plots)
@@ -264,12 +266,61 @@ class Project:
         chosen = [p for p in self.case.parameters() if p.step in steps]
         return check_values(chosen, self.resolved_values())
 
+    # ---- geometry workspace ----------------------------------------------------------------------
+
+    @property
+    def history_path(self) -> Path:
+        from aeroflowsim.geometry_model import HISTORY_FILE
+        return self.folder / GEOMETRY_DIR / HISTORY_FILE
+
+    def geometry_document(self):
+        """The workspace history (GeometryDocument): geometry/history.json, or the template's own
+        geometry if the project has none (then everything works exactly as before the workspace)."""
+        from aeroflowsim.geometry_model import GeometryDocument, template_document
+        if self.history_path.is_file():
+            return GeometryDocument.load(self.history_path)
+        return template_document(self.case)
+
+    def set_geometry_document(self, document):
+        """Save the workspace history; None (or the unedited template geometry) removes the file."""
+        template = self._template_document()
+        if document is None or (document.is_template_only() and
+                                document.to_dict()["operations"] == template.to_dict()["operations"]):
+            self.history_path.unlink(missing_ok=True)
+        else:
+            document.save(self.history_path)
+        self.dirty = True
+
+    def _template_document(self):
+        from aeroflowsim.geometry_model import template_document
+        return template_document(self.case)
+
+    def geometry_files(self) -> list:
+        """Project-relative paths of the files imported by workspace operations (their contents
+        are part of the fingerprints)."""
+        if not self.history_path.is_file():
+            return []
+        document = self.geometry_document()
+        return sorted({op.params["file"] for op in document.operations if "file" in op.params and op.params["file"]})
+
+    def replay_context(self, params=None):
+        """What a replay of the workspace history needs: template, its geometry inputs, the folder."""
+        from aeroflowsim.geometry_model import ReplayContext
+        if params is None:
+            params = self.params_for(("geometry",))
+        return ReplayContext(self.case, params, self.folder)
+
     # ---- fingerprints and status -----------------------------------------------------------------
 
     def fingerprint(self, product) -> str:
         """SHA-256 of everything a product ('geometry', 'mesh' or 'run') depends on."""
         h = hashlib.sha256()
         h.update(f"{template_fingerprint(self.case)}|{__version__}|{product}".encode())
+        if self.history_path.is_file():      # only then: old projects keep their fingerprints
+            h.update(b"history|" + _file_bytes(self.history_path))
+            for name in self.geometry_files():
+                path = self.folder / name
+                h.update(name.encode() + (_file_bytes(path) if path.is_file() else b"<missing file>"))
         resolved = self.resolved_values()
         for p in self.case.parameters():
             if p.step not in DEPENDS_ON[product]:

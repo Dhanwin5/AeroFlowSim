@@ -57,7 +57,7 @@ MAX_CELLS = 2_000_000          # refuse to start Gmsh above this estimate (the G
 TRIANGLE_AREA = math.sqrt(3.0) / 4.0   # area of an equilateral triangle of side 1 [-]
 GMSH_TRIANGLE, GMSH_QUAD, GMSH_LINE = 2, 3, 1   # Gmsh element type numbers (first order)
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()   # re-entrant: the workspace mesher replays the geometry inside it
 
 
 def gmsh_available() -> bool:
@@ -213,21 +213,7 @@ def nozzle_mesh(wall, settings: GmshSettings) -> Mesh:
     the structured mesh (aeroflowsim/nozzle_mesh.py), so a solver treats both the same way.
     """
     settings.check()
-    if wall.interpolation == "pchip":     # a smooth CSV profile: follow the same smooth curve densely
-        x = np.linspace(wall.x[0], wall.x[-1], 801)
-        x = np.unique(np.r_[x, wall.x_throat])
-    else:
-        x = wall.x
-    points = np.column_stack([x, wall.radius_at(x)])                  # inlet -> exit [m]
-    corners = np.zeros(len(points), dtype=bool)
-    corners[1:-1] = turning_corners(points, NOZZLE_CORNER_ANGLE)[1:-1]
-    corners[[0, -1]] = True
-    for _, x_mark, _ in wall.marks:     # e.g. rounded-throat tangent points: a straight cone meets an arc
-        corners[int(np.argmin(np.abs(points[:, 0] - x_mark)))] = True
-    throat = int(np.argmin(np.abs(points[:, 0] - wall.x_throat)))
-    refine = corners.copy()
-    refine[throat] = True
-    refine[[0, -1]] = False          # the inlet / exit corners need no extra refinement
+    points, corners, refine = nozzle_wall_points(wall)
     refine_xy = points[refine]
     estimate = estimate_nozzle_cells(wall, settings)
     if estimate > MAX_CELLS:
@@ -260,6 +246,31 @@ def nozzle_mesh(wall, settings: GmshSettings) -> Mesh:
     # With inflation the layers end on the inlet and the outlet, going straight down (towards the axis).
     ends = (("inlet", (0.0, -1.0)), ("outlet", (0.0, -1.0)))
     return _run_gmsh(build, settings, True, info, closed=False, ends=ends)
+
+
+def nozzle_wall_points(wall):
+    """The nozzle wall as outline points with corner and refine flags (used for Gmsh curves).
+
+    Returns (points (n, 2) inlet -> exit [m], corners (n,), refine (n,)). Corners are where the
+    wall kinks (and the rounded-throat tangent points); the throat is refined. Shared with the
+    geometry workspace (aeroflowsim/geometry_model), so both build exactly the same curves.
+    """
+    if wall.interpolation == "pchip":     # a smooth CSV profile: follow the same smooth curve densely
+        x = np.linspace(wall.x[0], wall.x[-1], 801)
+        x = np.unique(np.r_[x, wall.x_throat])
+    else:
+        x = wall.x
+    points = np.column_stack([x, wall.radius_at(x)])                  # inlet -> exit [m]
+    corners = np.zeros(len(points), dtype=bool)
+    corners[1:-1] = turning_corners(points, NOZZLE_CORNER_ANGLE)[1:-1]
+    corners[[0, -1]] = True
+    for _, x_mark, _ in wall.marks:     # e.g. rounded-throat tangent points: a straight cone meets an arc
+        corners[int(np.argmin(np.abs(points[:, 0] - x_mark)))] = True
+    throat = int(np.argmin(np.abs(points[:, 0] - wall.x_throat)))
+    refine = corners.copy()
+    refine[throat] = True
+    refine[[0, -1]] = False          # the inlet / exit corners need no extra refinement
+    return points, corners, refine
 
 
 # =============================================================================================

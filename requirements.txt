@@ -10,5 +10,5 @@ vtk==9.7.1
 pyvista==0.49.1
 pyvistaqt==0.13.1
 pytest-qt==4.5.0
-# optional (pip install -e ".[mesh]"):
 gmsh==4.15.2
+ezdxf==1.4.5
