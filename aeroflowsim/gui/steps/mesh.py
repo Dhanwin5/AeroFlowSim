@@ -36,15 +36,17 @@ class MeshPage(QWidget):
         self.colour.addItems([NO_COLOUR, *QUALITY_COLORINGS])
         self.colour.currentTextChanged.connect(lambda _: self.show_mesh())
         self.edges = QCheckBox("Edges", checked=True)
-        self.edges.toggled.connect(lambda on: self.view.set_edges(on))
+        self.edges.toggled.connect(self._edges_toggled)
         self.pick = QComboBox()
         self.pick.addItems(["Click: cells", "Click: boundary edges"])
         self.pick.currentIndexChanged.connect(self._pick_mode)
         self.export = QPushButton("Export .vtu...")
         self.export.setToolTip("Save the mesh with its quality fields for ParaView")
         self.export.clicked.connect(self.export_vtu)
+        self.colour_label = QLabel("Colour by")
+        self.two_d_controls = [self.colour_label, self.colour, self.pick, self.export]   # hidden for 1D meshes
         bar = QHBoxLayout()
-        for w in (self.generate, QLabel("Colour by"), self.colour, self.edges, self.pick):
+        for w in (self.generate, self.colour_label, self.colour, self.edges, self.pick):
             bar.addWidget(w)
         bar.addStretch(1)
         bar.addWidget(self.export)
@@ -70,6 +72,12 @@ class MeshPage(QWidget):
         layout.addWidget(self.banner)
         layout.addWidget(splitter, 1)
         self._quality_cache = {}
+
+    def _edges_toggled(self, on):
+        if is_face_mesh(self.window.mesh):
+            self.view.set_edges(on)
+        else:
+            self.show_mesh()
 
     def _pick_mode(self, index):
         self.view.pick_mode = "edge" if index == 1 else "cell"
@@ -109,12 +117,14 @@ class MeshPage(QWidget):
     def show_mesh(self):
         mesh = self.window.mesh
         self._shown = mesh
+        for w in self.two_d_controls:            # colour-by, click and .vtu only make sense for 2D/3D meshes
+            w.setVisible(mesh is None or is_face_mesh(mesh))
         if mesh is None:
             self.stack.setCurrentWidget(self.empty)
             self.summary.set_rows([])
             return
         if not is_face_mesh(mesh):
-            self.plot1d.set_figure(mesh1d_figure(mesh))
+            self.plot1d.set_figure(mesh1d_figure(mesh, edges=self.edges.isChecked()))
             self.stack.setCurrentWidget(self.plot1d)
             self.summary.set_rows(mesh_1d_rows(mesh))
             return

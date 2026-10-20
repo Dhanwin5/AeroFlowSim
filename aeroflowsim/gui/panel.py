@@ -11,7 +11,8 @@ only turns each WidgetSpec into a Qt widget:
     choice       -> QComboBox (options needing a missing package are greyed out, with the install hint)
     text         -> QLineEdit
     file         -> QLineEdit + "Browse..." button (a file dialog)
-Every box has the help text as tooltip and a "?" button; a red message appears under a bad value.
+Every label and box shows the help text and allowed range as a tooltip (rest the mouse on it); a
+red message appears under a bad value.
 Groups are collapsible sections; inputs and sections hide and show with show_if.
 
 Qt basics used here: a *signal* is an event a widget announces (e.g. "text edited"), a *slot* is
@@ -24,7 +25,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
-                               QLineEdit, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
+                               QLineEdit, QPushButton, QScrollArea, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
 from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, text_to_value, value_to_text
@@ -81,7 +82,7 @@ class Section(QWidget):
         self.header = QToolButton(text=title, checkable=True, checked=True)
         self.header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.header.setArrowType(Qt.DownArrow)
-        self.header.setStyleSheet("QToolButton { border: none; font-weight: bold; }")
+        self.header.setStyleSheet("QToolButton { border: none; font-weight: bold; color: palette(window-text); }")
         self.header.toggled.connect(self._toggle)
         self.body = QWidget()
         self.grid = QGridLayout(self.body)
@@ -107,9 +108,6 @@ class InputRow:
         self.label.setToolTip(spec.tooltip)
         self.editor, editor_widget = self._make_editor()
         self.editor.setToolTip(spec.tooltip)
-        self.help_button = QToolButton(text="?", autoRaise=True)
-        self.help_button.setToolTip("What is this input?")
-        self.help_button.clicked.connect(self.show_help)
         self.hint = QLabel("\n".join(spec.missing.values()), wordWrap=True, visible=bool(spec.missing))
         self.hint.setStyleSheet(HINT_STYLE)
         self.error = QLabel(wordWrap=True, visible=False)
@@ -118,10 +116,9 @@ class InputRow:
         row = section.grid.rowCount()
         section.grid.addWidget(self.label, row, 0)
         section.grid.addWidget(editor_widget, row, 1)
-        section.grid.addWidget(self.help_button, row, 2)
-        section.grid.addWidget(self.hint, row + 1, 1, 1, 2)
-        section.grid.addWidget(self.error, row + 2, 1, 1, 2)
-        self.widgets = [self.label, editor_widget, self.help_button]
+        section.grid.addWidget(self.hint, row + 1, 1)
+        section.grid.addWidget(self.error, row + 2, 1)
+        self.widgets = [self.label, editor_widget]
 
     def _make_editor(self):
         """The editor widget for the input type, and the widget to put in the layout."""
@@ -162,9 +159,6 @@ class InputRow:
                                               self.spec.file_filter)
         if path:
             self.panel._edited(self.spec.name, self.panel.file_handler(self.spec.name, path))
-
-    def show_help(self):
-        QMessageBox.information(self.panel, self.spec.label, self.spec.tooltip or "No help text.")
 
     def display(self, value):
         """Show a value in the editor without announcing it as a user change."""

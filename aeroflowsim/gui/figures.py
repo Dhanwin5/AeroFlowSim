@@ -12,7 +12,9 @@ x-t figures are shown here unchanged. 2D/3D fields and meshes use VTK (aeroflows
 
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.colors import LogNorm
 from matplotlib.figure import Figure
+from matplotlib.ticker import NullFormatter
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from aeroflowsim.visualise import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, style_axes
@@ -88,14 +90,26 @@ def field_figure(mesh, field, ref_field=None):
     return fig
 
 
-def mesh1d_figure(mesh):
-    """A 1D mesh: one tick per node along x."""
-    fig, ax = _figure(1.8)
-    ax.vlines(mesh.x, -0.3, 0.3, color=COLOR_MUTED, lw=0.8)
-    ax.plot(mesh.x, np.zeros_like(mesh.x), "o", color=COLOR_NUMERICAL, ms=3)
-    ax.set_ylim(-1, 1)
+def mesh1d_figure(mesh, edges=True):
+    """A 1D mesh: every cell drawn as a coloured band, the colour = the cell width.
+
+    The 2D quality measures (aspect ratio, non-orthogonality, ...) do not exist for a line of 1D
+    cells; the cell width is what matters (e.g. the clustering at a nozzle throat). A logarithmic
+    colour scale is used when the widths differ by more than a factor of 10.
+    """
+    fig, ax = _figure(2.6)
+    width = np.diff(mesh.x)                                       # cell widths [m]
+    norm = LogNorm(width.min(), width.max()) if width.max() > 10.0 * width.min() else None
+    bands = ax.pcolormesh(mesh.x, [-0.3, 0.3], width[None, :], cmap="viridis", norm=norm, shading="flat")
+    if edges:                                                     # nodes as ticks under the band (density visible,
+        ax.vlines(mesh.x, -0.42, -0.33, color=COLOR_MUTED, lw=0.5)   # colours of tiny cells not covered)
+    bar = fig.colorbar(bands, ax=ax, orientation="horizontal", pad=0.25, aspect=50, label="cell width [m]")
+    ticks = [width.min(), float(np.sqrt(width.min() * width.max())), width.max()]   # smallest, middle, largest
+    bar.set_ticks(ticks, labels=[f"{t:.3g}" for t in ticks])
+    bar.ax.xaxis.set_minor_formatter(NullFormatter())             # no crowded extra labels
+    ax.set_ylim(-0.5, 0.4)
     ax.set_yticks([])
     ax.set_xlabel("x [m]")
-    ax.set_title(f"1D mesh: {mesh.n_nodes} nodes, {mesh.n_cells} cells")
+    ax.set_title(f"1D mesh: {mesh.n_nodes} nodes, {mesh.n_cells} cells (colour = cell width)")
     style_axes(ax)
     return fig
