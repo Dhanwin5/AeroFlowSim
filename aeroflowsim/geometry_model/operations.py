@@ -368,25 +368,42 @@ class ImportFile(Operation):
 # =============================================================================================
 
 class Enclosure(Operation):
-    """The fluid domain around the solid bodies: circle, rectangle or C-domain, sized in reference
-    lengths L (the x-extent of all solid faces), centred on the bodies; the bodies are subtracted."""
+    """The fluid domain: around solid bodies, or added to a nozzle.
+
+    Around bodies (sized in reference lengths L = the x-extent of all solid faces, centred on them;
+    the bodies are subtracted):
+        circle      radius
+        rectangle   upstream, downstream, height (from y = 0)
+        c_domain    radius (the half circle upstream, and the half height), downstream
+    For a nozzle (the fluid inside it; sized in exit / inlet diameters; joined to it by a union):
+        plume       a box downstream of the exit: plume_length x plume_height exit diameters; its
+                    right side is the outlet, its top the far field, the step at the exit lip a wall
+        plenum      a box upstream of the inlet: plenum_length x plenum_height inlet diameters; its
+                    left side is the inlet, the rest wall
+    """
 
     type, title = "enclosure", "Enclosure"
     DEFAULTS = {"kind": "circle", "radius": 20.0, "upstream": 10.0, "downstream": 20.0, "height": 10.0,
-                "half": False}
-    KINDS = ("circle", "rectangle", "c_domain")
-    # circle: radius; rectangle: upstream, downstream, height; c_domain: radius (upstream half circle
-    # and half height), downstream. All in reference lengths L [-].
+                "half": False, "plume_length": 10.0, "plume_height": 5.0, "plenum_length": 2.0,
+                "plenum_height": 2.0}
+    KINDS = ("circle", "rectangle", "c_domain", "plume", "plenum")
 
     def summary(self) -> str:
         p = self.params
         size = {"circle": f"radius {p['radius']:g} L", "rectangle":
                 f"{p['upstream']:g} L up, {p['downstream']:g} L down, {p['height']:g} L high",
-                "c_domain": f"radius {p['radius']:g} L, {p['downstream']:g} L downstream"}.get(p["kind"], "")
+                "c_domain": f"radius {p['radius']:g} L, {p['downstream']:g} L downstream",
+                "plume": f"{p['plume_length']:g} x {p['plume_height']:g} exit diameters",
+                "plenum": f"{p['plenum_length']:g} x {p['plenum_height']:g} inlet diameters"}.get(p["kind"], "")
+        if p["kind"] in ("plume", "plenum"):
+            return f"{'Plume region' if p['kind'] == 'plume' else 'Inlet plenum'} ({size})"
         return f"Enclosure: {p['kind'].replace('_', '-')} ({size}){', half' if p['half'] else ''}"
 
     def apply(self, kernel, context):
         p = self.params
+        if p["kind"] in ("plume", "plenum"):
+            build_nozzle_box(kernel, self.id, p["kind"], p)
+            return
         bodies = kernel.faces_with_role(SOLID)
         if not bodies:
             raise ValueError("an enclosure goes around a solid body, and there is none (mark a face as solid)")
@@ -478,6 +495,58 @@ def build_body(kernel, op_id, profile):
     chain = kernel.add_chain(profile.points, profile.corners | profile.refine, True, op_id, "body", "wall", "wall")
     kernel.add_face(chain.curves, f"{op_id}:body", SOLID)
     kernel.axisymmetric = bool(profile.axisymmetric)
+
+
+def build_nozzle_box(kernel, op_id, kind, p):
+    """A plume region (downstream of the exit) or an inlet plenum (upstream of the inlet), joined to the fluid.
+
+    The nozzle is the fluid region; its exit is at its largest x, its inlet at its smallest x, and
+    the exit (inlet) radius is the largest y of the fluid there. The box starts on y = 0 when the
+    fluid does (half domain / axisymmetric), otherwise it is symmetric about y = 0.
+    """
+    fluid = kernel.faces_with_role(FLUID)
+    if not fluid:
+        raise ValueError("a plume region or plenum is added to a nozzle: there is no fluid face (the inside of "
+                         "the nozzle) yet")
+    curves = sorted({abs(t) for f in fluid for _, t in kernel.gmsh.model.getBoundary([(2, f)], oriented=False)})
+    pts = np.vstack([kernel.sample(c, 201) for c in curves])
+    x0, y0 = pts.min(axis=0)
+    x1, y1 = pts.max(axis=0)
+    size = float(np.hypot(x1 - x0, y1 - y0))
+    tol = 1e-6 * size
+    end = x1 if kind == "plume" else x0
+    radius = float(np.abs(pts[np.abs(pts[:, 0] - end) <= tol, 1]).max())
+    if not radius > tol:
+        raise ValueError("the nozzle has no exit / inlet of finite size at its end")
+    D = 2.0 * radius                                         # exit or inlet diameter [m]
+    half = abs(y0) <= tol
+    if kind == "plume":
+        a, b = end, end + p["plume_length"] * D
+        H = p["plume_height"] * D
+    else:
+        a, b = end - p["plenum_length"] * D, end
+        H = p["plenum_height"] * D
+    if not (b > a and H > radius):
+        raise ValueError("the box must be longer than zero and higher than the nozzle "
+                         f"{'exit' if kind == 'plume' else 'inlet'} radius")
+    lo = 0.0 if half else -H
+    sym = "axis" if kernel.axisymmetric else "symmetry"
+    P = kernel.point
+    c1, c2, c3, c4 = P(a, lo), P(b, lo), P(b, H), P(a, H)
+    if kind == "plume":
+        sides = [(c1, c2, "axis" if half else "farfield.bottom", sym if half else "farfield"),
+                 (c2, c3, "outlet", "outlet"), (c3, c4, "farfield", "farfield"), (c4, c1, "base", "wall")]
+    else:
+        sides = [(c1, c2, "axis" if half else "wall.bottom", sym if half else "wall"),
+                 (c2, c3, "step", "wall"), (c3, c4, "wall", "wall"), (c4, c1, "inlet", "inlet")]
+    lines = []
+    for s, e, label, name in sides:
+        line = kernel.line(s, e)
+        kernel.name_edge(line, f"{op_id}:{label}", name, name)
+        lines.append(line)
+    box = kernel.add_face(lines, f"{op_id}:{kind}", FLUID)
+    kernel.sync()
+    kernel.boolean("union", fluid, [box], op_id, role=FLUID)
 
 
 def build_enclosure(kernel, op_id, kind, dims, half):

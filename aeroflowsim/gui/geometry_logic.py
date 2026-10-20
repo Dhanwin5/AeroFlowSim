@@ -45,7 +45,7 @@ class Field:
 
     @property
     def unit(self) -> str:
-        return {"length": "mm", "angle": "°", "ratio": "L"}.get(self.kind, "")
+        return {"length": "mm", "angle": "°", "ratio": "L", "diameters": "D"}.get(self.kind, "")
 
 
 def _choices(values):
@@ -72,13 +72,23 @@ FIELDS = {
     "set_role": (Field("role", "Role", "choice", ROLE_CHOICES),),
     "enclosure": (
         Field("kind", "Shape", "choice", (("circle", "Circle"), ("rectangle", "Rectangle"),
-                                          ("c_domain", "C-domain (airfoils)"))),
+                                          ("c_domain", "C-domain (airfoils)"), ("plume", "Nozzle: plume region"),
+                                          ("plenum", "Nozzle: inlet plenum"))),
         Field("radius", "Radius", "ratio", show_if=("kind", ("circle", "c_domain")),
               help="In reference lengths L (the length of the body along x)."),
         Field("upstream", "Upstream", "ratio", show_if=("kind", ("rectangle",))),
         Field("downstream", "Downstream", "ratio", show_if=("kind", ("rectangle", "c_domain"))),
         Field("height", "Height", "ratio", show_if=("kind", ("rectangle",))),
-        Field("half", "Half domain (symmetry / axis on y = 0)", "bool"),
+        Field("half", "Half domain (symmetry / axis on y = 0)", "bool", show_if=("kind", ("circle", "rectangle",
+                                                                                          "c_domain"))),
+        Field("plume_length", "Length", "diameters", show_if=("kind", ("plume",)),
+              help="Length of the plume region downstream of the nozzle exit, in exit diameters."),
+        Field("plume_height", "Height", "diameters", show_if=("kind", ("plume",)),
+              help="Height (radius) of the plume region from the axis, in exit diameters."),
+        Field("plenum_length", "Length", "diameters", show_if=("kind", ("plenum",)),
+              help="Length of the plenum upstream of the nozzle inlet, in inlet diameters."),
+        Field("plenum_height", "Height", "diameters", show_if=("kind", ("plenum",)),
+              help="Height (radius) of the plenum from the axis, in inlet diameters."),
     ),
     "name_boundary": (
         Field("name", "Name", "text", help="Becomes the mesh patch name: letters, digits, _ and -."),
@@ -118,14 +128,14 @@ def to_text(field, value) -> str:
     """The value as shown in a field (lengths in mm)."""
     if field.kind == "length":
         return f"{float(value) / MM:.8g}"
-    if field.kind in ("number", "angle", "ratio"):
+    if field.kind in ("number", "angle", "ratio", "diameters"):
         return f"{float(value):.8g}"
     return str(value)
 
 
 def from_text(field, text):
     """The typed text as a value (lengths back to metres); ValueError with a message if it is not a number."""
-    if field.kind in ("length", "number", "angle", "ratio"):
+    if field.kind in ("length", "number", "angle", "ratio", "diameters"):
         try:
             value = float(str(text).replace(",", "."))
         except ValueError:
@@ -212,6 +222,8 @@ def operation_for(kind, selection, built):
         inflation = any(built.names[e].inflation for e in edges if e in built.names)
         return NameBoundary(edges=edges, name=name, kind=kind_, inflation=inflation)
     if kind == "enclosure":
+        if not built.faces_with_role(SOLID) and built.faces_with_role(FLUID):
+            return Enclosure(kind="plume")         # no body: the fluid is a nozzle, so a plume region
         return Enclosure()
     if kind == "refinement":
         box = built.bbox() or (0.0, 0.0, 1.0, 1.0)
@@ -323,6 +335,86 @@ def with_points(op, points_m):
     from aeroflowsim.geometry_model import operation_from_dict
     new = operation_from_dict(op.to_dict())
     new.params["points"] = (np.asarray(points_m, dtype=float) / _point_scale(op)).tolist()
+    return new
+
+
+# ---- drag handles of parametric operations (enclosure size, refinement regions) ---------------------
+
+def _own_points(op, built):
+    """All points of the edges an operation made (ids "<op id>:...") [m]."""
+    pts = [e.points for e in built.edges.values() if any(s.startswith(op.id + ":") for s in e.sources)]
+    return np.vstack(pts) if pts else None
+
+
+def handles(op, built):
+    """Draggable points (n, 2) [m] of an enclosure or refinement region, or None.
+
+    enclosure: the outer corner / far point (dragging it changes the size); refinement box: two
+    corners; circle: the centre and a point on the circle; wake: its two ends.
+    """
+    if op.type == "refinement":
+        p = op.params
+        if p["shape"] == "box":
+            return np.array([[p["x0"], p["y0"]], [p["x1"], p["y1"]]])
+        if p["shape"] == "circle":
+            return np.array([[p["xc"], p["yc"]], [p["xc"] + p["radius"], p["yc"]]])
+        return np.array([[p["x0"], p["y0"]], [p["x1"], p["y1"]]])
+    if op.type == "enclosure":
+        pts = _own_points(op, built)
+        if pts is None:
+            return None
+        if op.params["kind"] == "plenum":
+            return np.array([[pts[:, 0].min(), pts[:, 1].max()]])
+        if op.params["kind"] == "circle":
+            return np.array([[pts[:, 0].max(), 0.0]])
+        return np.array([[pts[:, 0].max(), pts[:, 1].max()]])
+    return None
+
+
+def move_handle(op, built, index, xy):
+    """A copy of the operation with handle `index` dragged to xy [m] (see handles())."""
+    from aeroflowsim.geometry_model import operation_from_dict
+    new = operation_from_dict(op.to_dict())
+    p = new.params
+    x, y = float(xy[0]), float(xy[1])
+    if op.type == "refinement":
+        if p["shape"] == "circle":
+            if index == 0:
+                p["xc"], p["yc"] = x, y
+            else:
+                p["radius"] = max(math.hypot(x - p["xc"], y - p["yc"]), 1e-12)
+        else:
+            if index == 0:
+                p["x0"], p["y0"] = x, y
+            else:
+                p["x1"], p["y1"] = x, y
+            if p["shape"] == "box":                    # keep x0 < x1 and y0 < y1 whatever was dragged
+                p["x0"], p["x1"] = sorted((p["x0"], p["x1"]))
+                p["y0"], p["y1"] = sorted((p["y0"], p["y1"]))
+        return new
+    old = handles(op, built)[0]
+    pts = _own_points(op, built)
+    kind = p["kind"]
+    if kind in ("plume", "plenum"):
+        # The box spans a (nozzle end) to b along x and 0 to H; D = H / height factor.
+        length, height = ("plume_length", "plume_height") if kind == "plume" else ("plenum_length", "plenum_height")
+        D = old[1] / p[height]
+        end = old[0] - p[length] * D if kind == "plume" else old[0] + p[length] * D
+        p[length] = max(abs(x - end) / D, 1e-6)
+        p[height] = max(y / D, 1e-6)
+        return new
+    L = built.reference_length()
+    if kind == "circle":
+        xc = old[0] - p["radius"] * L
+        p["radius"] = max(math.hypot(x - xc, y) / L, 1e-6)
+    elif kind == "rectangle":
+        body_x1 = old[0] - p["downstream"] * L
+        p["downstream"] = max((x - body_x1) / L, 1e-6)
+        p["height"] = max(y / L, 1e-6)
+    else:                                              # C-domain: the downstream corner (x1, R)
+        body_x1 = old[0] - p["downstream"] * L
+        p["downstream"] = max((x - body_x1) / L, 1e-6)
+        p["radius"] = max(y / L, 1e-6)
     return new
 
 

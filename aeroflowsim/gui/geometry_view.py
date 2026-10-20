@@ -12,7 +12,8 @@ It builds on MeshView (gui/vtk_view.py: camera, Fit, click-versus-pan). What it 
   - a click picks with aeroflowsim/geometry_model/picking.py (vertex, else edge, else face) within
     PICK_PIXELS of the cursor, and emits picked(kind, id, add) - add is True with Shift or Ctrl;
   - modes: "select" (left drag pans), "move" (drag the selection: emits moved(dx, dy) [m]),
-    "points" (drag one of the handle points: emits point_moved(index, x, y) [m]),
+    "points" (drag one of the handle points - outline points, enclosure size, region corners -:
+    emits point_moved(index, x, y) [m]),
     "click" (sketching: emits clicked(x, y) [m]). In the drag modes the mouse wheel still zooms.
 """
 

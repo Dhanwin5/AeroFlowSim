@@ -11,7 +11,7 @@ import pytest
 
 from aeroflowsim.discovery import load_case
 from aeroflowsim.geometry_model import GeometryDocument, ReplayContext, replay, template_document
-from aeroflowsim.geometry_model.operations import Enclosure, ImportFile, Transform
+from aeroflowsim.geometry_model.operations import Enclosure, ImportFile, Refinement, Transform
 from aeroflowsim.gui import geometry_logic as logic
 from aeroflowsim.parameters import defaults, validate
 
@@ -107,3 +107,34 @@ def test_selection_rows_and_history_states():
     assert rows["Role"] == "fluid" and float(rows["Area"]) > 0
     rows = dict((r[0], r[1]) for r in logic.selection_rows(built, [("edge", "op1:body.1"), ("edge", "op1:body.2")]))
     assert rows["Selected edges"] == "2"
+
+
+@pytest.mark.parametrize("kind, key, factor", [("circle", "radius", 2.0), ("rectangle", "height", 1.5),
+                                               ("c_domain", "radius", 0.5)])
+def test_dragging_an_enclosure_handle_changes_its_size(kind, key, factor):
+    from aeroflowsim.geometry_model.operations import TemplateShape
+    doc = GeometryDocument([TemplateShape("op1")])
+    enclosure = doc.add(Enclosure(kind=kind))
+    c = ctx(EXTERNAL)
+    built = built_of(doc, EXTERNAL)
+    (handle,) = logic.handles(enclosure, built)
+    target = handle * [1.0, factor] if kind != "circle" else (handle - [0.5, 0.0]) * factor + [0.5, 0.0]
+    moved = logic.move_handle(enclosure, built, 0, target)
+    assert moved.params[key] == pytest.approx(enclosure.params[key] * factor, rel=1e-6)
+    doc = logic.replace_operation(doc, moved)
+    assert logic.handles(moved, replay(doc, c))[0] == pytest.approx(target, rel=1e-6)
+
+
+def test_dragging_plume_and_refinement_handles():
+    doc = template_document(NOZZLE)
+    plume = doc.add(Enclosure(kind="plume", plume_length=10.0, plume_height=5.0))
+    built = built_of(doc)
+    (corner,) = logic.handles(plume, built)
+    D = corner[1] / 5.0                                       # exit diameter [m]
+    moved = logic.move_handle(plume, built, 0, corner + [5 * D, -D])
+    assert moved.params["plume_length"] == pytest.approx(15.0) and moved.params["plume_height"] == pytest.approx(4.0)
+    box = Refinement(shape="box", x0=0.0, y0=0.0, x1=1.0, y1=1.0)
+    swapped = logic.move_handle(box, built, 1, (-1.0, -2.0))     # dragged past the other corner
+    assert (swapped.params["x0"], swapped.params["x1"], swapped.params["y0"], swapped.params["y1"]) == (-1, 0, -2, 0)
+    circle = Refinement(shape="circle", xc=1.0, yc=1.0, radius=0.5)
+    assert logic.move_handle(circle, built, 1, (4.0, 5.0)).params["radius"] == pytest.approx(5.0)

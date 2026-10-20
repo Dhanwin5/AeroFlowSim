@@ -108,3 +108,15 @@ def test_clear_messages_for_what_to_fix():
         mesh_for(NOZZLE, params(NOZZLE, mesh_type=TRIANGLES), unnamed)
     with pytest.raises(ValueError, match="inflation is switched off"):
         mesh_for(NOZZLE, params(NOZZLE, mesh_type=TRIANGLES), renamed_nozzle(inflation=True))
+
+
+def test_nozzle_with_plume_region_meshes_with_the_right_volume():
+    doc = template_document(NOZZLE)
+    doc.add(Enclosure(kind="plume", plume_length=10.0, plume_height=5.0))
+    p = params(NOZZLE, mesh_type=TRIANGLES)
+    built = replay(doc, ReplayContext(NOZZLE, p))
+    (face,) = built.faces.values()
+    mesh = mesh_for(NOZZLE, p, doc)
+    assert_valid_mesh(mesh, {"wall", "inlet", "outlet", "axis", "farfield"})
+    exact = 2 * math.pi * face.area * face.centroid[1]                     # Pappus on the exact geometry
+    assert 2 * math.pi * mesh.axi_cell_volumes.sum() == pytest.approx(exact, rel=1e-4)

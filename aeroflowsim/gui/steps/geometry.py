@@ -447,19 +447,46 @@ class GeometryPage(QWidget):
             self.commit(logic.replace_operation(self.document, logic.with_points(op, dialog.result_points)),
                         f"edit the points of {op.id}")
 
-    def _show_handles(self):
+    def _handle_operation(self):
+        """The operation whose handles are dragged: one with points, or an enclosure / refinement region
+        (the selected history step, or the one that made the selection)."""
         op = self._points_operation()
+        if op is not None:
+            return op
+        row = self.history.currentRow()
+        if self.document is not None and 0 <= row < len(self.document.operations):
+            op = self.document.operations[row]
+            if logic.handles(op, self.built) is not None:
+                return op
+        for kind, entity in self.selection:
+            if kind == "edge":
+                try:
+                    op = self.document.find(self.built.edges[entity].sources[0].split(":")[0])
+                except KeyError:
+                    continue
+                if logic.handles(op, self.built) is not None:
+                    return op
+        return None
+
+    def _show_handles(self):
+        op = self._handle_operation()
         self._points_op = op.id if op is not None else None
-        self.view.set_handles(None if op is None else logic.points_of(op))
+        if op is None:
+            self.view.set_handles(None)
+        else:
+            self.view.set_handles(logic.points_of(op) if logic.has_points(op) else logic.handles(op, self.built))
 
     def on_point_moved(self, index, x, y):
         if self._points_op is None:
             return
         op = self.document.find(self._points_op)
-        points = logic.points_of(op)
-        points[index] = (x, y)
-        self.commit(logic.replace_operation(self.document, logic.with_points(op, points)),
-                    f"move point {index + 1} of {op.id}")
+        if logic.has_points(op):
+            points = logic.points_of(op)
+            points[index] = (x, y)
+            new, text = logic.with_points(op, points), f"move point {index + 1} of {op.id}"
+        else:
+            new, text = logic.move_handle(op, self.built, index, (x, y)), f"drag {op.id}: {op.summary()}"
+        self.commit(logic.replace_operation(self.document, new), text)
 
     def set_mode(self, mode):
         self.view.set_mode(mode)
@@ -467,13 +494,16 @@ class GeometryPage(QWidget):
         if mode == "points":
             self._show_handles()
             if self._points_op is None:
-                self.banner.show_message("Drag points: select an outline made from points first.", "info")
+                self.banner.show_message("Drag points: select an outline made from points, an enclosure or a "
+                                         "refinement region (click it, or its step in the History) first.", "info")
         else:
             self.view.set_handles(None)
 
     # ---- history -----------------------------------------------------------------------------------
 
     def show_operation(self, row):
+        if self.view.mode == "points":
+            self._show_handles()
         while self.op_box.count():
             widget = self.op_box.takeAt(0).widget()
             if widget is not None:

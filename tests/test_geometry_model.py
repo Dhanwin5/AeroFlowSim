@@ -329,3 +329,31 @@ def test_fillet_rounds_a_corner_exactly_and_keeps_ids():
     too_big = template_document(NOZZLE)
     too_big.add(Fillet(edges=list(throat.edges), radius=1.0))
     assert "no fillet of radius" in replay(too_big, ctx).errors()[0]
+
+
+def test_nozzle_plume_region_and_plenum_volumes_of_revolution():
+    ctx = context(NOZZLE)
+    nozzle = next(iter(replay(template_document(NOZZLE), ctx).faces.values()))
+    v_nozzle = 2 * math.pi * nozzle.area * nozzle.centroid[1]               # Pappus
+    profile = ctx.template_geometry()
+    r_exit, r_in = float(profile.r[-1]), float(profile.r[0])
+    doc = template_document(NOZZLE)
+    doc.add(Enclosure(kind="plume", plume_length=10.0, plume_height=5.0))
+    doc.add(Enclosure(kind="plenum", plenum_length=2.0, plenum_height=2.0))
+    built = replay(doc, ctx)
+    assert not built.errors()
+    (face,) = built.faces.values()                                       # one fluid region
+    L_p, H_p = 10 * 2 * r_exit, 5 * 2 * r_exit
+    L_c, H_c = 2 * 2 * r_in, 2 * 2 * r_in
+    exact = v_nozzle + math.pi * H_p**2 * L_p + math.pi * H_c**2 * L_c      # plus two cylinders
+    assert 2 * math.pi * face.area * face.centroid[1] == pytest.approx(exact, rel=1e-9)
+    patches = built.patches()
+    assert set(patches) == {"wall", "axis", "inlet", "outlet", "farfield"}
+    assert len(patches["axis"][1]) == 1                                  # the axis pieces were joined
+    x = lambda e: built.edges[e].points[:, 0]
+    assert min(x(patches["inlet"][1][0])) == pytest.approx(float(profile.x[0]) - L_c)
+    assert max(x(patches["outlet"][1][0])) == pytest.approx(float(profile.x[-1]) + L_p)
+    assert not boundaries.boundary_problems(built)
+    small = template_document(NOZZLE)
+    small.add(Enclosure(kind="plume", plume_height=0.2))
+    assert "higher than the nozzle exit radius" in replay(small, ctx).errors()[0]
