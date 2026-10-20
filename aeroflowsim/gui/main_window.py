@@ -222,7 +222,15 @@ class MainWindow(QMainWindow):
         toolbar.setObjectName("toolbar_main")
         toolbar.addActions([self.act[k] for k in ("new", "open", "save")])
         toolbar.addSeparator()
-        toolbar.addActions([self.act["undo"], self.act["redo"]])
+        # Toolbar Undo/Redo keep short fixed labels; the Edit menu shows what will be undone
+        # ("Undo change Throat diameter"), which would make toolbar buttons grow and jump.
+        for key, slot, signal in (("undo", self.undo.undo, self.undo.canUndoChanged),
+                                  ("redo", self.undo.redo, self.undo.canRedoChanged)):
+            short = QAction(key.capitalize(), self, enabled=False)
+            short.setToolTip(f"{key.capitalize()} the last input change ({self.act[key].shortcut().toString()})")
+            short.triggered.connect(slot)
+            signal.connect(short.setEnabled)
+            toolbar.addAction(short)
         toolbar.addSeparator()
         toolbar.addActions([self.act[k] for k in ("generate", "run", "stop")])
         toolbar.addSeparator()

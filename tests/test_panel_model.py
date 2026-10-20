@@ -132,3 +132,20 @@ def test_text_and_value_conversion_for_number_boxes():
     assert value_to_text(0.1 + 0.2) == repr(0.1 + 0.2)    # never rounds a value away
     assert value_to_text(40) == "40"
     assert file_filter(("csv",)) == "Allowed files (*.csv);;All files (*)"
+
+
+def test_details_rows_for_each_type():
+    params = _params(
+        NUMBER,
+        {"key": "n", "label": "Cells", "unit": "-", "type": "int", "default": 10, "min": 1, "max": 100},
+        {"key": "c", "label": "Mesh", "type": "choice", "default": "S", "options": ["S", "T"]},
+        {"key": "b", "label": "Flag", "type": "bool", "default": True},
+        {"key": "f", "label": "Profile", "type": "file", "default": "x.dat", "file_types": ["dat", "csv"]})
+    rows = {p.name: dict(panel_model.details(widget_spec(p))) for p in params}
+    assert rows["L"]["Unit"] == "m" and rows["L"]["Allowed range"] == "1e-06 to 1 m"
+    assert rows["L"]["Default"] == "0.00028 m" and rows["L"]["Workflow step"] == "Geometry"
+    assert rows["n"]["Unit"] == "dimensionless (-)" and rows["n"]["Type"] == "whole number"
+    assert rows["n"]["Allowed range"] == "1 to 100"
+    assert rows["c"]["Options"] == "S; T"
+    assert rows["b"]["Default"] == "yes"
+    assert rows["f"]["File types"] == "(*.dat *.csv)"

@@ -47,6 +47,7 @@ class WidgetSpec:
     tooltip: str               # help + allowed range (shown when the mouse rests on the box)
     group: str                 # heading
     step: str                  # workflow step: "geometry", "mesh" or "setup"
+    default: object = None     # the template's default value
     minimum: float | None = None
     maximum: float | None = None
     step_size: float = 1.0     # change per arrow key / wheel notch (numbers)
@@ -58,7 +59,7 @@ class WidgetSpec:
 def widget_spec(p) -> WidgetSpec:
     """The WidgetSpec of one Parameter."""
     common = dict(name=p.name, kind=p.type, unit=p.unit if p.is_number else "", help=p.help,
-                  group=p.group or NO_GROUP, step=p.step)
+                  group=p.group or NO_GROUP, step=p.step, default=p.default)
     if p.is_number:
         tooltip = f"{p.help}\nAllowed range: {p.min:g} to {p.max:g} {p.unit}.".strip()
         return WidgetSpec(label=f"{p.label} [{p.unit}]", tooltip=tooltip, minimum=p.min, maximum=p.max,
@@ -71,6 +72,30 @@ def widget_spec(p) -> WidgetSpec:
         tooltip = f"{p.help}\nFile types: {', '.join(p.file_types)}.".strip()
         return WidgetSpec(label=p.label, tooltip=tooltip, file_filter=file_filter(p.file_types), **common)
     return WidgetSpec(label=p.label, tooltip=p.help, **common)   # bool and text
+
+
+def details(spec: WidgetSpec) -> list[tuple[str, str]]:
+    """Facts shown in the Details area under the panel: [(label, text)], depending on the input type."""
+    rows = []
+    if spec.kind in ("float", "int"):
+        unit = "-" if spec.unit in ("", "-") else spec.unit
+        rows.append(("Unit", "dimensionless (-)" if unit == "-" else unit))
+        rows.append(("Allowed range", f"{spec.minimum:g} to {spec.maximum:g}" + ("" if unit == "-" else f" {unit}")))
+        rows.append(("Type", "whole number" if spec.kind == "int" else "number (e.g. 2.8e-4)"))
+    elif spec.kind == "choice":
+        options = [f"{o} (needs a package that is not installed)" if o in spec.missing else o for o in spec.options]
+        rows.append(("Options", "; ".join(options)))
+    elif spec.kind == "bool":
+        rows.append(("Type", "yes / no"))
+    elif spec.kind == "file":
+        rows.append(("File types", spec.file_filter.split(";;")[0].replace("Allowed files ", "")))
+    elif spec.kind == "text":
+        rows.append(("Type", "text"))
+    if spec.default is not None:
+        default = "yes" if spec.default is True else "no" if spec.default is False else value_to_text(spec.default)
+        rows.append(("Default", default + (f" {spec.unit}" if spec.unit not in ("", "-") else "")))
+    rows.append(("Workflow step", spec.step.capitalize()))
+    return rows
 
 
 class PanelModel:

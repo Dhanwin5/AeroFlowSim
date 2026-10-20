@@ -11,8 +11,9 @@ only turns each WidgetSpec into a Qt widget:
     choice       -> QComboBox (options needing a missing package are greyed out, with the install hint)
     text         -> QLineEdit
     file         -> QLineEdit + "Browse..." button (a file dialog)
-Every label and box shows the help text and allowed range as a tooltip (rest the mouse on it); a
-red message appears under a bad value.
+Every label and box shows the help text and allowed range as a tooltip (rest the mouse on it), and
+the Details area under the inputs shows the same facts for the input that was last clicked or
+reached with the keyboard (Tab). A red message appears under a bad value.
 Groups are collapsible sections; inputs and sections hide and show with show_if.
 
 Qt basics used here: a *signal* is an event a widget announces (e.g. "text edited"), a *slot* is
@@ -23,15 +24,17 @@ mark results out of date). Values set by the program (set_values) do not emit th
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QScrollArea, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
-from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, text_to_value, value_to_text
+from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, text_to_value, value_to_text
 
 ERROR_STYLE = "color: #d32f2f;"          # readable on light and dark backgrounds
 HINT_STYLE = "color: palette(mid); font-size: 90%;"
+INPUT_PROPERTY = "aeroflowsim_input"     # Qt property naming the input a widget belongs to (for Details)
+DETAILS_PROMPT = "Click an input (or move to it with Tab) to see what it means, its unit and allowed range."
 
 
 class NumberEdit(QLineEdit):
@@ -99,7 +102,7 @@ class Section(QWidget):
 
 
 class InputRow:
-    """The widgets of one input: label, editor, '?' button, hint and error message."""
+    """The widgets of one input: label, editor, hint and error message."""
 
     def __init__(self, panel, spec: WidgetSpec, section: Section):
         self.spec = spec
@@ -119,6 +122,10 @@ class InputRow:
         section.grid.addWidget(self.hint, row + 1, 1)
         section.grid.addWidget(self.error, row + 2, 1)
         self.widgets = [self.label, editor_widget]
+        # Clicking the label or any part of the editor (or reaching it with Tab) shows its Details.
+        for widget in [self.label, editor_widget, *editor_widget.findChildren(QWidget)]:
+            widget.setProperty(INPUT_PROPERTY, spec.name)
+            widget.installEventFilter(panel)
 
     def _make_editor(self):
         """The editor widget for the input type, and the widget to put in the layout."""
@@ -187,8 +194,49 @@ class InputRow:
         self.error.setVisible(bool(message))
 
 
-class InputPanel(QScrollArea):
-    """All inputs of a PanelModel, in collapsible groups. Emits value_changed(name, value) on user edits.
+class DetailsBox(QFrame):
+    """The Details area under the inputs: help text and facts of the selected input."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setObjectName("details")
+        self.setStyleSheet("#details { background: palette(base); }")
+        self.title = QLabel(wordWrap=True)
+        self.help = QLabel(wordWrap=True)
+        self.facts = QLabel(wordWrap=True)
+        self.problem = QLabel(wordWrap=True)
+        self.problem.setStyleSheet(ERROR_STYLE)
+        for label in (self.help, self.facts, self.problem):
+            label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 6, 8, 6)
+        for label in (self.title, self.help, self.facts, self.problem):
+            layout.addWidget(label)
+        self.name = None
+        self.clear()
+
+    def clear(self):
+        self.name = None
+        self.title.setText("<b>Details</b>")
+        self.help.setText(DETAILS_PROMPT)
+        self.facts.setText("")
+        self.problem.setVisible(False)
+
+    def show_input(self, spec: WidgetSpec, problem=None):
+        self.name = spec.name
+        self.title.setText(f"<b>{spec.label}</b>")
+        self.help.setText(spec.help or "No description given in the template.")
+        rows = "".join(f"<tr><td style='padding-right:10px; color:gray'>{label}</td><td>{text}</td></tr>"
+                       for label, text in details(spec))
+        self.facts.setText(f"<table>{rows}</table>")
+        self.problem.setText(problem or "")
+        self.problem.setVisible(bool(problem))
+
+
+class InputPanel(QWidget):
+    """All inputs of a PanelModel, in collapsible groups, with a Details area underneath.
+    Emits value_changed(name, value) on user edits.
 
     file_handler(name, chosen_path) -> value to store: lets the owner copy a chosen file into the
     project folder and store a relative path (default: store the chosen path as it is).
@@ -201,7 +249,12 @@ class InputPanel(QScrollArea):
         self.model = model
         self._values = dict(values)
         self.file_handler = file_handler or (lambda name, path: path)
-        self.setWidgetResizable(True)
+        self.scroll = QScrollArea(widgetResizable=True)
+        self.details = DetailsBox()
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.scroll, 1)
+        outer.addWidget(self.details)
         content = QWidget()
         layout = QVBoxLayout(content)
         self.sections, self.rows = {}, {}
@@ -213,8 +266,20 @@ class InputPanel(QScrollArea):
                 self.rows[spec.name] = InputRow(self, spec, section)
         layout.addStretch(1)
         content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        self.setWidget(content)
+        self.scroll.setWidget(content)
         self.set_values(self._values)
+
+    def eventFilter(self, watched, event):
+        """Watches every input widget: a click or keyboard focus shows that input in Details."""
+        if event.type() in (QEvent.FocusIn, QEvent.MouseButtonPress):
+            name = watched.property(INPUT_PROPERTY)
+            if name in self.rows:
+                self.show_details(name)
+        return False                             # never swallow the event: the widget still gets it
+
+    def show_details(self, name):
+        problem = self.model.shown_problems(self._values).get(name)
+        self.details.show_input(self.rows[name].spec, problem)
 
     def values(self) -> dict:
         return dict(self._values)
@@ -245,6 +310,8 @@ class InputPanel(QScrollArea):
         for name, row in self.rows.items():
             row.set_visible(name in shown)
             row.set_problem(problems.get(name) if name in shown else None)
+        if self.details.name in self.rows:
+            self.show_details(self.details.name)
         groups = set(self.model.visible_groups(self._values))
         for group, section in self.sections.items():
             section.setVisible(group in groups)

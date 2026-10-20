@@ -140,3 +140,18 @@ def test_theme_switch_is_remembered(window):
     assert window.dark and window.settings.value("theme") == "dark"
     window.act["dark"].trigger()
     assert window.settings.value("theme") == "light"
+
+
+def test_results_card_shows_the_nozzle_key_results(qtbot, window, tmp_path):
+    _open(window, tmp_path, "quasi1d_nozzle", n_cells=60)
+    window.run_case()
+    _wait_job(qtbot, window)
+    qtbot.waitUntil(lambda: window.runner.busy or window.results is not None, timeout=10_000)
+    _wait_job(qtbot, window)
+    card = window.pages["results"].card
+    assert card.isVisible()
+    text = " ".join(card.tile_texts())
+    for title in ("Exit Mach number", "Exit pressure", "Mass flow", "Thrust (vacuum)", "Specific impulse (vacuum)"):
+        assert title in text
+    m_exit = window.results["result"].key_numbers["M_exit"][0]
+    assert f"{m_exit:.4g}" in text and "Converged" in card.status.text()

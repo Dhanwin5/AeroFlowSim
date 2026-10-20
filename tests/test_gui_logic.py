@@ -90,3 +90,29 @@ def test_invalid_geometry_raises_with_the_case_message():
 def test_1d_case_without_geometry_function():
     case, params = _params("sod_shock_tube")
     assert geometry_preview(case, params) is None
+
+
+def test_readable_units_with_si_prefixes():
+    from aeroflowsim.gui.logic import readable
+    assert readable(3369.88, "Pa") == ("3.37", "kPa")
+    assert readable(7.16005e-5, "kg/s") == ("71.6", "mg/s")
+    assert readable(1.2, "kg/s") == ("1.2", "kg/s")
+    assert readable(0.0509131, "N") == ("50.91", "mN")
+    assert readable(3.98019, "-") == ("3.98", "")
+    assert readable(72.5, "s") == ("72.5", "s")              # seconds keep their unit (Isp)
+    assert readable(0.0, "Pa") == ("0", "Pa")
+
+
+def test_key_result_tiles_for_a_nozzle_and_for_other_templates():
+    from aeroflowsim.gui.logic import key_result_tiles, run_status_text
+    from aeroflowsim.results import Result
+    nozzle = Result(fields={}, residuals=[1.0], iterations=10, converged=True, key_numbers={
+        "mdot": (7.16005e-5, "kg/s"), "M_exit": (3.98019, "-"), "p_exit": (3369.88, "Pa"),
+        "F_vacuum": (0.0509131, "N"), "F_at_p_back": (0.05, "N"), "Isp_vacuum": (72.5, "s"), "other": (1.0, "m")})
+    titles = [t[0] for t in key_result_tiles(nozzle)]
+    assert titles == ["Exit Mach number", "Exit pressure", "Mass flow", "Thrust (vacuum)",
+                      "Thrust at back pressure", "Specific impulse (vacuum)"]
+    assert key_result_tiles(nozzle)[2] == ("Mass flow", "71.6", "mg/s")
+    other = Result(fields={}, residuals=[1.0], key_numbers={"p_star_exact": (0.30313, "Pa")})
+    assert key_result_tiles(other) == []          # no guessed tiles for non-nozzle templates
+    assert run_status_text(nozzle, 14.2) == "Converged after 10 iterations in 14.2 s"

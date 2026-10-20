@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, Q
                                QLineEdit, QPushButton, QSplitter, QVBoxLayout, QWidget)
 
 from aeroflowsim.gui.figures import PlotCanvas, field_figure
-from aeroflowsim.gui.logic import available_views, key_number_rows
-from aeroflowsim.gui.widgets import Banner, ValueTable
+from aeroflowsim.gui.logic import available_views, key_number_rows, key_result_tiles, run_status_text
+from aeroflowsim.gui.widgets import Banner, SummaryCard, ValueTable
 from aeroflowsim.runner import fields_csv_text, plot_fields
 from aeroflowsim.visualise import COLORMAPS, contour_2d, shape_view, xt_diagram
 
@@ -32,10 +32,12 @@ class ResultsPage(QWidget):
         super().__init__()
         self.window = window
         self.banner = Banner()
+        self.card = SummaryCard()
         self.field = QComboBox()
         self.field.currentIndexChanged.connect(lambda _: self.draw_field())
         self.field_plot = PlotCanvas()
         self.numbers = ValueTable(["Quantity", "Value", "Unit"])
+        self.numbers.setMinimumWidth(360)        # values never cut off next to the field plot
         csv = QPushButton("Save CSV...")
         csv.clicked.connect(self.save_csv)
         png = QPushButton("Save PNG...")
@@ -120,6 +122,7 @@ class ResultsPage(QWidget):
         splitter.setStretchFactor(1, 1)
         layout = QVBoxLayout(self)
         layout.addWidget(self.banner)
+        layout.addWidget(self.card)
         layout.addWidget(splitter, 1)
         self.splitter = splitter
         self._shown = None
@@ -136,12 +139,16 @@ class ResultsPage(QWidget):
             self.banner.show_message(f"{project.case.solver_message} The mesh quality checks are in the "
                                      "Validity checks panel.", "info")
             self.splitter.setVisible(False)
+            self.card.setVisible(False)
             return
         if w.results is None:
             self.banner.show_message("No results yet. Run the case in the Run step.", "info")
             self.splitter.setVisible(False)
+            self.card.setVisible(False)
             return
         self.splitter.setVisible(True)
+        self.card.setVisible(True)
+        self.card.set_outdated(status in ("outdated", "error"))
         if status == "outdated":
             self.banner.show_message("OUT OF DATE: these results were computed from older inputs (or an older "
                                      "template). Run again to update them.", "warning")
@@ -163,6 +170,9 @@ class ResultsPage(QWidget):
             self.field.addItem(f"{f.label} [{f.unit}]", key)
         self.field.blockSignals(False)
         self.numbers.set_rows(key_number_rows(result, payload.get("reference"), payload.get("run_s")))
+        tiles = key_result_tiles(result)
+        status = run_status_text(result, payload.get("run_s"))
+        self.card.set_results(status if tiles else f"{status}. All numbers are in the Key numbers table.", tiles)
         self.draw_field()
         views = available_views(result, self.window.mesh)
         self.contour_box.setVisible(bool(views))

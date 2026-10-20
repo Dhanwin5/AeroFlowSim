@@ -6,8 +6,8 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QHeaderView, QLabel, QListWidget, QListWidgetItem, QTableWidget,
-                               QTableWidgetItem)
+from PySide6.QtWidgets import (QAbstractItemView, QFrame, QGridLayout, QHeaderView, QLabel, QListWidget,
+                               QListWidgetItem, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from aeroflowsim.gui.theme import CHECK_COLOURS, CHECK_ICONS
 
@@ -91,3 +91,51 @@ class CheckList(QListWidget):
                 self.addItem(line)
         if not sections:
             self.addItem(QListWidgetItem("No checks yet: generate a mesh or run the case."))
+
+
+class SummaryCard(QFrame):
+    """The key-results card at the top of the Results step: a status line and one tile per number."""
+
+    COLUMNS = 6
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+        self.grid = QGridLayout()
+        self.grid.setHorizontalSpacing(10)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 8, 10, 10)
+        layout.addWidget(self.status)
+        layout.addLayout(self.grid)
+        self.tiles = []
+        self.set_outdated(False)
+
+    def set_results(self, status_text, tiles):
+        """tiles: [(title, value text, unit)]."""
+        self.status.setText(f"<b>Key results</b> &nbsp;·&nbsp; {status_text}")
+        for tile in self.tiles:
+            self.grid.removeWidget(tile)
+            tile.deleteLater()
+        self.tiles = []
+        for i, (title, value, unit) in enumerate(tiles):
+            tile = QLabel(f"<div style='font-size:18pt; font-weight:600'>{value}"
+                          f"<span style='font-size:10pt; font-weight:normal'>&nbsp;{unit}</span></div>"
+                          f"<div style='color:gray'>{title}</div>")
+            tile.setObjectName("tile")
+            tile.setStyleSheet("#tile { background: palette(base); border: 1px solid palette(mid); "
+                               "border-radius: 6px; padding: 6px 10px; }")
+            tile.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            self.grid.addWidget(tile, i // self.COLUMNS, i % self.COLUMNS)
+            self.tiles.append(tile)
+
+    def set_outdated(self, outdated):
+        """Amber border and a note when the results come from older inputs."""
+        colour = "#f9a825" if outdated else "palette(mid)"
+        self.setStyleSheet(f"#card {{ border: 2px solid {colour}; border-radius: 8px; }}")
+        self.setToolTip("These results come from older inputs: run again to update them." if outdated else "")
+
+    def tile_texts(self):
+        """Plain text of every tile (for tests)."""
+        return [tile.text() for tile in self.tiles]

@@ -108,3 +108,23 @@ def test_option_needing_a_missing_package_is_greyed_out(qtbot, monkeypatch):
     assert not combo.model().item(index).isEnabled()
     assert panel.rows["mesh_type"].hint.isVisibleTo(panel)
     assert 'pip install -e ".[mesh]"' in panel.rows["mesh_type"].hint.text()
+
+
+def test_details_area_follows_click_and_keyboard_focus(qtbot):
+    panel = _panel(qtbot, "nozzle_axi")
+    assert "Click an input" in panel.details.help.text()
+    row = panel.rows["d_throat"]
+    qtbot.mouseClick(row.label, Qt.LeftButton)                   # clicking the label
+    assert "Throat diameter" in panel.details.title.text()
+    assert "Allowed range" in panel.details.facts.text() and "m" in panel.details.facts.text()
+    assert row.editor.toolTip()                                  # the hover tooltip is still there
+    panel.rows["d_exit"].editor.setFocus(Qt.TabFocusReason)      # reaching a box with the keyboard
+    qtbot.waitUntil(lambda: "Exit diameter" in panel.details.title.text(), timeout=2000)
+    editor = panel.rows["d_exit"].editor
+    editor.setText("5")
+    editor.editingFinished.emit()
+    assert "outside the allowed range" in panel.details.problem.text()   # Details shows the problem too
+    combo = panel.rows["mesh_type"].editor
+    qtbot.mouseClick(combo, Qt.LeftButton)
+    qtbot.keyClick(combo.view(), Qt.Key_Escape)
+    assert "Options" in panel.details.facts.text()

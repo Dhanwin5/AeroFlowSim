@@ -11,6 +11,45 @@ from aeroflowsim.runner import max_errors
 
 AUTO_REBUILD_CELLS = 50_000   # rebuild the mesh after every input change only below this size [cells]
 
+# Key results shown as tiles at the top of the Results step, when a template reports them
+# (key_numbers of its Result). Nozzle templates use these names; other templates show only the run
+# status there (picking "some" key numbers would mix computed and exact values, e.g. for Sod).
+KEY_RESULTS = (("M_exit", "Exit Mach number"), ("p_exit", "Exit pressure"), ("mdot", "Mass flow"),
+               ("F_vacuum", "Thrust (vacuum)"), ("F_at_p_back", "Thrust at back pressure"),
+               ("Isp_vacuum", "Specific impulse (vacuum)"))
+PREFIXES = ((1e9, "G"), (1e6, "M"), (1e3, "k"), (1.0, ""), (1e-3, "m"), (1e-6, "µ"), (1e-9, "n"))
+SCALABLE_UNITS = ("Pa", "N", "W", "J", "m", "g/s")   # units that get k / m / µ prefixes for reading
+
+
+def readable(value, unit):
+    """(value text, unit) with an SI prefix that keeps the number between 1 and 1000, e.g.
+    3369.88 Pa -> ("3.37", "kPa"), 7.16e-5 kg/s -> ("71.6", "mg/s"). Four significant digits."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return str(value), unit
+    if unit == "kg/s":                       # prefixes go on the gram: g/s, mg/s, ...
+        value, unit = value * 1e3, "g/s"
+    if unit in SCALABLE_UNITS and value != 0.0 and math.isfinite(value):
+        for factor, prefix in PREFIXES:
+            if abs(value) >= factor or factor == PREFIXES[-1][0]:
+                if unit == "g/s" and prefix in ("k", "M", "G"):
+                    return f"{value / 1e3:.4g}", "kg/s"
+                return f"{value / factor:.4g}", prefix + unit
+    return f"{value:.4g}", "" if unit == "-" else unit
+
+
+def key_result_tiles(result):
+    """[(title, value text, unit)] for the summary card: the nozzle key results the template reports
+    (an empty list for other templates; their numbers are in the Key numbers table)."""
+    numbers = result.key_numbers
+    return [(title, *readable(*numbers[key])) for key, title in KEY_RESULTS if key in numbers]
+
+
+def run_status_text(result, run_s=None):
+    """One line about the run, e.g. 'Converged after 44,600 iterations in 14.2 s'."""
+    state = "Converged" if result.converged else "NOT converged"
+    text = f"{state} after {result.iterations:,} iterations"
+    return text + (f" in {run_s:.3g} s" if run_s is not None else "")
+
 
 def estimated_cells(case, params):
     """The case's own quick cell-count estimate, or None if it has none (or cannot tell)."""
