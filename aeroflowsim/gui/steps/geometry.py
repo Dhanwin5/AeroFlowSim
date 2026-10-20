@@ -286,6 +286,8 @@ class GeometryPage(QWidget):
         if box is not None:
             rows += [("Width (x)", logic.mm(box[2] - box[0]), "mm"), ("Height (y)", logic.mm(box[3] - box[1]), "mm")]
         rows.append(("Symmetry", "axisymmetric" if built.axisymmetric else "planar", ""))
+        if built.faces:
+            rows.append(("Reference length L", logic.mm(built.reference_length()), "mm"))
         for face in built.faces.values():
             rows.append((f"Area of {face.id} ({face.role})", f"{face.area / logic.MM**2:.6g}", "mm²"))
         rows.append(("Edges / points", f"{len(built.edges)} / {len(built.vertices)}", ""))

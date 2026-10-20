@@ -53,6 +53,8 @@ class Job:
     params: dict              # validated inputs
     out_dir: str | None       # where the outputs are written (mesh files, or results)
     mesh: object = None       # run only: a Mesh / Mesh1D object, or the path of a saved mesh.npz
+    geometry: dict = None     # mesh only: the edited workspace geometry (GeometryDocument.to_dict()), or None
+    folder: str = None        # mesh only: the project folder (files imported into the workspace are there)
 
 
 @dataclass
@@ -93,7 +95,12 @@ def _mesh_job(job, send):
     case = load_case(job.case_folder)
     send("stage", "Building the mesh")
     t0 = time.perf_counter()
-    mesh = case.build_mesh(job.params)
+    document = None
+    if job.geometry is not None:
+        from aeroflowsim.geometry_model import GeometryDocument
+        document = GeometryDocument.from_dict(job.geometry)
+    from aeroflowsim.workspace_mesh import mesh_for
+    mesh = mesh_for(case, job.params, document, job.folder)     # the template's own mesher if not edited
     build_s = time.perf_counter() - t0
     if not isinstance(mesh, Mesh):
         return {"mesh": mesh, "build_s": build_s}

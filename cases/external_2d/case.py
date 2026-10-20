@@ -44,7 +44,7 @@ def settings(params, profile):
                         msh_path=CASE_DIR / "mesh" / "mesh.msh" if params["save_msh"] else None)
 
 
-def workspace_settings(params):
+def workspace_settings(params, built=None):
     """Gmsh settings for a geometry edited in the geometry workspace (sizes x the shape's reference length)."""
     return settings(params, geometry(params))
 

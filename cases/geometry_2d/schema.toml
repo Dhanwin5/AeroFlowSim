@@ -1,0 +1,120 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# The geometry itself is made in the Geometry step (the geometry workspace): import a file (DXF,
+# STEP, IGES, CSV, .dat), draw, put an enclosure around a body, name the boundaries. So this file
+# only has the mesh inputs. Cell sizes are multiples of the geometry's reference length L: the
+# length along x of the bodies, or of the whole fluid region when there is no body (e.g. a nozzle).
+
+[case]
+name = "Custom 2D geometry - mesh"
+description = "Your own 2D or axisymmetric geometry: import a DXF, STEP, IGES or coordinates file (or draw it), add a fluid domain, name the boundaries by clicking, and mesh it with Gmsh."
+steady = true
+solver = false
+solver_message = "The 2D solver arrives in Prompt 7. For now this template builds, checks and exports the mesh; its patch names come from the boundary names in the Geometry step."
+requires = ["gmsh"]
+
+# ---- mesh ---------------------------------------------------------------------------------------
+
+[[input]]
+key = "cell_type"
+label = "Cell type"
+type = "choice"
+default = "Triangles"
+options = ["Triangles", "Quad-dominant (recombined)"]
+group = "Mesh"
+step = "mesh"
+help = "Triangles only, or triangles combined into quadrilaterals where possible (Gmsh recombination); a few triangles remain."
+
+[[input]]
+key = "surface_size"
+label = "Wall cell size / reference length"
+unit = "-"
+type = "float"
+default = 0.01
+min = 1e-05
+max = 1.0
+group = "Mesh"
+step = "mesh"
+help = "Cell size on the walls, in reference lengths L (0.01 = 100 cells along L). L is shown in the Dimensions tab of the Geometry step: the length along x of the bodies, or of the whole fluid region."
+
+[[input]]
+key = "max_size"
+label = "Largest cell size / reference length"
+unit = "-"
+type = "float"
+default = 0.2
+min = 1e-05
+max = 100.0
+group = "Mesh"
+step = "mesh"
+help = "Largest cell size, reached far from the walls (e.g. at the far field), in reference lengths L."
+
+[[input]]
+key = "size_growth"
+label = "Cell growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.01
+max = 2.0
+group = "Mesh"
+step = "mesh"
+help = "How fast cells grow away from the walls: each cell is about this many times larger than its neighbour nearer the wall."
+
+[[input]]
+key = "edge_refinement"
+label = "Corner refinement"
+type = "bool"
+default = true
+group = "Mesh"
+step = "mesh"
+help = "Four times smaller cells at sharp corners of the walls (throats, leading and trailing edges, lips)."
+
+# ---- inflation layers ---------------------------------------------------------------------------
+
+[[input]]
+key = "inflation"
+label = "Inflation layers"
+type = "bool"
+default = false
+group = "Inflation layers"
+step = "mesh"
+help = "Thin quad layers on the walls marked 'Inflation' in the Boundaries tab of the Geometry step (for boundary layers in viscous flow, Phase 4). Not needed for inviscid (Euler) flow."
+
+[[input]]
+key = "first_layer_height"
+label = "First layer height / reference length"
+unit = "-"
+type = "float"
+default = 1e-05
+min = 1e-09
+max = 0.01
+group = "Inflation layers"
+step = "mesh"
+help = "Height of the cell layer touching the wall (measured normal to the wall), in reference lengths L."
+show_if = { inflation = true }
+
+[[input]]
+key = "n_layers"
+label = "Number of layers"
+unit = "-"
+type = "int"
+default = 10
+min = 1
+max = 100
+group = "Inflation layers"
+step = "mesh"
+help = "Number of quad layers on each marked wall."
+show_if = { inflation = true }
+
+[[input]]
+key = "growth_rate"
+label = "Layer growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.0
+max = 2.0
+group = "Inflation layers"
+step = "mesh"
+help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
+show_if = { inflation = true }

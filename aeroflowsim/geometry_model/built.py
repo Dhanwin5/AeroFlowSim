@@ -128,6 +128,19 @@ class BuiltGeometry:
         box = self.bbox()
         return 1.0 if box is None else max(float(np.hypot(box[2] - box[0], box[3] - box[1])), 1e-300)
 
+    def reference_length(self) -> float:
+        """A length for sizing cells and domains [m]: the length along x of the bodies (the holes in the
+        fluid, or the solid faces), or of the whole fluid region when there are none (e.g. a nozzle)."""
+        loops = [loop for f in self.faces_with_role(FLUID) for loop in f.loops[1:]]
+        loops += [f.loops[0] for f in self.faces_with_role(SOLID) if f.loops]
+        if not loops:
+            loops = [f.loops[0] for f in self.faces_with_role(FLUID) if f.loops]
+        if not loops:
+            box = self.bbox()
+            return 1.0 if box is None else max(box[2] - box[0], 1e-300)
+        x = np.concatenate([self.loop_points(loop)[:, 0] for loop in loops])
+        return max(float(np.ptp(x)), 1e-300)
+
     def faces_with_role(self, role):
         return [f for f in self.faces.values() if f.role == role]
 

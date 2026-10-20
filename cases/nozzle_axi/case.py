@@ -62,8 +62,14 @@ def gmsh_settings(params, profile):
         msh_path=CASE_DIR / "mesh" / "mesh.msh" if params["save_msh"] else None)
 
 
-def workspace_settings(params):
-    """Gmsh settings for a geometry edited in the geometry workspace (sizes x the throat diameter input)."""
+def workspace_settings(params, built=None):
+    """Gmsh settings for a geometry edited in the geometry workspace (sizes x the throat diameter input).
+
+    The structured mesh follows the template's own nozzle only, so an edited geometry needs Gmsh.
+    """
+    if params["mesh_type"] != TRIANGLES:
+        raise ValueError("The geometry was edited in the workspace: the structured mesh only follows the template's "
+                         f"own nozzle. Choose Mesh type '{TRIANGLES}' in the Mesh inputs.")
     return gmsh_settings(params, geometry(params))
 
 

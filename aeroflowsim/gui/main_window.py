@@ -603,7 +603,15 @@ class MainWindow(QMainWindow):
             params = project.params_for(("geometry", "mesh"))
         except ValueError:
             return
-        estimate = estimated_cells(project.case, params)
+        if project.edited_geometry is None:
+            estimate = estimated_cells(project.case, params)
+        else:                                    # an edited geometry: estimate from the workspace drawing
+            from aeroflowsim.workspace_mesh import estimate_cells
+            built = self.pages["geometry"].built
+            try:
+                estimate = estimate_cells(built, project.case.workspace_settings(params, built))
+            except (ValueError, AttributeError):
+                return
         if auto_rebuild(estimate):
             self.generate_mesh(auto=True)
         else:
@@ -628,7 +636,9 @@ class MainWindow(QMainWindow):
                                 f"{install_hint(missing[0])}")
             return
         self.pending = ("mesh", project.fingerprint("mesh"), params)
-        self.runner.submit(Job("mesh", str(project.case.folder), params, str(project.mesh_dir)))
+        edited = project.edited_geometry
+        self.runner.submit(Job("mesh", str(project.case.folder), params, str(project.mesh_dir),
+                               geometry=None if edited is None else edited.to_dict(), folder=str(project.folder)))
         self.strip.set_busy("mesh", None, "meshing")
         self.log(("Automatic re-mesh" if auto else "Meshing") + f" ({project.case.title})")
         self.refresh_all()

@@ -457,7 +457,8 @@ def build_project_mesh(project):
     """
     from aeroflowsim.vtk import mesh_cell_data, write_vtu
 
-    mesh = project.case.build_mesh(project.params())
+    from aeroflowsim.workspace_mesh import mesh_for
+    mesh = mesh_for(project.case, project.params(), project.edited_geometry, project.folder)
     if isinstance(mesh, Mesh):
         project.mesh_dir.mkdir(parents=True, exist_ok=True)
         mesh.save(project.mesh_dir / "mesh.npz")
