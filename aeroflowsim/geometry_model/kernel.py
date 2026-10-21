@@ -339,8 +339,9 @@ class Kernel:
         The result faces keep the id of the object face they come from (pieces: "#1", "#2" ...);
         role: the role of the result (None = that of the first object). Returns the result tags.
         """
-        obj = [(2, t if isinstance(t, int) else self.face_by_id(t)) for t in objects]
-        tool = [(2, t if isinstance(t, int) else self.face_by_id(t)) for t in tools]
+        tag = lambda t: int(t) if isinstance(t, (int, np.integer)) else self.face_by_id(t)
+        obj = [(2, tag(t)) for t in objects]
+        tool = [(2, tag(t)) for t in tools]
         if not obj or not tool:
             raise ValueError("a boolean needs at least one object face and one tool face")
         first = self.face_meta.get(obj[0][1], FaceMeta(f"{op_id}:face", FLUID))

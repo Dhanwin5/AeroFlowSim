@@ -168,10 +168,21 @@ class Delete(Operation):
         if not self.params["targets"]:
             raise ValueError("nothing chosen to delete")
         targets = kernel.dim_tags(self.params["targets"])
+        merges = []
         for dim, tag in targets:
-            if dim == 1 and len(kernel.gmsh.model.getAdjacencies(1, tag)[0]):
-                raise ValueError("an edge of a face cannot be deleted on its own; delete the face, or use "
-                                 "booleans to change it")
+            faces = list(kernel.gmsh.model.getAdjacencies(1, tag)[0]) if dim == 1 else []
+            if len(faces) == 2:                  # an edge between two faces: deleting it merges them
+                merges.append(faces)
+            elif faces:
+                raise ValueError("an outer edge of a face cannot be deleted on its own (the face would be open); "
+                                 "delete the face, or trim / split it")
+        targets = [(d, t) for d, t in targets if not (d == 1 and len(kernel.gmsh.model.getAdjacencies(1, t)[0]))]
+        for faces in merges:
+            live = [int(f) for f in faces if int(f) in kernel.face_tags()]
+            if len(live) == 2:
+                kernel.boolean("union", live[:1], live[1:], self.id)
+        if not targets:
+            return
         kernel.occ.remove(targets, recursive=True)
         kernel.sync()
         for dim, tag in targets:
@@ -194,55 +205,63 @@ class Fillet(Operation):
 
     def apply(self, kernel, context):
         p = self.params
-        if len(p["edges"]) != 2:
-            raise ValueError("a fillet needs the two edges that meet at the corner")
         if not p["radius"] > 0.0:
             raise ValueError("the fillet radius must be positive")
-        model, occ = kernel.gmsh.model, kernel.occ
-        a, b = (kernel.edge_by_id(e) for e in p["edges"])
-        faces = sorted(set(model.getAdjacencies(1, a)[0]) & set(model.getAdjacencies(1, b)[0]))
-        snap = kernel.snapshot()
-        rebuilt = []
-        for face in faces:                       # take the faces off their curves (rebuilt below)
-            _, loops = occ.getCurveLoops(face)
-            rebuilt.append((kernel.face_meta.pop(face, None), [[abs(int(c)) for c in loop] for loop in loops]))
-        if faces:
-            occ.remove([(2, f) for f in faces])
-            kernel.sync()
-        try:
-            arc = occ.fillet2D(a, b, float(p["radius"]))
-        except Exception:
-            raise ValueError(f"no fillet of radius {p['radius']:.4g} m fits between these edges (they must meet "
-                             "at a point, and the radius must be smaller than the edges allow)") from None
+        corner_cut(kernel, self.id, p["edges"], lambda a, b: kernel.occ.fillet2D(a, b, float(p["radius"])), "fillet",
+                   f"no fillet of radius {p['radius']:.4g} m fits between these edges (they must meet at a point, "
+                   "and the radius must be smaller than the edges allow)")
+
+
+def corner_cut(kernel, op_id, edges, make, label, error):
+    """Replace the corner between two edges by a new curve made by make(a, b) (fillet2D: an arc,
+    chamfer2D: a straight cut). The faces using the edges are taken off their curves, the corner
+    is cut (the two edges are trimmed and keep their ids), and the faces are rebuilt with the new
+    curve "<op>:<label>" between the two edges; it carries the lineage of both, so their boundary
+    names apply to it too (a filleted wall stays one wall)."""
+    if len(edges) != 2:
+        raise ValueError(f"a {label} needs the two edges that meet at the corner")
+    model, occ = kernel.gmsh.model, kernel.occ
+    a, b = (kernel.edge_by_id(e) for e in edges)
+    faces = sorted(set(model.getAdjacencies(1, a)[0]) & set(model.getAdjacencies(1, b)[0]))
+    snap = kernel.snapshot()
+    rebuilt = []
+    for face in faces:                           # take the faces off their curves (rebuilt below)
+        _, loops = occ.getCurveLoops(face)
+        rebuilt.append((kernel.face_meta.pop(face, None), [[abs(int(c)) for c in loop] for loop in loops]))
+    if faces:
+        occ.remove([(2, f) for f in faces])
         kernel.sync()
-        old_curves = {arc}
-        for meta, loops in rebuilt:
-            new_loops = []
-            for loop in loops:
-                old_curves.update(loop)
-                n = len(loop)
-                for k in range(n):               # put the arc between a and b where they follow each other
-                    if {loop[k], loop[(k + 1) % n]} == {a, b}:
-                        loop = loop[:k + 1] + [arc] + loop[k + 1:]
-                        break
-                new_loops.append(occ.addCurveLoop(loop))
-            surface = occ.addPlaneSurface(new_loops)
-            if meta is not None:
-                kernel.name_face(surface, meta.id, meta.role)
-        kernel.sync()
-        leftover = [(1, c) for c in old_curves if c in kernel.curve_tags() and len(model.getAdjacencies(1, c)[0]) == 0]
-        if faces and leftover:                   # OCC copied the curves into the new face; drop the old ones
-            occ.remove(leftover, recursive=True)
-        ends = [kernel.edge_meta[a], kernel.edge_meta[b]]
-        kernel.relabel(snap, self.id, "fillet")
-        # The arc carries the lineage of both edges, so their boundary names (default or the user's)
-        # also apply to it: a filleted wall stays one wall.
-        for tag, meta in kernel.edge_meta.items():
-            if meta.id == f"{self.id}:fillet":
-                same = ends[0].default_name == ends[1].default_name
-                kernel.edge_meta[tag] = type(meta)(meta.id, ends[0].sources + ends[1].sources,
-                                                   ends[0].default_name if same else "",
-                                                   ends[0].default_type if same else "")
+    try:
+        cut = make(a, b)
+    except Exception:
+        raise ValueError(error) from None
+    kernel.sync()
+    old_curves = {cut}
+    for meta, loops in rebuilt:
+        new_loops = []
+        for loop in loops:
+            old_curves.update(loop)
+            n = len(loop)
+            for k in range(n):                   # put the new curve between a and b where they follow each other
+                if {loop[k], loop[(k + 1) % n]} == {a, b}:
+                    loop = loop[:k + 1] + [cut] + loop[k + 1:]
+                    break
+            new_loops.append(occ.addCurveLoop(loop))
+        surface = occ.addPlaneSurface(new_loops)
+        if meta is not None:
+            kernel.name_face(surface, meta.id, meta.role)
+    kernel.sync()
+    leftover = [(1, c) for c in old_curves if c in kernel.curve_tags() and len(model.getAdjacencies(1, c)[0]) == 0]
+    if faces and leftover:                       # OCC copied the curves into the new face; drop the old ones
+        occ.remove(leftover, recursive=True)
+    ends = [kernel.edge_meta[a], kernel.edge_meta[b]]
+    kernel.relabel(snap, op_id, label)
+    for tag, meta in kernel.edge_meta.items():
+        if meta.id == f"{op_id}:{label}":
+            same = ends[0].default_name == ends[1].default_name
+            kernel.edge_meta[tag] = type(meta)(meta.id, ends[0].sources + ends[1].sources,
+                                               ends[0].default_name if same else "",
+                                               ends[0].default_type if same else "")
 
 
 class BooleanOp(Operation):
@@ -897,3 +916,9 @@ def operation_from_dict(data) -> Operation:
     if kind not in OPERATIONS:
         raise ValueError(f"unknown geometry operation '{kind}'")
     return OPERATIONS[kind](**data)
+
+
+# The editing operations (split, trim, extend, offset, chamfer, pattern, fill, merge) live in their own module.
+from aeroflowsim.geometry_model import edit_operations as _edit  # noqa: E402  (after Operation is defined)
+
+OPERATIONS.update(_edit.OPERATIONS)

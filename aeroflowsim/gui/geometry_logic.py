@@ -25,6 +25,8 @@ import numpy as np
 from aeroflowsim.geometry_model import FLUID, SOLID
 from aeroflowsim.geometry_model.boundaries import BOUNDARY_TYPES, suggestions
 from aeroflowsim.geometry_model.importers import UNITS
+from aeroflowsim.geometry_model.edit_operations import (
+    Chamfer, Fill, MergeFaces, Offset, Pattern, SplitEdge, SplitFace)
 from aeroflowsim.geometry_model.operations import (
     TEMPLATE_TYPES, BooleanOp, Delete, Enclosure, Fillet, NameBoundary, Refinement, SetRole, Transform)
 
@@ -112,6 +114,21 @@ FIELDS = {
               show_if=("kind", ("polyline", "spline"))),
         Field("role", "A closed shape is", "choice", ROLE_CHOICES),
     ),
+    "split_edge": (Field("x", "Split near x", "length"), Field("y", "Split near y", "length")),
+    "offset": (Field("distance", "Distance (+ outward / left)", "length",
+                     help="Positive: outward for a closed loop, to the left of the chain otherwise."),
+               Field("role", "A closed result is", "choice", ROLE_CHOICES)),
+    "chamfer": (Field("d1", "Distance along edge 1", "length"), Field("d2", "Distance along edge 2", "length")),
+    "pattern": (
+        Field("kind", "Pattern", "choice", (("linear", "Linear (in a row)"), ("circular", "Circular (round a centre)"))),
+        Field("count", "Number in all", "number"),
+        Field("dx", "Step x", "length", show_if=("kind", ("linear",))),
+        Field("dy", "Step y", "length", show_if=("kind", ("linear",))),
+        Field("cx", "Centre x", "length", show_if=("kind", ("circular",))),
+        Field("cy", "Centre y", "length", show_if=("kind", ("circular",))),
+        Field("angle", "Angle between copies", "angle", show_if=("kind", ("circular",))),
+    ),
+    "fill": (Field("role", "The face is", "choice", ROLE_CHOICES),),
     "import": (
         Field("unit", "Unit of the numbers", "choice", (("file", "As the file says"),) + _choices(UNITS)),
         Field("role", "The faces are", "choice", (("auto", "Decide (edge on y = 0: fluid)"),) + ROLE_CHOICES),
@@ -226,6 +243,47 @@ def operation_for(kind, selection, built):
             name = kind_
         inflation = any(built.names[e].inflation for e in edges if e in built.names)
         return NameBoundary(edges=edges, name=name, kind=kind_, inflation=inflation)
+    if kind == "split_face":
+        faces = [e for k, e in selection if k == "face"]
+        curves = [e for k, e in selection if k == "edge" and not built.edges[e].faces]
+        if not curves:
+            raise ValueError("Select a free curve across the face (or use Edit > Split by line to draw one).")
+        return SplitFace(faces=faces, curves=curves)
+    if kind == "split_edge":
+        edges = [e for k, e in selection if k == "edge"]
+        if len(edges) != 1:
+            raise ValueError("Select the one edge to split.")
+        mid = built.edges[edges[0]].midpoint
+        return SplitEdge(edge=edges[0], x=float(mid[0]), y=float(mid[1]))
+    if kind == "offset":
+        edges = _edges_of(selection, built) if selection else []
+        if any(k == "face" for k, _ in selection):          # a face: its outer loop
+            face = built.faces[next(e for k, e in selection if k == "face")]
+            edges = list(face.loops[0])
+        if not edges:
+            raise ValueError("Select the edges (a connected chain) or the face to offset.")
+        return Offset(edges=edges, distance=float(f"{0.05 * built.reference_length():.2g}"))
+    if kind == "chamfer":
+        fillet = operation_for("fillet", selection, built)
+        d = fillet.params["radius"]
+        return Chamfer(edges=fillet.params["edges"], d1=d, d2=d)
+    if kind == "pattern":
+        targets = _faces_of([s for s in selection if s[0] == "face"], built) + \
+            [e for k, e in selection if k == "edge" and not built.edges[e].faces]
+        if not targets:
+            raise ValueError("Select the faces (or free curves) to copy.")
+        box = built.bbox()
+        return Pattern(targets=targets, dx=float(f"{1.2 * (box[2] - box[0]):.2g}"), dy=0.0)
+    if kind == "fill":
+        edges = [e for k, e in selection if k == "edge" and not built.edges[e].faces]
+        if len(edges) < 1:
+            raise ValueError("Select the free curves that form a closed loop.")
+        return Fill(edges=edges)
+    if kind == "merge_faces":
+        faces = [e for k, e in selection if k == "face"]
+        if len(faces) < 2:
+            raise ValueError("Select two or more faces to merge (Shift-click).")
+        return MergeFaces(faces=faces)
     if kind == "enclosure":
         if not built.faces_with_role(SOLID) and built.faces_with_role(FLUID):
             return Enclosure(kind="plume")         # no body: the fluid is a nozzle, so a plume region

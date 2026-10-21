@@ -49,12 +49,24 @@ IMPORT_FILTER = ("Geometry files (*.dxf *.step *.stp *.iges *.igs *.csv *.dat *.
                  "STEP (*.step *.stp);;IGES (*.iges *.igs);;Coordinates (*.csv *.dat *.txt)")
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
-EDIT_MENU = ("transform", "fillet", "delete", "set_role", "boolean")   # in the Edit menu button
+EDIT_MENU = ("transform", "fillet", "chamfer", "split_line", "split_face", "split_edge", "trim", "extend",
+             "offset", "pattern", "fill", "merge_faces", "delete", "set_role", "boolean")   # in the Edit menu button
+CLICK_TOOLS = ("split_line", "trim", "extend")      # editing tools used with the mouse (gui/sketch_tools.py)
 SKETCHES = tuple((kind, cls.title, kind if kind != "polyline" else "line")   # (tool, menu text, icon)
                  for kind, cls in sketch_tools.TOOLS.items())
 TOOLS = (   # (operation kind, button text, tooltip)
     ("transform", "Transform…", "Move, rotate (angle of attack), scale or mirror the selected faces (or everything)"),
     ("fillet", "Fillet…", "Round the selected corner (a point where two edges meet)"),
+    ("chamfer", "Chamfer…", "Cut the selected corner with a straight line"),
+    ("split_line", "Split by line", "Draw a line across a face: the face is split along it"),
+    ("split_face", "Split face", "Split the selected faces along the selected free curves"),
+    ("split_edge", "Split edge…", "Cut the selected edge at a point (both pieces keep its name)"),
+    ("trim", "Trim", "Click pieces of curves to remove them (between crossings)"),
+    ("extend", "Extend", "Click near the end of a straight line to lengthen it to the next curve"),
+    ("offset", "Offset…", "Parallel copy of the selected edges / face outline at a distance"),
+    ("pattern", "Pattern…", "Copies of the selected faces in a row or round a centre"),
+    ("fill", "Fill", "Make a face from the selected closed loop of free curves"),
+    ("merge_faces", "Merge faces", "Join the selected faces into one"),
     ("delete", "Delete", "Delete the selected faces or free curves (Del)"),
     ("set_role", "Fluid / solid…", "Mark the selected faces as fluid (meshed) or solid (cut out)"),
     ("boolean", "Boolean…", "Union, subtract or intersect the selected faces (first = object)"),
@@ -192,7 +204,10 @@ class GeometryPage(QWidget):
         bar.addWidget(self._menu_button("Edit", "edit", edit_menu, "Transform, fillet, delete, fluid / solid, "
                                         "booleans"))
         names = {"transform": "transform", "fillet": "fillet", "delete": "delete", "set_role": "role",
-                 "boolean": "boolean", "enclosure": "enclosure", "name_boundary": "name", "refinement": "refinement"}
+                 "boolean": "boolean", "enclosure": "enclosure", "name_boundary": "name", "refinement": "refinement",
+                 "chamfer": "chamfer", "split_line": "split", "split_face": "split", "split_edge": "split_edge",
+                 "trim": "trim", "extend": "extend", "offset": "offset", "pattern": "pattern", "fill": "fill",
+                 "merge_faces": "merge"}
         for kind, text, tip in TOOLS:
             action = QAction(text.rstrip("…"), self, toolTip=tip)
             action.triggered.connect(lambda _=False, k=kind: self.add_operation(k))
@@ -431,13 +446,13 @@ class GeometryPage(QWidget):
         """The actions of the right-click menu for what is under the cursor ("" = empty space)."""
         t = self.tool_actions
         if kind == "vertex":
-            return [t["fillet"], None, t["transform"]]
+            return [t["fillet"], t["chamfer"], None, t["transform"]]
         if kind == "edge":
-            return [t["name_boundary"], t["refinement"], None, t["fillet"], t["transform"], t["delete"],
-                    None, self.act_points]
+            return [t["name_boundary"], t["refinement"], None, t["split_edge"], t["trim"], t["extend"], t["offset"],
+                    t["fillet"], t["transform"], t["delete"], None, self.act_points]
         if kind == "face":
-            return [t["transform"], t["set_role"], t["boolean"], None, t["enclosure"], t["refinement"], None,
-                    t["delete"]]
+            return [t["transform"], t["set_role"], t["split_line"], t["boolean"], t["merge_faces"], t["offset"],
+                    t["pattern"], None, t["enclosure"], t["refinement"], None, t["delete"]]
         return [self.act_import, None, t["enclosure"], t["refinement"], None, self.act_suggest]
 
     def on_context_menu(self, kind, entity, position):
@@ -479,12 +494,15 @@ class GeometryPage(QWidget):
     def add_operation(self, kind):
         if self.built is None:
             return
+        if kind in CLICK_TOOLS:                       # used with the mouse, like the drawing tools
+            self.start_sketch(kind)
+            return
         try:
             op = logic.operation_for(kind, self.selection, self.built)
         except ValueError as error:
             QMessageBox.information(self, "Select first", str(error))
             return
-        if kind != "delete":
+        if kind not in ("delete", "split_face", "fill", "merge_faces"):
             notes = {"transform": "Applies to the selected faces; with nothing selected, to everything.",
                      "enclosure": "Around bodies: sizes in reference lengths L (the length of the solid bodies "
                                   "along x). Nozzle plume region / plenum: in exit / inlet diameters."}
@@ -743,9 +761,12 @@ class GeometryPage(QWidget):
         """Start a drawing tool; it stays on (shape after shape) until Esc or Stop."""
         if self.built is None:
             return
-        self.tool = sketch_tools.TOOLS[kind](self.built, self._snap_grid())
+        self.tool = {**sketch_tools.TOOLS, **sketch_tools.EDIT_TOOLS}[kind](self.built, self._snap_grid())
         self.sketch_help.setText(f"<b>{self.tool.title}</b>: {self.tool.help}")
         self.arc_button.setVisible(kind == "polyline")
+        self.sketch_role.setVisible(kind in sketch_tools.TOOLS)
+        self.sketch_entry.setVisible(kind not in ("trim", "extend"))
+        self.sketch_grid.setVisible(kind not in ("trim", "extend"))
         self.arc_button.setChecked(False)
         self.sketch_bar.setVisible(True)
         self.banner.hide_message()
@@ -813,10 +834,9 @@ class GeometryPage(QWidget):
         if not tool.done and not tool.finish():
             self.banner.show_message("Nothing to add yet: place at least two points.", "info")
             return
-        op = tool.operation(self.sketch_role.currentData())
+        document = self.document.copy()
+        op = tool.add_to(document, self.sketch_role.currentData())
         if op is not None:
-            document = self.document.copy()
-            document.add(op)
             self.commit(document, op.summary())
         self.start_sketch(tool.kind)                           # ready for the next shape
 
@@ -827,7 +847,7 @@ class GeometryPage(QWidget):
             return
         clicks = [tool.points[i] for i in tool.clicks[:-1]]
         arc = getattr(tool, "arc_next", False)
-        self.tool = type(tool)(self.built, self._snap_grid())
+        self.tool = type(tool)(self.built, self._snap_grid())   # (rebuilt from the remaining points)
         for point in clicks:
             self.tool.place(point)
         if hasattr(self.tool, "arc_next"):

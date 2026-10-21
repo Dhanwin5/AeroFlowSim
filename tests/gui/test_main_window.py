@@ -412,3 +412,42 @@ def test_every_geometry_tool_opens_without_crashing(qtbot, window, tmp_path, mon
         page.start_sketch(kind)
         page.cancel_sketch()
     assert page.history.count() == 2 and window.undo.count() == 0
+
+
+def test_split_by_line_trim_and_mesh_two_faces(qtbot, window, tmp_path):
+    """Edit tools with the mouse: draw a line to split a face, trim a curve, then mesh both faces."""
+    from aeroflowsim.geometry_model.operations import Delete, NameBoundary, SketchGroup
+    _open(window, tmp_path, "geometry_2d")
+    page = window.pages["geometry"]
+    doc = page.document.copy()
+    pts = [[0, 0], [0.04, 0], [0.04, 0.02], [0, 0.02]]
+    doc.add(SketchGroup(points=pts, entities=[{"type": "line", "p": [k, (k + 1) % 4]} for k in range(4)],
+                        role="fluid"))
+    page.commit(doc, "rectangle")
+    page.add_operation("split_line")                                      # a click tool: draw the cut
+    assert page.sketch_kind == "split_line"
+    page.on_sketch_click(0.015, -0.005, 1e-5)
+    page.on_sketch_click(0.025, 0.025, 1e-5)
+    assert len(page.built.faces) == 2 and sum(f.area for f in page.built.faces.values()) == pytest.approx(0.0008)
+    page.cancel_sketch()
+    # Trim: a free line, clicked near its end, loses the piece beyond the rectangle.
+    doc = page.document.copy()
+    doc.add(SketchGroup(points=[[0.035, 0.01], [0.05, 0.01]], entities=[{"type": "line", "p": [0, 1]}]))
+    page.commit(doc, "a line")
+    page.add_operation("trim")
+    page.on_sketch_click(0.048, 0.01, 1e-5)
+    free = [e for e in page.built.edges.values() if not e.faces]
+    assert len(free) == 1 and free[0].length == pytest.approx(0.005)       # only the part inside is left
+    page.cancel_sketch()
+    # Name the outer edges and mesh: both faces are meshed, the cut is inside the fluid.
+    outer = [e for e in page.built.boundary_edges()]
+    doc = page.document.copy()
+    doc.add(NameBoundary(edges=outer, name="walls", kind="wall"))
+    doc.add(Delete(targets=[free[0].id]))                                  # (the free line is not meshed anyway)
+    page.commit(doc, "names")
+    window.go_to("mesh")
+    window.generate_mesh()
+    _wait_job(qtbot, window)
+    assert window.strip.chips["mesh"].status == "ok"
+    assert {p.name for p in window.mesh.patches} == {"walls"}
+    assert window.mesh.cell_volumes.sum() == pytest.approx(0.0008, rel=1e-6)

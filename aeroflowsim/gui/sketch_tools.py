@@ -154,6 +154,11 @@ class DrawTool:
         marker = (self.cursor.point, self.cursor.kind) if self.cursor.kind else None
         return Preview(lines, list(pts), list(self.cursor.guides), marker, text)
 
+    def add_to(self, document, role="solid"):
+        """Add the finished shape to a history; returns the (last) operation added, or None."""
+        op = self.operation(role)
+        return None if op is None else document.add(op)
+
     def operation(self, role="solid"):
         """The finished drawing as a SketchGroup (None if nothing was drawn)."""
         if not self.entities:
@@ -440,6 +445,73 @@ class ConstructionTool(DrawTool):
             self.entities = [{"type": "line", "p": list(self.clicks), "construction": True}]
 
 
+class PickTool(DrawTool):
+    """A one-click editing tool (Trim, Extend): highlights the curve under the cursor; a click makes
+    the operation there and the tool stays on for the next click."""
+
+    count = 1
+
+    def snap(self, xy, tol):                         # (no snapping: the click position itself counts)
+        return Inference(np.asarray(xy, dtype=float))
+
+    def target(self):
+        """(edge id, points) of the edge nearest to the cursor, or None."""
+        from aeroflowsim.geometry_model.picking import nearest_edge
+        if self.built is None or not self.built.edges:
+            return None
+        hit = nearest_edge(self.built, self.cursor.point, np.inf)
+        return None if hit is None else (hit[0], self.built.edges[hit[0]].points)
+
+    def preview(self) -> Preview:
+        hit = self.target()
+        return Preview([hit[1]] if hit else [], [], [], None, self.title)
+
+    def place(self, point) -> bool:
+        self.points, self.clicks = [np.asarray(point, dtype=float)], [0]
+        self.done = True
+        self.entities = [{}]                             # (something to add)
+        return True
+
+
+class TrimTool(PickTool):
+    kind, title = "trim", "Trim"
+    help = "Click the piece of a curve to remove (between the points where it crosses other curves)."
+
+    def operation(self, role="solid"):
+        from aeroflowsim.geometry_model.edit_operations import Trim
+        x, y = self.points[0]
+        return Trim(x=float(x), y=float(y))
+
+
+class ExtendTool(PickTool):
+    kind, title = "extend", "Extend"
+    help = "Click near the end of a straight free line: it is lengthened up to the next curve."
+
+    def operation(self, role="solid"):
+        from aeroflowsim.geometry_model.edit_operations import Extend
+        self.cursor = Inference(self.points[0])
+        hit = self.target()
+        if hit is None:
+            return None
+        x, y = self.points[0]
+        return Extend(edge=hit[0], x=float(x), y=float(y))
+
+
+class SplitLineTool(DrawTool):
+    kind, title, count = "split_line", "Split by line", 2
+    help = "Draw a line across a face (two clicks, or press - drag - release): the face is split along it."
+
+    def on_point(self):
+        if len(self.clicks) == 2:
+            self.entities = [{"type": "line", "p": list(self.clicks)}]
+
+    def add_to(self, document, role="solid"):
+        """Two history steps: the line, and the split along it."""
+        from aeroflowsim.geometry_model.edit_operations import SplitFace
+        sketch = document.add(self.operation(role))
+        return document.add(SplitFace(curves=[f"{sketch.id}:e1"]))
+
+
 def _circumcentre(a, b, c):
     d = 2.0 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]))
     if abs(d) < 1e-300 * max(1.0, float(np.abs([a, b, c]).max())) or abs(d) < 1e-24:
@@ -451,3 +523,4 @@ def _circumcentre(a, b, c):
 
 TOOLS = {cls.kind: cls for cls in (PolylineTool, Arc3Tool, ArcTool, SplineTool, RectangleTool, Rectangle3Tool,
                                    CircleTool, ConstructionTool)}
+EDIT_TOOLS = {cls.kind: cls for cls in (SplitLineTool, TrimTool, ExtendTool)}     # started from the Edit menu

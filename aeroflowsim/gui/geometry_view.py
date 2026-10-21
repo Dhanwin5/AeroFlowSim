@@ -29,7 +29,7 @@ import time
 import numpy as np
 import pyvista as pv
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtWidgets import QLabel, QToolButton
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton
 
 from aeroflowsim.geometry_model import FLUID, picking
 from aeroflowsim.geometry_model.snapping import visible_grid
@@ -162,21 +162,25 @@ class GeometryView(MeshView):
             button.toggled.connect(lambda checked, k=key: self._toggled(k, checked))
             self.toolbar.insertWidget(self.toolbar.count() - 1, button)
             self.toggles[key] = button
-        self.toolbar.insertWidget(self.toolbar.count() - 1, QLabel("  Pick:", objectName="hint"))
+        # Second line: the selection filter (what clicks and boxes may pick) and the legend.
+        second = QHBoxLayout()
+        second.setContentsMargins(4, 0, 4, 2)
+        second.addWidget(QLabel("Pick:", objectName="hint"))
         self.filters = {}
         for kind, text, tip in (("vertex", "Points", "Clicks and boxes select corner points"),
                                 ("edge", "Edges", "Clicks and boxes select edges"),
                                 ("face", "Faces", "Clicks and boxes select faces")):
             button = QToolButton(text=text, toolTip=tip, checkable=True, checked=True, autoRaise=True)
-            self.toolbar.insertWidget(self.toolbar.count() - 1, button)
+            second.addWidget(button)
             self.filters[kind] = button
         self.position_label = QLabel(objectName="hint")
         self.position_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.toolbar.addWidget(self.position_label)
-        # The legend has its own line under the switches, so long boundary names never crowd them out.
+        # The legend shares the second line, so long boundary names never crowd out the switches.
         self.legend_label = QLabel(textFormat=Qt.RichText, wordWrap=True)
-        self.legend_label.setContentsMargins(6, 0, 6, 2)
-        self.layout().insertWidget(1, self.legend_label)
+        self.legend_label.setContentsMargins(12, 0, 0, 0)
+        second.addWidget(self.legend_label, 1)
+        self.layout().insertLayout(1, second)
         self.plotter.add_axes(line_width=2, labels_off=False)
         self.update_icons()
         self._ready = True
