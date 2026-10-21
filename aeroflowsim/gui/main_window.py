@@ -22,7 +22,7 @@ clicked, a job ends) and every function *connected* to it (a "slot") is called, 
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QSettings, Qt, QTimer, QUrl
+from PySide6.QtCore import QProcess, QSettings, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QUndoStack
 from PySide6.QtWidgets import (QDockWidget, QFileDialog, QInputDialog, QLabel, QMainWindow, QMessageBox,
                                QPlainTextEdit, QStackedWidget, QVBoxLayout, QWidget)
@@ -31,6 +31,7 @@ from aeroflowsim.checks import run_mesh_checks
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.gui import app_info
 from aeroflowsim.gui.dialogs import ProjectPlaceDialog
+from aeroflowsim.gui.icons import icon
 from aeroflowsim.gui.jobs import JobRunner
 from aeroflowsim.gui.logic import auto_rebuild, estimated_cells, is_face_mesh, progress_fraction
 from aeroflowsim.gui.panel import InputPanel
@@ -220,10 +221,16 @@ class MainWindow(QMainWindow):
 
         toolbar = self.addToolBar("Main")
         toolbar.setObjectName("toolbar_main")
+        toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        toolbar.setIconSize(QSize(20, 20))
         toolbar.addActions([self.act[k] for k in ("new", "open", "save")])
         toolbar.addSeparator()
         # Toolbar Undo/Redo keep short fixed labels; the Edit menu shows what will be undone
         # ("Undo change Throat diameter"), which would make toolbar buttons grow and jump.
+        self.icon_actions = {self.act[k]: name for k, name in (
+            ("new", "new"), ("open", "open"), ("save", "save"), ("undo", "undo"), ("redo", "redo"),
+            ("generate", "mesh"), ("run", "run"), ("stop", "stop"), ("fit", "fit"), ("dark", "theme"),
+            ("import", "import"))}
         for key, slot, signal in (("undo", self.undo.undo, self.undo.canUndoChanged),
                                   ("redo", self.undo.redo, self.undo.canRedoChanged)):
             short = QAction(key.capitalize(), self, enabled=False)
@@ -231,11 +238,17 @@ class MainWindow(QMainWindow):
             short.triggered.connect(slot)
             signal.connect(short.setEnabled)
             toolbar.addAction(short)
+            self.icon_actions[short] = key
         toolbar.addSeparator()
         toolbar.addActions([self.act[k] for k in ("generate", "run", "stop")])
         toolbar.addSeparator()
         toolbar.addActions([self.act["fit"], self.act["dark"]])
         self.update_recent_menu()
+
+    def update_icons(self):
+        """Give every tool bar action its icon in the colours of the current theme."""
+        for action, name in self.icon_actions.items():
+            action.setIcon(icon(name))
 
     # ================================================================================== state helpers
 
@@ -340,7 +353,10 @@ class MainWindow(QMainWindow):
     def set_dark(self, dark, save=True):
         self.dark = dark
         apply_theme(dark)
+        self.update_icons()
         for page in self.pages.values():
+            if hasattr(page, "update_icons"):
+                page.update_icons()
             view = getattr(page, "view", None)
             if hasattr(view, "set_dark"):
                 view.set_dark(dark)

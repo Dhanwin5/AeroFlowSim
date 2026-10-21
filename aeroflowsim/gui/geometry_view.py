@@ -15,16 +15,32 @@ It builds on MeshView (gui/vtk_view.py: camera, Fit, click-versus-pan). What it 
     "points" (drag one of the handle points - outline points, enclosure size, region corners -:
     emits point_moved(index, x, y) [m]),
     "click" (sketching: emits clicked(x, y, tolerance) [m]). In those modes the mouse wheel still zooms.
+
+View aids (the row above the view): a background grid that follows the zoom (spacing shown),
+an xyz axes triad, the cursor position in mm, the legend of boundary names, a 2D / 3D switch
+(3D: rotate freely; editing stays in 2D) and, for axisymmetric geometry, a revolve preview (the
+boundaries swept 270 degrees about the x axis). Hovering shows what a click would pick; a
+right-click emits context_menu(kind, id, global position) for the page's context menu.
 """
+
+import html
 
 import numpy as np
 import pyvista as pv
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtWidgets import QLabel, QToolButton
 from vtkmodules.vtkInteractionStyle import vtkInteractorStyleUser
 
 from aeroflowsim.geometry_model import FLUID, picking
-from aeroflowsim.gui.theme import PATCH_COLOURS, view_colours
+from aeroflowsim.geometry_model.snapping import visible_grid
+from aeroflowsim.gui.icons import icon
+from aeroflowsim.gui.theme import PATCH_COLOURS, colour, view_colours
 from aeroflowsim.gui.vtk_view import CLICK_PIXELS, MeshView
+
+HOVER = "#4fc3f7"            # what a click would pick
+GRID = {False: ("#e3e7ec", "#c9d0d8"), True: ("#2b2d31", "#3c4043")}   # (minor, major) grid line colours
+REVOLVE_ANGLE = 270.0        # the revolve preview leaves a quarter open, to see inside [deg]
+REVOLVE_STEPS = 72           # angular resolution of the revolve preview [-]
 
 PICK_PIXELS = 8              # a click within this many pixels of an edge / point picks it [px]
 SELECTED = "#fbbc04"         # selection colour (yellow, readable on both themes)
@@ -69,6 +85,8 @@ class GeometryView(MeshView):
     moved = Signal(float, float)             # drag of the selection ended: dx, dy [m]
     point_moved = Signal(int, float, float)  # a handle point was dragged to x, y [m]
     clicked = Signal(float, float, float)    # a click in "click" mode at x, y [m], with the pick tolerance [m]
+    context_menu = Signal(str, str, QPoint)  # right-click: kind, id under the cursor ("" for nothing), screen position
+    cursor_moved = Signal(float, float)      # the cursor's world position x, y [m]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -80,9 +98,44 @@ class GeometryView(MeshView):
         self._drag = None                    # what is being dragged: ("move", start xy) or ("point", index)
         self._preview = None
         self._style_2d = None
+        self._hover, self._hover_actor = None, None
+        self._grid_actors, self._grid_box = [], None
+        self._revolve_actors = []
+        self._right_press = None
+        self.view3d = False
         self.plotter.iren.add_observer("MouseMoveEvent", self._on_move)
         self.plotter.iren.add_observer("MouseWheelForwardEvent", lambda *_: self._wheel(0.85))
         self.plotter.iren.add_observer("MouseWheelBackwardEvent", lambda *_: self._wheel(1.0 / 0.85))
+        self.plotter.iren.add_observer("RightButtonPressEvent", self._on_right_press)
+        self.plotter.iren.add_observer("RightButtonReleaseEvent", self._on_right_release)
+        self.plotter.renderer.AddObserver("EndEvent", self._after_render)
+        self._grid_timer = QTimer(self, singleShot=True, interval=0)
+        self._grid_timer.timeout.connect(self._update_grid)
+        # The row above the view: view switches, legend, cursor position and grid spacing.
+        self.toggles = {}
+        for key, text, tip, on in (("grid", "Grid", "Background grid (follows the zoom)", True),
+                                   ("view3d", "3D", "Rotate the view freely (editing stays in 2D)", False),
+                                   ("revolve", "Revolve", "Axisymmetric geometry swept about the x axis (3D)", False)):
+            button = QToolButton(text=text, toolTip=tip, checkable=True, checked=on, autoRaise=True,
+                                 toolButtonStyle=Qt.ToolButtonTextBesideIcon)
+            button.setIconSize(QSize(16, 16))
+            button.toggled.connect(lambda checked, k=key: self._toggled(k, checked))
+            self.toolbar.insertWidget(self.toolbar.count() - 1, button)
+            self.toggles[key] = button
+        self.position_label = QLabel(objectName="hint")
+        self.position_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.toolbar.addWidget(self.position_label)
+        # The legend has its own line under the switches, so long boundary names never crowd them out.
+        self.legend_label = QLabel(textFormat=Qt.RichText, wordWrap=True)
+        self.legend_label.setContentsMargins(6, 0, 6, 2)
+        self.layout().insertWidget(1, self.legend_label)
+        self.plotter.add_axes(line_width=2, labels_off=False)
+        self.update_icons()
+
+    def update_icons(self):
+        for key, name in (("grid", "grid"), ("view3d", "view3d"), ("revolve", "revolve")):
+            self.toggles[key].setIcon(icon(name, self.dark))
+        self.fit_button.setIcon(icon("fit", self.dark))
 
     # ---- drawing -------------------------------------------------------------------------------
 
@@ -136,18 +189,25 @@ class GeometryView(MeshView):
         self._legend(legend)
         self._draw_selection()
         self._draw_handles()
+        if not p.renderer.axes_enabled:
+            p.add_axes(line_width=2, labels_off=False)
+        self.toggles["revolve"].setEnabled(built.axisymmetric)
+        self._draw_revolve()
         if camera is not None:
             p.camera = camera
             p.render()
+        elif self.view3d:
+            p.reset_camera()
         else:
             self.fit()
+        self._grid_box = None
+        self._update_grid()
 
     def _legend(self, entries):
-        if entries:
-            colours = [[name, UNNAMED if kind == "_unnamed" else PATCH_COLOURS.get(kind, "gray")]
-                       for name, kind in entries]
-            self.plotter.add_legend(colours, bcolor=None, face="line", size=(0.14, 0.035 * len(entries)),
-                                    loc="upper right", font_family="arial")
+        """The boundary names with their colours, in the row above the view (always readable, never cut)."""
+        parts = [f'<span style="color:{UNNAMED if kind == "_unnamed" else PATCH_COLOURS.get(kind, "gray")}">'
+                 f'&#9632;</span>&nbsp;{html.escape(name)}' for name, kind in entries]
+        self.legend_label.setText("&nbsp;&nbsp; ".join(parts))
 
     def _draw_selection(self):
         built = self.built
@@ -208,9 +268,165 @@ class GeometryView(MeshView):
         self.plotter.render()
 
     def clear(self, message=""):
-        self._handle_actor = self._sketch_actor = None
+        self._handle_actor = self._sketch_actor = self._hover_actor = None
+        self._hover = None
+        self._grid_actors, self._grid_box, self._revolve_actors = [], None, []
+        if hasattr(self, "legend_label"):
+            self.legend_label.setText("")
         super().clear(message)
         self.highlight = None
+
+    def set_dark(self, dark):
+        super().set_dark(dark)
+        self._grid_box = None                    # redraw the grid in the new colours
+        self.update_icons()
+        if not self.closed:
+            self._update_grid()
+
+    # ---- view aids: grid, 3D, revolve, hover ------------------------------------------------------
+
+    def _toggled(self, key, checked):
+        if key == "revolve":
+            if checked and not self.toggles["view3d"].isChecked():
+                self.toggles["view3d"].setChecked(True)        # a revolved body is seen in 3D (calls _set_3d)
+            self._draw_revolve()
+        elif key == "view3d":
+            if not checked and self.toggles["revolve"].isChecked():
+                self.toggles["revolve"].setChecked(False)      # back in 2D: no revolve preview
+            self._set_3d(checked)
+        elif key == "grid":
+            self._grid_box = None
+            self._update_grid()
+
+    def _set_3d(self, on):
+        """3D: free rotation with perspective; back to 2D: the flat view from +z, fitted."""
+        self.view3d = on
+        p = self.plotter
+        if on:
+            self.set_mode("select")
+            p.disable_parallel_projection()
+            p.enable_trackball_style()
+            p.view_isometric()
+            p.reset_camera()
+        else:
+            self.fit()                                       # parallel projection and 2D style again
+        self._remove_hover()
+        self._grid_box = None
+        self._update_grid()
+        p.render()
+
+    def _draw_revolve(self):
+        """The boundaries swept about the x axis (axisymmetric geometry only)."""
+        for actor in self._revolve_actors:
+            self.plotter.remove_actor(actor)
+        self._revolve_actors = []
+        built = self.built
+        if not self.toggles["revolve"].isChecked() or built is None or not built.axisymmetric:
+            self.plotter.render()
+            return
+        for edge_id in built.boundary_edges():
+            b = built.names.get(edge_id)
+            if b is not None and b.type == "axis":
+                continue                                   # the axis sweeps to a line
+            line = _lines([built.edges[edge_id].points])
+            surface = line.extrude_rotate(resolution=REVOLVE_STEPS, angle=REVOLVE_ANGLE, rotation_axis=(1, 0, 0),
+                                          capping=False)
+            colour_ = PATCH_COLOURS.get(b.type, UNNAMED) if b is not None else UNNAMED
+            self._revolve_actors.append(self.plotter.add_mesh(surface, color=colour_, opacity=0.55, smooth_shading=True,
+                                                              reset_camera=False))
+        self.plotter.render()
+
+    def fit(self):
+        if self.view3d and not self.closed:
+            self.plotter.reset_camera()
+            self.plotter.render()
+        else:
+            super().fit()
+
+    def visible_box(self):
+        """(x0, x1, y0, y1) [m] of the 2D view (parallel projection from +z)."""
+        cam = self.plotter.camera
+        w, h = max(self.plotter.interactor.width(), 1), max(self.plotter.interactor.height(), 1)
+        half_h = cam.parallel_scale
+        half_w = half_h * w / h
+        cx, cy = cam.focal_point[:2]
+        return cx - half_w, cx + half_w, cy - half_h, cy + half_h
+
+    def _after_render(self, *_):
+        """After every render: redraw the grid (later, never inside a render) if the view moved."""
+        if self.closed or self.built is None:
+            return
+        box = None if self.view3d else tuple(round(v, 12) for v in self.visible_box())
+        if box != self._grid_box and not self._grid_timer.isActive():
+            self._grid_timer.start()
+
+    def _update_grid(self):
+        if self.closed:
+            return
+        for actor in self._grid_actors:
+            self.plotter.remove_actor(actor)
+        self._grid_actors = []
+        if self.built is None or self.built.empty or not self.toggles["grid"].isChecked():
+            self._grid_box = None
+            self.position_label.setText(self.position_label.text().split("   grid")[0])
+            self.plotter.render()
+            return
+        if self.view3d:
+            x0, y0, x1, y1 = self.built.bbox()
+            pad = 0.25 * max(x1 - x0, y1 - y0)
+            box = (x0 - pad, x1 + pad, y0 - pad, y1 + pad)
+        else:
+            box = self.visible_box()
+        step, xs, ys, x_major, y_major = visible_grid(*box)
+        minor_colour, major_colour = GRID[self.dark]
+        z = -3.0 * self._dz                                  # behind everything else
+        for major, colour_ in ((False, minor_colour), (True, major_colour)):
+            segments = [np.array([[x, box[2]], [x, box[3]]]) for x, m in zip(xs, x_major) if m == major]
+            segments += [np.array([[box[0], y], [box[1], y]]) for y, m in zip(ys, y_major) if m == major]
+            if segments:
+                self._grid_actors.append(self.plotter.add_mesh(_lines(segments, z), color=colour_, line_width=1,
+                                                               reset_camera=False, pickable=False))
+        self._grid_step = step
+        self._grid_box = None if self.view3d else tuple(round(v, 12) for v in box)
+        self._show_position()
+        self.plotter.render()
+
+    def _show_position(self, xy=None):
+        text = "" if xy is None else f"x {xy[0] * 1e3:.4g}   y {xy[1] * 1e3:.4g} mm"
+        if self.toggles["grid"].isChecked() and getattr(self, "_grid_step", None) and self.built is not None:
+            text += f"   grid {self._grid_step * 1e3:.4g} mm"
+        self.position_label.setText(text.strip())
+
+    def _remove_hover(self):
+        if self._hover_actor is not None:
+            self.plotter.remove_actor(self._hover_actor)
+            self._hover_actor = None
+        self._hover = None
+
+    def _draw_hover(self, hit):
+        """Light-blue outline of what a click would pick now (pre-selection)."""
+        if hit == self._hover:
+            return
+        self._remove_hover()
+        self._hover = hit
+        if hit is None or tuple(hit) in [tuple(s) for s in self.selection]:
+            self.plotter.render()
+            return
+        kind, entity = hit
+        if kind == "edge":
+            self._hover_actor = self.plotter.add_mesh(_lines([self.built.edges[entity].points], 1.5 * self._dz),
+                                                      color=HOVER, line_width=5, reset_camera=False)
+        elif kind == "vertex":
+            xy = self.built.vertices[entity].xy
+            self._hover_actor = self.plotter.add_points(np.array([[xy[0], xy[1], 2.5 * self._dz]]), color=HOVER,
+                                                        point_size=12, render_points_as_spheres=True,
+                                                        reset_camera=False)
+        else:
+            face = self.built.faces[entity]
+            edges = [self.built.edges[e].points for loop in face.loops for e in loop]
+            self._hover_actor = self.plotter.add_mesh(_lines(edges, 1.5 * self._dz), color=HOVER, line_width=3,
+                                                      reset_camera=False)
+        self.plotter.render()
 
     # ---- modes -------------------------------------------------------------------------------------
 
@@ -253,10 +469,16 @@ class GeometryView(MeshView):
                 self._drag = ("point", k)
 
     def _on_move(self, interactor, _event):
-        if self._drag is None:
+        if self.built is None or self.closed or self.view3d:
             return
         x, y = interactor.GetEventPosition()
         p = self.world_point(x, y)
+        if self._drag is None:
+            self._show_position(p)
+            self.cursor_moved.emit(float(p[0]), float(p[1]))
+            if self.mode == "select" and not self.built.empty:
+                self._draw_hover(picking.pick(self.built, p, self.tolerance(x, y)))
+            return
         if self._preview is not None:
             self.plotter.remove_actor(self._preview)
         if self._drag[0] == "move":
@@ -296,7 +518,7 @@ class GeometryView(MeshView):
             self.plotter.remove_actor(self._preview)
             self._preview = None
         drag, self._drag = self._drag, None
-        if self._press is None or self.built is None:
+        if self._press is None or self.built is None or self.view3d:      # 3D: rotate only, no picking
             return
         moved_pixels = abs(x - self._press[0]) + abs(y - self._press[1])
         p = self.world_point(x, y)
@@ -313,6 +535,23 @@ class GeometryView(MeshView):
             self.clicked.emit(float(p[0]), float(p[1]), self.tolerance(x, y))
             return
         self.pick_at(x, y, bool(interactor.GetShiftKey() or interactor.GetControlKey()))
+
+    def _on_right_press(self, interactor, _event):
+        self._right_press = interactor.GetEventPosition()
+
+    def _on_right_release(self, interactor, _event):
+        """A right-click (not a drag, which zooms) opens the context menu for what is under the cursor."""
+        if self._right_press is None or self.built is None or self.view3d:
+            return
+        x, y = interactor.GetEventPosition()
+        if abs(x - self._right_press[0]) + abs(y - self._right_press[1]) > CLICK_PIXELS:
+            return
+        hit = picking.pick(self.built, self.world_point(x, y), self.tolerance(x, y))
+        kind, entity = hit if hit is not None else ("", "")
+        widget = self.plotter.interactor
+        ratio = widget.devicePixelRatioF()                  # VTK counts physical pixels, from the bottom
+        local = QPoint(int(x / ratio), int(widget.height() - y / ratio))
+        self.context_menu.emit(kind, entity, widget.mapToGlobal(local))
 
     def pick_at(self, x, y, add=False):
         """Pick at screen pixel (x, y) (VTK display coordinates) and emit picked()."""

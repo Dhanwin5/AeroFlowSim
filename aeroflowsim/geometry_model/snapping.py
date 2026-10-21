@@ -25,6 +25,22 @@ def grid_step(size) -> float:
     return min((step * power for step in (1.0, 2.0, 5.0, 10.0)), key=lambda s: abs(math.log(s / raw)))
 
 
+MAJOR_EVERY = 5     # every fifth grid line is drawn stronger [-]
+
+
+def visible_grid(x0, x1, y0, y1):
+    """Grid lines for the visible box [m]: (step, xs, ys, x_major, y_major).
+
+    The step is grid_step() of the visible height (about 20 lines across), so the grid follows the
+    zoom; lines at multiples of the step, every MAJOR_EVERY-th one marked "major".
+    """
+    step = grid_step(max(y1 - y0, 1e-300))
+    xs = np.arange(math.floor(x0 / step), math.ceil(x1 / step) + 1) * step
+    ys = np.arange(math.floor(y0 / step), math.ceil(y1 / step) + 1) * step
+    major = lambda v: np.isclose(np.mod(np.round(v / step), MAJOR_EVERY), 0.0)
+    return step, xs, ys, major(xs), major(ys)
+
+
 def snap(built, xy, tolerance, sketch_points=(), grid=None):
     """(point (2,), what) - what is "corner", "sketch point", "midpoint", "grid" or "" (no snap)."""
     p = np.asarray(xy, dtype=float)

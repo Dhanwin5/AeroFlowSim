@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QInputDialog, QLabel, QListWidget, QListWidgetItem,
                                QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTabWidget, QToolBar,
@@ -39,6 +39,7 @@ from aeroflowsim.gui import geometry_logic as logic
 from aeroflowsim.gui.geometry_forms import (ImportDialog, OperationDialog, OperationForm, PointTableDialog,
                                              SuggestionsDialog)
 from aeroflowsim.gui.geometry_view import GeometryView
+from aeroflowsim.gui.icons import icon
 from aeroflowsim.gui.logic import readable
 from aeroflowsim.gui.theme import PATCH_COLOURS, colour
 from aeroflowsim.gui.widgets import Banner, ValueTable
@@ -80,6 +81,7 @@ class GeometryPage(QWidget):
         self.view.moved.connect(self.on_moved)
         self.view.point_moved.connect(self.on_point_moved)
         self.view.clicked.connect(self.on_sketch_click)
+        self.view.context_menu.connect(self.on_context_menu)
         self.sketch_kind, self.sketch_points = None, []
         self.preview = None              # 1D templates: the read-only GeometryPreview
         self.built = None                # workspace: the replayed geometry (BuiltGeometry)
@@ -148,65 +150,84 @@ class GeometryPage(QWidget):
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self.escape, context=Qt.WidgetWithChildrenShortcut)
 
     def _build_toolbar(self):
+        """The workspace tool bar: icons with their names under them (gui/icons.py, our own icon set)."""
         bar = QToolBar()
+        bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        bar.setIconSize(QSize(22, 22))
+        self.icon_targets = []                       # (action or button, icon name): recoloured with the theme
         modes = QActionGroup(self)
         self.mode_actions = {}
-        for mode, text, tip in (("select", "Select", "Click to select (Shift/Ctrl-click adds); drag to pan"),
-                                ("move", "Move", "Drag the selected faces to move them"),
-                                ("points", "Drag points", "Drag the points of the selected outline")):
+        for mode, text, name, tip in (("select", "Select", "select", "Click to select (Shift/Ctrl-click adds); drag "
+                                       "to pan"),
+                                      ("move", "Move", "move", "Drag the selected faces to move them"),
+                                      ("points", "Drag points", "points", "Drag the points of the selected outline, "
+                                       "an enclosure's size or a refinement region's corners")):
             action = QAction(text, self, checkable=True, toolTip=tip)
             action.triggered.connect(lambda _=False, m=mode: self.set_mode(m))
             modes.addAction(action)
             bar.addAction(action)
             self.mode_actions[mode] = action
+            self.icon_targets.append((action, name))
         self.mode_actions["select"].setChecked(True)
         bar.addSeparator()
-        self.act_import = bar.addAction("Import…", self.import_file)
+        self.act_import = bar.addAction("Import", self.import_file)
         self.act_import.setToolTip("Coordinates (CSV, .dat), nozzle wall CSV (x_mm,r_mm), DXF, STEP or IGES")
-        self.act_points = bar.addAction("Point table…", self.edit_points)
+        self.act_points = bar.addAction("Points", self.edit_points)
         self.act_points.setToolTip("Edit the points of the selected outline in a table (mm)")
+        self.icon_targets += [(self.act_import, "import"), (self.act_points, "table")]
         sketch_menu = QMenu(self)
         for kind, text, _ in SKETCHES:
-            sketch_menu.addAction(text, lambda k=kind: self.start_sketch(k))
-        sketch_button = QToolButton(text="Sketch", popupMode=QToolButton.InstantPopup,
-                                    toolTip="Draw lines, arcs, splines, rectangles and circles (snaps to corners, "
-                                            "midpoints and the grid; points can be typed in mm)")
-        sketch_button.setMenu(sketch_menu)
-        bar.addWidget(sketch_button)
-        bar.addSeparator()
+            action = sketch_menu.addAction(text, lambda k=kind: self.start_sketch(k))
+            self.icon_targets.append((action, "line" if kind == "polyline" else kind))
+        bar.addWidget(self._menu_button("Sketch", "sketch", sketch_menu, "Draw lines, arcs, splines, rectangles "
+                                        "and circles (snaps to corners, midpoints and the grid; points can be typed)"))
         self.tool_actions = {}
         edit_menu = QMenu(self)
+        edit_menu.setToolTipsVisible(True)
+        bar.addWidget(self._menu_button("Edit", "edit", edit_menu, "Transform, fillet, delete, fluid / solid, "
+                                        "booleans"))
+        names = {"transform": "transform", "fillet": "fillet", "delete": "delete", "set_role": "role",
+                 "boolean": "boolean", "enclosure": "enclosure", "name_boundary": "name", "refinement": "refinement"}
         for kind, text, tip in TOOLS:
-            action = QAction(text, self, toolTip=tip)
+            action = QAction(text.rstrip("…"), self, toolTip=tip)
             action.triggered.connect(lambda _=False, k=kind: self.add_operation(k))
             self.tool_actions[kind] = action
-            if kind in EDIT_MENU:
-                edit_menu.addAction(action)
-            else:
-                bar.addAction(action)
-        edit_menu.setToolTipsVisible(True)
-        edit_button = QToolButton(text="Edit", popupMode=QToolButton.InstantPopup, toolTip="Transform, fillet, "
-                                  "delete, fluid / solid, booleans")
-        edit_button.setMenu(edit_menu)
-        bar.insertWidget(self.tool_actions["enclosure"], edit_button)
+            self.icon_targets.append((action, names[kind]))
+            (edit_menu if kind in EDIT_MENU else bar).addAction(action)
+        self.tool_actions["name_boundary"].setText("Name")
         bar.addSeparator()
         self.act_axi = QAction("Axisymmetric", self, checkable=True,
                                toolTip="Axisymmetric about the x axis (y = r >= 0); otherwise planar 2D")
         self.act_axi.triggered.connect(self.set_axisymmetric)
         bar.addAction(self.act_axi)
-        bar.addSeparator()
-        self.act_suggest = bar.addAction("Suggestions…", self.show_suggestions)
+        self.act_suggest = bar.addAction("Suggest", self.show_suggestions)
         self.act_suggest.setToolTip("Suggested cell sizes and far-field size from the geometry, each with its reason")
+        self.icon_targets += [(self.act_axi, "axisymmetric"), (self.act_suggest, "suggestions")]
         more = QMenu(self)
         more.setToolTipsVisible(True)
         self.act_export = more.addAction("Export geometry…", self.export)
         self.act_export.setToolTip("Save the geometry as STEP, DXF or CSV")
         self.act_revert = more.addAction("Back to the template geometry", self.revert)
         self.act_revert.setToolTip("Forget the workspace edits: the template's own geometry again")
-        more_button = QToolButton(text="More", popupMode=QToolButton.InstantPopup, toolTip="Export, back to template")
-        more_button.setMenu(more)
-        bar.addWidget(more_button)
+        self.icon_targets += [(self.act_export, "export"), (self.act_revert, "revert")]
+        bar.addWidget(self._menu_button("More", "more", more, "Export, back to template"))
+        self.update_icons()
         return bar
+
+    def _menu_button(self, text, icon_name, menu, tip):
+        """A tool bar button that opens a menu (icon with its name under it)."""
+        button = QToolButton(text=text, popupMode=QToolButton.InstantPopup, toolTip=tip,
+                             toolButtonStyle=Qt.ToolButtonTextUnderIcon, autoRaise=True)
+        button.setIconSize(QSize(22, 22))
+        button.setMenu(menu)
+        self.icon_targets.append((button, icon_name))
+        return button
+
+    def update_icons(self):
+        """Icons in the colours of the current theme (called again when the theme changes)."""
+        for target, name in self.icon_targets:
+            target.setIcon(icon(name))
+        self.view.update_icons()
 
     def _build_sketch_bar(self):
         bar = QWidget()
@@ -389,6 +410,39 @@ class GeometryPage(QWidget):
             self.act_points.setEnabled(self._points_operation() is not None)
             if self.view.mode == "points":
                 self._show_handles()
+
+    def context_actions(self, kind):
+        """The actions of the right-click menu for what is under the cursor ("" = empty space)."""
+        t = self.tool_actions
+        if kind == "vertex":
+            return [t["fillet"], None, t["transform"]]
+        if kind == "edge":
+            return [t["name_boundary"], t["refinement"], None, t["fillet"], t["transform"], t["delete"],
+                    None, self.act_points]
+        if kind == "face":
+            return [t["transform"], t["set_role"], t["boolean"], None, t["enclosure"], t["refinement"], None,
+                    t["delete"]]
+        return [self.act_import, None, t["enclosure"], t["refinement"], None, self.act_suggest]
+
+    def on_context_menu(self, kind, entity, position):
+        """Right-click: select what is under the cursor (keeping a selection it belongs to) and offer the
+        likely next steps, plus the sketch tools."""
+        if kind and (kind, entity) not in self.selection:
+            self.set_selection([(kind, entity)])
+        menu = QMenu(self)
+        for action in self.context_actions(kind):
+            if action is None:
+                menu.addSeparator()
+            else:
+                menu.addAction(action)
+        if not kind:
+            sketch = menu.addMenu(icon("sketch"), "Sketch")
+            for sketch_kind, text, _ in SKETCHES:
+                sketch.addAction(icon("line" if sketch_kind == "polyline" else sketch_kind), text,
+                                 lambda k=sketch_kind: self.start_sketch(k))
+        menu.addSeparator()
+        menu.addAction(icon("fit"), "Fit view", self.view.fit)
+        menu.exec(position)
 
     def select_boundary_edges(self):
         rows = {i.row() for i in self.boundaries.selectedIndexes()}
