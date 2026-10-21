@@ -106,6 +106,8 @@ class BuiltGeometry:
     names: dict = field(default_factory=dict)        # {edge id: Boundary} for named edges
     regions: list = field(default_factory=list)      # [Region]
     construction: list = field(default_factory=list) # sketch construction lines [(n, 2) points], drawn only
+    sketch_status: dict = field(default_factory=dict) # {sketch op id: constraint status text}
+    dimensions: list = field(default_factory=list)    # driving dimensions to show (operations.dimension_marks)
     messages: list = field(default_factory=list)     # [(level, text)] level: "info", "warning", "error"
     failed_operation: str = ""                       # id of the operation that failed (replay stopped there)
 

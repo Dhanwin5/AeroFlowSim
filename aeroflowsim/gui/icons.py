@@ -89,6 +89,9 @@ DRAWINGS = {
     "more": '<circle cx="5" cy="12" r="1.6" fill="INK"/><circle cx="12" cy="12" r="1.6" fill="INK"/>'
             '<circle cx="19" cy="12" r="1.6" fill="INK"/>',
     "revert": '<path d="M4 4v6h6"/><path d="M5 10a8 8 0 1 1 1 6"/>',
+    "constrain": '<path d="M4 20h16M4 20V6"/><path d="M4 20L18 6" stroke="ACCENT"/><path d="M4 15a5 5 0 0 1 5 5" '
+                 'stroke="ACCENT"/>',
+    "dimension": '<path d="M4 6v12M20 6v12"/><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3" stroke="ACCENT"/>',
     "measure": '<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2" stroke="ACCENT"/>',
     "grid": '<path d="M4 4v16M10 4v16M16 4v16M4 4h16M4 10h16M4 16h16" stroke-width="1"/>'
             '<path d="M20 4v16M4 20h16" stroke-width="1"/>',

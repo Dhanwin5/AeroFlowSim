@@ -92,6 +92,7 @@ class GeometryPage(QWidget):
         self.view.box_selected.connect(self.on_box_selected)
         self.view.key_typed.connect(self.on_typed_key)
         self.view.context_menu.connect(self.on_context_menu)
+        self.view.dimension_edit.connect(self.edit_dimension)
         self.tool = None                 # the active drawing tool (gui/sketch_tools.py), or None
         self.preview = None              # 1D templates: the read-only GeometryPreview
         self.built = None                # workspace: the replayed geometry (BuiltGeometry)
@@ -203,6 +204,20 @@ class GeometryPage(QWidget):
         edit_menu.setToolTipsVisible(True)
         bar.addWidget(self._menu_button("Edit", "edit", edit_menu, "Transform, fillet, delete, fluid / solid, "
                                         "booleans"))
+        constrain_menu = QMenu(self)
+        constrain_menu.setToolTipsVisible(True)
+        self.constraint_actions = {}
+        for kind, text, what in logic.CONSTRAINTS:
+            action = constrain_menu.addAction(text + ("…" if kind == "dimension" else ""),
+                                              lambda k=kind: self.add_constraint(k))
+            action.setToolTip(f"Select {what} of a sketch, then choose this")
+            self.constraint_actions[kind] = action
+            if kind == "dimension":
+                self.icon_targets.append((action, "dimension"))
+            if kind == "point_on":
+                constrain_menu.addSeparator()
+        bar.addWidget(self._menu_button("Constrain", "constrain", constrain_menu, "Constraints and driving "
+                                        "dimensions for sketches: the shape follows when a dimension is changed"))
         names = {"transform": "transform", "fillet": "fillet", "delete": "delete", "set_role": "role",
                  "boolean": "boolean", "enclosure": "enclosure", "name_boundary": "name", "refinement": "refinement",
                  "chamfer": "chamfer", "split_line": "split", "split_face": "split", "split_edge": "split_edge",
@@ -308,7 +323,7 @@ class GeometryPage(QWidget):
             return
         document = project.geometry_document()
         key = (document.to_json(), repr(sorted((k, repr(v)) for k, v in params.items())))
-        first = self.built is None or self._fit_next
+        first = self.built is None or self.built.empty or self._fit_next   # (first shape: fit to it)
         if key != self._key:
             self._fit_next = False
             self.built = replay(document, project.replay_context(params))
@@ -368,9 +383,12 @@ class GeometryPage(QWidget):
         self.history.blockSignals(True)
         self.history.clear()
         for op_id, text, state in logic.history_rows(document, built):
-            item = QListWidgetItem(f"{op_id}  {text}{STATE_TEXT[state]}")
+            status = built.sketch_status.get(op_id, "") if state == "ok" else ""
+            item = QListWidgetItem(f"{op_id}  {text}{STATE_TEXT[state]}" + (f"  ({status})" if status else ""))
             item.setData(Qt.UserRole, op_id)
-            if state in ("failed",):
+            if status:
+                item.setForeground(QColor(self.view.dimension_colour(status)))
+            elif state in ("failed",):
                 item.setForeground(QColor(colour("error")))
             elif state in ("suppressed", "not run"):
                 item.setForeground(QColor(colour("muted")))
@@ -466,6 +484,10 @@ class GeometryPage(QWidget):
                 menu.addSeparator()
             else:
                 menu.addAction(action)
+        if kind in ("vertex", "edge"):
+            constrain = menu.addMenu(icon("constrain"), "Constrain")
+            for action in self.constraint_actions.values():
+                constrain.addAction(action)
         if not kind:
             sketch = menu.addMenu(icon("sketch"), "Sketch")
             for sketch_kind, text, icon_name in SKETCHES:
@@ -664,6 +686,8 @@ class GeometryPage(QWidget):
             self.op_box.addWidget(self.form)
         else:
             self.op_box.addWidget(QLabel(op.summary(), wordWrap=True))
+        if op.type == "sketch_group" and op.params["constraints"]:
+            self._add_constraint_list(op)
         buttons = QHBoxLayout()
         row_widget = QWidget()
         row_widget.setLayout(buttons)
@@ -684,6 +708,82 @@ class GeometryPage(QWidget):
         buttons.addWidget(delete)
         self.op_box.addWidget(row_widget)
         self.op_box.addStretch(1)
+
+    def _add_constraint_list(self, op):
+        """The constraints of a sketch, with its status; double-click a dimension to change its value."""
+        status = self.built.sketch_status.get(op.id, "")
+        if status:
+            label = QLabel(f"Constraints: {status}")
+            label.setStyleSheet(f"color: {self.view.dimension_colour(status)}")
+            self.op_box.addWidget(label)
+        self.constraint_list = QListWidget()
+        for k, c in enumerate(op.params["constraints"]):
+            item = QListWidgetItem(f"{k + 1}. {logic.constraint_text(c)}")
+            item.setData(Qt.UserRole, k)
+            self.constraint_list.addItem(item)
+        self.constraint_list.itemDoubleClicked.connect(lambda item: self.edit_dimension(op.id, item.data(Qt.UserRole)))
+        self.op_box.addWidget(self.constraint_list)
+        row = QHBoxLayout()
+        holder = QWidget()
+        holder.setLayout(row)
+        change = QPushButton("Change value…", toolTip="Change the selected dimension (the shape follows)")
+        change.clicked.connect(lambda: self.constraint_list.currentItem() and
+                               self.edit_dimension(op.id, self.constraint_list.currentItem().data(Qt.UserRole)))
+        remove = QPushButton("Remove", toolTip="Remove the selected constraint (the shape is free to move there)")
+        remove.clicked.connect(lambda: self.constraint_list.currentItem() and
+                               self.remove_constraint(op.id, self.constraint_list.currentItem().data(Qt.UserRole)))
+        row.addWidget(change)
+        row.addWidget(remove)
+        self.op_box.addWidget(holder)
+
+    # ---- constraints -------------------------------------------------------------------------------
+
+    def ask_dimension(self, constraint):
+        """Ask for a dimension's value (mm or degrees); the new constraint, or None if cancelled."""
+        angle = constraint["type"] == "angle"
+        scale = 1.0 if angle else 1.0 / logic.MM
+        label = {"length": "Length", "radius": "Radius", "angle": "Angle", "distance": "Distance"}.get(
+            constraint["type"], constraint["type"].replace("_", " ").capitalize())
+        value, ok = QInputDialog.getDouble(self, "Dimension", f"{label} [{'°' if angle else 'mm'}]:",
+                                           constraint["value"] * scale, -360.0 if angle else 0.0,
+                                           360.0 if angle else 1e9, 6)
+        if not ok:
+            return None
+        if not angle and value <= 0.0:
+            QMessageBox.information(self, "Dimension", "A length must be larger than zero.")
+            return None
+        return {**constraint, "value": value / scale}
+
+    def add_constraint(self, kind):
+        """Add a constraint (or a dimension, asking its value) to the sketch of the selected entities."""
+        if self.built is None:
+            return
+        try:
+            op_id, constraint = logic.constraint_for(kind, self.selection, self.built, self.document)
+        except ValueError as error:
+            QMessageBox.information(self, "Constrain", str(error))
+            return
+        if kind == "dimension":
+            constraint = self.ask_dimension(constraint)
+            if constraint is None:
+                return
+        self.commit(logic.add_constraint(self.document, op_id, constraint),
+                    f"{op_id}: {logic.constraint_text(constraint)}")
+
+    def edit_dimension(self, op_id, index):
+        """Change the value of a sketch's dimension (double-click on it): the shape follows."""
+        constraint = self.document.find(op_id).params["constraints"][index]
+        if "value" not in constraint:
+            return
+        new = self.ask_dimension(constraint)
+        if new is not None:
+            self.commit(logic.set_constraint(self.document, op_id, index, new["value"]),
+                        f"{op_id}: {logic.constraint_text(new)}")
+
+    def remove_constraint(self, op_id, index):
+        constraint = self.document.find(op_id).params["constraints"][index]
+        self.commit(logic.set_constraint(self.document, op_id, index, remove=True),
+                    f"{op_id}: remove {logic.constraint_text(constraint)}")
 
     def apply_operation(self, op_id):
         try:

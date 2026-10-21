@@ -44,7 +44,8 @@ REVOLVE_STEPS = 72           # angular resolution of the revolve preview [-]
 TOOL = "#ea4335"             # the shape being drawn
 GUIDE = "#9aa0a6"            # dashed guide lines while drawing
 MARKER = "#1a73e8"           # the snap marker
-BOX_COLOURS = {False: "#1a73e8", True: "#34a853"}   # box selection: inside (left to right) / touching (right to left)
+BOX_COLOURS = {False: "#1a73e8", True: "#34a853"}
+DIMENSION_PIXELS = 18        # a double-click this close to a dimension's value edits it [px]   # box selection: inside (left to right) / touching (right to left)
 DOUBLE_CLICK_S = 0.35        # two clicks closer in time than this are a double-click [s]
 
 PICK_PIXELS = 8              # a click within this many pixels of an edge / point picks it [px]
@@ -132,6 +133,7 @@ class GeometryView(MeshView):
     tool_finish = Signal()                       # drawing: double-click or right-click (finish the shape)
     box_selected = Signal(float, float, float, float, bool, bool)   # x0, y0, x1, y1 [m], touching?, add?
     key_typed = Signal(str)                      # drawing: a digit (or . - @ <) typed over the view
+    dimension_edit = Signal(str, int)            # double-click on a dimension: sketch op id, constraint index
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -146,6 +148,7 @@ class GeometryView(MeshView):
         self._tool_actors, self._cursor_pixel, self._last_click = [], (0, 0), None
         self._grid_actors, self._grid_box = [], None
         self._revolve_actors = []
+        self._dimension_spots = []           # [(label position (2,) [m], op id, constraint index)]
         self._right_press = None
         self.view3d = False
         self.plotter.renderer.AddObserver("EndEvent", self._after_render)
@@ -202,6 +205,10 @@ class GeometryView(MeshView):
         self.built, self.selection = built, list(selection)
         self._dz = 1e-3 * (built.size if built is not None else 1.0)    # small height steps: drawing order
         if built is None or built.empty:
+            if built is not None and not self.view3d:     # an empty sheet: flat 2D view, 100 mm across
+                self._show_box(-0.05, 0.05, -0.05, 0.05)
+                self._grid_box = None
+                self._update_grid()
             self.plotter.render()
             return
         p = self.plotter
@@ -238,6 +245,7 @@ class GeometryView(MeshView):
             dots = np.array(corners)
             p.add_points(np.column_stack([dots, np.zeros(len(dots))]), color=colours["outline"], point_size=6,
                          render_points_as_spheres=True, reset_camera=False)
+        self._draw_dimensions(built)
         if any(e in boundary and e not in built.names for e in built.edges):
             legend.append(("(no name)", "_unnamed"))
         self._legend(legend)
@@ -256,6 +264,57 @@ class GeometryView(MeshView):
             self.fit()
         self._grid_box = None
         self._update_grid()
+
+    def dimension_colour(self, status) -> str:
+        """Colour of a sketch's dimensions by its constraint status: green = fully constrained,
+        red = conflicting, blue = still free to move (degrees of freedom left)."""
+        if status == "fully constrained":
+            return colour("ok", self.dark)
+        return colour("error", self.dark) if status == "conflicting" else ("#8ab4f8" if self.dark else MARKER)
+
+    def _draw_dimensions(self, built):
+        """The driving dimensions of constrained sketches (operations.dimension_marks): a thin line with
+        end ticks, set off from the shape, and the value next to it (double-click it to change it)."""
+        self._dimension_spots = []
+        if not built.dimensions:
+            return
+        centre = np.mean(np.vstack([e.points for e in built.edges.values()]), axis=0)
+        gap = 0.04 * built.size                         # how far a dimension line is set off from the shape
+        lines, spots, texts, colours = [], [], [], []
+        for d in built.dimensions:
+            a, b = (np.asarray(q, dtype=float) for q in d["line"])
+            if d["type"] in ("radius", "angle"):          # drawn from the centre / along the first line
+                lines.append(np.array([a, b]))
+                spot = 0.5 * (a + b) if d["type"] == "radius" else a + 0.25 * (b - a)
+            else:
+                t = b - a
+                n = np.array([-t[1], t[0]]) / max(np.linalg.norm(t), 1e-300)
+                if (0.5 * (a + b) - centre) @ n < 0.0:      # set it off on the outer side
+                    n = -n
+                a2, b2 = a + gap * n, b + gap * n
+                tick = 0.25 * gap * t / max(np.linalg.norm(t), 1e-300)
+                lines += [np.array([a, a2 + 0.3 * gap * n]), np.array([b, b2 + 0.3 * gap * n]), np.array([a2, b2]),
+                          np.array([a2 - tick, a2 + tick]), np.array([b2 - tick, b2 + tick])]
+                spot = 0.5 * (a2 + b2)
+            spots.append(spot)
+            texts.append(d["text"])
+            colours.append(self.dimension_colour(built.sketch_status.get(d["op"], "")))
+            self._dimension_spots.append((spot, d["op"], d["index"]))
+        p, z = self.plotter, 2.0 * self._dz
+        p.add_mesh(_lines(lines, z), color=colours[0], line_width=1, reset_camera=False)
+        for colour_, group in {c: [k for k in range(len(spots)) if colours[k] == c] for c in set(colours)}.items():
+            p.add_point_labels(np.array([[*spots[k], z] for k in group]), [texts[k] for k in group], font_size=11,
+                               text_color=colour_, shape_color=colour("base", self.dark), shape_opacity=0.85,
+                               show_points=False, always_visible=True, reset_camera=False, margin=2)
+
+    def dimension_at(self, x, y):
+        """(op id, constraint index) of the dimension whose value is at display pixel x, y, or None."""
+        if not self._dimension_spots:
+            return None
+        xy = np.asarray(self.world_point(x, y))[:2]
+        limit = DIMENSION_PIXELS * self.metres_per_pixel(x, y)
+        best = min(self._dimension_spots, key=lambda s: np.linalg.norm(s[0] - xy))
+        return (best[1], best[2]) if np.linalg.norm(best[0] - xy) <= limit else None
 
     def _legend(self, entries):
         """The boundary names with their colours, in the row above the view (always readable, never cut)."""
@@ -325,6 +384,7 @@ class GeometryView(MeshView):
         self._handle_actor = self._sketch_actor = self._hover_actor = None
         self._hover = None
         self._grid_actors, self._grid_box, self._revolve_actors = [], None, []
+        self._dimension_spots = []
         if hasattr(self, "legend_label"):
             self.legend_label.setText("")
         super().clear(message)
@@ -532,6 +592,8 @@ class GeometryView(MeshView):
         elif kind == QEvent.MouseButtonDblClick:
             if event.button() == Qt.LeftButton and self.mode == "draw":
                 self.tool_finish.emit()                     # the first click of the pair placed the point
+            elif event.button() == Qt.LeftButton and self.dimension_at(x, y) is not None:
+                self.dimension_edit.emit(*self.dimension_at(x, y))
         elif kind == QEvent.MouseButtonPress:
             self.plotter.interactor.setFocus()
             if event.button() == Qt.LeftButton:

@@ -83,6 +83,7 @@ class DrawTool:
         self.points = []                            # placed points [(2,)] [m]
         self.entities = []                          # SketchGroup entities made so far
         self.clicks = []                            # indices of the points clicked, in order
+        self.constraints = []                       # constraints the tool knows (e.g. tangent arcs)
         self.cursor = Inference(np.zeros(2))
         self.done = False
 
@@ -163,8 +164,34 @@ class DrawTool:
         """The finished drawing as a SketchGroup (None if nothing was drawn)."""
         if not self.entities:
             return None
-        return SketchGroup(points=[[float(x), float(y)] for x, y in self.points], entities=self.entities,
-                           role=role)
+        # Only the points the entities use (e.g. not the width click of a rotated rectangle), renumbered.
+        used = sorted({i for e in self.entities for i in list(e.get("p", [])) + ([e["c"]] if "c" in e else [])})
+        new = {old: k for k, old in enumerate(used)}
+        entities = [{**e, **({"p": [new[i] for i in e["p"]]} if "p" in e else {}),
+                     **({"c": new[e["c"]]} if "c" in e else {})} for e in self.entities]
+        constraints = [{**c, "p": [new[i] for i in c["p"]] if isinstance(c["p"], list) else new[c["p"]]}
+                       if "p" in c else c for c in self.auto_constraints()]
+        return SketchGroup(points=[[float(self.points[i][0]), float(self.points[i][1])] for i in used],
+                           entities=entities, constraints=constraints, role=role)
+
+    def auto_constraints(self) -> list:
+        """The constraints captured while drawing: every line that snapped exactly horizontal or vertical
+        keeps that direction, plus what the tool itself knows (tangent arcs, right angles). Like the
+        inference snaps they come from, they can be removed later in the Dimensions tab."""
+        out = []
+        pts = np.asarray(self.points, dtype=float).reshape(-1, 2)
+        scale = max(1.0, float(np.abs(pts).max())) if len(pts) else 1.0
+        for k, e in enumerate(self.entities):
+            if e["type"] != "line":
+                continue
+            d = pts[e["p"][1]] - pts[e["p"][0]]
+            if abs(d[1]) <= 1e-12 * scale < abs(d[0]):
+                out.append({"type": "horizontal", "e": k})
+            elif abs(d[0]) <= 1e-12 * scale < abs(d[1]):
+                out.append({"type": "vertical", "e": k})
+        aligned = {c["e"] for c in out}
+        # a right angle between two lines that are already horizontal / vertical would repeat them
+        return out + [c for c in self.constraints if not (c["type"] == "perpendicular" and set(c["e"]) <= aligned)]
 
     @property
     def closed(self) -> bool:
@@ -225,6 +252,7 @@ class PolylineTool(DrawTool):
                 c = self._index(centre)
                 self.entities.append({"type": "arc", "p": [i, j] if ccw else [j, i], "c": c,
                                       **({} if ccw else {"reversed": True})})
+                self.constraints.append({"type": "tangent", "e": [len(self.entities) - 2, len(self.entities) - 1]})
             self.arc_next = False
         else:
             self.entities.append({"type": "line", "p": [i, j]})
@@ -424,6 +452,7 @@ class Rectangle3Tool(DrawTool):
             corners = self._corners(self.points[self.clicks[2]])
             idx = [self._index(c) for c in corners]
             self.entities = [{"type": "line", "p": [idx[k], idx[(k + 1) % 4]]} for k in range(4)]
+            self.constraints = [{"type": "perpendicular", "e": [k, k + 1]} for k in range(3)]
 
     def rubber_band(self):
         if len(self.clicks) == 2:

@@ -6,6 +6,8 @@
 
 import math
 
+import numpy as np
+
 import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QMessageBox, QPushButton
@@ -451,3 +453,39 @@ def test_split_by_line_trim_and_mesh_two_faces(qtbot, window, tmp_path):
     assert window.strip.chips["mesh"].status == "ok"
     assert {p.name for p in window.mesh.patches} == {"walls"}
     assert window.mesh.cell_volumes.sum() == pytest.approx(0.0008, rel=1e-6)
+
+
+def test_constrain_dimension_double_click_and_status(qtbot, window, tmp_path, monkeypatch):
+    """S4 in the window: a drawn rectangle has its horizontal / vertical constraints; a dimension added
+    from the Constrain menu drives the shape; double-clicking the value on the canvas changes it; the
+    History shows the sketch's status; undo restores the shape."""
+    from PySide6.QtWidgets import QInputDialog
+    _open(window, tmp_path, "geometry_2d")
+    page = window.pages["geometry"]
+    page.start_sketch("rectangle")
+    page.sketch_role.setCurrentIndex(1)
+    for text in ("0, 0", "30, 20"):
+        page.sketch_entry.setText(text)
+        page.type_sketch_point()
+    page.cancel_sketch()
+    assert "4 degrees of freedom left" in page.history.item(0).text()
+    bottom = next(e for e in page.built.edges.values() if np.allclose(e.points[:, 1], 0.0))
+    page.on_picked("edge", bottom.id, False)
+    answers = iter([(45.0, True), (60.0, True)])
+    monkeypatch.setattr(QInputDialog, "getDouble", staticmethod(lambda *a, **k: next(answers)))
+    page.constraint_actions["dimension"].trigger()                       # 30 mm -> 45 mm
+    face = page.built.faces["op1:face"]
+    assert face.area == pytest.approx(0.045 * 0.02, rel=1e-12)
+    assert [d["text"] for d in page.built.dimensions] == ["45"]
+    assert page.view._dimension_spots
+    spot, op_id, index = page.view._dimension_spots[0]
+    page.view.plotter.render()
+    x, y = page.view.display_point(spot)
+    assert page.view.dimension_at(x, y) == ("op1", 4)
+    page.edit_dimension(op_id, index)                                     # (what a double-click does)
+    assert page.built.faces["op1:face"].area == pytest.approx(0.06 * 0.02, rel=1e-12)
+    page.history.setCurrentRow(0)
+    assert page.constraint_list.count() == 5
+    window.undo.undo()
+    window.undo.undo()
+    assert page.built.faces["op1:face"].area == pytest.approx(0.03 * 0.02, rel=1e-12)

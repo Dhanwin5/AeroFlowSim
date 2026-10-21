@@ -418,11 +418,20 @@ class SketchGroup(Operation):
         if p["role"] not in (FLUID, SOLID):
             raise ValueError("a face is either fluid or solid")
         pts = np.asarray(p["points"], dtype=float).reshape(-1, 2)
+        entities = p["entities"]
         if p["constraints"]:
             from aeroflowsim.geometry_model.constraints import solve
-            pts, entities = solve(pts, p["entities"], p["constraints"])
-        else:
-            entities = p["entities"]
+            result = solve(pts, entities, p["constraints"])
+            if result.conflicting:
+                names = ", ".join(f"{p['constraints'][i]['type']} ({i + 1})" for i in result.conflicting)
+                raise ValueError(f"the constraints cannot all be met: {names} conflict with the others; change or "
+                                 "remove one")
+            pts, entities = result.points, result.entities
+            kernel.sketch_status[self.id] = result.status
+            if result.redundant:
+                kernel.message(f"Sketch {self.id}: {result.redundant} constraint equation(s) repeat others "
+                               "(redundant); they can be removed.", "info")
+            kernel.dimensions += dimension_marks(self.id, pts, entities, p["constraints"])
         occ = kernel.occ
         tags = {}
 
@@ -479,6 +488,36 @@ class SketchGroup(Operation):
         kernel.sync()
         if curves:
             healing.build_faces(kernel, curves, self.id, p["role"], report_open=False)
+
+
+def dimension_marks(op_id, pts, entities, constraints):
+    """Where and how to show each driving dimension: [{op, index, type, value, text, anchor, line}]."""
+    from aeroflowsim.geometry_model.constraints import DIMENSIONS
+    marks = []
+    for k, c in enumerate(constraints):
+        kind = c.get("type")
+        if kind not in DIMENSIONS:
+            continue
+        if kind in ("distance", "distance_x", "distance_y"):
+            a, b = pts[c["p"][0]], pts[c["p"][1]]
+        elif kind in ("length", "angle"):
+            e = entities[c["e"] if kind == "length" else c["e"][0]]
+            a, b = pts[e["p"][0]], pts[e["p"][1]]
+        else:                                                         # radius: from the centre outwards
+            e = entities[c["e"]]
+            a = pts[e["c"]]
+            b = pts[e["p"][0]] if e["type"] == "arc" else a + np.array([e["r"], 0.0])
+        if kind == "distance_x":
+            b = np.array([b[0], a[1]])
+        elif kind == "distance_y":
+            b = np.array([a[0], b[1]])
+        value = float(c["value"])
+        text = (f"{value:g}°" if kind == "angle" else
+                ("R " if kind == "radius" else "") + f"{value * 1e3:.4g}")
+        marks.append({"op": op_id, "index": k, "type": kind, "value": value, "text": text,
+                      "anchor": (0.5 * (np.asarray(a) + np.asarray(b))).tolist(),
+                      "line": [np.asarray(a).tolist(), np.asarray(b).tolist()]})
+    return marks
 
 
 def arc_angles(centre, start, end):

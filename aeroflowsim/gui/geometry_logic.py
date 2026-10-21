@@ -554,3 +554,161 @@ def history_rows(document, built) -> list:
             state = "template" if op.type in TEMPLATE_TYPES else "ok"
         rows.append((op.id, op.summary(), state))
     return rows
+
+
+# ---- constraints and dimensions of sketches (geometry_model/constraints.py) -------------------------
+
+CONSTRAINTS = (   # (kind, menu text, what to select)
+    ("horizontal", "Horizontal", "a line"),
+    ("vertical", "Vertical", "a line"),
+    ("parallel", "Parallel", "two lines"),
+    ("perpendicular", "Perpendicular", "two lines"),
+    ("tangent", "Tangent", "a line and an arc / circle, or two arcs"),
+    ("equal", "Equal", "two lines (lengths) or two arcs / circles (radii)"),
+    ("coincident", "Coincident", "two points"),
+    ("point_on", "Point on curve", "a point and a line / arc / circle"),
+    ("fix", "Fix", "a point"),
+    ("dimension", "Dimension", "a line (length), an arc / circle (radius), two points (distance) or two "
+                               "lines (angle)"),
+)
+
+
+def _sketch_entity(edge_id, document):
+    """(sketch operation, entity index) of a sketch edge id "opN:eK" / "opN:eK.2", or ValueError."""
+    op_id, _, rest = edge_id.partition(":")
+    try:
+        op = document.find(op_id)
+    except KeyError:
+        op = None
+    if op is None or op.type != "sketch_group" or not rest.startswith("e"):
+        raise ValueError("Constraints apply to sketched geometry (drawn with the Sketch tools).")
+    return op, int(rest[1:].split(".")[0].split("#")[0]) - 1
+
+
+def _solved(op):
+    """(points, entities) of a sketch as built: after solving its constraints (what the user sees)."""
+    pts = np.asarray(op.params["points"], dtype=float).reshape(-1, 2)
+    if not op.params["constraints"]:
+        return pts, op.params["entities"]
+    from aeroflowsim.geometry_model.constraints import solve
+    result = solve(pts, op.params["entities"], op.params["constraints"])
+    return (pts, op.params["entities"]) if result.conflicting else (result.points, result.entities)
+
+
+def _sketch_point(vertex, document):
+    """(sketch operation, point index) of a selected corner point of a sketch, or ValueError."""
+    for edge_id in vertex.edges:
+        try:
+            op, _ = _sketch_entity(edge_id, document)
+        except ValueError:
+            continue
+        pts = _solved(op)[0]
+        d = np.linalg.norm(pts - vertex.xy, axis=1)
+        k = int(d.argmin())
+        if d[k] <= 1e-9 * max(1.0, float(np.abs(pts).max())):
+            return op, k
+    raise ValueError("Constraints apply to points of sketched geometry (drawn with the Sketch tools).")
+
+
+def constraint_for(kind, selection, built, document):
+    """(sketch operation id, new constraint dict) for a constraint kind and the selection; ValueError
+    says what to select. A "dimension" gets the CURRENT value (the window then asks for the new one)."""
+    edges = [e for k, e in selection if k == "edge"]
+    points = [built.vertices[v] for k, v in selection if k == "vertex"]
+    ents = [_sketch_entity(e, document) for e in edges]
+    pts = [_sketch_point(v, document) for v in points]
+    ops = {op.id for op, _ in ents + pts}
+    if len(ops) > 1:
+        raise ValueError("Select entities of one sketch (constraints work inside a sketch).")
+    what = dict((k, w) for k, _, w in CONSTRAINTS)[kind]
+    fail = ValueError(f"{dict((k, t) for k, t, _ in CONSTRAINTS)[kind]}: select {what}.")
+    if not ops:
+        raise fail
+    op = (ents + pts)[0][0]
+    types = [op.params["entities"][i]["type"] for _, i in ents]
+    if kind in ("horizontal", "vertical") and len(ents) == 1 and not pts and types == ["line"]:
+        return op.id, {"type": kind, "e": ents[0][1]}
+    if kind in ("parallel", "perpendicular") and len(ents) == 2 and types == ["line", "line"]:
+        return op.id, {"type": kind, "e": [ents[0][1], ents[1][1]]}
+    if kind == "tangent" and len(ents) == 2 and "spline" not in types and types.count("line") < 2:
+        return op.id, {"type": kind, "e": [ents[0][1], ents[1][1]]}
+    if kind == "equal" and len(ents) == 2 and (types.count("line") in (0, 2)) and "spline" not in types:
+        return op.id, {"type": kind, "e": [ents[0][1], ents[1][1]]}
+    if kind == "coincident" and len(pts) == 2 and not ents:
+        return op.id, {"type": kind, "p": [pts[0][1], pts[1][1]]}
+    if kind == "point_on" and len(pts) == 1 and len(ents) == 1 and types[0] != "spline":
+        return op.id, {"type": kind, "p": pts[0][1], "e": ents[0][1]}
+    P, E = _solved(op)
+    if kind == "fix" and len(pts) == 1 and not ents:
+        xy = P[pts[0][1]]
+        return op.id, {"type": kind, "p": pts[0][1], "at": [float(xy[0]), float(xy[1])]}
+    if kind == "dimension":
+        if len(ents) == 1 and not pts and types[0] == "line":
+            a, b = (P[i] for i in E[ents[0][1]]["p"])
+            return op.id, {"type": "length", "e": ents[0][1], "value": float(np.linalg.norm(b - a))}
+        if len(ents) == 1 and not pts and types[0] in ("arc", "circle"):
+            e = E[ents[0][1]]
+            r = float(e["r"]) if e["type"] == "circle" else float(np.linalg.norm(P[e["p"][0]] - P[e["c"]]))
+            return op.id, {"type": "radius", "e": ents[0][1], "value": r}
+        if len(pts) == 2 and not ents:
+            i, j = pts[0][1], pts[1][1]
+            return op.id, {"type": "distance", "p": [i, j], "value": float(np.linalg.norm(P[j] - P[i]))}
+        if len(ents) == 2 and types == ["line", "line"]:
+            d = [P[E[k]["p"][1]] - P[E[k]["p"][0]] for _, k in ents]
+            angle = math.degrees(math.atan2(d[0][0] * d[1][1] - d[0][1] * d[1][0], d[0] @ d[1]))
+            return op.id, {"type": "angle", "e": [ents[0][1], ents[1][1]], "value": round(angle, 6)}
+    raise fail
+
+
+def _with_constraints(document, op_id, constraints):
+    """A new document whose sketch op_id has these constraints. Its drawn points are moved to the
+    solution, so the next solve starts from what the user sees (unless the constraints conflict:
+    then the drawing is kept and the replay reports the conflict)."""
+    from aeroflowsim.geometry_model import operation_from_dict
+    doc = document.copy()
+    op = operation_from_dict(doc.find(op_id).to_dict())
+    op.params["constraints"] = constraints
+    if constraints:
+        from aeroflowsim.geometry_model.constraints import solve
+        result = solve(np.asarray(op.params["points"], dtype=float).reshape(-1, 2), op.params["entities"],
+                       constraints)
+        if not result.conflicting:
+            op.params["points"] = result.points.tolist()
+            op.params["entities"] = result.entities
+    doc.replace(op)
+    return doc
+
+
+def add_constraint(document, op_id, constraint):
+    """A new document with the constraint added to the sketch op_id."""
+    return _with_constraints(document, op_id, list(document.find(op_id).params["constraints"]) + [constraint])
+
+
+def set_constraint(document, op_id, index, value=None, remove=False):
+    """A new document with constraint `index` of a sketch changed to `value`, or removed."""
+    cons = list(document.find(op_id).params["constraints"])
+    if remove:
+        cons.pop(index)
+    else:
+        cons[index] = {**cons[index], "value": float(value)}
+    return _with_constraints(document, op_id, cons)
+
+
+def constraint_text(c) -> str:
+    """One line for the list of a sketch's constraints, e.g. "length of entity 1 = 30 mm"."""
+    kind = c["type"]
+    if kind in ("length", "radius"):
+        return f"{kind} of entity {c['e'] + 1} = {c['value'] * 1e3:.6g} mm"
+    if kind == "angle":
+        return f"angle from entity {c['e'][0] + 1} to {c['e'][1] + 1} = {c['value']:.6g}°"
+    if kind in ("distance", "distance_x", "distance_y"):
+        return f"{kind.replace('_', ' ')} point {c['p'][0] + 1} to {c['p'][1] + 1} = {c['value'] * 1e3:.6g} mm"
+    if "e" in c and isinstance(c["e"], list):
+        return f"{kind} entities {c['e'][0] + 1} and {c['e'][1] + 1}"
+    if kind == "point_on":
+        return f"point {c['p'] + 1} on entity {c['e'] + 1}"
+    if kind == "coincident":
+        return f"coincident points {c['p'][0] + 1} and {c['p'][1] + 1}"
+    if kind == "fix":
+        return f"point {c['p'] + 1} fixed"
+    return f"{kind} entity {c['e'] + 1}"

@@ -100,6 +100,8 @@ class Kernel:
         self.names = []              # [(patterns, Boundary, operation id)], applied in extract()
         self.regions = []            # [Region]
         self.construction = []       # construction (helper) lines of sketches: [(n, 2) points], drawn only
+        self.sketch_status = {}      # {sketch operation id: "fully constrained" / "n degrees of freedom left"}
+        self.dimensions = []         # driving dimensions to show: see operations.dimension_marks()
         self.messages = []           # [(level, text)]
         self.failed_operation = ""
 
@@ -384,7 +386,8 @@ class Kernel:
         self.sync()
         built = BuiltGeometry(axisymmetric=self.axisymmetric, messages=list(self.messages),
                               regions=list(self.regions), failed_operation=self.failed_operation,
-                              construction=list(self.construction))
+                              construction=list(self.construction), sketch_status=dict(self.sketch_status),
+                              dimensions=list(self.dimensions))
         face_ids = {t: (self.face_meta.get(t) or FaceMeta(f"face{t}", FLUID)).id for t in self.face_tags()}
         edge_ids = {}
         for tag in self.curve_tags():
