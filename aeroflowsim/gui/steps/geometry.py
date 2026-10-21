@@ -24,7 +24,7 @@ import numpy as np
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QInputDialog, QLabel, QListWidget, QListWidgetItem,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QInputDialog, QLabel, QListWidget, QListWidgetItem,
                                QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTabWidget, QToolBar,
                                QToolButton, QVBoxLayout,
                                QWidget)
@@ -32,7 +32,8 @@ from PySide6.QtWidgets import (QCheckBox, QFileDialog, QGridLayout, QHBoxLayout,
 from aeroflowsim.geometry_model import has_workspace, replay, template_document
 from aeroflowsim.geometry_model.boundaries import BOUNDARY_TYPES
 from aeroflowsim.geometry_model.importers import file_format, read_coordinate_points, read_wall_profile_points
-from aeroflowsim.geometry_model import snapping
+from aeroflowsim.geometry_model import FLUID, SOLID, picking
+from aeroflowsim.gui import sketch_tools
 from aeroflowsim.geometry_model.operations import TEMPLATE_TYPES, ImportFile, Sketch, Transform
 from aeroflowsim.geometry_preview import geometry_preview
 from aeroflowsim.gui import geometry_logic as logic
@@ -49,16 +50,8 @@ IMPORT_FILTER = ("Geometry files (*.dxf *.step *.stp *.iges *.igs *.csv *.dat *.
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
 EDIT_MENU = ("transform", "fillet", "delete", "set_role", "boolean")   # in the Edit menu button
-SKETCHES = (  # (kind, menu text, what to click)
-    ("polyline", "Line / polyline", "Click the points; click the first point again to close it, or press Finish."),
-    ("arc3", "Arc (3 points)", "Click the start, a point on the arc, and the end."),
-    ("arc", "Arc (centre and ends)", "Click the centre, the start, and a point in the direction of the end "
-                                     "(counter-clockwise)."),
-    ("spline", "Spline", "Click the points the smooth curve goes through; click the first point again to close it, "
-                         "or press Finish."),
-    ("rectangle", "Rectangle", "Click two opposite corners."),
-    ("circle", "Circle", "Click the centre and a point on the circle."),
-)
+SKETCHES = tuple((kind, cls.title, kind if kind != "polyline" else "line")   # (tool, menu text, icon)
+                 for kind, cls in sketch_tools.TOOLS.items())
 TOOLS = (   # (operation kind, button text, tooltip)
     ("transform", "Transform…", "Move, rotate (angle of attack), scale or mirror the selected faces (or everything)"),
     ("fillet", "Fillet…", "Round the selected corner (a point where two edges meet)"),
@@ -81,8 +74,13 @@ class GeometryPage(QWidget):
         self.view.moved.connect(self.on_moved)
         self.view.point_moved.connect(self.on_point_moved)
         self.view.clicked.connect(self.on_sketch_click)
+        self.view.tool_clicked.connect(self.on_sketch_click)
+        self.view.tool_moved.connect(self.on_tool_moved)
+        self.view.tool_finish.connect(self.finish_sketch)
+        self.view.box_selected.connect(self.on_box_selected)
+        self.view.key_typed.connect(self.on_typed_key)
         self.view.context_menu.connect(self.on_context_menu)
-        self.sketch_kind, self.sketch_points = None, []
+        self.tool = None                 # the active drawing tool (gui/sketch_tools.py), or None
         self.preview = None              # 1D templates: the read-only GeometryPreview
         self.built = None                # workspace: the replayed geometry (BuiltGeometry)
         self.document = None             # the history that self.built shows
@@ -148,6 +146,13 @@ class GeometryPage(QWidget):
         QShortcut(QKeySequence.Delete, self, activated=lambda: self.add_operation("delete"),
                   context=Qt.WidgetWithChildrenShortcut)
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self.escape, context=Qt.WidgetWithChildrenShortcut)
+        for key, slot in ((Qt.Key_Return, self._enter), (Qt.Key_Enter, self._enter),
+                          (Qt.Key_Backspace, self.undo_sketch_point), (Qt.Key_A, self.toggle_arc)):
+            QShortcut(QKeySequence(key), self.view, activated=slot, context=Qt.WidgetWithChildrenShortcut)
+
+    def _enter(self):
+        if self.tool is not None and not self.sketch_entry.hasFocus():
+            self.finish_sketch()
 
     def _build_toolbar(self):
         """The workspace tool bar: icons with their names under them (gui/icons.py, our own icon set)."""
@@ -176,9 +181,9 @@ class GeometryPage(QWidget):
         self.act_points.setToolTip("Edit the points of the selected outline in a table (mm)")
         self.icon_targets += [(self.act_import, "import"), (self.act_points, "table")]
         sketch_menu = QMenu(self)
-        for kind, text, _ in SKETCHES:
+        for kind, text, icon_name in SKETCHES:
             action = sketch_menu.addAction(text, lambda k=kind: self.start_sketch(k))
-            self.icon_targets.append((action, "line" if kind == "polyline" else kind))
+            self.icon_targets.append((action, icon_name))
         bar.addWidget(self._menu_button("Sketch", "sketch", sketch_menu, "Draw lines, arcs, splines, rectangles "
                                         "and circles (snaps to corners, midpoints and the grid; points can be typed)"))
         self.tool_actions = {}
@@ -230,22 +235,33 @@ class GeometryPage(QWidget):
         self.view.update_icons()
 
     def _build_sketch_bar(self):
+        """The bar shown while drawing: what to do, a box for typed values, options, Finish, Stop."""
         bar = QWidget()
         row = QHBoxLayout(bar)
         row.setContentsMargins(4, 0, 4, 0)
         self.sketch_help = QLabel(wordWrap=True)
-        self.sketch_entry = QLineEdit(placeholderText="x, y in mm, then Enter")
-        self.sketch_entry.setMaximumWidth(200)
+        self.sketch_entry = QLineEdit(placeholderText="type: 25   25<30   @3,4   12,5  (mm)")
+        self.sketch_entry.setToolTip("A length along the cursor direction, length<angle, @dx,dy relative, or x,y "
+                                     "absolute, in mm; Enter places the point (Enter on an empty box finishes)")
+        self.sketch_entry.setMaximumWidth(230)
         self.sketch_entry.returnPressed.connect(self.type_sketch_point)
+        self.arc_button = QToolButton(text="Tangent arc (A)", checkable=True, autoRaise=True,
+                                      toolTip="The next segment continues as a tangent arc")
+        self.arc_button.clicked.connect(self.toggle_arc)
         self.sketch_grid = QCheckBox("Snap to grid")
-        finish, cancel = QPushButton("Finish"), QPushButton("Cancel")
+        self.sketch_role = QComboBox()
+        self.sketch_role.addItem("Faces: solid", SOLID)
+        self.sketch_role.addItem("Faces: fluid", FLUID)
+        self.sketch_role.setToolTip("What closed shapes become: a solid body (cut out of the fluid) or a fluid "
+                                    "region (meshed)")
+        finish, cancel = QPushButton("Finish"), QPushButton("Stop")
+        finish.setToolTip("Finish the shape (Enter, double-click or right-click)")
+        cancel.setToolTip("Stop drawing (Esc)")
         finish.clicked.connect(self.finish_sketch)
         cancel.clicked.connect(self.cancel_sketch)
         row.addWidget(self.sketch_help, 1)
-        row.addWidget(self.sketch_entry)
-        row.addWidget(self.sketch_grid)
-        row.addWidget(finish)
-        row.addWidget(cancel)
+        for widget in (self.sketch_entry, self.arc_button, self.sketch_grid, self.sketch_role, finish, cancel):
+            row.addWidget(widget)
         bar.setVisible(False)
         return bar
 
@@ -437,9 +453,8 @@ class GeometryPage(QWidget):
                 menu.addAction(action)
         if not kind:
             sketch = menu.addMenu(icon("sketch"), "Sketch")
-            for sketch_kind, text, _ in SKETCHES:
-                sketch.addAction(icon("line" if sketch_kind == "polyline" else sketch_kind), text,
-                                 lambda k=sketch_kind: self.start_sketch(k))
+            for sketch_kind, text, icon_name in SKETCHES:
+                sketch.addAction(icon(icon_name), text, lambda k=sketch_kind: self.start_sketch(k))
         menu.addSeparator()
         menu.addAction(icon("fit"), "Fit view", self.view.fit)
         menu.exec(position)
@@ -722,86 +737,140 @@ class GeometryPage(QWidget):
         self.commit(logic.set_boundary_type(self.document, self.built, name, kind, inflation=on),
                     f"inflation {'on' if on else 'off'} for {name}")
 
-    # ---- sketching --------------------------------------------------------------------------------
+    # ---- drawing with the mouse (gui/sketch_tools.py) -----------------------------------------------
 
     def start_sketch(self, kind):
+        """Start a drawing tool; it stays on (shape after shape) until Esc or Stop."""
         if self.built is None:
             return
-        self.sketch_kind, self.sketch_points = kind, []
-        step = snapping.grid_step(self.built.size if not self.built.empty else 1.0)
-        self.sketch_grid.setText(f"Snap to grid ({logic.mm(step)} mm)")
-        self._grid_step = step
-        self.sketch_help.setText(f"<b>{dict((k, t) for k, t, _ in SKETCHES)[kind]}</b>: "
-                                 + dict((k, h) for k, _, h in SKETCHES)[kind])
+        self.tool = sketch_tools.TOOLS[kind](self.built, self._snap_grid())
+        self.sketch_help.setText(f"<b>{self.tool.title}</b>: {self.tool.help}")
+        self.arc_button.setVisible(kind == "polyline")
+        self.arc_button.setChecked(False)
         self.sketch_bar.setVisible(True)
-        self.view.set_mode("click")
+        self.banner.hide_message()
+        self.view.set_mode("draw")
         for action in self.mode_actions.values():
             action.setChecked(False)
-        self.sketch_entry.setFocus()
+        self.view.setFocus()
+
+    def _snap_grid(self):
+        """The grid spacing to snap to [m] (the visible grid's), or None when snapping to the grid is off."""
+        return getattr(self.view, "_grid_step", None) if self.sketch_grid.isChecked() else None
+
+    @property
+    def sketch_kind(self):
+        return None if self.tool is None else self.tool.kind
+
+    def on_tool_moved(self, x, y, tolerance):
+        if self.tool is None:
+            return
+        self.tool.grid = self._snap_grid()
+        self.tool.move((x, y), tolerance)
+        self.view.show_tool_preview(self.tool.preview())
 
     def on_sketch_click(self, x, y, tolerance):
-        if self.sketch_kind is None:
+        """A click while drawing: the tool places the (snapped) point; a finished shape is added."""
+        if self.tool is None:
             return
-        grid = self._grid_step if self.sketch_grid.isChecked() else None
-        point, what = snapping.snap(self.built, (x, y), tolerance, self.sketch_points, grid)
-        closes = what == "sketch point" and len(self.sketch_points) >= 3 and \
-            np.allclose(point, self.sketch_points[0]) and self.sketch_kind in ("polyline", "spline")
-        if closes:
-            self.finish_sketch(closed=True)
+        self.tool.grid = self._snap_grid()
+        try:
+            done = self.tool.click((x, y), tolerance)
+        except ValueError as error:
+            self.banner.show_message(str(error), "warning")
             return
-        self.add_sketch_point(point)
+        self._after_point(done)
 
     def type_sketch_point(self):
-        text = self.sketch_entry.text().replace(";", ",")
+        """Enter in the typed-value box: place the typed point (an empty box finishes the shape)."""
+        if self.tool is None:
+            return
+        text = self.sketch_entry.text()
+        if not text.strip():
+            self.finish_sketch()
+            return
         try:
-            x, y = (float(v) for v in text.split(","))
-        except ValueError:
-            self.banner.show_message("Type a point as two numbers in mm: x, y (for example 12.5, 3).", "warning")
+            done = self.tool.typed(text)
+        except ValueError as error:
+            self.banner.show_message(str(error), "warning")
             return
         self.sketch_entry.clear()
-        self.add_sketch_point(np.array([x, y]) * logic.MM)
+        self._after_point(done)
 
-    def add_sketch_point(self, point):
-        self.sketch_points.append(np.asarray(point, dtype=float))
-        pts = np.array(self.sketch_points)
-        self.view.set_handles(pts)
-        self.view.set_preview(pts)
-        self.banner.show_message(f"Point {len(pts)}: ({logic.mm(pts[-1][0])}, {logic.mm(pts[-1][1])}) mm")
-        if len(pts) == Sketch.COUNTS.get(self.sketch_kind, 0):
+    def _after_point(self, done):
+        self.banner.hide_message()
+        if done:
             self.finish_sketch()
+        else:
+            self.view.show_tool_preview(self.tool.preview())
 
-    def finish_sketch(self, closed=False):
-        kind, pts = self.sketch_kind, [p.tolist() for p in self.sketch_points]
-        if kind is None:
+    def finish_sketch(self, *_):
+        """Add the drawn shape to the history (Enter, double-click, right-click, or closing it) and
+        start the next shape with the same tool."""
+        tool = self.tool
+        if tool is None:
             return
-        needed = Sketch.COUNTS.get(kind, 2)
-        if len(pts) < needed:
-            self.banner.show_message(f"This needs {needed} points; {len(pts)} so far.", "warning")
+        if not tool.done and not tool.finish():
+            self.banner.show_message("Nothing to add yet: place at least two points.", "info")
             return
-        op = Sketch(kind=kind, points=pts, closed=closed)
-        self.cancel_sketch()
-        if closed or kind in ("rectangle", "circle"):
-            dialog = OperationDialog(op, "Sketch", "A closed shape becomes a face: a solid body, or a fluid domain.",
-                                     self)
-            if not dialog.exec():
-                return
-            op = dialog.result_op
-        document = self.document.copy()
-        document.add(op)
-        self.commit(document, op.summary())
+        op = tool.operation(self.sketch_role.currentData())
+        if op is not None:
+            document = self.document.copy()
+            document.add(op)
+            self.commit(document, op.summary())
+        self.start_sketch(tool.kind)                           # ready for the next shape
+
+    def undo_sketch_point(self):
+        """Backspace: take back the last placed point of the shape being drawn."""
+        tool = self.tool
+        if tool is None or not tool.clicks:
+            return
+        clicks = [tool.points[i] for i in tool.clicks[:-1]]
+        arc = getattr(tool, "arc_next", False)
+        self.tool = type(tool)(self.built, self._snap_grid())
+        for point in clicks:
+            self.tool.place(point)
+        if hasattr(self.tool, "arc_next"):
+            self.tool.arc_next = arc
+        self.view.show_tool_preview(self.tool.preview())
+
+    def toggle_arc(self, *_):
+        """A: the next segment of the polyline is a tangent arc (once)."""
+        if self.tool is not None and hasattr(self.tool, "arc_next"):
+            self.tool.arc_next = not self.tool.arc_next
+            self.arc_button.setChecked(self.tool.arc_next)
+            self.view.show_tool_preview(self.tool.preview())
+
+    def on_typed_key(self, char):
+        """A digit typed over the view while drawing starts the typed-value box."""
+        if self.tool is not None:
+            self.sketch_entry.setFocus()
+            self.sketch_entry.insert(char)
 
     def cancel_sketch(self):
-        self.sketch_kind, self.sketch_points = None, []
+        self.tool = None
         self.sketch_bar.setVisible(False)
-        self.view.set_preview(None)
+        self.view.show_tool_preview(None)
         self.view.set_handles(None)
         self.set_mode("select")
 
     def escape(self):
-        if self.sketch_kind is not None:
+        """Esc: drop the shape being drawn; again (or with nothing drawn): stop drawing; else clear the selection."""
+        if self.tool is not None and self.tool.clicks:
+            self.start_sketch(self.tool.kind)
+        elif self.tool is not None:
             self.cancel_sketch()
         else:
             self.set_selection([])
+
+    def on_box_selected(self, x0, y0, x1, y1, touching, add):
+        """A box drawn in empty space: left to right selects what is completely inside, right to left
+        what it touches (as in CAD programs)."""
+        kinds = tuple(k for k in ("vertex", "edge", "face") if self.view.filters[k].isChecked())
+        found = picking.box_select(self.built, x0, y0, x1, y1, touching, kinds)
+        selection = list(self.selection) if add else []
+        selection += [s for s in found if s not in selection]
+        self.set_selection(selection)
 
     # ---- suggestions and export ------------------------------------------------------------------
 

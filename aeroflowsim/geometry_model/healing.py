@@ -101,7 +101,7 @@ def _end_points(kernel, curves) -> int:
     return len(ends)
 
 
-def build_faces(kernel, curves, op_id, role="auto"):
+def build_faces(kernel, curves, op_id, role="auto", report_open=True):
     """Make plane faces from the closed loops among `curves`; returns the new face tags.
 
     role "fluid" / "solid", or "auto": fluid if the face has an edge along y = 0 (a half domain of
@@ -136,7 +136,7 @@ def build_faces(kernel, curves, op_id, role="auto"):
         if point == ends[start][0]:
             loops.append(loop)
     open_curves = [c for c in curves if c not in used]
-    if open_curves:
+    if open_curves and report_open:                # (open curves are normal in a sketch: not reported there)
         kernel.message(f"{len(open_curves)} curve(s) do not form a closed loop (open outline); they are kept as "
                        "free curves. Close the gap with a sketch line or a larger healing tolerance.", "warning")
     if not loops:

@@ -62,3 +62,46 @@ def test_3d_switch_revolve_preview_and_context_menu(qtbot, window, tmp_path):
     assert "Import" in texts("")
     window.set_dark(True, save=False)                                # icons and grid follow the theme
     assert view._grid_actors and not page.icon_targets[0][0].icon().isNull()
+
+
+def test_mouse_drawing_box_selection_pan_and_zoom(qtbot, window, tmp_path):
+    """The view's own mouse handling (what the Qt event filter calls), in VTK pixels."""
+    from aeroflowsim.geometry_model.operations import Sketch
+    from .conftest import needs_rendering
+    project = Project.create("geometry_2d", tmp_path / "D.afsproj")
+    window.load_project(project)
+    page, view = window.pages["geometry"], window.pages["geometry"].view
+    doc = project.geometry_document()
+    doc.add(Sketch(kind="rectangle", points=[[0, 0], [0.1, 0.04]], role="fluid"))
+    window.edit_geometry(doc, "rectangle")
+    needs_rendering(view)
+    view._show_box(0.012, 0.058, 0.002, 0.038)                            # zoomed in: a pixel is small, as for a user
+    px = lambda xy: view.display_point(xy)[:2]
+    # Draw a rectangle by press - drag - release (two corners in one move).
+    page.start_sketch("rectangle")
+    (x0, y0), (x1, y1) = px((0.02, 0.01)), px((0.05, 0.03))
+    view.mouse_press(x0, y0)
+    view.mouse_move(x1, y1)
+    view.mouse_release(x1, y1)
+    face = page.built.faces["op2:face"]
+    loop = page.built.loop_points(face.loops[0])
+    assert face.area == pytest.approx(0.03 * 0.02, rel=0.02), (loop.min(axis=0), loop.max(axis=0), view.metres_per_pixel())
+    page.cancel_sketch()
+    # Box selection from left to right around the new rectangle: its 4 edges, 4 corners and the face.
+    (bx0, by0), (bx1, by1) = px((0.015, 0.005)), px((0.055, 0.035))
+    view.mouse_press(bx0, by0)
+    view.mouse_move(bx1, by1)
+    view.mouse_release(bx1, by1)
+    kinds = [k for k, _ in page.selection]
+    assert kinds.count("edge") == 4 and kinds.count("face") == 1
+    # Zoom about the cursor keeps the point under it; Shift + drag pans.
+    cx, cy = px((0.07, 0.02))
+    before = view.world_point(cx, cy)
+    view.zoom_at(cx, cy, 0.5)
+    assert view.world_point(cx, cy) == pytest.approx(before, abs=1e-9)
+    scale = view.plotter.camera.parallel_scale
+    view.mouse_press(cx, cy, shift=True)
+    view.mouse_move(cx + 50, cy)
+    view.mouse_release(cx + 50, cy)
+    assert view.world_point(cx + 50, cy) == pytest.approx(before, abs=1e-6)   # the grabbed point followed
+    assert view.plotter.camera.parallel_scale == scale

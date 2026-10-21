@@ -24,12 +24,12 @@ right-click emits context_menu(kind, id, global position) for the page's context
 """
 
 import html
+import time
 
 import numpy as np
 import pyvista as pv
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import QLabel, QToolButton
-from vtkmodules.vtkInteractionStyle import vtkInteractorStyleUser
 
 from aeroflowsim.geometry_model import FLUID, picking
 from aeroflowsim.geometry_model.snapping import visible_grid
@@ -41,6 +41,11 @@ HOVER = "#4fc3f7"            # what a click would pick
 GRID = {False: ("#e3e7ec", "#c9d0d8"), True: ("#2b2d31", "#3c4043")}   # (minor, major) grid line colours
 REVOLVE_ANGLE = 270.0        # the revolve preview leaves a quarter open, to see inside [deg]
 REVOLVE_STEPS = 72           # angular resolution of the revolve preview [-]
+TOOL = "#ea4335"             # the shape being drawn
+GUIDE = "#9aa0a6"            # dashed guide lines while drawing
+MARKER = "#1a73e8"           # the snap marker
+BOX_COLOURS = {False: "#1a73e8", True: "#34a853"}   # box selection: inside (left to right) / touching (right to left)
+DOUBLE_CLICK_S = 0.35        # two clicks closer in time than this are a double-click [s]
 
 PICK_PIXELS = 8              # a click within this many pixels of an edge / point picks it [px]
 SELECTED = "#fbbc04"         # selection colour (yellow, readable on both themes)
@@ -65,6 +70,41 @@ def _triangles(tris, z=0.0) -> pv.PolyData:
     return pv.PolyData(pts, faces=faces)
 
 
+def _dashes(points, dash):
+    """A polyline cut into dashes of length `dash` [m] (every other piece kept): [(2, 2)] segments."""
+    out = []
+    for a, b in zip(points[:-1], points[1:]):
+        length = float(np.linalg.norm(b - a))
+        if length <= 0.0 or dash <= 0.0:
+            continue
+        n = max(1, int(length / dash))
+        t = np.linspace(0.0, 1.0, n + 1)
+        out += [np.array([a + (b - a) * t[k], a + (b - a) * t[k + 1]]) for k in range(0, n, 2)]
+    return out
+
+
+def marker_shape(kind, p, s):
+    """The snap marker for an inference kind at point p, size s [m]: a list of polylines.
+
+    endpoint: square, intersection: X, centre: circle with a cross, midpoint: triangle, tangent: circle
+    and a line, perpendicular: right-angle sign, on curve: diamond, angle / aligned: plus, grid: small square."""
+    x, y = p
+    circle = np.column_stack([x + s * np.cos(np.linspace(0, 2 * np.pi, 25)), y + s * np.sin(np.linspace(0, 2 * np.pi, 25))])
+    shapes = {
+        "endpoint": [np.array([[x - s, y - s], [x + s, y - s], [x + s, y + s], [x - s, y + s], [x - s, y - s]])],
+        "intersection": [np.array([[x - s, y - s], [x + s, y + s]]), np.array([[x - s, y + s], [x + s, y - s]])],
+        "centre": [circle, np.array([[x - s, y], [x + s, y]]), np.array([[x, y - s], [x, y + s]])],
+        "midpoint": [np.array([[x - s, y - 0.6 * s], [x + s, y - 0.6 * s], [x, y + s], [x - s, y - 0.6 * s]])],
+        "tangent": [circle, np.array([[x - 1.6 * s, y + s], [x + 1.6 * s, y + s]])],
+        "perpendicular": [np.array([[x - s, y + s], [x - s, y - s], [x + s, y - s]]),
+                          np.array([[x - s, y], [x, y], [x, y - s]])],
+        "on curve": [np.array([[x, y - s], [x + s, y], [x, y + s], [x - s, y], [x, y - s]])],
+        "grid": [np.array([[x - 0.5 * s, y - 0.5 * s], [x + 0.5 * s, y - 0.5 * s], [x + 0.5 * s, y + 0.5 * s],
+                           [x - 0.5 * s, y + 0.5 * s], [x - 0.5 * s, y - 0.5 * s]])],
+    }
+    return shapes.get(kind, [np.array([[x - s, y], [x + s, y]]), np.array([[x, y - s], [x, y + s]])])
+
+
 def region_outline(region) -> np.ndarray:
     """The outline of a refinement region as points (n, 2) [m]."""
     p = region.params
@@ -87,6 +127,11 @@ class GeometryView(MeshView):
     clicked = Signal(float, float, float)    # a click in "click" mode at x, y [m], with the pick tolerance [m]
     context_menu = Signal(str, str, QPoint)  # right-click: kind, id under the cursor ("" for nothing), screen position
     cursor_moved = Signal(float, float)      # the cursor's world position x, y [m]
+    tool_moved = Signal(float, float, float)     # drawing: the cursor moved to x, y [m] (with the pick tolerance)
+    tool_clicked = Signal(float, float, float)   # drawing: a point was clicked at x, y [m]
+    tool_finish = Signal()                       # drawing: double-click or right-click (finish the shape)
+    box_selected = Signal(float, float, float, float, bool, bool)   # x0, y0, x1, y1 [m], touching?, add?
+    key_typed = Signal(str)                      # drawing: a digit (or . - @ <) typed over the view
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -97,17 +142,12 @@ class GeometryView(MeshView):
         self._dz = 1e-3
         self._drag = None                    # what is being dragged: ("move", start xy) or ("point", index)
         self._preview = None
-        self._style_2d = None
         self._hover, self._hover_actor = None, None
+        self._tool_actors, self._cursor_pixel, self._last_click = [], (0, 0), None
         self._grid_actors, self._grid_box = [], None
         self._revolve_actors = []
         self._right_press = None
         self.view3d = False
-        self.plotter.iren.add_observer("MouseMoveEvent", self._on_move)
-        self.plotter.iren.add_observer("MouseWheelForwardEvent", lambda *_: self._wheel(0.85))
-        self.plotter.iren.add_observer("MouseWheelBackwardEvent", lambda *_: self._wheel(1.0 / 0.85))
-        self.plotter.iren.add_observer("RightButtonPressEvent", self._on_right_press)
-        self.plotter.iren.add_observer("RightButtonReleaseEvent", self._on_right_release)
         self.plotter.renderer.AddObserver("EndEvent", self._after_render)
         self._grid_timer = QTimer(self, singleShot=True, interval=0)
         self._grid_timer.timeout.connect(self._update_grid)
@@ -122,6 +162,14 @@ class GeometryView(MeshView):
             button.toggled.connect(lambda checked, k=key: self._toggled(k, checked))
             self.toolbar.insertWidget(self.toolbar.count() - 1, button)
             self.toggles[key] = button
+        self.toolbar.insertWidget(self.toolbar.count() - 1, QLabel("  Pick:", objectName="hint"))
+        self.filters = {}
+        for kind, text, tip in (("vertex", "Points", "Clicks and boxes select corner points"),
+                                ("edge", "Edges", "Clicks and boxes select edges"),
+                                ("face", "Faces", "Clicks and boxes select faces")):
+            button = QToolButton(text=text, toolTip=tip, checkable=True, checked=True, autoRaise=True)
+            self.toolbar.insertWidget(self.toolbar.count() - 1, button)
+            self.filters[kind] = button
         self.position_label = QLabel(objectName="hint")
         self.position_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.toolbar.addWidget(self.position_label)
@@ -131,6 +179,8 @@ class GeometryView(MeshView):
         self.layout().insertWidget(1, self.legend_label)
         self.plotter.add_axes(line_width=2, labels_off=False)
         self.update_icons()
+        self._ready = True
+        self.plotter.interactor.installEventFilter(self)      # 2D mouse handling (see eventFilter): set up last
 
     def update_icons(self):
         for key, name in (("grid", "grid"), ("view3d", "view3d"), ("revolve", "revolve")):
@@ -431,64 +481,158 @@ class GeometryView(MeshView):
     # ---- modes -------------------------------------------------------------------------------------
 
     def set_mode(self, mode):
-        """"select" (left drag pans the view) or "move", "points", "click" (left drag edits)."""
+        """"select", "move" (drag the selection), "points" (drag handles) or "draw" (a sketch tool is active)."""
         self.mode = mode
-        iren = self.plotter.iren.interactor
-        if mode == "select":
-            if self._style_2d is not None:
-                iren.SetInteractorStyle(self._style_2d)
-                self._style_2d = None
-        elif self._style_2d is None:
-            self._style_2d = iren.GetInteractorStyle()
-            iren.SetInteractorStyle(vtkInteractorStyleUser())     # no camera moves on the left button
+        self._remove_hover()
+        if mode != "draw":
+            self.show_tool_preview(None)
 
-    def _wheel(self, factor):
-        if self.mode != "select" and not self.closed:     # the 2D style zooms by itself in select mode
-            self.plotter.camera.parallel_scale *= factor
-            self.plotter.render()
+    def _shift_camera(self, shift):
+        """Move the 2D camera by shift [m] (the drawing moves the other way)."""
+        cam = self.plotter.camera
+        fx, fy, fz = cam.focal_point
+        px, py, pz = cam.position
+        cam.focal_point = (fx + shift[0], fy + shift[1], fz)
+        cam.position = (px + shift[0], py + shift[1], pz)
+        self.plotter.render()
 
-    # ---- mouse ---------------------------------------------------------------------------------------
+    # ---- mouse: a Qt event filter, before VTK sees the events ----------------------------------------
+    #
+    # In 2D the view handles the mouse itself, like CAD programs: left = select / box select / draw /
+    # drag, middle or Shift + left = pan, wheel = zoom about the cursor, right = context menu (or finish
+    # the shape being drawn). The events are caught in Qt BEFORE VTK sees them (eventFilter), so no VTK
+    # camera style can pan or zoom at the same time; in 3D they pass through to VTK's rotation.
+    # Positions are converted to VTK display pixels (origin bottom left, physical pixels), the
+    # coordinates world_point() and the picking use.
+
+    def eventFilter(self, obj, event):
+        if not getattr(self, "_ready", False) or obj is not self.plotter.interactor or self.view3d or                 self.built is None or self.closed:
+            return False
+        kind = event.type()
+        if kind == QEvent.KeyPress:
+            text = event.text()
+            if self.mode == "draw" and text and (text.isdigit() or text in ".-@<,"):
+                self.key_typed.emit(text)
+                return True
+            return False
+        if kind not in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseMove,
+                        QEvent.MouseButtonDblClick, QEvent.Wheel):
+            return False
+        x, y = self._vtk_pixel(event)
+        mods = event.modifiers()
+        shift, ctrl = bool(mods & Qt.ShiftModifier), bool(mods & Qt.ControlModifier)
+        if kind == QEvent.Wheel:
+            self.zoom_at(x, y, 0.85 if event.angleDelta().y() > 0 else 1.0 / 0.85)
+        elif kind == QEvent.MouseMove:
+            self.mouse_move(x, y)
+        elif kind == QEvent.MouseButtonDblClick:
+            if event.button() == Qt.LeftButton and self.mode == "draw":
+                self.tool_finish.emit()                     # the first click of the pair placed the point
+        elif kind == QEvent.MouseButtonPress:
+            self.plotter.interactor.setFocus()
+            if event.button() == Qt.LeftButton:
+                self.mouse_press(x, y, shift)
+            elif event.button() == Qt.MiddleButton:
+                self._drag = ("pan", self.world_point(x, y))
+            elif event.button() == Qt.RightButton:
+                self._right_press = (x, y)
+        else:
+            if event.button() == Qt.LeftButton:
+                self.mouse_release(x, y, shift or ctrl)
+            elif event.button() == Qt.MiddleButton:
+                self._drag = None
+            elif event.button() == Qt.RightButton:
+                self.right_click(x, y)
+        return True
+
+    def _vtk_pixel(self, event):
+        widget = self.plotter.interactor
+        ratio = widget.devicePixelRatioF()
+        pos = event.position()
+        return pos.x() * ratio, (widget.height() - pos.y()) * ratio
+
+    def _on_press(self, *_):        # (MeshView's VTK observers: the event filter does this work in 2D)
+        pass
+
+    def _on_release(self, *_):
+        pass
+
+    def zoom_at(self, x, y, factor):
+        """Zoom by `factor` about the pixel (x, y): the point under the cursor stays where it is."""
+        before = self.world_point(x, y)
+        self.plotter.camera.parallel_scale *= factor
+        self._shift_camera(before - self.world_point(x, y))
 
     def tolerance(self, x, y) -> float:
         """PICK_PIXELS converted to metres at the pixel (x, y)."""
-        return PICK_PIXELS * float(np.linalg.norm(self.world_point(x + 1, y) - self.world_point(x, y)))
+        return PICK_PIXELS * self.metres_per_pixel(x, y)
 
-    def _on_press(self, interactor, _event):
-        self._press = interactor.GetEventPosition()
-        if self.built is None or self.mode == "select":
-            return
-        x, y = self._press
+    def metres_per_pixel(self, x=0, y=0) -> float:
+        return float(np.linalg.norm(self.world_point(x + 1, y) - self.world_point(x, y)))
+
+    def pick_hit(self, x, y):
+        """(kind, id) under the pixel (x, y), allowing only the kinds of the selection filter, or None."""
+        kinds = tuple(k for k in ("vertex", "edge", "face") if self.filters[k].isChecked())
+        return picking.pick(self.built, self.world_point(x, y), self.tolerance(x, y), kinds)
+
+    def mouse_press(self, x, y, shift=False):
+        """Left button down at the VTK pixel (x, y)."""
+        self._press = self._cursor_pixel = (x, y)
+        self._drag = None
+        if self.mode == "draw":
+            return                                          # drawing: handled on release (click or drag)
         p = self.world_point(x, y)
-        if self.mode == "move" and self.selection:
-            if self._on_selection(picking.pick(self.built, p, self.tolerance(x, y))):
-                self._drag = ("move", p)
+        if shift and self.mode == "select":
+            self._drag = ("pan", p)                          # Shift + drag pans (no middle button needed)
+        elif self.mode == "move" and self.selection and self._on_selection(self.pick_hit(x, y)):
+            self._drag = ("move", p)
         elif self.mode == "points" and self.handles is not None and len(self.handles):
             d = np.linalg.norm(self.handles - p, axis=1)
             k = int(d.argmin())
             if d[k] <= self.tolerance(x, y):
                 self._drag = ("point", k)
+        hit = self.pick_hit(x, y) if self._drag is None else None
+        if self._drag is None and (hit is None or hit[0] == "face"):
+            self._drag = ("box", p)                          # empty space or inside a face: a box selection if it
+                                                             # becomes a drag (a plain click still selects the face)
 
-    def _on_move(self, interactor, _event):
-        if self.built is None or self.closed or self.view3d:
-            return
-        x, y = interactor.GetEventPosition()
+    def mouse_move(self, x, y):
+        """The cursor moved to the VTK pixel (x, y) (with or without a button down)."""
+        self._cursor_pixel = (x, y)
         p = self.world_point(x, y)
         if self._drag is None:
             self._show_position(p)
             self.cursor_moved.emit(float(p[0]), float(p[1]))
-            if self.mode == "select" and not self.built.empty:
-                self._draw_hover(picking.pick(self.built, p, self.tolerance(x, y)))
+            if self.mode == "draw":
+                self.tool_moved.emit(float(p[0]), float(p[1]), self.tolerance(x, y))
+            elif self.mode == "select" and not self.built.empty:
+                self._draw_hover(self.pick_hit(x, y))
+            return
+        kind = self._drag[0]
+        if kind == "pan":                                    # keep the grabbed point under the cursor
+            self._shift_camera(self._drag[1] - p)
             return
         if self._preview is not None:
             self.plotter.remove_actor(self._preview)
-        if self._drag[0] == "move":
+            self._preview = None
+        if kind == "box":
+            a = self._drag[1]
+            if np.linalg.norm(p - a) / self.metres_per_pixel(x, y) <= CLICK_PIXELS:
+                self.plotter.render()
+                return
+            corners = np.array([a, [p[0], a[1]], p, [a[0], p[1]], a])
+            crossing = p[0] < a[0]                           # right to left: touching; left to right: inside
+            outline = _dashes(corners, 6 * self.metres_per_pixel(x, y)) if crossing else [corners]
+            self._preview = self.plotter.add_mesh(_lines(outline, 4 * self._dz), color=BOX_COLOURS[crossing],
+                                                  line_width=1.5, reset_camera=False)
+        elif kind == "move":
             shift = p - self._drag[1]
             edges = [self.built.edges[e].points + shift for e in self._selected_edges()]
             self._preview = self.plotter.add_mesh(_lines(edges), color=SELECTED, line_width=2, reset_camera=False)
         else:
             pts = self.handles.copy()
             pts[self._drag[1]] = p
-            self._preview = self.plotter.add_mesh(_lines([pts]), color="#ea4335", line_width=2, reset_camera=False)
+            self._preview = self.plotter.add_mesh(_lines([pts]), color=TOOL, line_width=2, reset_camera=False)
         self.plotter.render()
 
     def _on_selection(self, hit) -> bool:
@@ -512,17 +656,31 @@ class GeometryView(MeshView):
                 out.append(entity)
         return out
 
-    def _on_release(self, interactor, _event):
-        x, y = interactor.GetEventPosition()
+    def mouse_release(self, x, y, add=False):
+        """Left button up at the VTK pixel (x, y): a click, the end of a drag, or a point of a drawing."""
         if self._preview is not None:
             self.plotter.remove_actor(self._preview)
             self._preview = None
         drag, self._drag = self._drag, None
-        if self._press is None or self.built is None or self.view3d:      # 3D: rotate only, no picking
+        self._cursor_pixel = (x, y)                          # (the drawing label goes next to the cursor)
+        if self._press is None:
             return
         moved_pixels = abs(x - self._press[0]) + abs(y - self._press[1])
         p = self.world_point(x, y)
-        if drag is not None and moved_pixels > CLICK_PIXELS:
+        if self.mode == "draw":
+            tol = self.tolerance(x, y)
+            if moved_pixels > CLICK_PIXELS:                  # press - drag - release: two points in one move
+                a = self.world_point(*self._press)
+                self.tool_clicked.emit(float(a[0]), float(a[1]), tol)
+            self.tool_clicked.emit(float(p[0]), float(p[1]), tol)
+            return
+        if drag is not None and drag[0] == "pan":
+            return
+        if drag is not None and drag[0] == "box" and moved_pixels > CLICK_PIXELS:
+            a = drag[1]
+            self.box_selected.emit(float(a[0]), float(a[1]), float(p[0]), float(p[1]), bool(p[0] < a[0]), add)
+            return
+        if drag is not None and drag[0] in ("move", "point") and moved_pixels > CLICK_PIXELS:
             if drag[0] == "move":
                 d = p - drag[1]
                 self.moved.emit(float(d[0]), float(d[1]))
@@ -530,31 +688,58 @@ class GeometryView(MeshView):
                 self.point_moved.emit(int(drag[1]), float(p[0]), float(p[1]))
             return
         if moved_pixels > CLICK_PIXELS:
-            return                                           # it was a pan
-        if self.mode == "click":
-            self.clicked.emit(float(p[0]), float(p[1]), self.tolerance(x, y))
             return
-        self.pick_at(x, y, bool(interactor.GetShiftKey() or interactor.GetControlKey()))
+        self.pick_at(x, y, add)
 
-    def _on_right_press(self, interactor, _event):
-        self._right_press = interactor.GetEventPosition()
-
-    def _on_right_release(self, interactor, _event):
-        """A right-click (not a drag, which zooms) opens the context menu for what is under the cursor."""
-        if self._right_press is None or self.built is None or self.view3d:
+    def right_click(self, x, y):
+        """Right button up: finishes the shape being drawn; otherwise the context menu (not after a drag)."""
+        if self._right_press is None or abs(x - self._right_press[0]) + abs(y - self._right_press[1]) > CLICK_PIXELS:
             return
-        x, y = interactor.GetEventPosition()
-        if abs(x - self._right_press[0]) + abs(y - self._right_press[1]) > CLICK_PIXELS:
+        if self.mode == "draw":
+            self.tool_finish.emit()
             return
-        hit = picking.pick(self.built, self.world_point(x, y), self.tolerance(x, y))
+        hit = self.pick_hit(x, y)
         kind, entity = hit if hit is not None else ("", "")
         widget = self.plotter.interactor
-        ratio = widget.devicePixelRatioF()                  # VTK counts physical pixels, from the bottom
+        ratio = widget.devicePixelRatioF()
         local = QPoint(int(x / ratio), int(widget.height() - y / ratio))
         self.context_menu.emit(kind, entity, widget.mapToGlobal(local))
 
     def pick_at(self, x, y, add=False):
         """Pick at screen pixel (x, y) (VTK display coordinates) and emit picked()."""
-        hit = picking.pick(self.built, self.world_point(x, y), self.tolerance(x, y))
+        hit = self.pick_hit(x, y)
         kind, entity = hit if hit is not None else ("", "")
         self.picked.emit(kind, entity, add)
+
+    # ---- the drawing tool's preview -------------------------------------------------------------------
+
+    def show_tool_preview(self, preview):
+        """Draw a sketch tool's preview (gui/sketch_tools.Preview): the shape so far, the rubber band,
+        dashed guides, the snap marker and the label next to the cursor. None removes it."""
+        for actor in self._tool_actors:
+            self.plotter.remove_actor(actor)
+        self._tool_actors = []
+        if preview is None or self.closed or self.built is None:
+            if not self.closed:
+                self.plotter.render()
+            return
+        z, add = 4.0 * self._dz, self._tool_actors.append
+        px = self.metres_per_pixel(*self._cursor_pixel)
+        if preview.lines:
+            add(self.plotter.add_mesh(_lines([np.asarray(l) for l in preview.lines if len(l) >= 2], z), color=TOOL,
+                                      line_width=2.5, reset_camera=False))
+        if preview.points:
+            pts = np.array(preview.points)
+            add(self.plotter.add_points(np.column_stack([pts, np.full(len(pts), z)]), color=TOOL, point_size=7,
+                                        render_points_as_spheres=True, reset_camera=False))
+        dashes = [d for a, b in preview.guides for d in _dashes(np.array([a, b]), 6 * px)]
+        if dashes:
+            add(self.plotter.add_mesh(_lines(dashes, z), color=GUIDE, line_width=1, reset_camera=False))
+        if preview.marker is not None:
+            add(self.plotter.add_mesh(_lines(marker_shape(preview.marker[1], preview.marker[0], 7 * px), 1.2 * z),
+                                      color=MARKER, line_width=2, reset_camera=False))
+        if preview.label:
+            x, y = self._cursor_pixel
+            add(self.plotter.add_text(preview.label, position=(int(x) + 16, int(y) + 12), font_size=7,
+                                      color=colour("text", self.dark)))
+        self.plotter.render()

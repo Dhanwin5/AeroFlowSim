@@ -104,3 +104,44 @@ def edges_in_box(built, x0, y0, x1, y1) -> list:
     """Ids of the edges lying completely inside a box (rubber-band selection)."""
     lo, hi = np.array([min(x0, x1), min(y0, y1)]), np.array([max(x0, x1), max(y0, y1)])
     return [e.id for e in built.edges.values() if np.all((e.points >= lo) & (e.points <= hi))]
+
+
+def box_select(built, x0, y0, x1, y1, touching=False, kinds=("vertex", "edge", "face")):
+    """[(kind, id)] in a box: completely inside it, or (touching=True) inside or crossing it.
+
+    As in CAD programs, a box drawn from left to right selects what is completely inside, one drawn
+    from right to left also what it only touches.
+    """
+    lo, hi = np.array([min(x0, x1), min(y0, y1)]), np.array([max(x0, x1), max(y0, y1)])
+    inside = lambda pts: np.all((pts >= lo) & (pts <= hi), axis=-1)
+    out = []
+    if "vertex" in kinds:
+        out += [("vertex", v.id) for v in built.vertices.values() if v.corner and inside(v.xy)]
+    box = np.array([lo, [hi[0], lo[1]], hi, [lo[0], hi[1]]])
+
+    def crosses(points):
+        if np.any(inside(points)):
+            return True
+        a, b = points[:-1], points[1:]                     # an edge passing through the box without a point in it
+        for k in range(4):
+            c, d = box[k], box[(k + 1) % 4]
+            d1 = (b - a)[:, 0] * (c - a)[:, 1] - (b - a)[:, 1] * (c - a)[:, 0]
+            d2 = (b - a)[:, 0] * (d - a)[:, 1] - (b - a)[:, 1] * (d - a)[:, 0]
+            e = d - c
+            d3 = e[0] * (a - c)[:, 1] - e[1] * (a - c)[:, 0]
+            d4 = e[0] * (b - c)[:, 1] - e[1] * (b - c)[:, 0]
+            if np.any((d1 * d2 < 0) & (d3 * d4 < 0)):
+                return True
+        return False
+
+    if "edge" in kinds:
+        for e in built.edges.values():
+            if np.all(inside(e.points)) or (touching and crosses(e.points)):
+                out.append(("edge", e.id))
+    if "face" in kinds:
+        for f in built.faces.values():
+            outline = built.loop_points(f.loops[0])
+            if np.all(inside(outline)) or (touching and (crosses(np.vstack([outline, outline[:1]])) or
+                                                         point_in_polygon(lo, outline))):
+                out.append(("face", f.id))
+    return out

@@ -363,8 +363,133 @@ class ImportFile(Operation):
             healing.name_faces(kernel, tags, self.id, p["role"])
 
 
+class SketchGroup(Operation):
+    """A sketch drawn with the mouse: shared points and the entities between them.
+
+    params:
+        points       [[x, y], ...] [m]; entities refer to them by number, so lines that meet share
+                     their point and the outline is connected exactly (no gaps to heal)
+        entities     [{"type": "line", "p": [i, j]},
+                      {"type": "arc", "p": [start, end], "c": centre}   counter-clockwise about the centre
+                      {"type": "circle", "c": centre, "r": radius},
+                      {"type": "spline", "p": [i, j, ...]}               closed if the last point is the first
+                      ...] - any entity with "construction": true is a helper line, drawn but not built
+        constraints  [] (geometric constraints and driving dimensions; solved before building)
+        role         the role of the faces made by closed loops: "solid" (a body) or "fluid" (a domain)
+    Closed loops of entities become faces automatically (loops inside loops are holes). Edges get
+    ids "<op>:e<entity number>" ("<op>:e<n>.2" for the second half of an arc longer than half a circle).
+    """
+
+    type, title = "sketch_group", "Sketch"
+    DEFAULTS = {"points": [], "entities": [], "constraints": [], "role": SOLID}
+    TYPES = ("line", "arc", "circle", "spline")
+
+    def summary(self) -> str:
+        counts = {}
+        for e in self.params["entities"]:
+            name = "construction line" if e.get("construction") else e["type"]
+            counts[name] = counts.get(name, 0) + 1
+        text = ", ".join(f"{n} {k}{'s' if n > 1 else ''}" for k, n in counts.items()) or "empty"
+        extra = f", {len(self.params['constraints'])} constraints" if self.params["constraints"] else ""
+        return f"Sketch: {text}{extra}"
+
+    def apply(self, kernel, context):
+        from aeroflowsim.geometry_model import healing
+        p = self.params
+        if p["role"] not in (FLUID, SOLID):
+            raise ValueError("a face is either fluid or solid")
+        pts = np.asarray(p["points"], dtype=float).reshape(-1, 2)
+        if p["constraints"]:
+            from aeroflowsim.geometry_model.constraints import solve
+            pts, entities = solve(pts, p["entities"], p["constraints"])
+        else:
+            entities = p["entities"]
+        occ = kernel.occ
+        tags = {}
+
+        def tag(i):
+            if not 0 <= i < len(pts):
+                raise ValueError(f"the sketch refers to point {i}, which does not exist")
+            if i not in tags:
+                tags[i] = kernel.point(*pts[i])
+            return tags[i]
+
+        curves = []
+        for k, ent in enumerate(entities, start=1):
+            kind = ent.get("type")
+            if kind not in self.TYPES:
+                raise ValueError(f"unknown sketch entity '{kind}'")
+            for i in list(ent.get("p", [])) + ([ent["c"]] if "c" in ent else []):
+                if not 0 <= int(i) < len(pts):
+                    raise ValueError(f"entity {k} refers to point {i}, which does not exist")
+            if ent.get("construction"):
+                kernel.construction.append(entity_points(pts, ent))
+                continue
+            made = []
+            if kind == "line":
+                i, j = ent["p"]
+                if np.linalg.norm(pts[i] - pts[j]) <= 1e-12 * max(float(np.ptp(pts)), 1e-300):
+                    raise ValueError(f"line {k} has no length (both ends at the same place)")
+                made.append(occ.addLine(tag(i), tag(j)))
+            elif kind == "arc":
+                (s, e), c = ent["p"], ent["c"]
+                r = float(np.linalg.norm(pts[s] - pts[c]))
+                if not r > 0.0:
+                    raise ValueError(f"arc {k}: its start is at its centre")
+                a0, sweep = arc_angles(pts[c], pts[s], pts[e])
+                centre = kernel.point(*pts[c])
+                if sweep > 0.999 * math.pi:                   # OCC arcs must be shorter than half a circle
+                    mid = pts[c] + r * np.array([math.cos(a0 + 0.5 * sweep), math.sin(a0 + 0.5 * sweep)])
+                    m = kernel.point(*mid)
+                    made += [occ.addCircleArc(tag(s), centre, m), occ.addCircleArc(m, centre, tag(e))]
+                else:
+                    made.append(occ.addCircleArc(tag(s), centre, tag(e)))
+            elif kind == "circle":
+                c = pts[ent["c"]]
+                if not ent["r"] > 0.0:
+                    raise ValueError(f"circle {k} needs a positive radius")
+                made.append(occ.addCircle(c[0], c[1], 0.0, float(ent["r"])))
+            else:
+                idx = list(ent["p"])
+                if len(idx) < 2:
+                    raise ValueError(f"spline {k} needs at least two points")
+                made.append(occ.addSpline([tag(i) for i in idx]))
+            for n, curve in enumerate(made):
+                kernel.name_edge(curve, f"{self.id}:e{k}" + (f".{n + 1}" if n else ""))
+            curves += made
+        kernel.sync()
+        if curves:
+            healing.build_faces(kernel, curves, self.id, p["role"], report_open=False)
+
+
+def arc_angles(centre, start, end):
+    """(start angle, counter-clockwise sweep in (0, 2 pi]) of an arc about `centre` [rad]."""
+    a0 = math.atan2(start[1] - centre[1], start[0] - centre[0])
+    a1 = math.atan2(end[1] - centre[1], end[0] - centre[0])
+    sweep = (a1 - a0) % (2.0 * math.pi)
+    return a0, (2.0 * math.pi if sweep < 1e-12 else sweep)
+
+
+def entity_points(pts, ent, n=65) -> np.ndarray:
+    """Points along a sketch entity, for drawing (construction lines, previews)."""
+    pts = np.asarray(pts, dtype=float)
+    kind = ent["type"]
+    if kind == "line":
+        return pts[list(ent["p"])]
+    if kind == "arc":
+        (s, e), c = ent["p"], ent["c"]
+        r = float(np.linalg.norm(pts[s] - pts[c]))
+        a0, sweep = arc_angles(pts[c], pts[s], pts[e])
+        a = a0 + np.linspace(0.0, sweep, n)
+        return pts[c] + r * np.column_stack([np.cos(a), np.sin(a)])
+    if kind == "circle":
+        a = np.linspace(0.0, 2.0 * math.pi, n)
+        return pts[ent["c"]] + float(ent["r"]) * np.column_stack([np.cos(a), np.sin(a)])
+    return pts[list(ent["p"])]
+
+
 class Sketch(Operation):
-    """A sketched entity from points [m]:
+    """A sketched entity from points [m] (Prompt 6d; new sketches use SketchGroup):
         polyline   straight lines through the points (closed: back to the first point, making a face)
         spline     a smooth curve through the points (closed: a smooth closed curve, making a face)
         arc3       a circle arc from point 1 through point 2 to point 3
@@ -762,7 +887,7 @@ def _copy_entities(kernel, targets, op_id):
 
 
 OPERATIONS = {cls.type: cls for cls in (TemplateShape, TemplateEnclosure, Transform, Delete, Fillet, BooleanOp, SetRole,
-                                        ImportFile, Sketch, Enclosure, NameBoundary, Refinement)}
+                                        ImportFile, Sketch, SketchGroup, Enclosure, NameBoundary, Refinement)}
 
 
 def operation_from_dict(data) -> Operation:

@@ -99,6 +99,7 @@ class Kernel:
         self.axisymmetric = False
         self.names = []              # [(patterns, Boundary, operation id)], applied in extract()
         self.regions = []            # [Region]
+        self.construction = []       # construction (helper) lines of sketches: [(n, 2) points], drawn only
         self.messages = []           # [(level, text)]
         self.failed_operation = ""
 
@@ -381,7 +382,8 @@ class Kernel:
         model = self.gmsh.model
         self.sync()
         built = BuiltGeometry(axisymmetric=self.axisymmetric, messages=list(self.messages),
-                              regions=list(self.regions), failed_operation=self.failed_operation)
+                              regions=list(self.regions), failed_operation=self.failed_operation,
+                              construction=list(self.construction))
         face_ids = {t: (self.face_meta.get(t) or FaceMeta(f"face{t}", FLUID)).id for t in self.face_tags()}
         edge_ids = {}
         for tag in self.curve_tags():

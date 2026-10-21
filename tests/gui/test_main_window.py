@@ -294,34 +294,39 @@ def test_one_dimensional_template_keeps_the_read_only_drawing(qtbot, window, tmp
     assert not page.toolbar.isVisible() and page.preview is not None and page.built is None
 
 
-def test_sketch_typed_and_clicked_points(qtbot, window, tmp_path, monkeypatch):
-    from aeroflowsim.gui import geometry_forms
-    from aeroflowsim.gui.steps import geometry as geometry_step
+def test_sketch_typed_and_clicked_points(qtbot, window, tmp_path):
+    """Drawing with the mouse in the window: typed points, clicks, a polyline closed by clicking its start,
+    the tool staying on between shapes, faces fluid or solid from the sketch bar, Backspace and Esc."""
     _open(window, tmp_path, "geometry_2d")
     page = window.pages["geometry"]
     assert page.document.operations == [] and page.built.empty
-
-    class Accept:                                      # the role dialog: keep the defaults, press OK
-        def __init__(self, op, *args, **kwargs):
-            self.result_op = op
-
-        def exec(self):
-            return True
-
-    monkeypatch.setattr(geometry_step, "OperationDialog", Accept)
     page.start_sketch("rectangle")
-    assert page.sketch_bar.isVisibleTo(page) and page.view.mode == "click"
+    assert page.sketch_bar.isVisibleTo(page) and page.view.mode == "draw"
+    page.sketch_role.setCurrentIndex(1)                                   # faces: fluid
     for text in ("-50, -50", "50; 50"):
         page.sketch_entry.setText(text)
         page.type_sketch_point()
-    assert page.sketch_kind is None and "op1:face" in page.built.faces          # finished after 2 corners
-    assert page.built.faces["op1:face"].area == pytest.approx(0.01)
+    assert page.sketch_kind == "rectangle"                                # still drawing (next shape)
+    face = page.built.faces["op1:face"]
+    assert face.area == pytest.approx(0.01) and face.role == "fluid"
     page.start_sketch("circle")
-    page.on_sketch_click(0.0, 0.0, 1e-3)
-    page.on_sketch_click(0.01, 0.0, 1e-3)
+    page.on_sketch_click(0.0, 0.0, 1e-4)
+    page.on_tool_moved(0.01, 0.0, 1e-4)                                   # the rubber band follows the cursor
+    assert page.view._tool_actors
+    page.on_sketch_click(0.01, 0.0, 1e-4)
     assert page.built.faces["op2:face"].area == pytest.approx(math.pi * 1e-4, rel=1e-9)
-    assert window.undo.count() == 2
-    assert geometry_forms.OperationDialog is not Accept
+    page.start_sketch("polyline")
+    page.sketch_role.setCurrentIndex(0)                                   # faces: solid
+    for xy in ((0.02, 0.02), (0.04, 0.02), (0.03, 0.04), (0.025, 0.047)):     # (no angle snaps here)
+        page.on_sketch_click(*xy, 1e-4)
+    page.undo_sketch_point()                                              # Backspace: drop the last point
+    assert len(page.tool.clicks) == 3
+    page.on_sketch_click(0.02, 0.02, 1e-4)                                # back at the start: closed
+    face = page.built.faces["op3:face"]
+    assert face.role == "solid" and face.area == pytest.approx(0.5 * 0.02 * 0.02)
+    assert window.undo.count() == 3
+    page.escape()                                                         # nothing drawn: stop drawing
+    assert page.tool is None and page.view.mode == "select" and not page.sketch_bar.isVisibleTo(page)
 
 
 def test_geometry_checks_suggestions_and_export(qtbot, window, tmp_path):
