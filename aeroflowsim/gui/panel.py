@@ -34,6 +34,8 @@ from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, text_to
 
 INPUT_PROPERTY = "aeroflowsim_input"     # Qt property naming the input a widget belongs to (for Details)
 DETAILS_PROMPT = "Click an input (or move to it with Tab) to see what it means, its unit and allowed range."
+MIN_LABEL_WIDTH = 90     # px: narrowest label column (long labels wrap onto more lines below their full width)
+MIN_EDITOR_WIDTH = 100   # px: narrowest input box (room for a number such as 2.8e-04 or 0.00028)
 
 
 class NumberEdit(QLineEdit):
@@ -106,10 +108,11 @@ class InputRow:
     def __init__(self, panel, spec: WidgetSpec, section: Section):
         self.spec = spec
         self.panel = panel
-        self.label = QLabel(spec.label if spec.kind != "bool" else "")
+        self.label = QLabel(spec.label if spec.kind != "bool" else "", wordWrap=True)   # long labels wrap
         self.label.setToolTip(spec.tooltip)
         self.editor, editor_widget = self._make_editor()
         self.editor.setToolTip(spec.tooltip)
+        editor_widget.setMinimumWidth(MIN_EDITOR_WIDTH)
         self.hint = QLabel("\n".join(spec.missing.values()), wordWrap=True, visible=bool(spec.missing))
         self.hint.setObjectName("hint")
         self.error = QLabel(wordWrap=True, visible=False)
@@ -139,6 +142,10 @@ class InputRow:
             return editor, editor
         if s.kind == "choice":
             editor = QComboBox()
+            # Without this a combo box is never narrower than its longest option; now it can shrink
+            # with the panel (a long option is then shortened with "..."; the open list shows it whole).
+            editor.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            editor.setMinimumContentsLength(8)
             for option in s.options:
                 editor.addItem(f"{option}  (not installed)" if option in s.missing else option, option)
                 if option in s.missing:         # greyed out: cannot be chosen until the package is installed
@@ -265,18 +272,44 @@ class InputPanel(QWidget):
             for spec in specs:
                 self.rows[spec.name] = InputRow(self, spec, section)
         layout.addStretch(1)
-        # Every group has its own grid, so give all labels the width of the longest one: then all
-        # input boxes of the panel start in one column, whatever group they are in.
-        label_width = max((row.label.sizeHint().width() for row in self.rows.values()), default=0)
-        for row in self.rows.values():
-            row.label.setFixedWidth(label_width)
         content.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.scroll.setWidget(content)
+        # The panel never scrolls sideways: when it is narrow, the labels wrap instead (see
+        # _fit_labels). Everything left and right of the label column (margins, gaps, the widest box):
+        grid = next(iter(self.sections.values())).grid if self.sections else None
+        side = layout.contentsMargins().left() + layout.contentsMargins().right()
+        if grid is not None:
+            side += grid.contentsMargins().left() + grid.contentsMargins().right() + max(grid.horizontalSpacing(), 0)
+        editor_width = max((row.widgets[1].minimumSizeHint().width() for row in self.rows.values()), default=0)
+        self._label_full = max((row.label.fontMetrics().horizontalAdvance(row.label.text())
+                                for row in self.rows.values()), default=0) + 2   # longest label on one line
+        self._beside_labels = side + max(editor_width, MIN_EDITOR_WIDTH)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # So the dock cannot be made narrower than the narrowest label column + the narrowest box.
+        frame = 2 * self.scroll.frameWidth() + self.scroll.verticalScrollBar().sizeHint().width()
+        self.scroll.setMinimumWidth(self._beside_labels + MIN_LABEL_WIDTH + frame)
+        self.scroll.viewport().installEventFilter(self)       # resizing the panel re-fits the labels
+        self._fit_labels()
         self.set_values(self._values)
 
+    def _fit_labels(self):
+        """Give all labels one width: the longest label if it fits, else what is left beside the boxes.
+
+        Every group has its own grid, so one width for all labels keeps all input boxes of the panel
+        in one column, whatever group they are in. Labels narrower than their text wrap onto more lines.
+        """
+        room = self.scroll.viewport().width() - self._beside_labels
+        label_width = max(MIN_LABEL_WIDTH, min(self._label_full, room))
+        for row in self.rows.values():
+            if row.label.maximumWidth() != label_width:      # (only on a change: avoids needless re-layouts)
+                row.label.setFixedWidth(label_width)
+
     def eventFilter(self, watched, event):
-        """Watches every input widget: a click or keyboard focus shows that input in Details."""
-        if event.type() in (QEvent.FocusIn, QEvent.MouseButtonPress):
+        """Watches every input widget: a click or keyboard focus shows that input in Details.
+        Also watches the visible area of the scroll area: a new width re-fits the labels."""
+        if event.type() == QEvent.Resize and watched is self.scroll.viewport():
+            self._fit_labels()
+        elif event.type() in (QEvent.FocusIn, QEvent.MouseButtonPress):
             name = watched.property(INPUT_PROPERTY)
             if name in self.rows:
                 self.show_details(name)

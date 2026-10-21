@@ -24,7 +24,7 @@ Last updated: Prompt 6d (2026-10-21).
 | Light / dark theme, remembered | done | P2 | one app-wide style sheet per theme; plots follow the theme, saved pictures keep the light "paper" style |
 | Dockable panels, menus, toolbar, shortcuts | done | P1 | |
 | Right-click (context) menus in the views | later | P2 | not done in 6d (tool bar and menus instead) |
-| **Bug: input values hidden when the Inputs dock is narrow** (external_2d: right-aligned numbers scrolled out of view) | partial | P1 | found in 6d screenshots, from 6c; widen the dock or make the rows wrap |
+| **Bug: input values hidden when the Inputs dock is narrow** (external_2d: right-aligned numbers scrolled out of view) | done | P1 | fixed after 6d: long labels wrap, boxes keep a minimum width, no sideways scrolling; the dock cannot be made narrower than about 320 px (`tests/gui/test_panel_qt.py`) |
 | Rubber-band (box) selection in the geometry view | later | P2 | `picking.edges_in_box` exists (tested); not wired to the mouse yet |
 | Parity check of the desktop GUI against Streamlit by the user | partial | P1 | user checks every template; then remove `app.py` + streamlit (ask first) |
 | Remove the Streamlit GUI (`app.py`, `streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) | later | P2 | only after the parity check, with the user's OK |

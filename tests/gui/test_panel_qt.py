@@ -4,8 +4,9 @@
 
 """The Qt input panel: widgets per type, show_if, messages and the value_changed signal."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QComboBox, QLineEdit
+import pytest
+from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLineEdit
 
 from aeroflowsim.discovery import load_case
 from aeroflowsim.gui.panel import InputPanel, NumberEdit
@@ -88,6 +89,29 @@ def test_shape_library_inputs_appear_in_the_geometry_step(qtbot):
     digits.setText("12")
     digits.editingFinished.emit()
     assert panel.rows["naca4.digits"].error.isVisibleTo(panel)
+
+
+@pytest.mark.parametrize("width", [420, 300, 240])      # the default Inputs dock, a narrow one, a very narrow one
+def test_values_stay_visible_in_a_narrow_panel(qtbot, width):
+    """Long labels wrap instead of pushing the boxes out of view: no sideways scrolling needed."""
+    panel = _panel(qtbot, "external_2d", step="geometry")
+    width = max(width, panel.minimumSizeHint().width())        # the dock cannot be made narrower than this
+    assert panel.minimumSizeHint().width() < 360
+    panel.resize(width, 700)
+    qtbot.waitUntil(lambda: panel.width() == width)
+    QApplication.processEvents()
+    assert not panel.scroll.horizontalScrollBar().isVisible()
+    viewport = panel.scroll.viewport()
+    shown = [row for row in panel.rows.values() if row.editor.isVisibleTo(panel)]
+    assert any(isinstance(row.editor, NumberEdit) for row in shown)
+    for row in shown:
+        editor = row.editor
+        box = QRect(editor.mapTo(viewport, QPoint(0, 0)), editor.size())
+        assert viewport.rect().contains(box), f"{row.spec.name} is not fully inside the panel"
+        if isinstance(editor, NumberEdit):            # the whole number fits in its box
+            text_width = editor.fontMetrics().horizontalAdvance(editor.text())
+            assert text_width < editor.width() - 8, f"{row.spec.name}: {editor.text()!r} is cut off"
+    assert all(row.label.wordWrap() for row in panel.rows.values())
 
 
 def test_file_input_uses_the_file_handler(qtbot):
