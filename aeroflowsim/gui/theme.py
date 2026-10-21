@@ -15,7 +15,9 @@ One place decides every colour:
   - the VTK view: view_colours(dark).
 """
 
+import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 
 import matplotlib
 from PySide6.QtCore import Qt
@@ -105,7 +107,40 @@ QListWidget#templates::item, QListWidget#recent::item {{ padding: 6px 4px; borde
 QListWidget#templates::item:selected, QListWidget#recent::item:selected {{
     background: {t['info_bg']}; color: {t['info_fg']}; }}
 QTableWidget {{ alternate-background-color: {t['panel']}; background: {t['base']}; color: {t['text']}; }}
+QCheckBox::indicator {{ width: 14px; height: 14px; border: 1px solid {t['muted']}; border-radius: 3px;
+                       background: {t['base']}; }}
+QCheckBox::indicator:hover {{ border: 1px solid {CHECK_BLUE}; }}
+QCheckBox::indicator:checked {{ background: {CHECK_BLUE}; border: 1px solid {CHECK_BLUE}; image: url({_tick_file()}); }}
+QCheckBox::indicator:disabled {{ border: 1px solid {t['border']}; background: {t['panel']}; }}
+QCheckBox::indicator:checked:disabled {{ background: {t['muted']}; border: 1px solid {t['muted']}; }}
 """
+
+
+CHECK_BLUE = "#1a73e8"
+
+
+def _tick_file() -> str:
+    """A white tick mark as a small local PNG (Qt style sheets take images from files only).
+
+    Fusion's own dark check box draws an UNchecked box as a filled blue square that looks ticked,
+    so the theme draws every check box itself: an empty box, or a blue box with this tick."""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QColor, QImage, QPainter, QPen
+    path = Path(tempfile.gettempdir()) / "aeroflowsim_tick.png"
+    if not path.is_file():
+        size = 28                                          # drawn at 2x for sharp high-DPI screens
+        image = QImage(size, size, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor("#ffffff"), 4.0)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(pen)
+        painter.drawPolyline([QPointF(6, 15), QPointF(11.5, 20.5), QPointF(22, 8)])
+        painter.end()
+        image.save(str(path))
+    return path.as_posix()
 
 
 def repolish(widget):
