@@ -12,6 +12,8 @@ everyone. A *project* is one user's use of a template, in its own folder, e.g.
         geometry/        copies of input files (CSV profiles, coordinate files, CAD files) - paths stored
                          relative - and history.json, the geometry workspace history (only once the
                          geometry has been edited in the workspace; see aeroflowsim/geometry_model/)
+        gases/           copies of the custom gases the project uses (built-in gases are referred to
+                         by their id, e.g. "N2"; see aeroflowsim/gases/)
         mesh/            mesh.npz (exact mesh), mesh.vtu (ParaView)
         results/         run.npz (exact results, reopened by the GUI) + the command line's files
                          (fields.csv, residuals.csv, summary.yaml, PNG plots)
@@ -45,6 +47,7 @@ import yaml
 
 from aeroflowsim import __version__
 from aeroflowsim.discovery import CASES_DIR, PROJECT_DIR, load_case
+from aeroflowsim.gases import PROJECT_GAS_DIR, builtin_gas, is_builtin
 from aeroflowsim.mesh import Mesh, Mesh1D
 from aeroflowsim.parameters import STEPS as INPUT_STEPS
 from aeroflowsim.parameters import check_values, defaults, validate
@@ -163,7 +166,37 @@ class Project:
         if missing:
             warnings.append(f"New inputs got their default values: {', '.join(missing)}.")
         values.update({k: v for k, v in saved.items() if k in values})
-        return cls(folder, case, values, data.get("steps"), data.get("created"), data.get("modified"), warnings)
+        project = cls(folder, case, values, data.get("steps"), data.get("created"), data.get("modified"), warnings)
+        project._convert_old_gas_inputs(saved)
+        return project
+
+    def _convert_old_gas_inputs(self, saved):
+        """Projects from before the gas library (6f) stored gamma and R as numbers. 1.4 and 296.8 (the old
+        default) become the built-in N2; other values become a custom gas inside the project."""
+        gas_inputs = [p for p in self.case.parameters() if p.type == "gas"]
+        if not gas_inputs or gas_inputs[0].name in saved or not {"gamma", "R"} <= set(saved):
+            return
+        name = gas_inputs[0].name
+        gamma, R = float(saved["gamma"]), float(saved["R"])
+        if (gamma, R) == (1.4, 296.8):
+            self.values[name] = "N2"
+            self.warnings = [w for w in self.warnings if "gamma" not in w]
+            self.warnings.append("The gas inputs gamma = 1.4 and R = 296.8 J/(kg K) of this older project now "
+                                 "use the built-in gas N2 (same values).")
+        else:
+            from aeroflowsim.gases import custom_gas_toml
+            gas_name = f"Gas of {self.name} (gamma {gamma:g}, R {R:g})"
+            text = custom_gas_toml(gas_name, "custom", R=R, gamma=gamma, prandtl=0.71,
+                                   viscosity={"law": "sutherland", "ref": 1.716e-5, "T_ref": 273.15, "S": 110.4},
+                                   note="Made from the gamma and R of an older project; viscosity and Prandtl "
+                                        "number are those of air (not used by inviscid solvers).")
+            folder = self.folder / PROJECT_GAS_DIR
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "converted gas.toml").write_text(text, encoding="utf-8")
+            self.values[name] = f"{PROJECT_GAS_DIR}/converted gas.toml"
+            self.warnings.append(f"This older project used gamma = {gamma:g} and R = {R:g} J/(kg K); they are now "
+                                 f"the custom gas '{gas_name}' (gases/converted gas.toml).")
+        self.dirty = True
 
     def to_dict(self) -> dict:
         return {
@@ -241,11 +274,27 @@ class Project:
             shutil.copy2(source, target)
         return f"{GEOMETRY_DIR}/{target.name}"
 
+    def import_gas(self, source) -> str:
+        """Copy a custom gas file into gases/ and return its relative path (stored in the inputs), so a
+        zipped project carries its gas with it."""
+        source = Path(source)
+        target_dir = self.folder / PROJECT_GAS_DIR
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / source.name
+        if source.resolve() != target.resolve():
+            stem, n = target.stem, 2
+            while target.exists() and _file_bytes(target) != _file_bytes(source):   # same name, other gas
+                target = target_dir / f"{stem}_{n}{source.suffix}"
+                n += 1
+            if not target.exists():
+                shutil.copy2(source, target)
+        return f"{PROJECT_GAS_DIR}/{target.name}"
+
     def resolved_values(self) -> dict:
         """The inputs with file paths made absolute (what the case code and the engine receive)."""
         values = dict(self.values)
         for p in self.case.parameters():
-            if p.type == "file" and isinstance(values.get(p.name), str) and values[p.name].strip():
+            if p.type in ("file", "gas") and isinstance(values.get(p.name), str) and values[p.name].strip()                     and not (p.type == "gas" and is_builtin(values[p.name])):
                 values[p.name] = str(self._absolute(values[p.name]))
         return values
 
@@ -347,6 +396,10 @@ class Project:
             if p.type == "file":
                 path = Path(str(resolved.get(p.name, "")))
                 h.update(_file_bytes(path) if path.is_file() else b"<missing file>")
+            if p.type == "gas":                   # the gas data itself: a changed gas file makes results old
+                value = resolved.get(p.name, "")
+                path = builtin_gas(value).path if is_builtin(value) else Path(str(value))
+                h.update(_file_bytes(path) if path.is_file() else b"<missing gas file>")
         return h.hexdigest()
 
     def status(self, step) -> str:

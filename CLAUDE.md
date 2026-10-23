@@ -65,6 +65,14 @@ Clarity matters more than speed.
 - **One mesh format:** every 2D/3D generator produces the face-based `Mesh` of `aeroflowsim/mesh.py`
   (VTK cell types, OpenFOAM-style owner/neighbour faces) and every 2D/3D solver consumes it.
 - A case may be **mesh-only** (`solver = false` + `solver_message` in `schema.toml`; no `run()`).
+- **Gas library** (`aeroflowsim/gases/`): solvers get every gas property through the `GasModel`
+  interface (R, cp, cv, gamma, sound speed, e(T) and T(e), mu, k, Pr, valid ranges; numbers or arrays)
+  and never hard-code gamma or R. Now: `CaloricallyPerfectGas` (Sutherland / power laws); later models
+  (NASA polynomials, mixtures, Peng-Robinson real gas) are new subclasses. One TOML per built-in gas, every
+  value with its source, written by `tools/gas_data/make_gas_files.py` from NIST data. A case input of
+  type `gas` holds a built-in id ("N2") or a custom gas file; custom gases live in the user's library
+  (`%APPDATA%/AeroFlowSim/gases`) and are copied into `<project>/gases/`. A case with `gas(params)` gets
+  the gas checks (ideal gas via Peng-Robinson Z, condensation, temperature range).
 
 Layout:
 
@@ -98,6 +106,9 @@ aeroflowsim/               the Python package
     gmsh_mesh.py           optional Gmsh meshes (triangles / quad-dominant): external domain, nozzle
     inflation_layers.py    inflation layers grown from a wall for unstructured meshes
     shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape
+    gases/                 gas library: model.py (GasModel, CaloricallyPerfectGas), data.py (TOML format,
+                           saturation curves), library.py (built-in / user / project gases), real_gas.py
+                           (Peng-Robinson Z), one <id>.toml per built-in gas
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
     gui/                   desktop GUI (the ONLY place with Qt / PyVista / VTK / streamlit):
@@ -107,6 +118,7 @@ aeroflowsim/               the Python package
         steps/                   one page per step (geometry = the workspace, mesh, setup, run, results) + welcome
         geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt), view, dialogs
         sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
+        gas_logic.py, gas_dialog.py  gas dropdown / Details / custom-gas form: logic (no Qt) + dialogs
         vtk_view.py, figures.py  VTK view (meshes, picking), embedded matplotlib plots
         jobs.py, undo.py, logic.py, theme.py, widgets.py, dialogs.py, app_info.py
         streamlit_panel.py       old Streamlit input panel
@@ -124,6 +136,7 @@ docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK 
 docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)
 docs/tutorials/            step-by-step tutorials (nozzle with plume region, airfoil in a C-domain)
 spikes/                    throwaway proofs of concept (not part of the package)
+tools/gas_data/            developer tool that writes aeroflowsim/gases/*.toml from NIST data (not packaged)
 validation/<case_name>/    reference.toml (values, sources, tolerances) + validate.py
 validation/run_all.py      runs all validation cases, writes validation/report.md
 tests/                     tests for aeroflowsim/ (tests/gui/: pytest-qt tests of the desktop GUI)

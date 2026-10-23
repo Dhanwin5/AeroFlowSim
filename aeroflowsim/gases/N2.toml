@@ -1,0 +1,53 @@
+# Nitrogen: built-in gas of AeroFlowSim, written by tools/gas_data/make_gas_files.py.
+# SI units. Every value names its source; the tests compare the laws with the [reference] data.
+
+id = "N2"
+name = "Nitrogen"
+formula = "N2"
+model = "calorically perfect"
+note = "gamma = 1.4 and R = 296.8 J/(kg K) are the 4-figure values used by the validated quasi-1D case (validation/quasi1d_nozzle). NIST gives cp/cv = 1.3995 at 300 K (0.03 % lower) and R_u / M = 296.803 J/(kg K) (0.001 % higher); both differences are far below every tolerance."
+
+[constants]
+molar_mass = 0.0280134   # kg/mol
+molar_mass_source = "NIST Chemistry WebBook, SRD 69 (molecular weight)"
+R = 296.8   # J/(kg K), tabulated (R_u / M = 296.803)
+R_source = "4-figure table value, e.g. Cengel & Boles, Thermodynamics, Table A-1 (0.2968 kJ/(kg K)); kept for the validated quasi-1D case"
+gamma = 1.4
+gamma_source = "cp/cv = 1.39953 at 300 K, 0.1 kPa, NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.); EOS Span, Lemmon, Jacobsen, Wagner & Yokozeki, J. Phys. Chem. Ref. Data 29 (2000) 1361"
+T_min = 63.151   # K
+T_max = 521.151   # K
+T_range_source = "where NIST cp at 0.1 kPa is within 2 % of the constant cp = 1038.80 J/(kg K) (lower end: the triple point / lowest temperature of the EOS)"
+
+[transport]
+viscosity = { law = "sutherland", ref = 1.66827e-05, T_ref = 273.15, S = 119.67 }
+conductivity = { law = "sutherland", ref = 0.0240988, T_ref = 273.15, S = 136.96 }
+prandtl = 0.7168   # mu cp / k at 300 K (NIST)
+T_min = 139.151   # K
+T_max = 471.151   # K
+max_error_percent = 1.99
+source = "laws fitted (least squares, relative error) to NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.) at 0.1 kPa: viscosity 139.15-935.15 K (max 1.99 %), conductivity 63.151-471.15 K (max 1.98 %); transport data Lemmon & Jacobsen, Int. J. Thermophys. 25 (2004) 21"
+
+[critical]
+T = 126.192   # K
+p = 3.3958e+06   # Pa
+acentric_factor = 0.0372
+source = "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.), fluid page (critical point, acentric factor)"
+
+[vapour_pressure]
+source = "saturation table of NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.); EOS Span, Lemmon, Jacobsen, Wagner & Yokozeki, J. Phys. Chem. Ref. Data 29 (2000) 1361; last point = critical point"
+T = [63.151, 65.2469, 66.8708, 68.2119, 69.3627, 70.3758, 71.2841, 72.8682, 74.227, 75.9736, 77.4729, 79.2028, 81.0597, 82.975, 84.9059, 87.0505, 89.1163, 91.4485, 93.785, 96.2304, 98.9483, 101.722, 104.676, 107.868, 111.12, 114.656, 118.29, 122.145, 126.158, 126.192]   # K
+p = [12519.8, 18158.6, 23797.4, 29436.2, 35075, 40713.8, 46352.6, 57630.2, 68907.8, 85824.2, 102741, 125296, 153490, 187323, 226794, 277543, 333931, 407236, 491818, 593316, 723009, 875256, 1061340, 1292530, 1563190, 1901520, 2301870, 2792450, 3390160, 3395800]   # Pa
+
+[nasa7]
+source = "GRI-Mech 3.0, thermo30.dat (Smith et al., combustion.berkeley.edu/gri-mech)"
+T = [300.0, 1000.0, 5000.0]   # K: low, middle, high
+low = [3.29867700e+00, 1.40824040e-03, -3.96322200e-06, 5.64151500e-09, -2.44485400e-12, -1.02089990e+03, 3.95037200e+00]
+high = [2.92664000e+00, 1.48797680e-03, -5.68476000e-07, 1.00970380e-10, -6.75335100e-15, -9.22797700e+02, 5.98052800e+00]
+
+[reference]
+source = "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.), isobar 0.1 kPa"
+T = [99.151, 199.151, 299.151, 399.151, 499.151, 699.151]   # K
+cp = [1038.95, 1039.06, 1039.71, 1044.06, 1055.8, 1097.65]   # J/(kg K)
+cv = [742.123, 742.25, 742.901, 747.26, 758.994, 800.843]   # J/(kg K)
+mu = [6.84719e-06, 1.28429e-05, 1.78379e-05, 2.2165e-05, 2.60251e-05, 3.28017e-05]   # Pa s
+k = [0.00919505, 0.0181608, 0.0258748, 0.0327269, 0.0389731, 0.0502469]   # W/(m K)

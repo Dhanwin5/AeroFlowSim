@@ -75,6 +75,10 @@ def input_widget(case, p, uploads_dir, project_dir):
                      format_func=lambda o: f"{o}  (not installed)" if o in missing else o)
         for option, package in missing.items():
             st.caption(f"'{option}' needs {package}: install it with `{install_hint(package)}`.")
+    elif p.type == "gas":                     # built-in gases only (custom gases: desktop GUI)
+        from aeroflowsim.gases import builtin_gas, builtin_ids
+        st.selectbox(p.label, builtin_ids(), key=key, help=p.help or None, filter_mode=None,
+                     format_func=lambda gid: f"{gid} - {builtin_gas(gid).name}")
     elif p.type == "text":
         st.text_input(p.label, key=key, help=p.help or None)
     elif p.type == "bool":

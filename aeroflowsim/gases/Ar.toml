@@ -1,0 +1,50 @@
+# Argon: built-in gas of AeroFlowSim, written by tools/gas_data/make_gas_files.py.
+# SI units. Every value names its source; the tests compare the laws with the [reference] data.
+
+id = "Ar"
+name = "Argon"
+formula = "Ar"
+model = "calorically perfect"
+
+[constants]
+molar_mass = 0.039948   # kg/mol
+molar_mass_source = "NIST Chemistry WebBook, SRD 69 (molecular weight)"
+gamma = 1.6666666666666667   # 5/3
+gamma_source = "monatomic ideal gas, cp = 5/2 R (kinetic theory); NIST cp/cv at 300 K = 1.66667"
+T_min = 83.806   # K
+T_max = 699.806   # K
+T_range_source = "where NIST cp at 0.1 kPa is within 2 % of the constant cp = 520.33 J/(kg K) (lower end: the triple point / lowest temperature of the EOS)"
+
+[transport]
+viscosity = { law = "sutherland", ref = 2.11319e-05, T_ref = 273.15, S = 150.04 }
+conductivity = { law = "sutherland", ref = 0.0165507, T_ref = 273.15, S = 151.07 }
+prandtl = 0.6641   # mu cp / k at 300 K (NIST)
+T_min = 119.806   # K
+T_max = 689.806   # K
+max_error_percent = 1.99
+source = "laws fitted (least squares, relative error) to NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.) at 0.1 kPa: viscosity 119.81-689.81 K (max 1.99 %), conductivity 111.81-699.81 K (max 1.98 %); transport data Lemmon & Jacobsen, Int. J. Thermophys. 25 (2004) 21"
+
+[critical]
+T = 150.687   # K
+p = 4.863e+06   # Pa
+acentric_factor = -0.00219
+source = "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.), fluid page (critical point, acentric factor)"
+
+[vapour_pressure]
+source = "saturation table of NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.); EOS Tegeler, Span & Wagner, J. Phys. Chem. Ref. Data 28 (1999) 779; last point = critical point"
+T = [83.8058, 84.7693, 86.4845, 87.9854, 89.3259, 90.5411, 92.1807, 93.6487, 95.4017, 97.3431, 99.0737, 100.938, 102.888, 104.648, 106.909, 108.939, 111.31, 113.604, 115.969, 118.502, 121.257, 123.953, 126.868, 129.845, 132.999, 136.263, 139.706, 143.197, 146.883, 150.645, 150.687]   # K
+p = [68891, 76881.2, 92861.5, 108842, 124822, 140803, 164773, 188744, 220704, 260655, 300606, 348547, 404479, 460410, 540312, 620214, 724086, 835948, 963791, 1115600, 1299380, 1499130, 1738840, 2010510, 2330110, 2697660, 3129130, 3616530, 4191820, 4855010, 4863000]   # Pa
+
+[nasa7]
+source = "GRI-Mech 3.0, thermo30.dat (Smith et al., combustion.berkeley.edu/gri-mech)"
+T = [300.0, 1000.0, 5000.0]   # K: low, middle, high
+low = [2.50000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -7.45375000e+02, 4.36600000e+00]
+high = [2.50000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -7.45375000e+02, 4.36600000e+00]
+
+[reference]
+source = "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.), isobar 0.1 kPa"
+T = [99.806, 199.806, 299.806, 399.806, 499.806]   # K
+cp = [520.358, 520.337, 520.334, 520.334, 520.334]   # J/(kg K)
+cv = [312.208, 312.201, 312.2, 312.2, 312.2]   # J/(kg K)
+mu = [8.17323e-06, 1.59582e-05, 2.27119e-05, 2.86807e-05, 3.40583e-05]   # Pa s
+k = [0.0063532, 0.0124819, 0.0177946, 0.0224819, 0.0266973]   # W/(m K)

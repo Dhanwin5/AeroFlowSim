@@ -11,6 +11,7 @@ only turns each WidgetSpec into a Qt widget:
     choice       -> QComboBox (options needing a missing package are greyed out, with the install hint)
     text         -> QLineEdit
     file         -> QLineEdit + "Browse..." button (a file dialog)
+    gas          -> QComboBox of the gas library (gui/gas_logic.py) + "Custom..." button (gui/gas_dialog.py)
 Every label and box shows the help text and allowed range as a tooltip (rest the mouse on it), and
 the Details area under the inputs shows the same facts for the input that was last clicked or
 reached with the keyboard (Tab). A red message appears under a bad value.
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QGridL
                                QLineEdit, QPushButton, QScrollArea, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
+from aeroflowsim.gui.gas_logic import gas_choices
 from aeroflowsim.gui.theme import colour
 from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, text_to_value, value_to_text
 
@@ -36,6 +38,7 @@ INPUT_PROPERTY = "aeroflowsim_input"     # Qt property naming the input a widget
 DETAILS_PROMPT = "Click an input (or move to it with Tab) to see what it means, its unit and allowed range."
 MIN_LABEL_WIDTH = 90     # px: narrowest label column (long labels wrap onto more lines below their full width)
 MIN_EDITOR_WIDTH = 100   # px: narrowest input box (room for a number such as 2.8e-04 or 0.00028)
+DETAILS_MAX_HEIGHT = 280 # px: tallest Details box (longer details scroll inside it)
 
 
 class NumberEdit(QLineEdit):
@@ -152,6 +155,22 @@ class InputRow:
                     editor.model().item(editor.count() - 1).setEnabled(False)
             editor.currentIndexChanged.connect(lambda i: self.panel._edited(s.name, editor.itemData(i)))
             return editor, editor
+        if s.kind == "gas":
+            editor = QComboBox()
+            editor.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            editor.setMinimumContentsLength(8)
+            editor.currentIndexChanged.connect(self._gas_chosen)
+            custom = QPushButton("Custom...")
+            custom.setToolTip("Make a custom gas (a copy of the chosen gas that you can edit), saved in your own "
+                              "gas library and copied into this project.")
+            custom.clicked.connect(lambda: self._new_gas())
+            box = QWidget()
+            layout = QHBoxLayout(box)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.addWidget(editor, 1)
+            layout.addWidget(custom)
+            self._choices = []
+            return editor, box
         editor = QLineEdit()
         editor.editingFinished.connect(lambda: self.panel._edited(s.name, editor.text()))
         if s.kind == "text":
@@ -173,10 +192,37 @@ class InputRow:
         if path:
             self.panel._edited(self.spec.name, self.panel.file_handler(self.spec.name, path))
 
+    def _gas_chosen(self, index):
+        choice = self._choices[index]
+        current = self.panel.values().get(self.spec.name)
+        if choice.kind == "new":
+            self._new_gas()
+            return
+        value = self.panel.gas_handler.choose(choice) if choice.kind == "user" else choice.data
+        if value is None:
+            self.display(current)
+        else:
+            self.panel._edited(self.spec.name, value)
+            self.display(value)                     # a user gas is now the project's copy
+
+    def _new_gas(self):
+        current = self.panel.values().get(self.spec.name, self.spec.default)
+        value = self.panel.gas_handler.new(current)
+        if value is not None:
+            self.panel._edited(self.spec.name, value)
+        self.display(value if value is not None else current)
+
     def display(self, value):
         """Show a value in the editor without announcing it as a user change."""
         self.editor.blockSignals(True)
-        if self.spec.kind == "bool":
+        if self.spec.kind == "gas":                 # the list depends on the value (a project gas) and the library
+            self._choices = gas_choices(value, self.panel.gas_handler.base)
+            self.editor.clear()
+            for choice in self._choices:
+                self.editor.addItem(choice.text, choice.data)
+            index = self.editor.findData(str(value))
+            self.editor.setCurrentIndex(max(index, 0))
+        elif self.spec.kind == "bool":
             self.editor.setChecked(bool(value))
         elif self.spec.kind == "choice":
             index = self.editor.findData(value)
@@ -215,12 +261,28 @@ class DetailsBox(QFrame):
         self.facts.setObjectName("detailsfacts")
         for label in (self.help, self.facts, self.problem):
             label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout = QVBoxLayout(self)
+        inner = QWidget()
+        inner.setObjectName("detailsinner")
+        layout = QVBoxLayout(inner)
         layout.setContentsMargins(8, 6, 8, 6)
         for label in (self.title, self.help, self.facts, self.problem):
             layout.addWidget(label)
+        layout.addStretch(1)
+        # Long details (a gas with its sources) scroll inside the box instead of squeezing the inputs.
+        self.scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setWidget(inner)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.scroll)
+        self.setMaximumHeight(DETAILS_MAX_HEIGHT)
         self.name = None
         self.clear()
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        hint.setHeight(min(DETAILS_MAX_HEIGHT, self.scroll.widget().sizeHint().height() + 4))
+        return hint
 
     def clear(self):
         self.name = None
@@ -229,16 +291,32 @@ class DetailsBox(QFrame):
         self.facts.setText("")
         self.problem.setVisible(False)
 
-    def show_input(self, spec: WidgetSpec, problem=None):
+    def show_input(self, spec: WidgetSpec, problem=None, value=None, base=None):
         self.name = spec.name
         self.title.setText(f"<b>{spec.label}</b>")
         self.help.setText(spec.help or "No description given in the template.")
         muted = colour("muted")
         rows = "".join(f"<tr><td style='padding-right:10px; color:{muted}'>{label}</td><td>{text}</td></tr>"
-                       for label, text in details(spec))
+                       for label, text in details(spec, value, base))
         self.facts.setText(f"<table>{rows}</table>")
         self.problem.setText(problem or "")
         self.problem.setVisible(bool(problem))
+
+
+class GasHandler:
+    """What a gas input asks of its owner (the main window gives one that knows the project):
+        base            the project folder (relative custom-gas paths are read from it), or None
+        choose(choice)  a gas of "My gases" was picked: copy it into the project, return the value to store
+        new(current)    open the custom-gas form (filled from the current gas): the value to store, or None
+    This default (no project) stores the user-library path and cannot make new gases."""
+
+    base = None
+
+    def choose(self, choice):
+        return choice.data
+
+    def new(self, current):
+        return None
 
 
 class InputPanel(QWidget):
@@ -247,15 +325,17 @@ class InputPanel(QWidget):
 
     file_handler(name, chosen_path) -> value to store: lets the owner copy a chosen file into the
     project folder and store a relative path (default: store the chosen path as it is).
+    gas_handler: what a gas input needs from the owner (see GasHandler).
     """
 
     value_changed = Signal(str, object)
 
-    def __init__(self, model: PanelModel, values: dict, file_handler=None, parent=None):
+    def __init__(self, model: PanelModel, values: dict, file_handler=None, gas_handler=None, parent=None):
         super().__init__(parent)
         self.model = model
         self._values = dict(values)
         self.file_handler = file_handler or (lambda name, path: path)
+        self.gas_handler = gas_handler or GasHandler()
         self.scroll = QScrollArea(widgetResizable=True)
         self.details = DetailsBox()
         outer = QVBoxLayout(self)
@@ -324,7 +404,7 @@ class InputPanel(QWidget):
 
     def show_details(self, name):
         problem = self.model.shown_problems(self._values).get(name)
-        self.details.show_input(self.rows[name].spec, problem)
+        self.details.show_input(self.rows[name].spec, problem, self._values.get(name), self.gas_handler.base)
 
     def values(self) -> dict:
         return dict(self._values)

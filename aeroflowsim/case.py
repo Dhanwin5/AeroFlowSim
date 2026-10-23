@@ -56,6 +56,14 @@ A case folder holds two required files:
         (see aeroflowsim/results.py). Kept apart from reference() because reference() returns
         fields only (they are compared value by value with the numerical fields).
 
+    gas(params)                   -> GasModel                       (optional)
+        The gas the case computes with (aeroflowsim/gases/), normally gas_model(params["gas"]).
+        Switches on the gas validity checks (ideal gas, condensation, temperature range), which
+        look at the "T" [K] and "p" [Pa] fields of the Result.
+
+    reservoir_state(params)       -> (p0 [Pa], T0 [K])              (optional, with gas)
+        A state the gas checks look at besides the solution, e.g. the chamber / tank state.
+
 Optional extras a case may put in its Result (the GUI then offers more "Contours" views):
     Result.snapshots   fields over time, for unsteady cases -> x-t diagram.
                        Collect them with aeroflowsim.results.SnapshotRecorder (at most ~200 kept).
@@ -75,7 +83,7 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 # Functions case.py must define, and optional ones.
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
 OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells",
-                      "workspace_settings", "size_inputs"]
+                      "workspace_settings", "size_inputs", "gas", "reservoir_state"]
 
 
 def check_module(module, has_solver=True) -> list[str]:
@@ -206,6 +214,13 @@ def get_derived(case, params):
     if hasattr(case, "derived"):
         return case.derived(params)
     return {}
+
+
+def get_gas(case, params):
+    """The case's GasModel (case.gas) if it has one; otherwise None."""
+    if hasattr(case, "gas"):
+        return case.gas(params)
+    return None
 
 
 def get_reference_lines(case, params, mesh):

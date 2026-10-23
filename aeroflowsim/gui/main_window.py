@@ -30,11 +30,14 @@ from PySide6.QtWidgets import (QDockWidget, QFileDialog, QInputDialog, QLabel, Q
 from aeroflowsim.checks import run_mesh_checks
 from aeroflowsim.discovery import find_cases
 from aeroflowsim.gui import app_info
+from aeroflowsim.gases import save_user_gas
 from aeroflowsim.gui.dialogs import ProjectPlaceDialog
+from aeroflowsim.gui.gas_dialog import CustomGasDialog, GasLibraryDialog
+from aeroflowsim.gui.gas_logic import form_from_gas
 from aeroflowsim.gui.icons import icon
 from aeroflowsim.gui.jobs import JobRunner
 from aeroflowsim.gui.logic import auto_rebuild, estimated_cells, is_face_mesh, progress_fraction
-from aeroflowsim.gui.panel import InputPanel
+from aeroflowsim.gui.panel import GasHandler, InputPanel
 from aeroflowsim.gui.panel_model import PanelModel
 from aeroflowsim.gui.steps.geometry import GeometryPage
 from aeroflowsim.gui.steps.mesh import MeshPage
@@ -54,6 +57,44 @@ from aeroflowsim.project import (SUFFIX, WORKFLOW, Project, default_projects_dir
 from aeroflowsim.tasks import Job
 
 MAX_RECENT = 8
+
+
+class ProjectGases(GasHandler):
+    """Gas inputs of the open project: a gas of the user's library is copied into the project's gases/
+    folder; "Custom..." opens the form, saves the new gas in the user's library and copies it in."""
+
+    def __init__(self, window):
+        self.window = window
+
+    @property
+    def base(self):
+        return self.window.project.folder if self.window.project else None
+
+    def choose(self, choice):
+        try:
+            return self.window.project.import_gas(choice.data)
+        except OSError as error:
+            QMessageBox.warning(self.window, "Gas", f"The gas file could not be copied: {error}")
+            return None
+
+    def new(self, current):
+        try:
+            form = form_from_gas(current, self.base)
+        except ValueError:
+            form = form_from_gas("N2")
+        dialog = CustomGasDialog(form, self.window)
+        if not dialog.exec() or dialog.result_toml is None:
+            return None
+        name, text = dialog.result_toml
+        try:
+            path = save_user_gas(text, name)
+            value = self.window.project.import_gas(path)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self.window, "Custom gas", str(error))
+            return None
+        self.window.log(f"Custom gas '{name}' saved in your gas library ({path}) and copied into the project.")
+        return value
+
 PANEL_FOR_STEP = {"geometry": "geometry", "mesh": "mesh", "setup": "setup", "run": "setup", "results": "setup"}
 AUTO_MESH_DELAY_MS = 500    # wait this long after the last input change before an automatic re-mesh
 
@@ -177,6 +218,7 @@ class MainWindow(QMainWindow):
             "run": a("&Run", self.run_case, "F5", "Mesh if needed, then solve"),
             "stop": a("&Stop", self.cancel_job, "Shift+F5", "Stop the running job"),
             "validation": a("Run &validation suite...", self.run_validation, None, "Run all validation cases"),
+            "gases": a("&Gas library...", self.show_gas_library, None, "Every gas with its values and sources; custom gases"),
             "about": a("&About AeroFlowSim", self.about, None, "Version, licence, how to cite"),
             "manual": a("&Theory manual", lambda: self.open_local(app_info.THEORY_MANUAL), None, "Equations and methods"),
             "devguide": a("&Developer guide", lambda: self.open_local(app_info.DEVELOPER_GUIDE), None, "How the GUI works"),
@@ -214,6 +256,7 @@ class MainWindow(QMainWindow):
         tools_menu.addActions([self.act[k] for k in ("generate", "run", "stop")])
         tools_menu.addSeparator()
         tools_menu.addAction(self.act["validation"])
+        tools_menu.addAction(self.act["gases"])
         help_menu = menu.addMenu("&Help")
         help_menu.addActions([self.act[k] for k in ("manual", "devguide", "report")])
         help_menu.addSeparator()
@@ -451,7 +494,8 @@ class MainWindow(QMainWindow):
         self.undo.clear()
         for step in INPUT_STEPS:
             panel = InputPanel(PanelModel(project.case.parameters(), step), project.values,
-                               file_handler=lambda name, path: self.project.import_file(path))
+                               file_handler=lambda name, path: self.project.import_file(path),
+                               gas_handler=ProjectGases(self))
             panel.value_changed.connect(self.on_panel_edit)
             self.panels[step] = panel
             self.inputs.addWidget(panel)
@@ -776,6 +820,11 @@ class MainWindow(QMainWindow):
         self.auto_mesh_timer.start()             # inputs may have changed while the job ran
 
     # ================================================================================== tools and help
+
+    def show_gas_library(self):
+        GasLibraryDialog(self).exec()
+        for panel in self.panels.values():          # a new custom gas appears in the dropdowns at once
+            panel.set_values({})
 
     def run_validation(self):
         if not app_info.VALIDATION_SCRIPT.is_file():

@@ -15,6 +15,8 @@ Input types:
     "choice"  one text option out of a list, e.g. the geometry source
     "file"    the path of a file, e.g. a wall-profile CSV
     "text"    a short text, e.g. the NACA digits "2412" (optionally checked against a pattern)
+    "gas"     the gas: a built-in gas id such as "N2", or the path of a custom gas file (.toml,
+              relative paths are read from the project folder); see aeroflowsim/gases/
 An input can be shown only when another input has a given value (show_if), e.g. the CSV file
 only when the geometry source is "Custom profile (CSV)". If that other input is itself hidden,
 this one is hidden too.
@@ -28,7 +30,7 @@ import importlib.util
 import re
 from dataclasses import dataclass, field
 
-TYPES = ("float", "int", "bool", "choice", "file", "text")
+TYPES = ("float", "int", "bool", "choice", "file", "text", "gas")
 NUMBER_TYPES = ("float", "int")
 STEPS = ("geometry", "mesh", "setup")   # workflow step an input belongs to (Geometry, Mesh or Setup page)
 
@@ -149,6 +151,13 @@ def clean_value(p: Parameter, value):
         value = str(value).strip()
         if not value:
             raise ValueError(f"'{p.name}' ({p.label}): please give a file.")
+        return value
+    if p.type == "gas":
+        from aeroflowsim.gases import builtin_ids, is_builtin
+        value = str(value).strip()
+        if not (is_builtin(value) or value.lower().endswith(".toml")):
+            raise ValueError(f"'{p.name}' ({p.label}) = '{value}' is neither a built-in gas "
+                             f"({', '.join(builtin_ids())}) nor a custom gas file (.toml).")
         return value
     if p.type == "bool":
         if not isinstance(value, bool):

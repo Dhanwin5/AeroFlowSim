@@ -1,0 +1,40 @@
+# Air: built-in gas of AeroFlowSim, written by tools/gas_data/make_gas_files.py.
+# SI units. Every value names its source; the tests compare the laws with the [reference] data.
+
+id = "air"
+name = "Air (dry)"
+formula = "air"
+model = "calorically perfect"
+note = "Dry air as one ideal gas (no dissociation, no humidity). No condensation data: air is a mixture with a dew line, not one saturation curve; the condensation check does not apply."
+
+[constants]
+molar_mass = 0.0289644   # kg/mol
+molar_mass_source = "U.S. Standard Atmosphere, 1976 (NOAA, NASA, USAF), NASA-TM-X-74335, sea-level mean molecular weight"
+R = 287.053   # J/(kg K)
+R_source = "U.S. Standard Atmosphere, 1976 (NOAA, NASA, USAF), NASA-TM-X-74335 (R* = 8.31432 J/(mol K)); R_u / M with CODATA 2018 R_u = 287.058"
+gamma = 1.4
+gamma_source = "U.S. Standard Atmosphere, 1976 (NOAA, NASA, USAF), NASA-TM-X-74335; ideal mixing of NIST N2, O2, Ar data gives cp/cv = 1.39997 at 300 K"
+T_min = 64   # K
+T_max = 474   # K
+T_range_source = "where the ideal mixture of NIST N2, O2 and Ar (0.1 kPa, US Std 1976 mole fractions) has cp within 2 % of the constant cp = 1004.69 J/(kg K); Ar below 84 K: cp = 5/2 R (monatomic) (lower end: the N2 triple point)"
+
+[transport]
+viscosity = { law = "sutherland", ref = 1.716079e-05, T_ref = 273.15, S = 110.4 }
+conductivity = { law = "sutherland", ref = 0.0241, T_ref = 273.0, S = 194.0 }
+prandtl = 0.7065   # mu cp / k at 300 K (US Std 1976 laws)
+T_min = 170   # K
+T_max = 920   # K
+max_error_percent = 1.98
+source = "viscosity: Sutherland law of the U.S. Standard Atmosphere, 1976 (NOAA, NASA, USAF), NASA-TM-X-74335 (beta = 1.458e-6, S = 110.4 K; ref = beta T_ref^1.5 / (T_ref + S)); conductivity: White, Viscous Fluid Flow, Table 1-3, checked against the US Std 1976 conductivity law: within 2 % from 170 to 920 K"
+
+[critical]
+T = 132.5306   # K
+p = 3.786e+06   # Pa
+acentric_factor = 0.0335
+source = "Lemmon, Jacobsen, Penoncello & Friend, J. Phys. Chem. Ref. Data 29 (2000) 331 (critical point of the air model, as listed by CoolProp); acentric factor as in CoolProp / REFPROP"
+
+[reference]
+source = "U.S. Standard Atmosphere, 1976 (NOAA, NASA, USAF), NASA-TM-X-74335: viscosity and conductivity laws"
+T = [100, 200, 300, 500, 1000]   # K
+mu = [6.92966e-06, 1.32856e-05, 1.846e-05, 2.67053e-05, 4.1522e-05]   # Pa s
+k = [0.00924807, 0.0180915, 0.026252, 0.0404086, 0.0675588]   # W/(m K)

@@ -3,7 +3,7 @@
 
 [case]
 name = "Quasi-1D nozzle"
-description = "Steady quasi-1D Euler flow of N2 through a converging-diverging nozzle (conical or CSV wall profile); compared with isentropic and normal-shock theory."
+description = "Steady quasi-1D Euler flow of a gas (default N2) through a converging-diverging nozzle (conical or CSV wall profile); compared with isentropic and normal-shock theory."
 steady = true
 
 [[input]]
@@ -164,26 +164,12 @@ group = "Operating conditions"
 help = "Ambient pressure at the exit (must not exceed p0)."
 
 [[input]]
-key = "gamma"
-label = "Ratio of specific heats"
-unit = "-"
-type = "float"
-default = 1.4
-min = 1.01
-max = 3.0
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "N2"
 group = "Gas"
-help = "cp/cv of the gas (N2: 1.4)."
-
-[[input]]
-key = "R"
-label = "Specific gas constant"
-unit = "J/(kg·K)"
-type = "float"
-default = 296.8
-min = 1.0
-max = 100000.0
-group = "Gas"
-help = "R of the gas (N2: 296.8)."
+help = "The gas, from the gas library (calorically perfect: constant gamma and R; see the Details for the values and their sources), or a custom gas of your own. N2 gives gamma = 1.4 and R = 296.8 J/(kg K)."
 
 [[input]]
 key = "n_cells"

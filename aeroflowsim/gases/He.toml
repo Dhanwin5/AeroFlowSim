@@ -1,0 +1,44 @@
+# Helium: built-in gas of AeroFlowSim, written by tools/gas_data/make_gas_files.py.
+# SI units. Every value names its source; the tests compare the laws with the [reference] data.
+
+id = "He"
+name = "Helium"
+formula = "He"
+model = "calorically perfect"
+
+[constants]
+molar_mass = 0.004002602   # kg/mol
+molar_mass_source = "NIST Chemistry WebBook, SRD 69 (molecular weight)"
+gamma = 1.6666666666666667   # 5/3
+gamma_source = "monatomic ideal gas, cp = 5/2 R (kinetic theory); NIST cp/cv at 300 K = 1.66666"
+T_min = 2.5   # K
+T_max = 1497.5   # K
+T_range_source = "where NIST cp at 0.1 kPa is within 2 % of the constant cp = 5193.16 J/(kg K) (lower end: the triple point / lowest temperature of the EOS)"
+
+[transport]
+viscosity = { law = "power", ref = 1.85515e-05, T_ref = 273.15, n = 0.63757 }
+conductivity = { law = "power", ref = 0.146579, T_ref = 273.15, n = 0.69323 }
+prandtl = 0.6638   # mu cp / k at 300 K (NIST)
+T_min = 67.5   # K
+T_max = 327.5   # K
+max_error_percent = 1.96
+source = "laws fitted (least squares, relative error) to NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.) at 0.1 kPa: viscosity 12.5-327.5 K (max 1.96 %), conductivity 67.5-1497.5 K (max 1.89 %); transport data Arp, McCarty & Friend, NIST TN 1334 (1998); Hands & Arp, Cryogenics 21 (1981) 697"
+
+[critical]
+T = 5.1953   # K
+p = 228320   # Pa
+acentric_factor = -0.3836
+source = "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.), fluid page (critical point, acentric factor)"
+
+[vapour_pressure]
+source = "saturation table of NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.); EOS Ortiz-Vega, Hall, Holste, Arp, Harvey & Lemmon (2018), as implemented in the NIST WebBook; last point = critical point"
+T = [2.1768, 2.23421, 2.28676, 2.35835, 2.40216, 2.48234, 2.53717, 2.60463, 2.6816, 2.76542, 2.84185, 2.92358, 3.00909, 3.0972, 3.19562, 3.29366, 3.39109, 3.50093, 3.61383, 3.72868, 3.84965, 3.97489, 4.11136, 4.24809, 4.39145, 4.54235, 4.69515, 4.85629, 5.02455, 5.19319, 5.1953]   # K
+p = [5039.3, 5783.57, 6527.84, 7644.24, 8388.51, 9877.05, 10993.5, 12482, 14342.7, 16575.5, 18808.3, 21413.2, 24390.3, 27739.5, 31833, 36298.6, 41136.3, 47090.5, 53788.9, 61231.6, 69790.7, 79466.2, 91002.4, 103655, 118168, 134914, 153521, 175105, 200038, 227948, 228320]   # Pa
+
+[reference]
+source = "NIST Chemistry WebBook, SRD 69, Thermophysical Properties of Fluid Systems (E.W. Lemmon et al.), isobar 0.1 kPa"
+T = [97.5, 197.5, 297.5, 397.5, 497.5, 697.5, 997.5]   # K
+cp = [5193.16, 5193.16, 5193.16, 5193.16, 5193.16, 5193.16, 5193.16]   # J/(kg K)
+cv = [3115.9, 3115.9, 3115.9, 3115.9, 3115.9, 3115.9, 3115.9]   # J/(kg K)
+mu = [9.61011e-06, 1.50075e-05, 1.98124e-05, 2.41845e-05, 2.82621e-05, 3.58024e-05, 4.6077e-05]   # Pa s
+k = [0.0723922, 0.116889, 0.154996, 0.189464, 0.221453, 0.280281, 0.359908]   # W/(m K)

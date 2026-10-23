@@ -11,7 +11,11 @@ Each check is ONE function with the same signature:
 It returns a CheckResult (level "info" = fine, "warning" = be careful, "error" = do not trust
 the result) or None when the check does not apply to this case (e.g. no mass flow to balance).
 All checks are listed in CHECKS; run_checks() runs them all. To add a check later (Knudsen
-number, ideal-gas validity, y+ ...), write one function and add it to CHECKS.
+number, y+ ...), write one function and add it to CHECKS.
+
+Gas checks (ideal-gas validity, condensation risk, temperature range) apply to cases that say which
+gas they use (case.gas(params), aeroflowsim/gases/) and return "T" [K] and "p" [Pa] fields; they also
+look at the case's reservoir_state(params) (e.g. the chamber), if it has one.
 
 Mesh quality checks (MESH_CHECKS) only look at the mesh, so they can run BEFORE the solver:
 run_mesh_checks() is called by the run engine, which refuses to start the solver when one of
@@ -32,6 +36,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from aeroflowsim import mesh_quality
+from aeroflowsim.gases import peng_robinson_z
 from aeroflowsim.mesh import TRIANGLE, Mesh
 
 LEVELS = ("info", "warning", "error")
@@ -51,6 +56,7 @@ MIN_ANGLE_ERROR = 5.0        # smallest triangle angle below this: error, the so
 MAX_SKEWNESS = 0.85          # largest equiangle skewness without a warning [-]
 MIN_CELLS_PER_FEATURE = 2.0  # the smallest wall feature should be at least this many surface cells long [-]
 AXIS_TOLERANCE = 1e-9        # a point is below the axis if y < -this x geometry size [-]
+MAX_Z_DEVIATION = 2.0        # ideal-gas check: largest |Z - 1| without a warning [%]
 
 
 @dataclass
@@ -120,6 +126,117 @@ def mass_balance(case, params, mesh, result):
                            imbalance, "%")
     return CheckResult("Mass balance", "info",
                        f"Inlet and exit mass flow agree within {imbalance:.2g} %.", imbalance, "%")
+
+
+# ---- gas validity (cases with case.gas(params) and T, p fields) -----------------------------------
+
+def _gas_states(case, params, result):
+    """(gas model, T [K] per cell, p [Pa] per cell, reservoir (p0, T0) or None), or None if the checks
+    do not apply (no gas model, or no temperature / pressure fields)."""
+    if not hasattr(case, "gas") or result is None:
+        return None
+    fields = result.fields or {}
+    if "T" not in fields or "p" not in fields:
+        return None
+    gas = case.gas(params)
+    T = np.asarray(fields["T"].values, dtype=float)
+    p = np.asarray(fields["p"].values, dtype=float)
+    reservoir = case.reservoir_state(params) if hasattr(case, "reservoir_state") else None
+    return gas, T, p, reservoir
+
+
+def _state(p, T) -> str:
+    return f"{p / 1e5:.4g} bar, {T:.4g} K"
+
+
+def ideal_gas_validity(case, params, mesh, result):
+    """Is the ideal-gas law p = rho R T good enough? The compressibility factor Z (Peng-Robinson, from the
+    gas's critical point) should stay within MAX_Z_DEVIATION % of 1 in every cell and in the reservoir."""
+    states = _gas_states(case, params, result)
+    if states is None:
+        return None
+    gas, T, p, reservoir = states
+    data = gas.data
+    if not data.has_critical_point:
+        return CheckResult("Ideal gas", "info", f"No critical point stored for {gas.name}: the ideal-gas "
+                           "validity cannot be estimated.")
+    crit = (data.T_critical, data.p_critical, data.acentric_factor)
+    deviation = 100.0 * np.abs(peng_robinson_z(p, T, *crit) - 1.0)     # [%] per cell
+    i = int(np.argmax(deviation))
+    worst, where = deviation[i], f"in the flow ({_state(p[i], T[i])})"
+    if reservoir is not None:
+        z0 = peng_robinson_z(reservoir[0], reservoir[1], *crit)
+        if 100.0 * abs(z0 - 1.0) >= worst:
+            worst, where = 100.0 * abs(z0 - 1.0), f"in the reservoir ({_state(*reservoir)}, Z = {z0:.4f})"
+    if worst > MAX_Z_DEVIATION:
+        return CheckResult("Ideal gas", "warning",
+                           f"The compressibility factor Z differs from 1 by {worst:.3g} % {where}: the ideal-gas "
+                           f"model of {gas.name} is not accurate there (limit {MAX_Z_DEVIATION:g} %, Peng-Robinson "
+                           "estimate). A real-gas model is planned (Phase 5).", worst, "%")
+    return CheckResult("Ideal gas", "info", f"The ideal-gas law holds within {worst:.2g} % (largest |Z - 1|, "
+                       f"Peng-Robinson estimate, {where}).", worst, "%")
+
+
+def condensation_risk(case, params, mesh, result):
+    """Does the gas cool below its saturation (or frost) temperature somewhere? Margin T - T_sat(p) [K]
+    in every cell, reported at the exit (last cell) and where it is smallest."""
+    states = _gas_states(case, params, result)
+    if states is None:
+        return None
+    gas, T, p, reservoir = states
+    curve = gas.data.vapour_pressure
+    if curve is None:
+        return CheckResult("Condensation", "info", f"No saturation curve stored for {gas.name}: the "
+                           "condensation risk cannot be estimated.")
+    T_sat = curve.T_sat(p)                                        # nan above the critical pressure
+    margin = np.where(np.isnan(T_sat), T - curve.T_critical, T - T_sat)   # [K]
+    i = int(np.argmin(margin))
+    estimate = (". Below the triple-point pressure the frost temperature is estimated by extending the "
+                "vapour-pressure curve (Clausius-Clapeyron); the true frost point is somewhat higher (N2 at the "
+                "default exit: about 0.6 K), so read this margin as an upper limit"
+                if np.any(p < curve.p[0]) else "")
+    exit_text = (f"exit: T = {T[-1]:.4g} K at {p[-1] / 1e3:.4g} kPa, saturation temperature "
+                 f"{T[-1] - margin[-1]:.4g} K, margin {margin[-1]:.3g} K")
+    if reservoir is not None:
+        p0, T0 = reservoir
+        if T0 < curve.T_critical and p0 > float(curve.p_sat(T0)):
+            return CheckResult("Condensation", "warning",
+                               f"The reservoir state ({_state(p0, T0)}) is a LIQUID for {gas.name} (saturation "
+                               f"pressure {float(curve.p_sat(T0)) / 1e5:.4g} bar): this gas model does not apply.",
+                               float(margin[i]), "K")
+    if margin[i] < 0.0:
+        return CheckResult("Condensation", "warning",
+                           f"{gas.name} is colder than its saturation temperature in {int(np.sum(margin < 0))} "
+                           f"cell(s) (down to {-margin[i]:.3g} K below, at {_state(p[i], T[i])}): it may condense "
+                           f"there, which this model does not include; {exit_text}{estimate}.", float(margin[i]), "K")
+    return CheckResult("Condensation", "info", f"No condensation: smallest margin {margin[i]:.3g} K to the "
+                       f"saturation temperature; {exit_text}{estimate}.", float(margin[i]), "K")
+
+
+def temperature_range(case, params, mesh, result):
+    """Do all temperatures stay inside the range where the gas data are valid (constant cp and gamma for
+    this calorically perfect gas)? Inviscid cases: thermodynamic range only."""
+    states = _gas_states(case, params, result)
+    if states is None:
+        return None
+    gas, T, p, reservoir = states
+    lo, hi = gas.thermo_range
+    T_all = np.append(T, reservoir[1]) if reservoir is not None else T
+    T_min, T_max = float(T_all.min()), float(T_all.max())
+    if not math.isfinite(hi):
+        return CheckResult("Temperature range", "info", f"No valid temperature range stored for {gas.name} "
+                           f"(temperatures {T_min:.4g} to {T_max:.4g} K).")
+    if T_min < lo or T_max > hi:
+        return CheckResult("Temperature range", "warning",
+                           f"Temperatures {T_min:.4g} to {T_max:.4g} K leave the range {lo:.4g} to {hi:.4g} K of the "
+                           f"gas data of {gas.name} (where its constant cp is within 2 % of the real cp; the lower end "
+                           "is often the triple point, below which the source has no gas data).",
+                           T_min, "K")
+    return CheckResult("Temperature range", "info", f"Temperatures {T_min:.4g} to {T_max:.4g} K are inside the "
+                       f"valid range of the gas data ({lo:.4g} to {hi:.4g} K).", T_min, "K")
+
+
+GAS_CHECKS = [ideal_gas_validity, condensation_risk, temperature_range]
 
 
 # ---- mesh quality (face-based meshes only) -----------------------------------------------------
@@ -266,7 +383,7 @@ MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mes
                mesh_min_angle, mesh_skewness, mesh_inflation, mesh_smallest_cell]
 
 # Every check, in the order shown. Add new checks here.
-CHECKS = [convergence, mass_balance] + MESH_CHECKS
+CHECKS = [convergence, mass_balance] + GAS_CHECKS + MESH_CHECKS
 
 
 # ---- geometry checks (before meshing) ------------------------------------------------------------

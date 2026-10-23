@@ -2,13 +2,15 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Quasi-1D nozzle: steady inviscid flow of N2 through a converging-diverging nozzle.
+"""Quasi-1D nozzle: steady inviscid flow of a gas (default N2) through a converging-diverging nozzle.
 
 Numerics: finite volumes for the quasi-1D Euler equations (aeroflowsim/quasi1d.py) with the HLLC flux,
 MUSCL/minmod reconstruction and SSP-RK2 of aeroflowsim/euler1d.py, marched to steady state with local
 time stepping. Reservoir inlet (p0, T0), back pressure at the exit. Compared with isentropic
 area-Mach theory and, when a shock stands in the nozzle, normal-shock relations
-(aeroflowsim/gasdynamics.py). Geometry from aeroflowsim/geometry.py (conical or CSV). See README.md.
+(aeroflowsim/gasdynamics.py). Geometry from aeroflowsim/geometry.py (conical or CSV). The gas comes from
+the gas library (aeroflowsim/gases/): a calorically perfect gas, so this case needs its gamma and R only.
+See README.md.
 """
 
 import math
@@ -18,6 +20,7 @@ import numpy as np
 from scipy.optimize import brentq
 
 from aeroflowsim import gasdynamics as gd
+from aeroflowsim.gases import gas_model
 from aeroflowsim.euler1d import (conserved_to_primitive, face_fluxes, muscl_reconstruct, primitive_to_conserved,
                           sound_speed, ssp_rk2_step)
 from aeroflowsim.geometry import conical_nozzle, profile_summary, read_profile_csv
@@ -30,6 +33,24 @@ PARAMETRIC = "Parametric (conical)"     # options of the geometry_source input (
 CUSTOM_CSV = "Custom profile (CSV)"
 DEG = math.pi / 180.0   # one degree [rad]
 G0 = 9.80665            # standard gravity, used to define Isp [m/s²]
+
+
+# ---- gas --------------------------------------------------------------------------------------
+
+def gas(params):
+    """The GasModel of the "gas" input (a relative custom-gas path is read from the project folder)."""
+    return gas_model(params["gas"], base=PROJECT_DIR)
+
+
+def _gamma_R(params):
+    """gamma [-] and R [J/(kg K)] of the gas: the two numbers this inviscid 1D solver needs."""
+    g = gas(params)
+    return g.gamma_value, g.R
+
+
+def reservoir_state(params):
+    """Chamber (total) state checked by the gas validity checks: (p0 [Pa], T0 [K])."""
+    return params["p0"], params["T0"]
 
 
 # ---- geometry and mesh ------------------------------------------------------------------------
@@ -92,7 +113,7 @@ def theory(params, profile):
     Returns a dict with: regime, A_star, and for a shock x_shock [m], M1 (upstream Mach),
     p02 (total pressure after the shock) [Pa]; for subsonic flow A_star is the virtual sonic area.
     """
-    g, p0, pb = params["gamma"], params["p0"], params["p_back"]
+    g, p0, pb = _gamma_R(params)[0], params["p0"], params["p_back"]
     A_t, A_e = math.pi * profile.r_throat**2, math.pi * profile.r[-1] ** 2   # [m²]
     info = gd.nozzle_flow_regime(p0, pb, A_e / A_t, g)
     info["A_star"] = A_t
@@ -114,7 +135,7 @@ def derived(params):
     p_b1 the nozzle is not choked (subsonic everywhere); between p_b1 and p_b2 a normal shock stands
     inside the divergent part; below p_b2 the flow leaves the exit supersonic.
     """
-    g, R, p0, T0, pb = params["gamma"], params["R"], params["p0"], params["T0"], params["p_back"]
+    (g, R), p0, T0, pb = _gamma_R(params), params["p0"], params["T0"], params["p_back"]
     profile = geometry(params)
     A_t = math.pi * profile.r_throat**2                  # [m²]
     A_e = math.pi * profile.r[-1] ** 2                   # [m²]
@@ -127,7 +148,11 @@ def derived(params):
     F_vac = mdot * u_e + p_e * A_e                       # [N]
     p_b1 = p0 / gd.p0_over_p(gd.mach_from_area_ratio(ratio, g, supersonic=False), g)   # [Pa]
     p_b2 = gd.exit_pressure_with_shock(p0, ratio, ratio, g)                             # [Pa]
+    gas_used = gas(params)
     return {
+        "Gas": (gas_used.name, ""),
+        "Gas: ratio of specific heats gamma": (g, "-"),
+        "Gas: specific gas constant R": (R, "J/(kg·K)"),
         "Throat area": (A_t, "m²"),
         "Exit area": (A_e, "m²"),
         "Area ratio A_exit/A_throat": (ratio, "-"),
@@ -157,7 +182,7 @@ def exact_state(params, profile, x, info, initial_guess=False):
     no shock - for a shock case the flow after the throat starts subsonic, so the outlet "hears"
     the back pressure and the shock forms and settles by itself.
     """
-    g, p0, T0, R = params["gamma"], params["p0"], params["T0"], params["R"]
+    (g, R), p0, T0 = _gamma_R(params), params["p0"], params["T0"]
     A = profile.area_at(x)
     if info["A_star"] == 0.0:                                       # back pressure = p0: gas at rest
         return _isentropic_state(np.zeros_like(x), p0, T0, g, R)
@@ -200,7 +225,7 @@ def _shock_position(xc, M, x_throat):
 
 def run(params, mesh, progress):
     """March to steady state with local time stepping; progress(iteration, residual) every iteration."""
-    g, R = params["gamma"], params["R"]           # [-], [J/(kg·K)]
+    g, R = _gamma_R(params)                       # [-], [J/(kg·K)]
     p0, T0, pb = params["p0"], params["T0"], params["p_back"]   # [Pa], [K], [Pa]
     if pb > p0:
         raise ValueError("The back pressure is higher than the chamber pressure: the gas would flow "
@@ -245,7 +270,7 @@ def run(params, mesh, progress):
 
 def _key_numbers(params, mesh, profile, info, U, W, boundary):
     """Performance and validation numbers {name: (value, unit)} from the converged solution."""
-    g, R, pb = params["gamma"], params["R"], params["p_back"]
+    (g, R), pb = _gamma_R(params), params["p_back"]
     A = profile.area_at(mesh.x)                              # face areas [m²]
     F = face_fluxes(U, g, boundary) * A                      # mass, momentum, energy through faces
     i_t = _throat_face(mesh, profile)
@@ -288,4 +313,4 @@ def reference(params, mesh):
     """Isentropic area-Mach solution at the cell centres (with the normal shock if there is one)."""
     profile = geometry(params)
     W = exact_state(params, profile, mesh.xc, theory(params, profile))
-    return _fields(W, params["gamma"], params["R"])
+    return _fields(W, *_gamma_R(params))

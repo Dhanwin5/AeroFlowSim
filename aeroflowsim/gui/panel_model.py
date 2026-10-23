@@ -40,7 +40,7 @@ class WidgetSpec:
     """Everything the GUI needs to draw the box of one input."""
 
     name: str                  # input key, e.g. "d_throat" or "naca4.digits"
-    kind: str                  # "float", "int", "bool", "choice", "text" or "file"
+    kind: str                  # "float", "int", "bool", "choice", "text", "file" or "gas"
     label: str                 # shown text, with the unit for numbers, e.g. "Throat diameter [m]"
     unit: str                  # SI unit ("" for non-numbers)
     help: str                  # the help text of schema.toml (shown by the "?" button)
@@ -68,15 +68,21 @@ def widget_spec(p) -> WidgetSpec:
         missing = {option: f"'{option}' needs {package}: install it with  {install_hint(package)}"
                    for option, package in p.requires.items() if not module_available(package)}
         return WidgetSpec(label=p.label, tooltip=p.help, options=tuple(p.options), missing=missing, **common)
+    if p.type == "gas":
+        return WidgetSpec(label=p.label, tooltip=p.help, **common)
     if p.type == "file":
         tooltip = f"{p.help}\nFile types: {', '.join(p.file_types)}.".strip()
         return WidgetSpec(label=p.label, tooltip=tooltip, file_filter=file_filter(p.file_types), **common)
     return WidgetSpec(label=p.label, tooltip=p.help, **common)   # bool and text
 
 
-def details(spec: WidgetSpec) -> list[tuple[str, str]]:
-    """Facts shown in the Details area under the panel: [(label, text)], depending on the input type."""
+def details(spec: WidgetSpec, value=None, base=None) -> list[tuple[str, str]]:
+    """Facts shown in the Details area under the panel: [(label, text)], depending on the input type.
+    value (and base, the project folder) are needed for a gas: its properties and their sources."""
     rows = []
+    if spec.kind == "gas":
+        from aeroflowsim.gui.gas_logic import gas_detail_rows
+        rows += gas_detail_rows(value if value is not None else spec.default, base)
     if spec.kind in ("float", "int"):
         unit = "-" if spec.unit in ("", "-") else spec.unit
         rows.append(("Unit", "dimensionless (-)" if unit == "-" else unit))

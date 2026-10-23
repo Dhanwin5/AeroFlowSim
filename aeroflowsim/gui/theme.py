@@ -80,6 +80,7 @@ QLabel#hint {{ color: {t['muted']}; font-size: 90%; }}
 QLabel#error {{ color: {t['error']}; }}
 QFrame#details {{ background: {t['base']}; border: 1px solid {t['border']}; border-radius: 4px; }}
 QFrame#details QLabel {{ color: {t['text']}; background: transparent; border: none; }}
+QFrame#details QScrollArea, QFrame#details QWidget#detailsinner {{ background: transparent; border: none; }}
 QFrame#details QLabel#detailsfacts {{ color: {t['text']}; }}
 QFrame#details QLabel#error {{ color: {t['error']}; }}
 QLabel#banner {{ border-radius: 4px; padding: 6px 10px; }}

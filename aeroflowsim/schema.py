@@ -25,7 +25,7 @@ Example (one [case] table, then one [[input]] table per input, in the order show
     key = "d_throat"                  # name used in the code: params["d_throat"]
     label = "Throat diameter"         # shown in the GUI
     unit = "m"                        # SI unit ("-" = dimensionless)
-    type = "float"                    # float, int, bool, choice or file
+    type = "float"                    # float, int, bool, choice, file, text or gas
     default = 0.280e-3
     min = 1e-6                        # allowed range (float and int only)
     max = 1.0
@@ -38,6 +38,8 @@ A "choice" input lists its options:  options = ["Parametric (conical)", "Custom 
 and may name options that need an optional package:  requires = { "Triangles (Gmsh)" = "gmsh" }
 A "file" input may list the file endings it accepts:  file_types = ["dat", "csv"]  (default csv)
 A "text" input may give a regular expression the text must match:  pattern = "[0-9]{4}"
+A "gas" input picks the gas from the gas library (aeroflowsim/gases/); its default is a built-in
+gas id:  type = "gas", default = "N2". The case reads it with aeroflowsim.gases.gas_model(params[key]).
 """
 
 import tomllib

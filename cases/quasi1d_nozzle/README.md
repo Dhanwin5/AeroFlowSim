@@ -1,7 +1,12 @@
 # Quasi-1D nozzle (`quasi1d_nozzle`)
 
-Steady, inviscid flow of nitrogen through a converging-diverging nozzle, from a reservoir
-(p0, T0) to a back pressure p_back. Default geometry: the N2 cold-gas thruster
+Steady, inviscid flow of a gas (default nitrogen) through a converging-diverging nozzle, from a
+reservoir (p0, T0) to a back pressure p_back. The gas comes from the gas library
+(`aeroflowsim/gases/`: N2, air, O2, Ar, He, Kr, Xe, CO2, H2, H2O, R-236fa, or a custom gas); it is a
+calorically perfect gas, so this case uses its gamma and R. The default N2 has gamma = 1.4 and
+R = 296.8 J/(kg K), exactly the values of the validated results. After every run the validity checks
+also judge the gas model: ideal-gas validity (compressibility factor Z), condensation risk (margin to
+the saturation / frost temperature) and the temperature range of the gas data. Default geometry: the N2 cold-gas thruster
 (inlet Ø 2.0 mm, straight inlet 1.33 mm, 30° convergent cone, throat Ø 0.280 mm,
 15° divergent cone, exit Ø 0.911 mm, A_e/A* = 10.59, length 4.00 mm).
 The throat is sharp by default; `Rcu/Rt` and `Rcd/Rt` round it with circular arcs (shared nozzle
@@ -10,6 +15,7 @@ geometry, see `cases/nozzle_axi/README.md`). The validated results use the sharp
 ```
 python -m aeroflowsim run cases/quasi1d_nozzle
 python -m aeroflowsim run cases/quasi1d_nozzle --set p_back=250000
+python -m aeroflowsim run cases/quasi1d_nozzle --set gas=Kr
 python -m aeroflowsim run cases/quasi1d_nozzle --set "geometry_source=Custom profile (CSV)"
 ```
 
