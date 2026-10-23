@@ -81,6 +81,27 @@ makes one panel per step. Changing a value: panel emits `value_changed` → `Mai
 pushes a `SetInputs` undo command → its `redo()` calls `apply_values`, which updates the project,
 every panel, the statuses, and schedules the geometry redraw / automatic re-mesh.
 
+### Units
+
+The window keeps the user's display units (`MainWindow.units`, a `UnitPreferences` of
+`aeroflowsim/units.py`, saved in QSettings, chosen in View > Units). `PanelModel(param_list, step,
+units)` gives every float input whose SI unit has a quantity (m, Pa, K, kg/s, N, m², m/s) a display
+unit: label, range and problem messages are in that unit, `text_to_value` turns typed text into SI and
+`display_text` turns SI into text. The panel keeps the exact SI value of an unchanged box, so pressing
+Enter or switching units never counts as an edit. Result pages convert only for display
+(`logic.readable(..., prefs=...)`, `logic.display_field`, `field_figure(..., prefs)`, the CSV export);
+project files, `run.npz`, the command line and the validation report stay SI. Changing units rebuilds
+the panels (`MainWindow.set_units`).
+
+### Gas inputs
+
+An input of type `gas` is drawn as a dropdown (`gui/gas_logic.gas_choices`: built-in gases, the
+project's custom gas, "My gases" from the user's library, "New custom gas..."), with a "Custom..." button
+for a variant of the chosen gas. The panel asks its `GasHandler` (`MainWindow`'s `ProjectGases`) to copy
+a library gas into `<project>/gases/` and to run the custom-gas form (`gui/gas_dialog.py`; checks in
+`gas_logic.form_to_toml`). The Details area shows `gas_detail_rows`: every value with its source.
+Tools > Gas library shows all gases and makes custom ones without a project.
+
 ## 5. The VTK view
 
 `MeshView` (`vtk_view.py`) holds a `pyvistaqt.QtInteractor`: a VTK render window inside a Qt widget.

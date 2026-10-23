@@ -34,6 +34,7 @@ Last updated: Prompt 6f (2026-10-23).
 | 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |
 | Units system in the GUI (SI, mm, imperial; SI inside) | done | P2 | 6f: View > Units (length, pressure, temperature, mass flow, force, area, velocity; presets small propulsion / SI / imperial); inputs, Setup table, key numbers, card, plots, colour pictures, CSV/PNG export follow it; projects, command line, summary.yaml and the validation report stay SI. The geometry workspace stays in mm |
 | Geometry workspace follows the length-unit preference | later | P3 | the workspace still shows and accepts mm only |
+| Units in the Geometry summary, mesh Properties and validity-check messages | later | P3 | these still use SI with readable prefixes |
 | Gmsh "save .msh" writes into the template folder, not the project | partial | P2 | case code uses `CASE_DIR/mesh`; move to the project's `mesh/` (needs a case-contract change) |
 | GUI usable at 125-150 % display scaling, keyboard-only use | later | P2 | not yet checked systematically |
 
@@ -93,7 +94,10 @@ Last updated: Prompt 6f (2026-10-23).
 | Item | Status | Priority | Notes |
 |---|---|---|---|
 | 1D Euler (HLLC, MUSCL, SSP-RK2), quasi-1D nozzle, local time stepping | done | P1 | validated |
-| Gas library + custom gas (designed for mixtures) | planned 6f | P1 | |
+| Gas library + custom gas (designed for mixtures) | done | P1 | 6f: `GasModel` interface (`aeroflowsim/gases/`), calorically perfect gas with Sutherland / power laws; N2, air, O2, Ar, He, Kr, Xe, CO2, H2, H2O, R-236fa with a source for every value (NIST WebBook fits, US Std Atmosphere 1976, GRI-Mech 3.0); gas dropdown in the quasi-1D Setup, custom gases in the user library and copied into projects; Tools > Gas library |
+| Thermally perfect gas (cp(T) from the stored NASA 7-coefficient polynomials) | later | P2 | polynomials stored for N2, O2, Ar, CO2, H2, H2O; needed for hot gases (CO2 and R-236fa are constant-cp only within about 15 K of room temperature) |
+| Custom-gas form: critical point, acentric factor, saturation curve | later | P3 | without them the ideal-gas and condensation checks report 'cannot be estimated' for custom gases |
+| Gas mixtures (mole fractions of library gases), humid air | later | P2 | the data model keeps molar mass and critical constants per gas, ready for mixing rules |
 | 2D / axisymmetric Euler with local time stepping, carbuncle fix | planned 7 | P1 | |
 | Full boundary-condition set from named boundaries | planned 7 | P1 | total-pressure / mass-flow inlet, pressure outlet, supersonic in/out, far-field, slip wall, symmetry, axis |
 | Initialisation options, restart from a saved solution, live monitors | planned 7 | P1 | |
@@ -105,8 +109,9 @@ Last updated: Prompt 6f (2026-10-23).
 | 3D Euler, multiple zones | later | P2 | Phase 3 |
 | Laminar NS (+ slip wall for micro-nozzles), Spalart-Allmaras, k-omega SST, wall heat flux | later | P2 | Phase 4 |
 | Constant-density liquids (preconditioned) | later | P3 | Phase 4 |
-| Real gas (Peng-Robinson), multi-species, combustion, high-temperature gas | later | P3 | Phase 5 |
-| Two-phase / condensation, cavitation, conjugate heat transfer | later | P3 | Phase 5 "later" list |
+| Real gas (Peng-Robinson), multi-species, combustion, high-temperature gas | partial | P3 | Phase 5; 6f: Peng-Robinson Z used by the ideal-gas check (about 1 % at 50 bar N2, but |Z - 1| 9 % instead of 14 % at 300 bar: a better EOS is needed for computing) |
+| Two-phase / condensation, cavitation, conjugate heat transfer | later | P3 | Phase 5 "later" list; 6f: condensation risk check (margin to the saturation / frost temperature) |
+| Sourced sublimation (frost) curves below the triple point | later | P3 | now Clausius-Clapeyron continuation of the vapour-pressure curve: an upper limit of the margin (N2 at 3.4 kPa: 0.6 K too warm); air has no dew line |
 | Rotating machinery, free-surface flows, structures | out of scope | - | |
 
 ## 6. Post-processing
@@ -122,8 +127,8 @@ Last updated: Prompt 6f (2026-10-23).
 
 | Item | Status | Priority | Notes |
 |---|---|---|---|
-| Validity checks (convergence, mass balance, mesh quality) | done | P1 | |
-| Validation report (quasi-1D, Sod, nozzle geometry, external geometry, geometry workspace) | done | P1 | 5/5 PASS (6d added `geometry_workspace`) |
+| Validity checks (convergence, mass balance, mesh quality) | done | P1 | 6f: + ideal-gas validity, condensation risk, temperature range of the gas data |
+| Validation report (quasi-1D, Sod, nozzle geometry, external geometry, geometry workspace) | done | P1 | 5/5 PASS, numbers unchanged in 6f; 6f added the quasi-1D mesh-refinement study |
 | Run the validation suite from the GUI (Tools menu) | done | P2 | |
 | MMS order-of-accuracy verification (structured and triangle meshes) | planned 7b | P1 | |
 | 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012) | planned 7b | P1 | |

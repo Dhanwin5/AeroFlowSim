@@ -16,7 +16,8 @@ Contents
 8. [Mesh generation: structured nozzle, Gmsh, inflation layers](#8-mesh-generation-structured-nozzle-gmsh-inflation-layers)
 9. [Geometry: rounded throat and the shape library](#9-geometry-rounded-throat-and-the-shape-library)
 10. [Reproducibility: projects, fingerprints and background runs](#10-reproducibility-projects-fingerprints-and-background-runs)
-11. [References](#11-references)
+11. [Gas models](#11-gas-models)
+12. [References](#12-references)
 
 ---
 
@@ -488,20 +489,156 @@ The GUI side is described in `docs/developer_guide.md`.
 
 ---
 
-## 11. References
+## 11. Gas models
+
+Every solver gets its gas properties through one interface, `GasModel`, and never writes a number such
+as $\gamma = 1.4$ itself. The interface asks for the specific gas constant $R$, $c_p(T)$, $c_v(T)$,
+$\gamma(T)$, the speed of sound, the internal energy $e(T)$ and its inverse $T(e)$, the viscosity
+$\mu(T)$, the conductivity $k(T)$, the Prandtl number and the temperature ranges where the data are
+valid. Each method takes one temperature or an array (one per cell). A new gas model (thermally
+perfect, mixture, real gas) is a new subclass; no solver changes.
+
+### 11.1 Calorically perfect gas
+
+The model implemented now is the ideal gas with constant specific heats:
+
+$$p = \rho R T,\qquad R = \frac{R_u}{M},\qquad c_p = \frac{\gamma R}{\gamma - 1},\qquad c_v = \frac{R}{\gamma - 1},$$
+
+$$e = c_v T,\qquad h = c_p T,\qquad c = \sqrt{\gamma R T},$$
+
+with $R_u = 8.314462618$ J/(mol K) (CODATA 2018, exact) and $M$ the molar mass. A solver that
+carries the total energy $E = \rho(e + u^2/2)$ gets $T$ back with $T(e) = e / c_v$. For the 2D solver
+(Prompt 7) this is the only place where the gas enters the flux and the boundary conditions:
+$p = (\gamma - 1)(E - \rho u^2/2)$, $c = \sqrt{\gamma p/\rho}$, and the inlet's total-to-static
+relations, all with $\gamma$ and $R$ from the model.
+
+**Data and their sources.** One TOML file per gas (`aeroflowsim/gases/<id>.toml`), every value with
+its source. $M$, the critical point and the acentric factor come from the NIST Chemistry WebBook
+(Lemmon et al.); $\gamma$ is $c_p/c_v$ of the NIST equation of state at 300 K and 0.1 kPa (the
+ideal-gas limit), rounded to 4 decimals, and exactly 5/3 for the monatomic gases (kinetic theory:
+$c_p = \tfrac52 R$). Two values are kept from the validated quasi-1D case: N2 uses the 4-figure table
+values $\gamma = 1.4$ and $R = 296.8$ J/(kg K) (NIST: $c_p/c_v = 1.3995$ at 300 K, $R_u/M = 296.803$),
+differences far below every tolerance, so the validated numbers stay bit-identical. Air follows the
+U.S. Standard Atmosphere 1976 ($M = 28.9644$ g/mol, $R = 287.053$ J/(kg K), $\gamma = 1.4$).
+
+**Valid temperature range.** Constant $c_p$ is a good model only where the real $c_p$ hardly changes.
+The range stored for each gas is the interval around 300 K where the NIST $c_p$ (0.1 kPa) stays
+within 2 % of the constant one. Diatomic gases are good from the triple point to about 500 K (N2:
+63-521 K), until the vibrational modes start; CO2 and R-236fa only within about 15 K of room
+temperature, because their vibrational $c_p$ changes already near room temperature. The
+temperature-range check (11.5) warns when a solution leaves this range.
+
+### 11.2 Viscosity and thermal conductivity
+
+Sutherland's law (Sutherland 1893; White 2006) and a power law:
+
+$$\mu(T) = \mu_\text{ref}\left(\frac{T}{T_\text{ref}}\right)^{3/2}\frac{T_\text{ref} + S}{T + S},\qquad
+\mu(T) = \mu_\text{ref}\left(\frac{T}{T_\text{ref}}\right)^{n},$$
+
+and the same forms for $k$. Without a conductivity law, $k = \mu c_p / \mathrm{Pr}$ with a constant
+Prandtl number. The constants of the built-in gases are **fitted** to the NIST transport data at
+0.1 kPa by least squares on the relative error, $\min \sum_i (\mu_\text{law}(T_i)/\mu_i - 1)^2$; for
+each gas the law (Sutherland or power) and the widest range around 300 K within 2 % of the data are
+kept, and the file states the range and the largest deviation. (White's classic constants agree with
+NIST for N2 and O2 but are several percent off for argon and steam, so a fit to one reference data
+set is more consistent.) Air uses the Sutherland law of the U.S. Standard Atmosphere
+($\mu = 1.458\times10^{-6}\, T^{1.5}/(T + 110.4)$) and White's conductivity constants, checked
+against the Standard Atmosphere conductivity within 2 % from 170 to 920 K. The Euler solvers do not
+use $\mu$ and $k$; they are ready for Navier-Stokes (Phase 4).
+
+### 11.3 Ideal-gas validity: compressibility factor (Peng-Robinson)
+
+The ideal-gas law ignores the size of molecules and their attraction. The compressibility factor
+$Z = p/(\rho R T)$ measures the error ($Z = 1$ for an ideal gas). It is estimated with the
+Peng-Robinson equation of state (Peng & Robinson 1976):
+
+$$p = \frac{R_u T}{v - b} - \frac{a\,\alpha(T)}{v^2 + 2bv - b^2},\qquad
+a = 0.45724\,\frac{R_u^2 T_c^2}{p_c},\qquad b = 0.07780\,\frac{R_u T_c}{p_c},$$
+
+$$\alpha = \left[1 + \kappa\left(1 - \sqrt{T/T_c}\right)\right]^2,\qquad
+\kappa = 0.37464 + 1.54226\,\omega - 0.26992\,\omega^2,$$
+
+with molar volume $v$, critical temperature $T_c$, critical pressure $p_c$ and acentric factor
+$\omega$. With $A = a\alpha p/(R_u T)^2$ and $B = bp/(R_u T)$ it becomes a cubic in $Z$,
+
+$$Z^3 - (1 - B)Z^2 + (A - 3B^2 - 2B)Z - (AB - B^2 - B^3) = 0,$$
+
+whose largest real root is the gas. **Accuracy** (against the NIST reference equations):
+
+| State | NIST $Z$ | Peng-Robinson $Z$ |
+|---|---:|---:|
+| N2, 50 bar, 293.15 K | 0.9940 | 0.9836 |
+| N2, 300 bar, 293.15 K (a 300 bar tank) | 1.140 | 1.092 |
+| R-236fa, saturated vapour at 20 °C (2.29 bar) | 0.918 | 0.926 |
+
+So Peng-Robinson finds the trend and is good to about 1 % in $Z$ at moderate density, but at 300 bar
+N2 is as dense as at its critical point and the estimate of $|Z - 1|$ is too small (9 % instead of
+14 %). That is enough for a warning threshold of 2 %, not for computing with; a real-gas solver model
+(Phase 5) will use a better equation of state.
+
+### 11.4 Condensation risk: saturation and frost curves
+
+Each gas file stores about 30 points of the NIST saturation curve $p_\text{sat}(T)$, from the triple
+point to the critical point. Between points $\ln p$ is interpolated linearly in $1/T$, the form of the
+Clausius-Clapeyron equation (error below 0.25 % against the full NIST table):
+
+$$\frac{d \ln p_\text{sat}}{d(1/T)} = -\frac{h_\text{vap}}{R_u}\quad\Rightarrow\quad
+\ln\frac{p}{p_t} = -\frac{h}{R_u}\left(\frac{1}{T} - \frac{1}{T_t}\right).$$
+
+**Below the triple point** ($p < p_t$, e.g. the N2 nozzle exit: 3.37 kPa < 12.5 kPa) the gas would
+freeze directly to a solid, along the sublimation (frost) curve, whose enthalpy is
+$h_\text{sub} = h_\text{vap} + h_\text{fus}$. No sourced sublimation curve is stored yet, so the
+curve is continued with $h = h_\text{vap}(T_t)$ (from the slope of the first stored interval). The true
+frost curve is steeper, so the true frost temperature is higher and the computed margin is an
+**upper limit**. For N2: $h_\text{vap}(T_t) = 6.08$ kJ/mol (from the NIST curve) and
+$h_\text{fus} \approx 0.72$ kJ/mol (CRC Handbook) give a frost temperature at 3.37 kPa of 56.7 K
+(estimate) versus 57.3 K, a difference of 0.6 K.
+
+The check computes the margin $\Delta T = T - T_\text{sat}(p)$ in every cell (and the reservoir); a
+negative margin means the gas is colder than its saturation temperature and may condense, which this
+model does not include. **For the default N2 nozzle:** exit $T = 70.3$ K at $p = 3.37$ kPa, frost
+temperature about 56.7 K, margin **13.6 K**, so no condensation is expected. In a real expanding jet,
+condensation needs some supercooling (nucleation), so a small negative margin does not always mean
+droplets. A 300 bar chamber at room temperature, however, expands to about 70 K at 2 bar, deep in the
+liquid region: the check warns.
+
+### 11.5 Temperature range
+
+The third check compares the smallest and largest temperature in the solution (and the reservoir)
+with the thermodynamic range of the gas (11.1). Inviscid solvers use only that range; viscous solvers
+will also check the transport range (11.2).
+
+**In the code:** `aeroflowsim/gases/model.py` (`GasModel`, `CaloricallyPerfectGas`, `TransportLaw`),
+`aeroflowsim/gases/data.py` (file format, `VapourPressure.p_sat` / `T_sat`), `aeroflowsim/gases/real_gas.py`
+(`peng_robinson_z`), `aeroflowsim/gases/library.py` (built-in, user and project gases), the checks
+`ideal_gas_validity`, `condensation_risk` and `temperature_range` in `aeroflowsim/checks.py`, and the
+data tool `tools/gas_data/make_gas_files.py` (fits and source tables).
+
+---
+
+## 12. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.
 - Anderson, J. D. (2003). *Modern Compressible Flow*, 3rd ed. McGraw-Hill.
+- Cengel, Y. A., Boles, M. A. *Thermodynamics: An Engineering Approach*. McGraw-Hill (Table A-1: gas constants).
 - Blazek, J. (2015). *Computational Fluid Dynamics: Principles and Applications*, 3rd ed. Elsevier.
 - Geuzaine, C., Remacle, J.-F. (2009). Gmsh: a 3-D finite element mesh generator with built-in pre- and
   post-processing facilities. *Int. J. Numer. Meth. Engng.* 79(11), 1309-1331.
 - Gottlieb, S., Shu, C.-W. (1998). Total variation diminishing Runge-Kutta schemes. *Math. Comp.* 67, 73-85.
+- Haynes, W. M. (ed.). *CRC Handbook of Chemistry and Physics*. CRC Press (enthalpy of fusion of N2, about 0.72 kJ/mol).
+- Lemmon, E. W., McLinden, M. O., Friend, D. G. Thermophysical Properties of Fluid Systems. In *NIST Chemistry WebBook*, NIST Standard Reference Database 69 (Linstrom, P. J., Mallard, W. G., eds.). (The equation of state and transport correlations used for each gas are named in its gas file.)
+- Lemmon, E. W., Jacobsen, R. T., Penoncello, S. G., Friend, D. G. (2000). Thermodynamic properties of air and mixtures of nitrogen, argon, and oxygen from 60 to 2000 K at pressures to 2000 MPa. *J. Phys. Chem. Ref. Data* 29, 331-385.
+- McBride, B. J., Zehe, M. J., Gordon, S. (2002). *NASA Glenn coefficients for calculating thermodynamic properties of individual species*. NASA TP-2002-211556 (NASA polynomials; the 7-coefficient sets stored are those of GRI-Mech 3.0, Smith et al.).
 - Moitzi, M. *ezdxf: a Python package to create and modify DXF documents*, version 1.4 (MIT licence).
 - Open Cascade SAS. *Open CASCADE Technology*, version 7.9 (used through Gmsh's OCC interface).
 - Moukalled, F., Mangani, L., Darwish, M. (2016). *The Finite Volume Method in Computational Fluid
   Dynamics*. Springer.
+- Peng, D.-Y., Robinson, D. B. (1976). A new two-constant equation of state. *Ind. Eng. Chem. Fundam.* 15(1), 59-64.
+- Sutherland, W. (1893). The viscosity of gases and molecular force. *Phil. Mag.* 36, 507-531.
 - Toro, E. F. (2009). *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed. Springer.
 - Toro, E. F., Spruce, M., Speares, W. (1994). Restoration of the contact surface in the HLL-Riemann
   solver. *Shock Waves* 4, 25-34.
+- U.S. Standard Atmosphere, 1976. NOAA, NASA, USAF, NASA-TM-X-74335.
 - van Leer, B. (1979). Towards the ultimate conservative difference scheme V. A second-order sequel to
   Godunov's method. *J. Comput. Phys.* 32, 101-136.
+- White, F. M. (2006). *Viscous Fluid Flow*, 3rd ed. McGraw-Hill (Sutherland constants, Tables 1-2 and 1-3).

@@ -30,7 +30,9 @@ Clarity matters more than speed.
   *workflow strip* at the bottom (status colours: green up to date, amber needs update, grey not
   started, red error; a running job shows progress and ✕ Cancel in its chip; no status bar, no step
   tree - the GUI must not look like an ANSYS clone). Dockable panels: Inputs, Properties, Messages,
-  Validity checks. Undo/redo of input changes. Architecture: `docs/developer_guide.md`.
+  Validity checks. Undo/redo of input changes. Display units chosen in View > Units (`aeroflowsim/units.py`,
+  default mm, kPa, mg/s, mN); inputs, tables, plots and GUI exports convert, everything stored and computed
+  stays SI. Architecture: `docs/developer_guide.md`.
 - **Out-of-date status by fingerprints:** a mesh or run stores a SHA-256 of the inputs it depends on
   (+ input-file contents, template code, version); a changed upstream input marks everything
   downstream "needs update", and old results are always labelled out of date, never shown as current.
@@ -110,6 +112,7 @@ aeroflowsim/               the Python package
                            saturation curves), library.py (built-in / user / project gases), real_gas.py
                            (Peng-Robinson Z), one <id>.toml per built-in gas
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
+    units.py               display units of the GUI (conversions, presets, preferences); SI inside
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
     gui/                   desktop GUI (the ONLY place with Qt / PyVista / VTK / streamlit):
         app.py, main_window.py   start-up, main window (menus, docks, jobs, undo)
@@ -237,7 +240,7 @@ Commands (from the project folder):
     power-law, sphere, hemisphere-cylinder, sphere-cone); structured C-grid / O-grid meshes via Gmsh
     (transfinite); mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh).
   - 6f materials: gas library + custom gas (designed for mixtures, real gas and liquids later); units
-    system (SI, mm, imperial in the GUI; SI inside).
+    system (SI, mm, imperial in the GUI; SI inside) (done).
   - 7 2D Euler solver (2D + axisymmetric) with local time stepping; full boundary-condition set
     (total-pressure inlet, mass-flow inlet, pressure outlet, supersonic inlet/outlet, far-field, slip wall,
     symmetry, axis) taken from the named boundaries; initialisation options; live monitors (residuals,

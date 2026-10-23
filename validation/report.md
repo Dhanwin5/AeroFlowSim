@@ -1,6 +1,6 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.1.0.dev0, generated 2026-10-21 by `python validation/run_all.py`.
+AeroFlowSim 0.1.0.dev0, generated 2026-10-23 by `python validation/run_all.py`.
 
 **Overall: PASS** (5 of 5 cases pass)
 
@@ -108,6 +108,19 @@ Sources:
 - Choked mass flow through the throat area
 - F_vac = mdot u_exit + p_exit A_exit from the isentropic exit state
 - Normal shock in the divergent part: area-Mach + normal-shock relations matched to p_back = 2.5 bar
+
+### Mesh-refinement study (cells doubled each time)
+
+| Cells | Iterations | Exit Mach | Change | Error vs theory % | Shock past throat [mm] | Shock error % |
+|---:|---:|---:|---:|---:|---:|---:|
+| 150 | 9700 | 3.96866 |  | 0.436 | 0.3253 | 1.41 |
+| 300 | 17935 | 3.98019 | +0.01153 | 0.146 | 0.3231 | 0.73 |
+| 600 | 33459 | 3.98391 | +0.00372 | 0.053 | 0.3232 | 0.76 |
+| 1200 | 74287 | 3.98517 | +0.00126 | 0.021 | 0.3223 | 0.47 |
+
+- Exit Mach number: observed order of convergence p = 1.56 from the last three meshes; Richardson extrapolation 3.98582; isentropic theory 3.98602.
+- Shock position: the captured shock is one or two cells wide, so its interpolated position can move by up to a cell width between meshes; its error falls from 1.41 % (150 cells) to 0.47 % (1200 cells).
+- Supersonic runs converged to a residual drop of 1e-06; shock runs use 30 000 iterations per 300 cells (their residual stalls near 1e-3, see the case README).
 
 ## Sod shock tube (Toro test 1, t = 0.2 s, 400 cells): PASS
 
