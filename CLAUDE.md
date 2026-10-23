@@ -36,12 +36,18 @@ Clarity matters more than speed.
   downstream "needs update", and old results are always labelled out of date, never shown as current.
 - **Geometry workspace** (Geometry step of 2D templates, `aeroflowsim/geometry_model/`): the geometry is a
   history of operations (template shape, import, sketch, transform, fillet, boolean, enclosure, boundary
-  names, refinement regions) replayed in OpenCASCADE (Gmsh `occ`, only in `kernel.py`); edge ids are
+  names, refinement regions, edit tools: split, trim, extend, offset, chamfer, pattern, fill, merge)
+  replayed in OpenCASCADE (Gmsh `occ`, only in `kernel.py`); edge ids are
   stable across edits (lineage); saved as `geometry/history.json`; every edit is one undoable command.
   Unedited template geometry keeps the template's own mesher (`workspace_mesh.mesh_for`); edited geometry
   is meshed by `workspace_mesh.py` with boundary names as patches. A template joins with
   `workspace_settings(params, built)` (+ `size_inputs` for the suggested sizes). Page logic without Qt
-  in `gui/geometry_logic.py`. Units in the workspace GUI: mm.
+  in `gui/geometry_logic.py`. Units in the workspace GUI: mm. Sketches are drawn with the mouse
+  (`gui/sketch_tools.py`, one state machine per tool, no Qt) with inference snapping
+  (`geometry_model/inference.py`) and may carry constraints and driving dimensions solved by
+  least squares (`geometry_model/constraints.py`). The view (`gui/geometry_view.py`) has its own icons
+  (`gui/icons.py`), an adaptive grid, an axes triad, box selection, right-click menus and a 3D
+  revolve preview.
 - The input panel is generated from `schema.toml`: the logic (`gui/panel_model.py`, no Qt) is separate
   from the drawing (`gui/panel.py`) — zero GUI code per template or shape.
 - Solver code must **not depend on the GUI**: only `aeroflowsim/gui/` (and the old `app.py`) may import
@@ -76,7 +82,9 @@ aeroflowsim/               the Python package
     geometry_preview.py    template geometry as named boundary curves (1D templates' Geometry step)
     geometry_model/        geometry workspace (no Qt): document.py (history, replay), operations.py,
                            kernel.py (OCC, stable edge ids), built.py, importers.py, healing.py,
-                           boundaries.py, picking.py, snapping.py, export.py
+                           boundaries.py, picking.py, snapping.py, export.py, edit_operations.py
+                           (split/trim/extend/offset/chamfer/pattern/fill/merge), inference.py
+                           (snapping while drawing), constraints.py (sketch constraint solver)
     workspace_mesh.py      mesh_for(): template mesher, or Gmsh mesh of an edited workspace geometry
     smart_rules.py         suggestions with reasons (sizes, enclosure); applied only by the user
     checks.py              validity checks (convergence, mass balance, ...)
@@ -98,6 +106,7 @@ aeroflowsim/               the Python package
         workflow_strip.py        step chips with status and progress
         steps/                   one page per step (geometry = the workspace, mesh, setup, run, results) + welcome
         geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt), view, dialogs
+        sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
         vtk_view.py, figures.py  VTK view (meshes, picking), embedded matplotlib plots
         jobs.py, undo.py, logic.py, theme.py, widgets.py, dialogs.py, app_info.py
         streamlit_panel.py       old Streamlit input panel

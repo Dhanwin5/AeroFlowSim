@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 6d (2026-10-21).
+Last updated: Prompt 6f (2026-10-23).
 
 ## 1. Platform and GUI
 
@@ -23,9 +23,11 @@ Last updated: Prompt 6d (2026-10-21).
 | Undo / redo of input changes | done | P1 | QUndoStack; geometry workspace edits are undoable too (6d: one command per history change) |
 | Light / dark theme, remembered | done | P2 | one app-wide style sheet per theme; plots follow the theme, saved pictures keep the light "paper" style |
 | Dockable panels, menus, toolbar, shortcuts | done | P1 | |
-| Right-click (context) menus in the views | later | P2 | not done in 6d (tool bar and menus instead) |
+| Right-click (context) menus in the views | partial | P2 | geometry workspace: menus for points, edges, faces and empty space (21 Oct, `tests/gui/test_view_aids.py`); mesh and results views still have none |
 | **Bug: input values hidden when the Inputs dock is narrow** (external_2d: right-aligned numbers scrolled out of view) | done | P1 | fixed after 6d: long labels wrap, boxes keep a minimum width, no sideways scrolling; the dock cannot be made narrower than about 320 px (`tests/gui/test_panel_qt.py`) |
-| Rubber-band (box) selection in the geometry view | later | P2 | `picking.edges_in_box` exists (tested); not wired to the mouse yet |
+| Rubber-band (box) selection in the geometry view | done | P2 | 21 Oct: drag a box (left to right: inside only), with a pick filter for points / edges / faces (`tests/gui/test_view_aids.py`) |
+| Workspace view aids: own icon set (both themes), adaptive grid, xyz axes triad, cursor position, 2D/3D switch, revolve preview of axisymmetric geometry | done | P2 | 21 Oct (`gui/icons.py`, `gui/geometry_view.py`; `tests/gui/test_view_aids.py`) |
+| CAD-style mouse handling in the workspace (zoom about the cursor, Shift/middle drag to pan) | done | P2 | 21 Oct (`tests/gui/test_view_aids.py`) |
 | Parity check of the desktop GUI against Streamlit by the user | partial | P1 | user checks every template; then remove `app.py` + streamlit (ask first) |
 | Remove the Streamlit GUI (`app.py`, `streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) | later | P2 | only after the parity check, with the user's OK |
 | Windows installer + Start-menu shortcut | planned 7b | P1 | |
@@ -58,8 +60,9 @@ Last updated: Prompt 6d (2026-10-21).
 | Geometry workspace: history of operations, replay, stable edge ids, `geometry/history.json` | done | P1 | Prompt 6d (`geometry_model/`) |
 | Import CSV/DAT, nozzle wall CSV, DXF, 2D STEP/IGES, 3D solid cut by a plane, unit choice, healing | done | P1 | 6d; checked with the user's IGES nozzle domain |
 | Edit (move, rotate, scale, mirror, point table, drag points, delete, fillet), sketch (line, arcs, spline, rectangle, circle), snapping | done | P1 | 6d |
-| Sketch constraint solver (parallel, tangent, driving dimensions) | later | P3 | not in 6d; points can be typed exactly |
-| Live rubber-band line while sketching | later | P3 | points appear as they are clicked |
+| Sketch constraint solver (coincident, horizontal/vertical, parallel, perpendicular, equal, tangent, point on, fix) and driving dimensions (distance, length, radius, angle), degrees-of-freedom status, conflict/redundancy detection | done | P2 | 21 Oct (`geometry_model/constraints.py`, Levenberg-Marquardt; `tests/test_constraints.py`) |
+| Draw with the mouse: live rubber band, inference snapping (end, intersection, centre, midpoint, tangent, perpendicular, on curve, angle steps, alignment), typed points while drawing | done | P1 | 21 Oct (`geometry_model/inference.py`, `gui/sketch_tools.py`; `tests/test_sketch_tools.py`) |
+| Edit tools: split face / edge, trim, extend, offset, chamfer, pattern (linear, circular), fill, merge faces | done | P1 | 21 Oct (`geometry_model/edit_operations.py`; `tests/test_geometry_edit.py`, `tests/gui/test_main_window.py`) |
 | Enclosure tool (circle, rectangle, C-domain, full/half; nozzle plume region and inlet plenum), drag handles | done | P1 | 6d |
 | Booleans (OpenCASCADE), name boundaries by clicking (suggestions, rename, types, inflation), refinement regions (box, circle, wake) | done | P1 | 6d; boundary types in one table, extended in Prompt 7 |
 | Geometry validity checks, export STEP / DXF / CSV | done | P1 | 6d |
@@ -73,7 +76,7 @@ Last updated: Prompt 6d (2026-10-21).
 | Face-based mesh format, `.vtu` export | done | P1 | |
 | Structured nozzle mesh, Gmsh triangles / quad-dominant, inflation layers | done | P1 | |
 | Mesh quality fields and validity checks, click a cell to see its values | done | P1 | |
-| **Bug: quasi-1D mesh fails for n_cells ≥ about 450** (`OverflowError` in throat grading) | partial | P1 | found in 6c; separate task proposed; default 300 cells is fine |
+| **Bug: quasi-1D mesh fails for n_cells ≥ about 450** (`OverflowError` in throat grading) | partial | P1 | found in 6c; fixed in 6f Part 2 |
 | Structured C-grid / O-grid (Gmsh transfinite) | planned 6e | P2 | |
 | Mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh) | planned 6e | P2 | |
 | Mesh of an edited geometry with named boundaries as patches (`workspace_mesh.py`), inflation on marked walls | done | P1 | 6d; layers must end on straight boundaries |

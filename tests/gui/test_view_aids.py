@@ -105,3 +105,39 @@ def test_mouse_drawing_box_selection_pan_and_zoom(qtbot, window, tmp_path):
     view.mouse_release(cx + 50, cy)
     assert view.world_point(cx + 50, cy) == pytest.approx(before, abs=1e-6)   # the grabbed point followed
     assert view.plotter.camera.parallel_scale == scale
+
+
+def test_axes_triad_stays_in_2d_and_3d(qtbot, window, tmp_path):
+    window.load_project(Project.create("nozzle_axi", tmp_path / "T.afsproj"))
+    view = window.pages["geometry"].view
+    assert view.plotter.renderer.axes_enabled                        # the xyz triad in the corner
+    view.toggles["view3d"].setChecked(True)
+    assert view.plotter.renderer.axes_enabled
+    view.toggles["view3d"].setChecked(False)
+    assert view.plotter.renderer.axes_enabled
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_unchecked_check_box_is_empty_in_both_themes(qtbot, dark):
+    """Fusion's dark style once drew an UNchecked box as a filled blue square (fixed in the theme)."""
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QCheckBox
+    from aeroflowsim.gui.theme import CHECK_BLUE, apply_theme
+    apply_theme(dark)
+    try:
+        boxes = {}
+        for checked in (False, True):
+            box = QCheckBox("x", checked=checked)
+            qtbot.addWidget(box)
+            box.resize(60, 24)
+            boxes[checked] = box.grab().toImage()
+        blue = QColor(CHECK_BLUE)
+        def blue_pixels(image):
+            return sum(abs(image.pixelColor(x, y).red() - blue.red()) < 30
+                       and abs(image.pixelColor(x, y).blue() - blue.blue()) < 30
+                       and abs(image.pixelColor(x, y).green() - blue.green()) < 30
+                       for x in range(min(24, image.width())) for y in range(image.height()))
+        assert blue_pixels(boxes[False]) < 5, "an unchecked box must not be filled blue"
+        assert blue_pixels(boxes[True]) > 30, "a checked box is blue with a tick"
+    finally:
+        apply_theme(False)
