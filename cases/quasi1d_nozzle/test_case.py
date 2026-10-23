@@ -11,6 +11,7 @@ computed by hand for the default conical nozzle (A_exit/A_throat = 10.59).
 from functools import lru_cache
 
 import numpy as np
+import pytest
 
 from aeroflowsim.discovery import load_case
 from aeroflowsim.job import RunJob
@@ -124,3 +125,39 @@ def test_derived_design_numbers_match_the_theory_references():
     assert d["Design exit pressure"][0] < p_b2 < p_b1 < 5e5        # supersonic < shock in nozzle < subsonic
     shock = case.derived({**defaults(case.parameters()), "p_back": 2.5e5})
     assert shock["Flow at this back pressure"][0] == "shock in nozzle"
+
+
+@pytest.mark.parametrize("n", [300, 450, 1000, 5000, 20000])
+def test_mesh_at_any_cell_count(n):
+    """The throat grading once overflowed (10**n) for about 450 cells or more."""
+    params = {**defaults(case.parameters()), "n_cells": n}
+    mesh = case.build_mesh(params)
+    profile = case.geometry(params)
+    dx = np.diff(mesh.x)
+    assert len(dx) == n and np.all(dx > 0.0)
+    assert mesh.x[0] == profile.x[0] and mesh.x[-1] == profile.x[-1]
+    i_t = int(np.argmin(np.abs(mesh.x - profile.x_throat)))
+    assert mesh.x[i_t] == profile.x_throat                              # a face exactly at the throat
+    assert np.isclose(dx[i_t - 1], dx[i_t], rtol=1e-9) and dx.min() == pytest.approx(dx[i_t], rel=1e-9)
+
+
+# More cells need more iterations, and on fine meshes the minmod limiter falls into a limit cycle in the
+# smallest cells at the sonic throat (see README): the residual stalls near 1e-7 from about 450 cells and
+# near 1e-2 at 5 000 cells, while the solution itself is steady (mass balance, exit values). So the runs
+# stop at 6 orders, and each mesh has the residual drop it reliably reaches.
+RUNS = [pytest.param(300, 60000, 6.0, id="300"), pytest.param(450, 80000, 6.0, id="450"),
+        pytest.param(1000, 150000, 5.5, id="1000", marks=pytest.mark.validation),
+        pytest.param(5000, 120000, 1.5, id="5000", marks=pytest.mark.validation)]
+
+
+@pytest.mark.parametrize("n, max_iter, orders", RUNS)
+def test_runs_at_more_cells(n, max_iter, orders):
+    params, _, result = solve(n_cells=n, tol=1e-6, max_iter=max_iter)
+    k = {name: value(result, name) for name in ("M_exit", "mdot", "mdot_inlet", "mdot_exit", "F_vacuum")}
+    drop = -np.log10(min(result.residuals))
+    print(f"  {n} cells: {result.iterations} iterations, residual drop {drop:.1f} orders, M_exit {k['M_exit']:.5f}, "
+          f"mdot {k['mdot'] * 1e6:.4f} mg/s, inlet/exit {k['mdot_inlet'] * 1e6:.5f}/{k['mdot_exit'] * 1e6:.5f}")
+    assert drop >= orders
+    assert relative(k["M_exit"], 3.99) < 0.01
+    assert relative(k["mdot"], 71.5e-6) < 0.01 and relative(k["F_vacuum"], 50.8e-3) < 0.01
+    assert abs(k["mdot_inlet"] - k["mdot_exit"]) < 0.005 * k["mdot"]

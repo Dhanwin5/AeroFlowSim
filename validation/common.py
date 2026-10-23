@@ -20,6 +20,9 @@ Each validation case is a folder validation/<name>/ with two files:
 
     validate.py      a function measure() that runs the case with aeroflowsim.run_case and
                      returns {id: AeroFlowSim value} in the same units as reference.toml.
+                     Optionally a function study() that returns an extra table for the report
+                     (e.g. a mesh-refinement study): {"title", "columns", "rows", "notes"}; it is
+                     shown under the case but does not decide PASS/FAIL.
 
 run_all.py runs every folder and writes validation/report.md; test_validation.py does the same
 under pytest (marker "validation").
@@ -74,6 +77,7 @@ class CaseValidation:
     title: str           # e.g. "Sod shock tube (Toro test 1)"
     case: str            # the case folder that was run, e.g. "cases/sod_shock_tube"
     comparisons: list[Comparison]
+    study: dict | None = None   # extra table of validate.py's study() (None if it has none)
 
     @property
     def passed(self) -> bool:
@@ -94,23 +98,25 @@ def read_references(folder: Path) -> tuple[dict, list[Reference]]:
     return {"title": data["title"], "case": data["case"]}, references
 
 
-def _measure(folder: Path) -> dict:
-    """Import folder/validate.py and call its measure() function."""
+def _module(folder: Path):
+    """Import folder/validate.py."""
     spec = importlib.util.spec_from_file_location(f"validation_{folder.name}", folder / "validate.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.measure()
+    return module
 
 
 def validate_folder(folder: Path) -> CaseValidation:
     """Run one validation case and compare every reference value."""
     header, references = read_references(folder)
-    measured = _measure(folder)
+    module = _module(folder)
+    measured = module.measure()
     missing = [r.id for r in references if r.id not in measured]
     if missing:
         raise ValueError(f"{folder.name}/validate.py did not measure: {', '.join(missing)}")
     comparisons = [Comparison(r, float(measured[r.id])) for r in references]
-    return CaseValidation(folder.name, header["title"], header["case"], comparisons)
+    study = module.study() if hasattr(module, "study") else None
+    return CaseValidation(folder.name, header["title"], header["case"], comparisons, study)
 
 
 def error_text(error_percent) -> str:
@@ -152,5 +158,11 @@ def write_report(validations: list[CaseValidation], path: Path = REPORT) -> Path
         for source in dict.fromkeys(c.reference.source for c in v.comparisons):
             lines.append(f"- {source}")
         lines.append("")
+        if v.study:
+            s = v.study
+            lines += [f"### {s['title']}", "", "| " + " | ".join(s["columns"]) + " |",
+                      "|" + "---:|" * len(s["columns"])]
+            lines += ["| " + " | ".join(row) + " |" for row in s["rows"]]
+            lines += [""] + [f"- {note}" for note in s.get("notes", [])] + [""]
     path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     return path

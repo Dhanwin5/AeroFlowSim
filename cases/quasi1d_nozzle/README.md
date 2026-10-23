@@ -60,6 +60,14 @@ Finite volumes. Cell i lies between faces i−½ and i+½ and has volume V_i = �
   central scheme, and SSP-RK2 slightly amplifies such modes (|1 + iy − y²/2|² = 1 + y⁴/4). The
   residual then stops falling. At CFL 0.2 the default case converges 8 orders in about 45 000
   iterations (≈ 20 s).
+* **Finer meshes (≥ about 450 cells).** The same limit cycle appears at CFL 0.2 once the residual has
+  dropped by 6 to 7 orders: the throat cells get smaller and the sonic point sits in fewer of them. The
+  solution is steady by then (the exit Mach number agrees with a fully converged CFL 0.1 run to 1e-10),
+  so for fine meshes set the residual drop to 1e-6, or use CFL 0.1 for 8 orders (about twice the
+  iterations). The number of iterations grows about in proportion to the number of cells (local time
+  stepping is explicit); implicit time stepping (Prompt 8) removes this. At 5 000 cells (throat
+  cells about 1/10 000 of the nozzle length) the residual stalls already near 1e-2, but the mass flow
+  through inlet and exit agrees to 0.001 % and the exit Mach number to 1e-5 between CFL 0.1 and 0.2.
 * **Initial guess.** The isentropic solution on the correct branch. For a supersonic exit it is
   subsonic before the throat and supersonic after. When the back pressure is high enough for a
   shock (or fully subsonic flow), the run starts subsonic after the throat as well. The outlet

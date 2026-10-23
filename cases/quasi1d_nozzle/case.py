@@ -50,7 +50,11 @@ def _graded_side(length, n, dx_first):
     """n cell widths summing to `length`, starting at dx_first and growing by a constant factor."""
     if n * dx_first >= length:                      # no room to grow: evenly spread cells
         return np.full(n, length / n)
-    growth = brentq(lambda q: dx_first * (q**n - 1.0) / (q - 1.0) - length, 1.0 + 1e-12, 10.0)
+    # The growth factor q solves dx_first (q^n - 1)/(q - 1) = length. Upper end of the search: the q
+    # at which the LAST cell alone, dx_first q^(n-1), is already as long as the whole side - the
+    # answer is always smaller. (A fixed upper end such as q = 10 overflows: 10^450 is no float.)
+    q_max = (length / dx_first) ** (1.0 / (n - 1))
+    growth = brentq(lambda q: dx_first * (q**n - 1.0) / (q - 1.0) - length, 1.0 + 1e-12, q_max)
     return dx_first * growth ** np.arange(n)
 
 

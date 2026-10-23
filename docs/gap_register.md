@@ -76,7 +76,8 @@ Last updated: Prompt 6f (2026-10-23).
 | Face-based mesh format, `.vtu` export | done | P1 | |
 | Structured nozzle mesh, Gmsh triangles / quad-dominant, inflation layers | done | P1 | |
 | Mesh quality fields and validity checks, click a cell to see its values | done | P1 | |
-| **Bug: quasi-1D mesh fails for n_cells ≥ about 450** (`OverflowError` in throat grading) | partial | P1 | found in 6c; fixed in 6f Part 2 |
+| **Bug: quasi-1D mesh fails for n_cells ≥ about 450** (`OverflowError` in throat grading) | done | P1 | fixed in 6f: the growth-factor search had an upper end of 10, and 10^450 overflows; tested from 300 to 20 000 cells, runs at 300 / 450 / 1 000 / 5 000 cells |
+| Quasi-1D residual stalls on fine meshes (minmod limit cycle in the smallest throat cells: near 1e-7 from 450 cells, near 1e-2 at 5 000 cells) | partial | P2 | the solution is steady (mass balance 0.001 %, exit Mach to 1e-5); use tol 1e-6 or CFL 0.1; a smoother limiter (van Albada) or implicit time stepping (Prompt 8) should fix it |
 | Structured C-grid / O-grid (Gmsh transfinite) | planned 6e | P2 | |
 | Mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh) | planned 6e | P2 | |
 | Mesh of an edited geometry with named boundaries as patches (`workspace_mesh.py`), inflation on marked walls | done | P1 | 6d; layers must end on straight boundaries |
@@ -126,7 +127,7 @@ Last updated: Prompt 6f (2026-10-23).
 | MMS order-of-accuracy verification (structured and triangle meshes) | planned 7b | P1 | |
 | 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012) | planned 7b | P1 | |
 | Cross-code comparison with SU2 / OpenFOAM | later | P2 | Phase 4 |
-| GCI mesh-independence tool | later | P2 | Phase 5 |
+| GCI mesh-independence tool | partial | P2 | 6f: mesh-refinement study of the quasi-1D validation (exit Mach, shock position, observed order, Richardson value) in `validation/report.md`; the general GCI tool is Phase 5 |
 
 ## 8. Intelligence
 

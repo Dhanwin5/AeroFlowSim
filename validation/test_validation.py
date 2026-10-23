@@ -35,6 +35,12 @@ def test_validation_case_passes(folder):
               f"{c.reference.unit}, error {c.error_percent:.3f} % (tolerance {c.reference.tolerance_percent:g} %)")
     failed = [c.reference.quantity for c in v.comparisons if not c.passed]
     assert not failed, f"{v.title}: outside tolerance: {failed}"
+    if folder.name == "quasi1d_nozzle":       # mesh-refinement study: the exit Mach number converges
+        M = v.study["M_exit"]
+        changes = [abs(b - a) for a, b in zip(M, M[1:])]
+        assert all(later < earlier for earlier, later in zip(changes, changes[1:])), M
+        x = v.study["x_shock"]
+        assert abs(x[-1] - 0.3208) < abs(x[0] - 0.3208), x
 
 
 @pytest.mark.validation
