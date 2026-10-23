@@ -6,7 +6,10 @@
 
 import math
 
+import numpy as np
+
 from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
+from aeroflowsim.results import Field
 from aeroflowsim.runner import max_errors
 
 AUTO_REBUILD_CELLS = 50_000   # rebuild the mesh after every input change only below this size [cells]
@@ -23,14 +26,19 @@ LENGTH_UNITS = ("m", "m²")                                     # only these in 
 AREA_PREFIXES = ((1.0, ""), (1e-6, "m"), (1e-12, "µ"))         # m², mm², µm²
 
 
-def readable(value, unit, digits=4, units=SCALABLE_UNITS):
+def readable(value, unit, digits=4, units=SCALABLE_UNITS, prefs=None):
     """(value text, unit) with an SI prefix that keeps the number between 1 and 1000, e.g.
     3369.88 Pa -> ("3.37", "kPa"), 7.16e-5 kg/s -> ("71.6", "mg/s"), 2.8e-4 m -> ("280", "µm"),
     6.16e-8 m² -> ("0.06158", "mm²"). digits = significant digits; units = which units may be scaled
-    (other values keep their SI unit). Never changes a value, only how it is written."""
+    (other values keep their SI unit). Never changes a value, only how it is written.
+    prefs: the user's UnitPreferences (aeroflowsim/units.py): numbers of a quantity that has a chosen
+    unit (length, pressure, temperature, mass flow, force, area, velocity) are shown in that unit."""
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return str(value), unit
     value = float(value)
+    if prefs is not None and prefs.unit_for(unit) is not None and math.isfinite(value):
+        shown, name = prefs.display(value, unit)
+        return f"{shown:.{digits}g}", name
     if unit not in units or value == 0.0 or not math.isfinite(value):
         return f"{value:.{digits}g}", "" if unit == "-" else unit
     if unit == "m²":                         # area: the prefix is squared (1 mm² = 1e-6 m²)
@@ -46,11 +54,19 @@ def readable(value, unit, digits=4, units=SCALABLE_UNITS):
             return f"{value / factor:.{digits}g}", prefix + unit
 
 
-def key_result_tiles(result):
+def key_result_tiles(result, prefs=None):
     """[(title, value text, unit)] for the summary card: the nozzle key results the template reports
     (an empty list for other templates; their numbers are in the Key numbers table)."""
     numbers = result.key_numbers
-    return [(title, *readable(*numbers[key])) for key, title in KEY_RESULTS if key in numbers]
+    return [(title, *readable(*numbers[key], prefs=prefs)) for key, title in KEY_RESULTS if key in numbers]
+
+
+def display_field(field, prefs=None):
+    """The Field with its values in the user's unit for its quantity (a copy; the SI field is unchanged)."""
+    if prefs is None or prefs.unit_for(field.unit) is None:
+        return field
+    values, unit = prefs.display(field.values, field.unit)
+    return Field(values=np.asarray(values), unit=unit, label=field.label)
 
 
 def run_status_text(result, run_s=None):
@@ -98,16 +114,19 @@ def available_views(result, mesh):
     return views
 
 
-def key_number_rows(result, reference, run_s=None):
+def key_number_rows(result, reference, run_s=None, prefs=None):
     """[(quantity, value text, unit)] for the Key numbers table (same rows as the old GUI)."""
     rows = [("converged", "yes" if result.converged else "no", ""),
             ("iterations", f"{result.iterations:,}", "-"),
             ("final residual", f"{result.residuals[-1]:.3e}" if len(result.residuals) else "-", "-")]
     if run_s is not None:
         rows.append(("run time", f"{run_s:.3g}", "s"))
-    rows += [(name, *readable(value, unit, 6, LENGTH_UNITS)) for name, (value, unit) in result.key_numbers.items()]
-    rows += [(f"max |{name} − {name}_exact|", f"{err:.3e}", unit)
-             for name, (err, unit) in max_errors(result, reference).items()]
+    rows += [(name, *readable(value, unit, 6, LENGTH_UNITS, prefs)) for name, (value, unit) in result.key_numbers.items()]
+    for name, (err, unit) in max_errors(result, reference).items():       # a difference: no offset (K = degC)
+        shown = prefs.unit_for(unit) if prefs is not None else None
+        if shown is not None:
+            err, unit = err * shown.divide / shown.scale, shown.name
+        rows.append((f"max |{name} − {name}_exact|", f"{err:.3e}", unit))
     return rows
 
 

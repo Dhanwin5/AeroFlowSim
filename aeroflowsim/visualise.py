@@ -41,14 +41,19 @@ def length_unit(size):
     return ("m", 1.0) if size >= 0.5 else ("mm", 1e3)
 
 
-def length_axes(ax, size, x_label="x", y_label=None):
-    """Label length axes in a readable unit: mm when the geometry is smaller than 0.5 m.
+def length_axes(ax, size, x_label="x", y_label=None, unit=None):
+    """Label length axes in a readable unit: mm when the geometry is smaller than 0.5 m, or the user's
+    chosen length unit (unit: an aeroflowsim.units.Unit).
 
     The data stay in metres (SI inside); only the tick labels are scaled, so round tick positions
     in metres stay round numbers in millimetres. size: the largest extent drawn [m].
     """
-    unit, scale = length_unit(abs(size))
-    formatter = FuncFormatter(lambda value, _: f"{value * scale:.6g}")
+    if unit is not None:
+        unit, convert = unit.name, unit.from_si
+    else:
+        unit, scale = length_unit(abs(size))
+        convert = lambda value: value * scale
+    formatter = FuncFormatter(lambda value, _: f"{convert(value):.6g}")
     ax.xaxis.set_major_formatter(formatter)
     ax.set_xlabel(f"{x_label} [{unit}]")
     if y_label is not None:
@@ -111,7 +116,7 @@ def _draw_quad_field(ax, X, Y, F, cmap, vmin, vmax, mirror):
 
 
 def contour_2d(X, Y, field, name, unit, cmap="viridis", vmin=None, vmax=None,
-               show_mesh=False, mirror=False, title=None):
+               show_mesh=False, mirror=False, title=None, length=None):
     """Colour picture of a field on a 2D structured grid (curved grids allowed).
 
     X, Y   node coordinates [m], 2D arrays of shape (ni, nj) (e.g. Mesh2D.x, Mesh2D.y)
@@ -133,13 +138,13 @@ def contour_2d(X, Y, field, name, unit, cmap="viridis", vmin=None, vmax=None,
         ax.axhline(0.0, color=COLOR_MUTED, linestyle="-.", linewidth=0.8)  # symmetry axis
     fig.colorbar(quad, ax=ax, label=f"{name} [{unit}]")
     ax.set_aspect("equal")
-    length_axes(ax, max(np.ptp(X), np.ptp(Y)), "x", "y")
+    length_axes(ax, max(np.ptp(X), np.ptp(Y)), "x", "y", unit=length)
     ax.set_title(title or name)
     return fig
 
 
 def shape_view(x, r_of_x, field, name, unit, cmap="viridis", vmin=None, vmax=None, title=None,
-               note=None):
+               note=None, length=None):
     """A 1D result drawn inside the outline of the duct / rod, coloured by the field along x.
 
     x       positions of the field values [m] (nodes or cell centres)
@@ -171,13 +176,13 @@ def shape_view(x, r_of_x, field, name, unit, cmap="viridis", vmin=None, vmax=Non
     ax.axhline(0.0, color=COLOR_MUTED, linestyle="-.", linewidth=0.8)   # axis
     fig.colorbar(quad, ax=ax, label=f"{name} [{unit}]")
     ax.set_aspect("equal")
-    length_axes(ax, max(x[-1] - x[0], 2.0 * np.max(r)), "x", "r")
+    length_axes(ax, max(x[-1] - x[0], 2.0 * np.max(r)), "x", "r", unit=length)
     ax.set_title((title or name) + "\n" + (note or "1D result: varies along x only"), fontsize=11)
     return fig
 
 
 def xt_diagram(x, t, field_xt, name, unit, cmap="viridis", vmin=None, vmax=None,
-               lines=None, levels=64, title=None):
+               lines=None, levels=64, title=None, length=None):
     """Filled contours of a field over position (horizontal) and time (vertical).
 
     x         positions [m], shape (n_x,)
@@ -204,7 +209,7 @@ def xt_diagram(x, t, field_xt, name, unit, cmap="viridis", vmin=None, vmax=None,
     ax.set_ylim(t[0], t[-1])
     cbar = fig.colorbar(filled, ax=ax, label=f"{name} [{unit}]")
     cbar.set_ticks(np.linspace(lo, hi, 6))
-    length_axes(ax, x[-1] - x[0], "x")
+    length_axes(ax, x[-1] - x[0], "x", unit=length)
     ax.set_ylabel("t [s]")
     ax.set_title(title or f"{name}: x-t diagram")
     return fig

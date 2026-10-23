@@ -58,28 +58,34 @@ def max_errors(result, reference):
     return errors
 
 
-def save_fields_csv(path, mesh, result, reference):
+def save_fields_csv(path, mesh, result, reference, units=None):
     """Write x and every field (and reference field) as columns of a CSV file.
 
     path may be a file name or an open text buffer (e.g. io.StringIO, used by the GUI download).
     The x column holds the nodes or the cell centres, whichever the fields are stored on.
+    units: the GUI's UnitPreferences (aeroflowsim/units.py); None = SI, as the command line writes.
+    The unit of every column is part of its name, e.g. x_mm, p_kPa.
     """
+    convert = (lambda values, unit: (values, unit)) if units is None else units.display
     first = next(iter(result.fields.values()))
-    columns = [mesh.positions(len(first.values))]
-    header = ["x_m"]
+    x, x_unit = convert(mesh.positions(len(first.values)), "m")
+    columns = [x]
+    header = [f"x_{x_unit}"]
     for key, f in result.fields.items():
-        columns.append(f.values)
-        header.append(f"{key}_{f.unit}")
+        values, unit = convert(f.values, f.unit)
+        columns.append(values)
+        header.append(f"{key}_{unit}")
     for key, f in (reference or {}).items():
-        columns.append(f.values)
-        header.append(f"{key}_exact_{f.unit}")
+        values, unit = convert(f.values, f.unit)
+        columns.append(values)
+        header.append(f"{key}_exact_{unit}")
     np.savetxt(path, np.column_stack(columns), delimiter=",", header=",".join(header), comments="")
 
 
-def fields_csv_text(mesh, result, reference) -> str:
+def fields_csv_text(mesh, result, reference, units=None) -> str:
     """Same content as save_fields_csv, returned as text instead of written to disk."""
     buffer = io.StringIO()
-    save_fields_csv(buffer, mesh, result, reference)
+    save_fields_csv(buffer, mesh, result, reference, units)
     return buffer.getvalue()
 
 

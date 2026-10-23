@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QGridL
 
 from aeroflowsim.gui.gas_logic import gas_choices
 from aeroflowsim.gui.theme import colour
-from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, text_to_value, value_to_text
+from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, display_text, text_to_value, value_to_text
 
 INPUT_PROPERTY = "aeroflowsim_input"     # Qt property naming the input a widget belongs to (for Details)
 DETAILS_PROMPT = "Click an input (or move to it with Tab) to see what it means, its unit and allowed range."
@@ -55,9 +55,12 @@ class NumberEdit(QLineEdit):
         self.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
     def _step(self, direction):
-        value = text_to_value(self.spec, self.text())
-        if isinstance(value, str):
+        try:
+            value = float(self.text())          # the number in the box, in the display unit
+        except ValueError:
             return
+        if self.spec.kind == "int" and value == int(value):
+            value = int(value)
         value = value + direction * self.spec.step_size
         if self.spec.kind == "int":
             value = int(round(value))
@@ -137,7 +140,7 @@ class InputRow:
         s = self.spec
         if s.kind in ("float", "int"):
             editor = NumberEdit(s)
-            editor.editingFinished.connect(lambda: self.panel._edited(s.name, text_to_value(s, editor.text())))
+            editor.editingFinished.connect(lambda: self.panel._edited(s.name, self._typed_value()))
             return editor, editor
         if s.kind == "bool":
             editor = QCheckBox(s.label)
@@ -185,6 +188,13 @@ class InputRow:
         layout.addWidget(browse)
         return editor, box
 
+    def _typed_value(self):
+        """SI value of a number box. Text that was not changed gives back the exact value shown, so a
+        conversion to the display unit and back (0.28 mm -> 0.00028000000000000003 m) never counts as an edit."""
+        if self.editor.text() == getattr(self, "_shown", (None, None))[0]:
+            return self._shown[1]
+        return text_to_value(self.spec, self.editor.text())
+
     def browse(self):
         start = str(Path(self.editor.text()).parent) if self.editor.text() else str(Path.home())
         path, _ = QFileDialog.getOpenFileName(self.panel, f"Choose {self.spec.label.lower()}", start,
@@ -230,6 +240,10 @@ class InputRow:
                 self.editor.addItem(f"{value}  (unknown)", value)
                 index = self.editor.count() - 1
             self.editor.setCurrentIndex(index)
+        elif self.spec.kind in ("float", "int"):
+            text = display_text(self.spec, value)
+            self._shown = (text, value)
+            self.editor.setText(text)
         else:
             self.editor.setText(value_to_text(value))
         self.editor.blockSignals(False)

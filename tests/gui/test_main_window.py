@@ -82,7 +82,7 @@ def test_geometry_change_marks_mesh_outdated_then_auto_remeshes(qtbot, window, t
     _wait_job(qtbot, window)
     panel = window.panels["geometry"]
     editor = panel.rows["d_exit"].editor
-    editor.setText("0.001")
+    editor.setText("1")                                                # [mm] (default display unit)
     editor.editingFinished.emit()
     assert window.strip.chips["mesh"].status == "outdated"
     qtbot.waitUntil(lambda: window.runner.busy, timeout=5_000)       # small mesh: rebuilt automatically
@@ -93,11 +93,11 @@ def test_geometry_change_marks_mesh_outdated_then_auto_remeshes(qtbot, window, t
 def test_undo_and_redo_of_an_input(qtbot, window, tmp_path):
     _open(window, tmp_path, "nozzle_axi")
     row = window.panels["geometry"].rows["d_exit"]
-    row.editor.setText("0.0012")
+    row.editor.setText("1.2")                                          # typed in mm, stored in m
     row.editor.editingFinished.emit()
     assert window.project.values["d_exit"] == 0.0012 and "*" in window.windowTitle()
     window.act["undo"].trigger()
-    assert window.project.values["d_exit"] == 0.000911 and row.editor.text() == "0.000911"
+    assert window.project.values["d_exit"] == 0.000911 and row.editor.text() == "0.911"
     window.act["redo"].trigger()
     assert window.project.values["d_exit"] == 0.0012
     window.save()

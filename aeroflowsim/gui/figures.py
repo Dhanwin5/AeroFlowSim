@@ -18,7 +18,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import NullFormatter
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from aeroflowsim.gui.logic import readable
+from aeroflowsim.gui.logic import display_field, readable
 from aeroflowsim.visualise import COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, length_axes, style_axes
 
 MAX_PLOT_POINTS = 5000   # longer residual histories are thinned (the curve still ends at the last value)
@@ -79,15 +79,18 @@ def residual_figure(iterations, residuals, tol=None, figure=None):
     return figure
 
 
-def field_figure(mesh, field, ref_field=None):
-    """One field along x: numerical (line + dots) and the reference (dashed), if any."""
+def field_figure(mesh, field, ref_field=None, prefs=None):
+    """One field along x: numerical (line + dots) and the reference (dashed), if any; in the user's
+    units (prefs: UnitPreferences, None = SI with readable length units)."""
     fig, ax = _figure(4.0)
+    field = display_field(field, prefs)
+    ref_field = display_field(ref_field, prefs) if ref_field is not None else None
     x = mesh.positions(len(field.values))
     ax.plot(x, field.values, "-o", color=COLOR_NUMERICAL, ms=3, lw=1.6, label="numerical")
     if ref_field is not None:
         ax.plot(mesh.positions(len(ref_field.values)), ref_field.values, "--", color=COLOR_REFERENCE, lw=1.6,
                 label="reference (exact)")
-    length_axes(ax, x[-1] - x[0], "x")
+    length_axes(ax, x[-1] - x[0], "x", unit=prefs.unit_for("m") if prefs is not None else None)
     ax.set_ylabel(f"{field.label} [{field.unit}]")
     ax.set_title(field.label)
     ax.legend(loc="best", frameon=False)

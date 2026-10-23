@@ -32,7 +32,8 @@ Last updated: Prompt 6f (2026-10-23).
 | Remove the Streamlit GUI (`app.py`, `streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) | later | P2 | only after the parity check, with the user's OK |
 | Windows installer + Start-menu shortcut | planned 7b | P1 | |
 | 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |
-| Units system in the GUI (SI, mm, imperial; SI inside) | planned 6f | P2 | the geometry workspace shows and accepts mm (6d) |
+| Units system in the GUI (SI, mm, imperial; SI inside) | done | P2 | 6f: View > Units (length, pressure, temperature, mass flow, force, area, velocity; presets small propulsion / SI / imperial); inputs, Setup table, key numbers, card, plots, colour pictures, CSV/PNG export follow it; projects, command line, summary.yaml and the validation report stay SI. The geometry workspace stays in mm |
+| Geometry workspace follows the length-unit preference | later | P3 | the workspace still shows and accepts mm only |
 | Gmsh "save .msh" writes into the template folder, not the project | partial | P2 | case code uses `CASE_DIR/mesh`; move to the project's `mesh/` (needs a case-contract change) |
 | GUI usable at 125-150 % display scaling, keyboard-only use | later | P2 | not yet checked systematically |
 

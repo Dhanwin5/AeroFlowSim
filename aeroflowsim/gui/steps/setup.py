@@ -61,4 +61,5 @@ class SetupPage(QWidget):
         except ValueError as error:
             self.banner.show_message(str(error), "error")
             derived = {}
-        self.derived.set_rows([(label, *readable(value, unit, 5)) for label, (value, unit) in derived.items()])
+        self.derived.set_rows([(label, *readable(value, unit, 5, prefs=self.window.units))
+                               for label, (value, unit) in derived.items()])

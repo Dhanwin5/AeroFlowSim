@@ -46,6 +46,7 @@ from aeroflowsim.gui.steps.run import RunPage
 from aeroflowsim.gui.steps.setup import SetupPage
 from aeroflowsim.gui.steps.welcome import WelcomePage
 from aeroflowsim.gui.theme import apply_theme
+from aeroflowsim.gui.units_dialog import UnitsDialog
 from aeroflowsim.gui.undo import SetGeometry, SetInputs
 from aeroflowsim.gui.widgets import CheckList, ValueTable
 from aeroflowsim.gui.workflow_strip import SHORTCUTS, TITLES, WorkflowStrip
@@ -55,6 +56,7 @@ from aeroflowsim.parameters import defaults, install_hint, module_available
 from aeroflowsim.project import (SUFFIX, WORKFLOW, Project, default_projects_dir, folder_for, is_project,
                                  old_settings_files)
 from aeroflowsim.tasks import Job
+from aeroflowsim.units import QUANTITIES, UnitPreferences
 
 MAX_RECENT = 8
 
@@ -120,6 +122,7 @@ class MainWindow(QMainWindow):
         self.current_step = None
         self.panels = {}
         self.dark = self.settings.value("theme", "light") == "dark"
+        self.units = self.load_units()  # display units (View > Units); everything inside stays SI
 
         self.runner = JobRunner(self)
         self.runner.updated.connect(self.on_job_updated)
@@ -214,6 +217,7 @@ class MainWindow(QMainWindow):
             "reset": a("&Reset all inputs to defaults", self.reset_inputs, None, "Every input back to its default"),
             "fit": a("&Fit view", self.fit_view, "F", "Show the whole drawing"),
             "dark": a("&Dark theme", lambda on: self.set_dark(on), "Ctrl+T", "Switch light / dark", checkable=True),
+            "units": a("&Units...", self.choose_units, None, "Units used to show and type numbers (SI inside)"),
             "generate": a("&Generate mesh", lambda: self.generate_mesh(), "Ctrl+G", "Build the mesh"),
             "run": a("&Run", self.run_case, "F5", "Mesh if needed, then solve"),
             "stop": a("&Stop", self.cancel_job, "Shift+F5", "Stop the running job"),
@@ -248,7 +252,7 @@ class MainWindow(QMainWindow):
         for step in WORKFLOW:
             view_menu.addAction(self._action(TITLES[step], lambda _=False, s=step: self.go_to(s), SHORTCUTS[step]))
         view_menu.addSeparator()
-        view_menu.addActions([self.act["fit"], self.act["dark"]])
+        view_menu.addActions([self.act["fit"], self.act["dark"], self.act["units"]])
         panels = view_menu.addMenu("&Panels")
         for dock in self.docks.values():
             panels.addAction(dock.toggleViewAction())
@@ -492,13 +496,7 @@ class MainWindow(QMainWindow):
         self.close_project(ask=False)
         self.project = project
         self.undo.clear()
-        for step in INPUT_STEPS:
-            panel = InputPanel(PanelModel(project.case.parameters(), step), project.values,
-                               file_handler=lambda name, path: self.project.import_file(path),
-                               gas_handler=ProjectGases(self))
-            panel.value_changed.connect(self.on_panel_edit)
-            self.panels[step] = panel
-            self.inputs.addWidget(panel)
+        self.build_panels()
         self.mesh = self.results = None
         self.mesh_checks = []
         self.pages["run"].reset()                # no progress text left from another project
@@ -530,6 +528,57 @@ class MainWindow(QMainWindow):
         self.refresh_all()
         self.pages["geometry"].refresh()
 
+    def build_panels(self):
+        """The input panels of the open project (one per input step), in the chosen display units."""
+        self.remove_panels()
+        for step in INPUT_STEPS:
+            panel = InputPanel(PanelModel(self.project.case.parameters(), step, self.units), self.project.values,
+                               file_handler=lambda name, path: self.project.import_file(path),
+                               gas_handler=ProjectGases(self))
+            panel.value_changed.connect(self.on_panel_edit)
+            self.panels[step] = panel
+            self.inputs.addWidget(panel)
+
+    def remove_panels(self):
+        for panel in self.panels.values():
+            self.inputs.removeWidget(panel)
+            panel.hide()
+            panel.setParent(None)
+            panel.deleteLater()
+        self.panels = {}
+
+    # ---- units -----------------------------------------------------------------------------------
+
+    def load_units(self) -> UnitPreferences:
+        prefs = UnitPreferences()
+        for quantity in QUANTITIES:
+            name = self.settings.value(f"units/{quantity}")
+            if name:
+                try:
+                    prefs.set(quantity, name)
+                except ValueError:
+                    pass                          # an unknown unit in old settings: keep the default
+        return prefs
+
+    def set_units(self, prefs: UnitPreferences, save=True):
+        """Show and type numbers in these units: panels are rebuilt, pages redrawn (values stay SI)."""
+        self.units = prefs
+        if save:
+            for quantity, name in prefs.as_dict().items():
+                self.settings.setValue(f"units/{quantity}", name)
+        if self.project is not None:
+            self.build_panels()
+            if self.current_step:
+                self.inputs.setCurrentWidget(self.panels[PANEL_FOR_STEP[self.current_step]])
+            self.pages["results"]._shown = None     # refill tables and plots in the new units
+            self.refresh_all()
+        self.log("Units: " + ", ".join(f"{q} {n}" for q, n in prefs.as_dict().items()))
+
+    def choose_units(self):
+        dialog = UnitsDialog(self.units, self)
+        if dialog.exec():
+            self.set_units(dialog.preferences())
+
     def close_project(self, ask=True):
         if self.project is None:
             return True
@@ -537,12 +586,7 @@ class MainWindow(QMainWindow):
             return False
         if self.runner.busy:
             self.runner.cancel()
-        for panel in self.panels.values():
-            self.inputs.removeWidget(panel)
-            panel.hide()
-            panel.setParent(None)
-            panel.deleteLater()
-        self.panels = {}
+        self.remove_panels()
         self.project = self.mesh = self.results = None
         self.undo.clear()
         self.show_welcome()
