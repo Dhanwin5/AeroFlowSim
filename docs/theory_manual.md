@@ -17,7 +17,8 @@ Contents
 9. [Geometry: rounded throat and the shape library](#9-geometry-rounded-throat-and-the-shape-library)
 10. [Reproducibility: projects, fingerprints and background runs](#10-reproducibility-projects-fingerprints-and-background-runs)
 11. [Gas models](#11-gas-models)
-12. [References](#12-references)
+12. [The 2D / axisymmetric Euler solver](#12-the-2d--axisymmetric-euler-solver)
+13. [References](#13-references)
 
 ---
 
@@ -88,8 +89,8 @@ The same loop works in 1D, 2D, axisymmetric and 3D; only the face areas and volu
 4 makes it second-order by reconstructing linear profiles inside each cell.
 
 **In the code:** 1D: `flux_divergence` in `aeroflowsim/euler1d.py`, $-(F_{i+1/2} - F_{i-1/2})/\Delta x$.
-Quasi-1D: `quasi1d_rhs` in `aeroflowsim/quasi1d.py`. The face-based form for 2D/3D arrives with the
-2D solver (Prompt 7) on the mesh of Section 7.
+Quasi-1D: `quasi1d_rhs` in `aeroflowsim/quasi1d.py`. The face-based form for 2D/3D: `aeroflowsim/euler/solver.py`
+(Section 12) on the mesh of Section 7.
 
 ---
 
@@ -131,7 +132,7 @@ $$
 
 In 2D/3D the same formulas are applied to the velocity component normal to the face (rotated
 frame); the tangential velocity is carried across the contact. Known weakness in 2D: the
-"carbuncle" instability of strong bow shocks aligned with the mesh, which Prompt 7 fixes.
+"carbuncle" instability of strong bow shocks aligned with the mesh, fixed in the 2D solver (Section 12.2).
 
 **In the code:** `hllc_flux` in `aeroflowsim/euler1d.py`.
 
@@ -159,8 +160,8 @@ TVD: total variation diminishing, no new oscillations). Minmod is the most dissi
 chosen for robustness. The primitive variables are reconstructed, which keeps density and pressure
 positive more reliably than reconstructing the conserved ones.
 
-On unstructured meshes (Prompt 7) the slope becomes a cell gradient (least squares or Green-Gauss)
-and the limiter a multidimensional one (e.g. Barth-Jespersen or Venkatakrishnan).
+On unstructured meshes the slope becomes a cell gradient (least squares or Green-Gauss) and the limiter a
+multidimensional one (Barth-Jespersen or Venkatakrishnan): Section 12.3-12.4.
 
 **In the code:** `minmod` and `muscl_reconstruct` in `aeroflowsim/euler1d.py` (two ghost cells per side
 are needed to reconstruct the boundary faces).
@@ -616,24 +617,242 @@ data tool `tools/gas_data/make_gas_files.py` (fits and source tables).
 
 ---
 
-## 12. References
+## 12. The 2D / axisymmetric Euler solver
+
+The finite-volume Euler solver of `aeroflowsim/euler/` works on the face-based mesh of Section 7, so the
+same code solves planar 2D and axisymmetric flow today and 3D flow later: states have $d + 2$ rows
+($\rho$, $d$ velocity components, $p$), with the number of space dimensions $d$ taken from the mesh,
+and every operation is a loop over faces (NumPy arrays, no Python loop over cells or faces).
+
+### 12.1 Finite-volume form, planar and axisymmetric
+
+For cell $i$ (Section 2):
+
+$$ V_i \frac{d\mathbf{U}_i}{dt} = -\sum_f \hat{\mathbf{F}}(\mathbf{W}_L, \mathbf{W}_R; \mathbf{n}_f)\, A_f + \mathbf{S}_i . $$
+
+**Planar 2D:** $A_f$ = edge length × 1 m, $V_i$ = cell area × 1 m, $\mathbf{S}_i = 0$.
+
+**Axisymmetric** (axis along $x$, $r = y \ge 0$): integrating over one radian of the revolved cell gives
+$A_f = $ edge length × $r_f$ (face centre) and $V_i$ = cell area × $r_i$ (centroid), both exact for straight
+edges (theorem of Pappus; `mesh.axi_face_areas`, `mesh.axi_cell_volumes`). The pressure on the two flat
+sides of the one-radian wedge pushes outward in $r$: $\mathbf{S}_i = (0,\, 0,\, p_i \mathcal{A}_i,\, 0)$ with
+$\mathcal{A}_i$ the planar cell area. Faces on the axis have $r_f = 0$, so no flux passes them and no special
+treatment is needed.
+
+**Well-balanced source.** For gas at rest the face fluxes are $p\,\mathbf{n}_f A_f$ and must cancel the
+source exactly, otherwise round-off "winds" appear. For straight edges
+$\sum_f n_{r,f}\, r_f L_f = \mathcal{A}_i$ and $\sum_f n_{x,f}\, r_f L_f = 0$ exactly (divergence theorem), so the
+solver computes the geometric vector $\mathbf{G}_i = \sum_f \mathbf{n}_f A_f$ once and writes the momentum equation as
+
+$$ V_i \frac{d(\rho\mathbf{u})_i}{dt} = -\sum_f \left(\hat{\mathbf{F}}_{\rho\mathbf{u},f} - p_i\,\mathbf{n}_f\right) A_f . $$
+
+For a planar (closed) cell $\mathbf{G}_i = 0$, so nothing changes; for an axisymmetric cell $p_i \mathbf{G}_i$
+*is* the pressure source. Gas at rest gives zero in every bracket: it stays at rest to round-off on every
+mesh type (tested). This is the 2D version of the quasi-1D form of Section 6.
+
+### 12.2 HLLC in the face-normal frame, and the carbuncle fix
+
+At a face with unit normal $\mathbf{n}$ only the normal velocity $u_n = \mathbf{u}\cdot\mathbf{n}$ carries mass
+through it. The 1D HLLC solver of Section 3 is applied along $\mathbf{n}$ ("rotate, solve, rotate back"),
+written with vectors so that no rotation matrix is needed and the same code works in 3D:
+
+$$ \mathbf{F}\cdot\mathbf{n} = \begin{pmatrix}\rho u_n\\ \rho\mathbf{u}\,u_n + p\,\mathbf{n}\\ (E+p)u_n\end{pmatrix},\qquad
+\mathbf{U}_{*K} = \rho_K\frac{S_K - u_{n,K}}{S_K - S_*}\begin{pmatrix}1\\ \mathbf{u}_K + (S_* - u_{n,K})\,\mathbf{n}\\
+\dfrac{E_K}{\rho_K} + (S_* - u_{n,K})\left(S_* + \dfrac{p_K}{\rho_K(S_K - u_{n,K})}\right)\end{pmatrix}. $$
+
+Only the normal velocity changes to $S_*$ in the star states; the tangential velocity is carried across
+the contact (so shear layers stay sharp). **Wave speeds** are Einfeldt's (1988) estimate from
+$\sqrt\rho$-weighted averages,
+
+$$ S_L = \min(u_{n,L} - c_L,\; \bar u_n - \bar d),\quad S_R = \max(u_{n,R} + c_R,\; \bar u_n + \bar d),\quad
+\bar d^2 = \frac{\sqrt{\rho_L}c_L^2 + \sqrt{\rho_R}c_R^2}{\sqrt{\rho_L}+\sqrt{\rho_R}} + \eta_2 (u_{n,R} - u_{n,L})^2 , $$
+
+$\eta_2 = \tfrac12\sqrt{\rho_L\rho_R}/(\sqrt{\rho_L}+\sqrt{\rho_R})^2$, which needs only the speeds of sound (no
+$\gamma$), so every gas model works. All gas properties come from the `GasModel` (Section 11):
+$T = T(e)$ with $e = E/\rho - |\mathbf{u}|^2/2$, $p = \rho R T$, $c = c(T)$.
+
+**Carbuncle.** At a strong shock aligned with the mesh, HLLC's exact contact resolution lets
+disturbances travel along the shock front undamped; the shock then grows a spurious bulge
+(the "carbuncle", Quirk 1994). HLLE (HLL with Einfeldt's speeds) is free of it but smears contacts. The
+fix used here is Quirk's shock-aware hybrid: a pressure sensor per face
+$s_f = |p_R - p_L| / \min(p_L, p_R)$, per cell the largest $s_f$ of its faces, per face the larger of its two
+cells, and a smooth blend weight $w = \text{clip}((s - 0.5)/(1.0 - 0.5), 0, 1)$ with
+
+$$ \hat{\mathbf{F}} = (1 - w)\,\hat{\mathbf{F}}_\text{HLLC} + w\,\hat{\mathbf{F}}_\text{HLLE}. $$
+
+So HLLE acts only in a band about two cells wide around shocks with a pressure ratio above about 1.5
+per face; weak waves, contacts and smooth flow keep pure HLLC. The blend is smooth (not an on/off
+switch), so it does not stall steady convergence. (The rotated hybrid of Nishikawa & Kitamura 2008 is
+the same idea with the HLLE direction chosen along the velocity jump.) Verified by the Mach 6 cylinder
+of Section 12.9.
+
+### 12.3 Weighted least-squares gradients
+
+In cell $i$ the gradient $\mathbf{g}$ minimises the misfit to the face neighbours $j$ (Blazek 2015, sec. 5.3.3):
+
+$$ \min_\mathbf{g} \sum_j w_j^2\left(\mathbf{g}\cdot\mathbf{d}_j - (\phi_j - \phi_i)\right)^2,\quad w_j = \frac1{|\mathbf{d}_j|}
+\quad\Rightarrow\quad \mathbf{g} = \mathsf{A}^{-1}\sum_j w_j^2\,\mathbf{d}_j(\phi_j - \phi_i),\quad \mathsf{A} = \sum_j w_j^2\,\mathbf{d}_j\mathbf{d}_j^T . $$
+
+$\mathbf{d}_j$ points from the cell centre to the neighbour centre; at a boundary face the "neighbour" is the
+boundary value at the face centre (the mean of the inside and ghost states of 12.6). $\mathsf{A}$ ($d\times d$)
+depends only on the mesh, so the coefficients $\mathsf{A}^{-1}w_j^2\mathbf{d}_j$ are stored once as a sparse matrix and
+each gradient evaluation is one sparse product. A linear field is reproduced exactly on any cell shape
+(tested on distorted quads, triangles, hybrid meshes and single hexahedra and tetrahedra).
+**Green-Gauss** (option): $\mathbf{g} = \frac1V\sum_f \tfrac12(\phi_i + \phi_j)\,\mathbf{n}_f A_f$, simpler but
+exact only on regular meshes.
+
+### 12.4 Limiters, and freezing
+
+The face value is $\phi_f = \phi_i + \psi_i\,\mathbf{g}_i\cdot\mathbf{r}_f$ ($\mathbf{r}_f$: cell centre to face centre). With
+$\Delta = \mathbf{g}_i\cdot\mathbf{r}_f$ and $D = \phi_\max - \phi_i$ (if $\Delta > 0$) or $\phi_\min - \phi_i$ (if $\Delta < 0$), the
+extremes taken over the cell and its face neighbours:
+
+$$ \text{Barth-Jespersen: } \psi_f = \min\!\left(1, \frac{D}{\Delta}\right),\qquad
+\text{Venkatakrishnan: } \psi_f = \frac{1}{\Delta}\,\frac{(D^2 + \varepsilon^2)\Delta + 2\Delta^2 D}{D^2 + 2\Delta^2 + D\Delta + \varepsilon^2}, $$
+
+and $\psi_i = \min_f \psi_f$. Venkatakrishnan's (1995) limiter is smooth, which steady convergence needs;
+$\varepsilon^2$ lets small differences through unlimited. The textbook $\varepsilon^2 = (K h)^3$ is not dimensionally
+consistent; AeroFlowSim uses the non-dimensional form $\varepsilon^2 = (K h / L_\text{ref})^3\,\phi_\text{ref}^2$ with $h$ the
+cell size, $L_\text{ref}$ the throat diameter or body length and $\phi_\text{ref}$ a reference size of the variable
+(free-stream or reservoir values); $K = 5$ by default. **Freezing:** once the residual has dropped a set
+number of orders (default 4), $\psi$ is kept fixed. A limiter that keeps switching in a few cells can stall
+the residual (exactly what the quasi-1D minmod limiter does on fine meshes, Section 6 and the gap
+register); frozen, the scheme is a fixed linear one there and converges.
+
+### 12.5 Positivity fallback
+
+If a reconstructed face state has $\rho \le 0$ or $p \le 0$ on either side, that face uses the first-order
+states (the cell values). The number of such faces is counted every iteration and reported (monitor,
+Positivity validity check). Events during the start-up are normal; events in the last iteration mean
+that part of the solution is only first-order accurate.
+
+### 12.6 Boundary conditions (ghost states)
+
+A boundary face has a cell on one side only. The boundary condition supplies a **ghost** state
+$\mathbf{W}_g$ on the other side, and the same Riemann solver gives the boundary flux. How many quantities may
+be imposed follows the characteristics: the number of waves entering the domain.
+
+| Type | Ghost state |
+|---|---|
+| Slip wall, symmetry, axis | mirror: $\mathbf{u}_g = \mathbf{u}_i - 2(\mathbf{u}_i\cdot\mathbf{n})\mathbf{n}$, same $\rho$, $p$; HLLC then gives zero mass flux and the wall pressure |
+| Supersonic inlet | everything imposed: $M$, $p$, $T$, direction |
+| Supersonic outlet | everything from inside: $\mathbf{W}_g = \mathbf{W}_i$ |
+| Far field | Riemann invariants along $\mathbf{n}$: $R^+ = u_{n,i} + \frac{2c_i}{\gamma-1}$ (outgoing, inside), $R^- = u_{n,\infty} - \frac{2c_\infty}{\gamma-1}$ (incoming, free stream); $u_{n,b} = \frac{R^+ + R^-}2$, $c_b = \frac{\gamma-1}4(R^+ - R^-)$; entropy $p/\rho^\gamma$ and tangential velocity from the free stream at inflow faces, from inside at outflow faces; supersonic faces all free stream (in) or all inside (out) (Blazek sec. 8.5) |
+| Total-pressure inlet | $p_0$, $T_0$, direction imposed; speed from inside (projected on the direction, $\ge 0$); $T = T_0 - |\mathbf{u}|^2/2c_p$, $p = p_0 (T/T_0)^{\gamma/(\gamma-1)}$ (as the quasi-1D inlet) |
+| Mass-flow inlet | $\dot m$, $T_0$ imposed, $p$ from inside; $G = \dot m/A_\text{patch}$, $\rho u = G$, $T = T_0 - u^2/2c_p$ give $a u^2 + u - b = 0$ with $a = GR/(2c_p p)$, $b = G R T_0/p$ |
+| Pressure outlet | subsonic: $p_b$ imposed, $\rho_b = \rho_i + (p_b - p_i)/c^2$, $\mathbf{u}_b = \mathbf{u}_i + \mathbf{n}(p_i - p_b)/(\rho c)$ (Blazek eq. 8.30); supersonic faces ($u_n \ge c$): everything from inside, automatically |
+
+For the gradients the boundary value at the face centre is $\tfrac12(\mathbf{W}_i + \mathbf{W}_g)$ with the ghost of the
+cell value; for the flux the ghost is built from the reconstructed face state. Each named boundary of the
+mesh gets one condition (Setup table): the template's default for its kind (inlet, outlet, wall, far field,
+symmetry, axis) unless the user changes it.
+
+### 12.7 Time stepping, local time steps and robustness
+
+**SSP-RK3** (Shu & Osher 1988; default):
+$\mathbf{U}^{(1)} = \mathbf{U}^n + \Delta t\,\mathbf{L}(\mathbf{U}^n)$,
+$\mathbf{U}^{(2)} = \tfrac34\mathbf{U}^n + \tfrac14(\mathbf{U}^{(1)} + \Delta t\,\mathbf{L}(\mathbf{U}^{(1)}))$,
+$\mathbf{U}^{n+1} = \tfrac13\mathbf{U}^n + \tfrac23(\mathbf{U}^{(2)} + \Delta t\,\mathbf{L}(\mathbf{U}^{(2)}))$.
+**Jameson four-stage** (Jameson, Schmidt & Turkel 1981; option for steady runs):
+$\mathbf{U}^{(k)} = \mathbf{U}^n + \alpha_k\Delta t\,\mathbf{L}(\mathbf{U}^{(k-1)})$, $\alpha = \tfrac14, \tfrac13, \tfrac12, 1$, stable to a larger CFL.
+
+**Time step** per cell (Blazek eq. 6.22): $\Delta t_i = \text{CFL}\; \mathcal{V}_i/\Lambda_i$ with
+$\Lambda_i = \tfrac12\sum_f(|\mathbf{u}_i\cdot\mathbf{n}_f| + c_i)\,\mathcal{A}_f$ (planar areas and volumes, also for
+axisymmetric meshes). Steady runs use these **local** steps; time-accurate runs (the 2D shock tube) use the
+smallest one everywhere and stop exactly at the end time.
+
+**Robust start:** an optional number of first-order iterations before second order. **CFL back-off:** if a
+step produces a negative density or pressure (or NaN), the last good state (saved every 20 iterations) is
+restored and the CFL number halved, at most 4 times; then the run stops cleanly as *diverged*, keeps the last
+good state, reports where it failed and the smart rule suggests what to change (12.10).
+
+### 12.8 Residuals, monitors and convergence
+
+The residual of each equation is the RMS over the cells of $d\mathbf{U}/dt$, normalised by its largest value in
+the first five iterations. **Monitors** are integrated quantities recorded every iteration: mass flow in
+and out and the thrust two ways (nozzles), Cd, Cl, Cm (bodies). A steady run has **converged** when the
+largest normalised residual is below the tolerance (default $10^{-6}$) **and** every convergence monitor
+changed less than the monitor tolerance (default $10^{-4}$, relative) over the monitor window (default
+500 iterations). Iterations and wall-clock time are reported (CLAUDE.md rule 14).
+
+### 12.9 Integrated quantities
+
+All are sums of the boundary fluxes the solver has just used (so balances close exactly when converged);
+axisymmetric values × $2\pi$, planar values per metre of depth.
+
+- **Mass flow** through a boundary: $\dot m = \sum_f \hat F_{\rho,f} A_f$.
+- **Thrust two ways** (vacuum): exit plane $F = \sum_\text{exit} (\rho u_x u_n + p\,n_x)A$ $= \dot m u_e + p_e A_e$;
+  wall + inlet $F = -\sum_\text{inlet}(\rho u_x u_n + p\,n_x)A - \sum_\text{wall} p\,n_x A$ (steady x-momentum balance;
+  the axisymmetric source acts in $r$ only). At a back pressure: $F - p_a A_e$. $I_{sp} = F/(\dot m g_0)$,
+  $C_F = F/(p_0 A_t)$, discharge coefficient $C_d = \dot m / \dot m_\text{1D}$ with the ideal choked mass flow
+  of the throat. The quasi-1D comparison uses the ideal isentropic Isp of the same wall.
+- **Body forces:** $\mathbf{F} = \sum_\text{wall}(p - p_\infty)\,\mathbf{n} A$ (zero for a closed body when $p = p_\infty$; correct for
+  half bodies); drag along and lift normal to the free stream; $C_D = D/(q_\infty A_\text{ref})$,
+  $C_L = L/(q_\infty A_\text{ref})$, $C_M = M/(q_\infty A_\text{ref} L_\text{ref})$ about the quarter-length point,
+  $C_p = (p - p_\infty)/q_\infty$ along the wall.
+
+### 12.10 Validity checks and smart rules of a run
+
+Checks (`aeroflowsim/checks.py`, `FLOW_CHECKS`): run status (diverged = error), monitors settled, thrust two ways
+(within 0.5 %), total-pressure loss (an isentropic nozzle or shock-free external flow should lose none: a
+classic accuracy indicator), positivity events, CFL reductions; plus the existing convergence, mass balance,
+gas and mesh checks. Smart rules (`aeroflowsim/smart_rules.py`): before a run, CFL and first-order start from
+the Mach number (strong bow shocks: CFL 0.5, 500 first-order iterations) and the quasi-1D start for nozzles;
+the first-layer height for $y^+ = 1$ from the flow's Reynolds number ($C_f = 0.026\,Re^{-1/7}$, White 2006);
+after a diverged run, what to try (lower CFL, first-order start, quasi-1D start, check the boundary values,
+refine at the throat if it failed there). Suggestions are only applied by the user.
+
+### 12.11 Verification
+
+| Test | What it shows |
+|---|---|
+| Free stream on quads, distorted quads, triangles, hybrid meshes | uniform flow stays uniform to round-off ($10^{-15}$) |
+| Gas at rest, axisymmetric (structured, triangles, quad-dominant, inflation) | velocity stays at round-off: the source is well-balanced |
+| Linear fields | least-squares gradients exact on every cell type, also single 3D cells |
+| Equal states, swapped sides, rotation | flux consistency, conservation, rotation invariance (2D and 3D) |
+| Boundary conditions | ghost states, and small runs reaching the exact uniform solution |
+| 2D shock tube along x and along a triangle-mesh diagonal | exact Riemann solution (validation report) |
+
+**In the code:** `aeroflowsim/euler/` (`state.py`, `flux.py`, `geometry.py`, `gradients.py`, `limiters.py`,
+`boundary.py`, `solver.py`, `forces.py`, `initial.py`, `setup.py`); tests `tests/test_euler_core.py`,
+`tests/test_euler_boundaries.py`, `tests/test_flow_checks.py`; validation `validation/euler2d_*`.
+
+---
+
+## 13. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.
 - Anderson, J. D. (2003). *Modern Compressible Flow*, 3rd ed. McGraw-Hill.
 - Cengel, Y. A., Boles, M. A. *Thermodynamics: An Engineering Approach*. McGraw-Hill (Table A-1: gas constants).
+- Barth, T. J., Jespersen, D. C. (1989). The design and application of upwind schemes on unstructured meshes.
+  AIAA Paper 89-0366.
+- Billig, F. S. (1967). Shock-wave shapes around spherical- and cylindrical-nosed bodies. *J. Spacecraft
+  Rockets* 4(6), 822-823.
 - Blazek, J. (2015). *Computational Fluid Dynamics: Principles and Applications*, 3rd ed. Elsevier.
+- Einfeldt, B. (1988). On Godunov-type methods for gas dynamics. *SIAM J. Numer. Anal.* 25(2), 294-318.
 - Geuzaine, C., Remacle, J.-F. (2009). Gmsh: a 3-D finite element mesh generator with built-in pre- and
   post-processing facilities. *Int. J. Numer. Meth. Engng.* 79(11), 1309-1331.
 - Gottlieb, S., Shu, C.-W. (1998). Total variation diminishing Runge-Kutta schemes. *Math. Comp.* 67, 73-85.
 - Haynes, W. M. (ed.). *CRC Handbook of Chemistry and Physics*. CRC Press (enthalpy of fusion of N2, about 0.72 kJ/mol).
+- Hirsch, C. (2007). *Numerical Computation of Internal and External Flows*, Vol. 1, 2nd ed. Butterworth-Heinemann.
+- Jameson, A., Schmidt, W., Turkel, E. (1981). Numerical solution of the Euler equations by finite volume methods
+  using Runge-Kutta time-stepping schemes. AIAA Paper 81-1259.
 - Lemmon, E. W., McLinden, M. O., Friend, D. G. Thermophysical Properties of Fluid Systems. In *NIST Chemistry WebBook*, NIST Standard Reference Database 69 (Linstrom, P. J., Mallard, W. G., eds.). (The equation of state and transport correlations used for each gas are named in its gas file.)
 - Lemmon, E. W., Jacobsen, R. T., Penoncello, S. G., Friend, D. G. (2000). Thermodynamic properties of air and mixtures of nitrogen, argon, and oxygen from 60 to 2000 K at pressures to 2000 MPa. *J. Phys. Chem. Ref. Data* 29, 331-385.
+- Malina, F. J. (1940). Characteristics of the rocket motor unit based on the theory of perfect gases. *J. Franklin
+  Inst.* 230, 433-454 (divergence factor (1 + cos alpha)/2).
 - McBride, B. J., Zehe, M. J., Gordon, S. (2002). *NASA Glenn coefficients for calculating thermodynamic properties of individual species*. NASA TP-2002-211556 (NASA polynomials; the 7-coefficient sets stored are those of GRI-Mech 3.0, Smith et al.).
 - Moitzi, M. *ezdxf: a Python package to create and modify DXF documents*, version 1.4 (MIT licence).
+- Nishikawa, H., Kitamura, K. (2008). Very simple, carbuncle-free, boundary-layer-resolving, rotated-hybrid
+  Riemann solvers. *J. Comput. Phys.* 227, 2560-2581.
 - Open Cascade SAS. *Open CASCADE Technology*, version 7.9 (used through Gmsh's OCC interface).
 - Moukalled, F., Mangani, L., Darwish, M. (2016). *The Finite Volume Method in Computational Fluid
   Dynamics*. Springer.
 - Peng, D.-Y., Robinson, D. B. (1976). A new two-constant equation of state. *Ind. Eng. Chem. Fundam.* 15(1), 59-64.
+- Quirk, J. J. (1994). A contribution to the great Riemann solver debate. *Int. J. Numer. Meth. Fluids* 18, 555-574.
+- Shu, C.-W., Osher, S. (1988). Efficient implementation of essentially non-oscillatory shock-capturing schemes.
+  *J. Comput. Phys.* 77, 439-471.
+- Sutton, G. P., Biblarz, O. (2017). *Rocket Propulsion Elements*, 9th ed. Wiley.
 - Sutherland, W. (1893). The viscosity of gases and molecular force. *Phil. Mag.* 36, 507-531.
 - Toro, E. F. (2009). *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed. Springer.
 - Toro, E. F., Spruce, M., Speares, W. (1994). Restoration of the contact surface in the HLL-Riemann
@@ -641,4 +860,6 @@ data tool `tools/gas_data/make_gas_files.py` (fits and source tables).
 - U.S. Standard Atmosphere, 1976. NOAA, NASA, USAF, NASA-TM-X-74335.
 - van Leer, B. (1979). Towards the ultimate conservative difference scheme V. A second-order sequel to
   Godunov's method. *J. Comput. Phys.* 32, 101-136.
+- Venkatakrishnan, V. (1995). Convergence to steady state solutions of the Euler equations on unstructured grids
+  with limiters. *J. Comput. Phys.* 118, 120-130.
 - White, F. M. (2006). *Viscous Fluid Flow*, 3rd ed. McGraw-Hill (Sutherland constants, Tables 1-2 and 1-3).

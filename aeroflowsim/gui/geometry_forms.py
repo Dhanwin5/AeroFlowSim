@@ -180,32 +180,34 @@ class ImportDialog(QDialog):
 
 
 class SuggestionsDialog(QDialog):
-    """Suggested sizes (aeroflowsim/smart_rules.py): title, value, reason, Apply. Nothing is applied by itself."""
+    """Suggestions of the smart rules (aeroflowsim/smart_rules.py): title, value, reason, Apply. Nothing is
+    applied by itself; an "advice" suggestion (something to check by hand) has no Apply button."""
 
-    def __init__(self, suggestions, apply, parent=None):
+    def __init__(self, suggestions, apply, parent=None, title="Suggested sizes",
+                 intro="Suggestions from the geometry.", empty="No suggestions: the sizes already follow the rules."):
         super().__init__(parent)
-        self.setWindowTitle("Suggested sizes")
+        self.setWindowTitle(title)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Suggestions from the geometry. Each one is applied only when you press its Apply "
-                                "button (and can be undone); the validity checks then check the result.",
-                                wordWrap=True))
+        layout.addWidget(QLabel(f"{intro} Each one is applied only when you press its Apply button (and can be "
+                                "undone); the validity checks then check the result.", wordWrap=True))
         self.buttons = []
         if not suggestions:
-            layout.addWidget(QLabel("<i>No suggestions: the sizes already follow the rules.</i>"))
+            layout.addWidget(QLabel(f"<i>{empty}</i>"))
         for suggestion in suggestions:
             box = QFormLayout()
             title = QLabel(f"<b>{suggestion.title}</b>: {suggestion.text}")
             reason = QLabel(suggestion.reason, wordWrap=True, objectName="hint")
-            button = QPushButton("Apply")
-            button.clicked.connect(lambda _=False, s=suggestion, b=button: (apply(s), b.setEnabled(False),
-                                                                             b.setText("Applied")))
             row = QHBoxLayout()
             row.addWidget(title, 1)
-            row.addWidget(button)
+            if suggestion.kind != "advice":
+                button = QPushButton("Apply")
+                button.clicked.connect(lambda _=False, s=suggestion, b=button: (apply(s), b.setEnabled(False),
+                                                                                 b.setText("Applied")))
+                row.addWidget(button)
+                self.buttons.append(button)
             box.addRow(row)
             box.addRow(reason)
             layout.addLayout(box)
-            self.buttons.append(button)
         close = QDialogButtonBox(QDialogButtonBox.Close)
         close.rejected.connect(self.reject)
         layout.addWidget(close)

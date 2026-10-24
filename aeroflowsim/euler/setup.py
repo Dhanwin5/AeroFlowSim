@@ -249,11 +249,13 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
         M = mach_number(W, gas)
         M_exit = float(np.sum(mass_w * M[cells]) / np.sum(mass_w)) if np.sum(mass_w) > 0 else float("nan")
         p_exit = float(np.sum(areas * W[-1, cells]) / np.sum(areas))
+        p0_cells = total_pressure(W, gas)[cells]
+        p0_exit = float(np.sum(mass_w * p0_cells) / np.sum(mass_w)) if np.sum(mass_w) > 0 else float("nan")
         isp_1d = _ideal_isp(profile, mesh.axisymmetric, gas, p0, T0)
         numbers = {
             "mdot": (mdot, "kg/s"), "mdot_inlet": (k["mdot_in"], "kg/s"), "mdot_exit": (mdot, "kg/s"),
             "mdot_1D": (mdot_1d, "kg/s"), "discharge_coefficient": (mdot / mdot_1d, "-"),
-            "M_exit": (M_exit, "-"), "p_exit": (p_exit, "Pa"),
+            "M_exit": (M_exit, "-"), "p_exit": (p_exit, "Pa"), "p0_exit": (p0_exit, "Pa"),
             "F_vacuum": (F_vac, "N"), "F_vacuum_wall": (F_wall, "N"),
             "thrust_difference": (100.0 * abs(F_vac - F_wall) / abs(F_vac) if F_vac else 0.0, "%"),
             "F_at_p_back": (F_vac - p_back * exit_area, "N"),
@@ -382,6 +384,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "positivity_events": int(out.positivity_events), "positivity_last": int(out.positivity_last),
             "cfl_reductions": int(out.cfl_reductions), "cfl_final": float(out.cfl_final),
             "wall_time_s": float(out.wall_time_s), "limiter_frozen_at": out.limiter_frozen_at,
+            "diverged_at": None if out.diverged_at is None else list(out.diverged_at),
             "initialisation": problem.initialisation, "equations": list(EQUATIONS[:W.shape[0]]),
             "monitor_labels": {k: list(v) for k, v in problem.monitor_labels.items()},
             "converge_on": list(problem.converge_on), "monitor_tol": params["monitor_tol"],

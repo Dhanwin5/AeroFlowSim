@@ -34,8 +34,15 @@ class RunPage(QWidget):
         self.progress = QProgressBar()
         self.progress.setRange(0, 1000)
         self.info = QLabel()
+        self.numerics_button = QPushButton("Suggested numerics...")
+        self.numerics_button.setToolTip("CFL number, first-order start and initial solution suggested from the flow "
+                                        "inputs, each with its reason (applied only if you press Apply).")
+        self.numerics_button.clicked.connect(self.show_numerics_suggestions)
+        self.diagnose_button = QPushButton("What to try...")
+        self.diagnose_button.setToolTip("After a run that diverged or needed CFL reductions: what to change, and why.")
+        self.diagnose_button.clicked.connect(self.show_diagnosis)
         bar = QHBoxLayout()
-        for w in (self.run_button, self.stop_button, self.progress):
+        for w in (self.run_button, self.stop_button, self.progress, self.numerics_button, self.diagnose_button):
             bar.addWidget(w)
         self.banner = Banner()
         self.plot = PlotCanvas()
@@ -60,12 +67,19 @@ class RunPage(QWidget):
         if not has_solver:
             self.banner.show_message(project.case.solver_message, "info")
             return
+        flow_solver = project.case.schema.euler_solver
+        self.numerics_button.setVisible(flow_solver)
+        self.diagnose_button.setVisible(flow_solver)
+        self.diagnose_button.setEnabled(bool(self._diagnosis()))
         record = project.steps.get("run") or {}
         status = project.status("run")
         if running:
             self.banner.hide_message()
         elif status == "error":
             self.banner.show_message(f"The last run failed: {record.get('error')}", "error")
+        elif status == "ok" and self._diagnosis() and w.results["result"].info.get("status") == "diverged":
+            self.banner.show_message("The run DIVERGED (the solution became unphysical). Press 'What to try...' "
+                                     "for suggestions; the Validity checks say where it failed.", "error")
         elif status == "ok":
             done = "converged" if record.get("converged") else "finished but NOT converged"
             self.banner.show_message(f"Up to date: {done} after {record.get('iterations', 0):,} iterations "
@@ -74,6 +88,39 @@ class RunPage(QWidget):
             self.banner.show_message("The last results come from older inputs. Press Run to update them.", "warning")
         else:
             self.banner.show_message("Not run yet. Press Run (the mesh is made first if needed).", "info")
+
+    def _diagnosis(self):
+        """The smart rule's suggestions for the last result (empty if it ran well)."""
+        from aeroflowsim.smart_rules import diagnose
+        w = self.window
+        if w.project is None or w.results is None:
+            return []
+        try:
+            return diagnose(w.project.case, w.results["params"], w.results["result"])
+        except (ValueError, KeyError, AttributeError):
+            return []
+
+    def show_diagnosis(self):
+        from aeroflowsim.gui.geometry_forms import SuggestionsDialog
+        SuggestionsDialog(self._diagnosis(), self._apply, self, title="What to try",
+                          intro="The last run diverged or needed CFL reductions. Things to try, with the reason.",
+                          empty="Nothing to suggest: the last run was stable.").exec()
+
+    def show_numerics_suggestions(self):
+        from aeroflowsim.gui.geometry_forms import SuggestionsDialog
+        from aeroflowsim.smart_rules import numerics_suggestions
+        project = self.window.project
+        try:
+            found = numerics_suggestions(project.case, project.params())
+        except ValueError as error:
+            found = []
+            self.window.log(f"No numerics suggestions: {error}", "warning")
+        SuggestionsDialog(found, self._apply, self, title="Suggested numerics",
+                          intro="Suggestions from the flow inputs (Mach number, initial solution, time scheme).",
+                          empty="No suggestions: the numerics already suit these flow inputs.").exec()
+
+    def _apply(self, suggestion):
+        self.window.set_inputs(suggestion.inputs, f"suggested {suggestion.title.lower()}")
 
     def show_task(self, task, force=False):
         """Live view of a running (or just ended) job."""

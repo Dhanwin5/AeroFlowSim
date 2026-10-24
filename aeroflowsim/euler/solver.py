@@ -97,6 +97,7 @@ class SolveResult:
     wall_time_s: float = 0.0
     time: float = 0.0                 # physical time reached (time-accurate runs) [s]
     limiter_frozen_at: int | None = None
+    diverged_at: tuple | None = None  # centre (x, y) [m] of the first unphysical cell of the last failure
     message: str = ""
 
 
@@ -241,6 +242,7 @@ class EulerSolver:
         t_phys = 0.0
         it = 0
         frozen_at = None
+        failed_at = None
         self.psi_frozen = None
         steady = num.end_time is None
         if not steady:
@@ -258,6 +260,9 @@ class EulerSolver:
                 U_new, R0 = self._step(U, W, dt, second)
                 W_new = conserved_to_primitive(U_new, self.gas)
                 if not (np.all(np.isfinite(R0)) and np.all(is_physical(W_new))):
+                    bad = np.flatnonzero(~is_physical(W_new) | ~np.isfinite(R0).all(axis=0))
+                    if len(bad):
+                        failed_at = tuple(float(v) for v in self.geom.cell_centres[bad[0]])
                     if cfl_reductions >= MAX_CFL_REDUCTIONS:
                         status = DIVERGED
                         message = (f"The solution became unphysical (negative density or pressure, or NaN) at "
@@ -311,7 +316,7 @@ class EulerSolver:
                            positivity_events=positivity_total, positivity_last=self.last_positivity,
                            cfl_reductions=cfl_reductions, cfl_final=cfl,
                            wall_time_s=time.perf_counter() - t_start, time=t_phys, limiter_frozen_at=frozen_at,
-                           message=message)
+                           diverged_at=failed_at, message=message)
 
     def _step(self, U, W, dt, second):
         """One multistage step; returns (new U, residual dU/dt of the first stage)."""

@@ -1009,8 +1009,12 @@ class GeometryPage(QWidget):
             sizes = project.case.size_inputs(params, self.built)
         except (ValueError, AttributeError):
             return []
-        mach = params.get("mach")
-        context = smart_rules.SizeContext(params, sizes, mach, self.document)
+        try:
+            flow = smart_rules.flow_scales(project.case, project.params_for(("geometry", "mesh", "setup")))
+        except (ValueError, AttributeError, KeyError):
+            flow = None                          # a flow input is being typed: no first-layer suggestion
+        mach = params.get("mach", project.values.get("mach"))
+        context = smart_rules.SizeContext(params, sizes, mach, self.document, flow)
         return smart_rules.suggestions(self.built, context)
 
     def show_suggestions(self):

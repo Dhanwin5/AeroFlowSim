@@ -56,6 +56,7 @@ class SizeContext:
                                  #  "edge_refinement": key}; an input value = metres / scale
     mach: float | None = None    # free-stream Mach number, if the template has one
     document: object = None      # the geometry history (for enclosure suggestions)
+    flow: dict | None = None     # flow_scales() of the template inputs (first-layer height), if known
 
 
 def length_text(metres) -> str:
@@ -160,7 +161,7 @@ def enclosure_size(built, context):
     return [Suggestion("Enclosure", text, reason, "operation", operation=op)]
 
 
-RULES = [surface_size, largest_size, corner_refinement, enclosure_size]
+RULES = [surface_size, largest_size, corner_refinement, enclosure_size]   # first_layer is added below
 
 
 def suggestions(built, context) -> list[Suggestion]:
@@ -172,3 +173,159 @@ def suggestions(built, context) -> list[Suggestion]:
         except Exception:
             continue
     return out
+
+
+# ==================================================================================================
+# Flow rules (Prompt 7): numerics from the flow inputs, first-layer height, failure diagnosis
+# ==================================================================================================
+#
+# These rules use the flow inputs (Mach number, reservoir or free-stream state, gas), so they complete
+# the 6d rules. Signature:  def rule(case, params, result=None) -> list[Suggestion]. A Suggestion of kind
+# "advice" has no Apply button (something to check by hand, e.g. a boundary value).
+
+TARGET_Y_PLUS = 1.0          # wall-resolved boundary layers (laminar / low-Re models) [-]
+STRONG_SHOCK_MACH = 3.0      # free-stream Mach number above which the bow shock counts as strong [-]
+LOW_MACH = 0.3               # below this an explicit density-based solver converges slowly [-]
+
+
+def flow_scales(case, params) -> dict | None:
+    """Reference density [kg/m³], velocity [m/s], viscosity [Pa s], length [m] and Reynolds number of the
+    flow, from the template inputs: the free stream of a body (mach, p_inf, T_inf), or the sonic throat
+    state of a nozzle (p0, T0, throat diameter). None if the template has neither."""
+    from aeroflowsim import gasdynamics as gd
+    if not hasattr(case, "gas"):
+        return None
+    gas = case.gas(params)
+    if "mach" in params and "p_inf" in params:
+        T = params["T_inf"]
+        rho = params["p_inf"] / (gas.R * T)
+        U = params["mach"] * float(gas.sound_speed(T))
+        L = float(case.reference_length(params)) if hasattr(case, "reference_length") else 1.0
+        where = "free stream"
+    elif "p0" in params and hasattr(case, "geometry"):
+        g = float(gas.gamma(params["T0"]))
+        T = params["T0"] / gd.t0_over_t(1.0, g)
+        rho = params["p0"] / gd.p0_over_p(1.0, g) / (gas.R * T)
+        U = float(gas.sound_speed(T))
+        L = 2.0 * case.geometry(params).r_throat
+        where = "throat"
+    else:
+        return None
+    mu = float(gas.mu(T))
+    return {"rho": rho, "U": U, "mu": mu, "L": L, "Re": rho * U * L / mu, "where": where}
+
+
+def first_layer_height(flow, y_plus=TARGET_Y_PLUS) -> float:
+    """Wall-normal height [m] of the first cell for a target y+, from a flat-plate skin friction estimate:
+        Cf = 0.026 Re^(-1/7)  (turbulent flat plate, White 2006 eq. 6-70),  tau_w = Cf rho U²/2,
+        u_tau = sqrt(tau_w / rho),  y = y+ mu / (rho u_tau).
+    (For laminar flow it errs on the small, safe side.)"""
+    cf = 0.026 * flow["Re"] ** (-1.0 / 7.0)
+    u_tau = math.sqrt(0.5 * cf) * flow["U"]
+    return y_plus * flow["mu"] / (flow["rho"] * u_tau)
+
+
+def first_layer(built, context):
+    """Inflation layers on: the first-layer height for y+ = 1 at the flow's Reynolds number."""
+    flow = context.flow
+    key = context.sizes.get("first_layer")
+    if not flow or key is None or not context.params.get("inflation"):
+        return []
+    key, scale = key
+    h = first_layer_height(flow)
+    value = float(f"{h / scale:.2g}")
+    reason = (f"Re = {flow['Re']:.3g} (based on the {flow['where']} state and L = {length_text(flow['L'])}): "
+              f"y+ = {TARGET_Y_PLUS:g} needs a first cell about {length_text(h)} high (flat-plate estimate). "
+              "Inviscid (Euler) runs do not need inflation layers; they are for viscous flow (Phase 4).")
+    return [Suggestion("First layer height", f"{length_text(h)}  ({key} = {value:g})", reason, "input", {key: value})]
+
+
+def numerics_suggestions(case, params) -> list:
+    """CFL number, first-order start and initial solution from the flow inputs (before a run)."""
+    out = []
+    mach = params.get("mach")
+    if mach is not None and mach >= STRONG_SHOCK_MACH:
+        out.append(Suggestion("Strong-shock start", "CFL 0.5, 500 first-order iterations, carbuncle fix on",
+                              f"Mach {mach:g}: the bow shock is strong (pressure ratio "
+                              f"{_normal_shock_ratio(mach, case, params):.3g}). A first-order start lets it form "
+                              "without overshoots, a lower CFL keeps the start stable, and the HLLE blend prevents the "
+                              "carbuncle.", "input", {"cfl": 0.5, "first_order_iterations": 500, "carbuncle_fix": True}))
+    elif mach is not None and mach > 1.0:
+        out.append(Suggestion("Supersonic start", "200 first-order iterations",
+                              f"Mach {mach:g}: shocks form at the start; a short first-order start is more robust.",
+                              "input", {"first_order_iterations": 200}))
+    elif mach is not None and mach < LOW_MACH:
+        out.append(Suggestion("Low Mach number", f"Mach {mach:g}", "An explicit density-based solver converges "
+                              "slowly below about Mach 0.3 (acoustic waves are much faster than the flow); expect many "
+                              "iterations. Low-Mach preconditioning comes in Prompt 8b.", "advice"))
+    if params.get("initialisation") == "Uniform (free stream)" and "p0" in params:
+        out.append(Suggestion("Initial solution", "Quasi-1D solution", "A nozzle started from the quasi-1D flow already "
+                              "has its throat and supersonic expansion; from a uniform state it must find them, which "
+                              "takes far more iterations and can fail.", "input",
+                              {"initialisation": "Quasi-1D solution"}))
+    if params.get("time_scheme") == "Jameson 4-stage" and params.get("cfl", 0.0) > 2.0:
+        out.append(Suggestion("CFL number", "1.5", "The four-stage scheme is stable up to about CFL 2 with "
+                              "second-order upwind fluxes.", "input", {"cfl": 1.5}))
+    elif params.get("time_scheme") == "SSP-RK3" and params.get("cfl", 0.0) > 1.0:
+        out.append(Suggestion("CFL number", "0.8", "SSP-RK3 with second-order upwind fluxes is stable up to about "
+                              "CFL 1 (the solver halves a too large CFL by itself, which costs iterations).", "input",
+                              {"cfl": 0.8}))
+    return out
+
+
+def _normal_shock_ratio(mach, case, params):
+    from aeroflowsim import gasdynamics as gd
+    g = float(case.gas(params).gamma(params.get("T_inf", 300.0))) if hasattr(case, "gas") else 1.4
+    return gd.normal_shock(mach, g)["p2_p1"]
+
+
+def diagnose(case, params, result) -> list:
+    """What to try after a run that diverged or needed CFL reductions, each with its reason (never applied
+    automatically). Uses Result.info of the 2D solver: status, where it diverged, CFL reductions."""
+    info = getattr(result, "info", None) or {}
+    status = info.get("status")
+    if status != "diverged" and not info.get("cfl_reductions"):
+        return []
+    out = []
+    cfl = min(float(params.get("cfl", 0.8)), float(info.get("cfl_final", 0.8)))
+    out.append(Suggestion("Lower CFL", f"{cfl / 2:.2g}", f"The solution became unphysical with CFL "
+                          f"{info.get('cfl_final', cfl):g}: a smaller time step damps the start-up transients.",
+                          "input", {"cfl": float(f"{cfl / 2:.2g}")}))
+    if params.get("first_order_iterations", 0) < 500:
+        out.append(Suggestion("First-order start", "500 iterations", "First order is far more robust: shocks and "
+                              "expansions form smoothly before the second-order reconstruction is switched on.",
+                              "input", {"first_order_iterations": 500}))
+    if params.get("initialisation") == "Uniform (free stream)" and "p0" in params:
+        out.append(Suggestion("Initial solution", "Quasi-1D solution", "A uniform start forces the whole nozzle flow "
+                              "to develop from nothing, with violent transients at the throat.", "input",
+                              {"initialisation": "Quasi-1D solution"}))
+    p_back = params.get("p_back")
+    if p_back is not None and "p0" in params and p_back >= params["p0"]:
+        out.append(Suggestion("Boundary conditions", "back pressure below p0",
+                              "The back pressure is not below the total pressure: no flow can go through the nozzle "
+                              "(it would run backwards). Check the outlet and inlet values in the boundary table.",
+                              "advice"))
+    where = info.get("diverged_at")
+    if where is not None and hasattr(case, "geometry") and "p0" in params:
+        try:
+            profile = case.geometry(params)
+            near = abs(where[0] - profile.x_throat) < 0.1 * profile.length
+        except (ValueError, AttributeError):
+            near = False
+        if near and params.get("mesh_type") == "Structured":
+            out.append(Suggestion("Throat refinement", "clustering Strong", "The solution broke down near the throat, "
+                                  "where the flow turns fastest: smaller cells there resolve the expansion.", "input",
+                                  {"throat_clustering": True, "clustering_strength": "Strong"}))
+        elif near:
+            out.append(Suggestion("Throat refinement", "edge refinement on", "The solution broke down near the throat; "
+                                  "smaller cells at the throat and corners resolve the expansion.", "input",
+                                  {"edge_refinement": True}))
+    if where is not None:
+        out.append(Suggestion("Where it failed", f"x = {length_text(abs(where[0]))}{' (negative)' if where[0] < 0 else ''}, "
+                              f"y = {length_text(abs(where[1]))}", "The first cell with a negative density or pressure. "
+                              "Look at the mesh there (Mesh step: aspect ratio, skewness) and at the nearest boundary.",
+                              "advice"))
+    return out
+
+
+RULES.append(first_layer)

@@ -429,8 +429,152 @@ def mesh_smallest_cell(case, params, mesh, result):
 MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mesh_volume_ratio,
                mesh_min_angle, mesh_skewness, mesh_inflation, mesh_smallest_cell]
 
+
+# ---- 2D/3D flow solver checks (results with Result.info, aeroflowsim/euler/) -----------------------
+
+MAX_THRUST_DIFFERENCE = 0.5  # thrust from the exit plane vs from the wall: largest difference without a warning [%]
+MAX_TOTAL_PRESSURE_LOSS = 0.5  # exit total-pressure loss of a shock-free nozzle without a warning [%]
+SUBSONIC_SHOCK_FREE = 0.95   # largest Mach number below which an external flow cannot hold a shock [-]
+
+
+def _info(result):
+    return getattr(result, "info", None) or {}
+
+
+def run_status(case, params, mesh, result):
+    """2D runs: did the run end normally, or did the solution become unphysical (diverged)?"""
+    info = _info(result)
+    if "status" not in info:
+        return None
+    if info["status"] == "diverged":
+        return CheckResult("Run status", "error",
+                           f"The run diverged: {info.get('message', '')} The fields shown are the last good state; "
+                           "do not use them. See the suggestions (Run step: What to try).")
+    if info["status"] == "stopped":
+        return CheckResult("Run status", "warning", "The run was stopped before it converged.")
+    return CheckResult("Run status", "info", f"The run ended normally ({info['status'].replace('_', ' ')}).")
+
+
+def monitors_settled(case, params, mesh, result):
+    """Steady 2D runs: have the convergence monitors (thrust, mass flow, Cd, Cl) stopped changing?"""
+    info = _info(result)
+    names = info.get("converge_on") or []
+    series = getattr(result, "series", None) or {}
+    window = int(info.get("monitor_window", 0))
+    tol = float(info.get("monitor_tol", 0.0))
+    if not names or not window or not getattr(case, "steady", True):
+        return None
+    worst, worst_name = 0.0, ""
+    for name in names:
+        values = np.asarray(series.get(f"monitor_{name}", ()), dtype=float)
+        if len(values) < window:
+            return CheckResult("Monitors settled", "warning",
+                               f"The run is shorter than the monitor window ({window} iterations): it cannot be "
+                               "judged whether the monitors have settled.")
+        last = values[-window:]
+        size = max(abs(float(last.mean())), 1e-300)
+        if name in ("Cd", "Cl", "Cm"):
+            size = max(size, 0.01)          # coefficients near zero (e.g. Cl at zero incidence)
+        change = float(last.max() - last.min()) / size
+        if change > worst:
+            worst, worst_name = change, name
+    labels = info.get("monitor_labels", {})
+    label = labels.get(worst_name, [worst_name])[0] if worst_name else "every monitor"
+    if worst > tol:
+        return CheckResult("Monitors settled", "warning",
+                           f"{label} still changed by {100 * worst:.3g} % over the last {window} iterations (allowed "
+                           f"{100 * tol:.3g} %): the integrated results are not settled yet.", 100 * worst, "%")
+    return CheckResult("Monitors settled", "info",
+                       f"The monitors changed less than {100 * tol:.3g} % over the last {window} iterations "
+                       f"(largest: {label}, {100 * worst:.2g} %).", 100 * worst, "%")
+
+
+def positivity_events(case, params, mesh, result):
+    """2D runs: faces where the reconstruction gave negative density or pressure (first-order fallback)."""
+    info = _info(result)
+    if "positivity_events" not in info:
+        return None
+    total, last = int(info["positivity_events"]), int(info.get("positivity_last", 0))
+    if total == 0:
+        return CheckResult("Positivity", "info", "The reconstruction never gave a negative density or pressure.", 0, "")
+    if last > 0:
+        return CheckResult("Positivity", "warning",
+                           f"{last} faces still fall back to first order in the last iteration ({total:,} face events "
+                           "in the whole run): the solution there is only first-order accurate. Usually a sign of a "
+                           "very strong expansion or a too coarse mesh there.", total, "")
+    return CheckResult("Positivity", "info",
+                       f"{total:,} face events fell back to first order during the run (start-up transients), none "
+                       "at the end.", total, "")
+
+
+def cfl_reductions(case, params, mesh, result):
+    """2D runs: how often the solver had to halve the CFL number to stay stable."""
+    info = _info(result)
+    if "cfl_reductions" not in info:
+        return None
+    n = int(info["cfl_reductions"])
+    if n == 0:
+        return CheckResult("CFL number", "info", f"No CFL reductions were needed (CFL {info.get('cfl_final', 0):g}).")
+    return CheckResult("CFL number", "warning",
+                       f"The solver halved the CFL number {n} times to stay stable (from {info.get('cfl', 0):g} to "
+                       f"{info.get('cfl_final', 0):g}). Start the next run with CFL {info.get('cfl_final', 0):g}.", n, "")
+
+
+def thrust_two_ways(case, params, mesh, result):
+    """Nozzles: the thrust from the exit plane and from the wall pressure + inlet momentum must agree."""
+    numbers = result.key_numbers or {} if result is not None else {}
+    if "thrust_difference" not in numbers:
+        return None
+    diff = float(numbers["thrust_difference"][0])
+    if diff > MAX_THRUST_DIFFERENCE:
+        return CheckResult("Thrust two ways", "warning",
+                           f"The exit-plane and wall-pressure thrusts differ by {diff:.3g} % (more than "
+                           f"{MAX_THRUST_DIFFERENCE:g} %): momentum is not balanced yet, the run is not converged.",
+                           diff, "%")
+    return CheckResult("Thrust two ways", "info",
+                       f"The exit-plane and wall-pressure thrusts agree within {diff:.2g} % (momentum balance).", diff, "%")
+
+
+def total_pressure_loss(case, params, mesh, result):
+    """Shock-free flows are isentropic: any total-pressure loss is numerical error (a classic accuracy check).
+
+    Nozzle: the loss of the mass-flux-weighted total pressure at the exit, relative to the inlet total
+    pressure (a shock in the nozzle would also show here). Body in a subsonic free stream (Mach < 0.95
+    everywhere): the largest loss anywhere. Supersonic external flows have shocks, where a loss is physical.
+    """
+    info = _info(result)
+    if result is None or "p0" not in (result.fields or {}) or "kind" not in info:
+        return None
+    p0 = result.fields["p0"].values
+    if info["kind"] == "nozzle":
+        bcs = info.get("boundaries", {})
+        p0_in = next((b["p0"] for b in bcs.values() if b.get("type") == "total_pressure_inlet"), None)
+        exit_p0 = result.key_numbers.get("p0_exit", (None,))[0]
+        if p0_in is None or exit_p0 is None:
+            return None
+        loss = 100.0 * (1.0 - exit_p0 / p0_in)
+        level = "warning" if loss > MAX_TOTAL_PRESSURE_LOSS else "info"
+        extra = (" This is numerical (or a shock in the nozzle): refine the mesh, especially at the throat."
+                 if level == "warning" else "")
+        return CheckResult("Total-pressure loss", level,
+                           f"The exit total pressure is {loss:.3g} % below the inlet total pressure (an isentropic "
+                           f"nozzle loses nothing).{extra}", loss, "%")
+    mach = result.fields["M"].values if "M" in result.fields else None
+    if mach is None or float(mach.max()) >= SUBSONIC_SHOCK_FREE:
+        return CheckResult("Total-pressure loss", "info",
+                           "The flow reaches Mach 0.95 or more, so it may contain shocks: a total-pressure loss is "
+                           "physical there and is not checked.")
+    loss = 100.0 * (1.0 - float(p0.min()) / float(np.median(p0)))
+    level = "warning" if loss > MAX_TOTAL_PRESSURE_LOSS else "info"
+    return CheckResult("Total-pressure loss", level,
+                       f"Largest total-pressure loss {loss:.3g} % in a shock-free flow (should be close to zero: it "
+                       "is numerical error).", loss, "%")
+
+
+FLOW_CHECKS = [run_status, monitors_settled, thrust_two_ways, total_pressure_loss, positivity_events, cfl_reductions]
+
 # Every check, in the order shown. Add new checks here.
-CHECKS = [convergence, mass_balance] + GAS_CHECKS + MESH_CHECKS
+CHECKS = [convergence, mass_balance] + FLOW_CHECKS + GAS_CHECKS + MESH_CHECKS
 
 
 # ---- geometry checks (before meshing) ------------------------------------------------------------

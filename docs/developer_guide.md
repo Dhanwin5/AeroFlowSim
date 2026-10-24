@@ -108,6 +108,19 @@ a library gas into `<project>/gases/` and to run the custom-gas form (`gui/gas_d
 `gas_logic.form_to_toml`). The Details area shows `gas_detail_rows`: every value with its source.
 Tools > Gas library shows all gases and makes custom ones without a project.
 
+### Boundary-condition table
+
+An input of type `boundaries` (added to every template with `euler_solver = true`, see
+`aeroflowsim/euler/setup.py`, `solver_parameters`) is drawn by `BoundaryTable` in `panel.py`: one framed row per
+named boundary (patch) of the current mesh, with a type dropdown, a Default button and the inputs of the
+chosen type (`BC_TYPES` in `aeroflowsim/euler/boundary.py`, each input a `Parameter`, so units, ranges and
+show_if work as everywhere). The rows are decided without Qt in `gui/boundary_logic.py` (`rows`,
+`with_type`, `with_value`, `without`, unit-tested). The panel gets them from its `BoundaryHandler`
+(`MainWindow`'s `ProjectBoundaries`), which knows the mesh and the template's `boundary_defaults(params)`.
+The stored value holds only the boundaries the user changed; the others follow the defaults, which follow
+inputs such as p0 or the free stream (`panel.refresh_boundaries()` after every input change and new mesh).
+Every edit is one undoable input change.
+
 ## 5. The VTK view
 
 `MeshView` (`vtk_view.py`) holds a `pyvistaqt.QtInteractor`: a VTK render window inside a Qt widget.
@@ -122,6 +135,11 @@ Tools > Gas library shows all gases and makes custom ones without a project.
 - The view needs OpenGL; Qt's "offscreen" platform has none, so GUI tests use a real (or virtual,
   Xvfb) display - see `tests/gui/conftest.py` and the CI workflow.
 
+2D results (Results step): the same `MeshView` shows a field per cell (`show_mesh(mesh, values, title,
+cmap=..., clim=..., keep_camera=True)`), with room under the drawing for the horizontal colour bar; a click
+shows every field of that cell in Properties (`logic.cell_value_rows`). Under it, `figures.wall_figure`
+(wall p/p0 against quasi-1D theory, or Cp) and the convergence history.
+
 1D results and plots use matplotlib: `PlotCanvas` (`figures.py`) embeds a `Figure` with its standard
 toolbar (zoom, pan, save). `visualise.py` figures (contour, shape view, x-t diagram) are reused unchanged.
 
@@ -135,6 +153,10 @@ toolbar (zoom, pan, save). `visualise.py` figures (contour, shape view, x-t diag
   loads the template itself and calls the same functions as the command line (`case.build_mesh`,
   `engine.run_case`), so GUI, command line and scripts give identical results (tested).
 - Messages come back through a queue: stage text, residual batches (every 0.1 s), done/stopped/error.
+  A 2D solver calls `progress(iteration, residual, info)`; the batches then also carry the residual of every
+  equation, the monitors (thrust, mass flow, Cd, Cl, Cm) and the positivity count, which the Run page plots
+  live (`figures.residual_figure`, one small plot per monitor unit). `Job.restart` names the previous
+  `results/run.npz` when the inputs ask to continue it.
 - **Stop** of a run: a shared flag makes the progress callback raise `StopRequested` between two
   iterations (clean). **Cancel** of a mesh (Gmsh cannot be interrupted) or a run that does not stop
   within 3 s: the helper process is terminated and a new one started.

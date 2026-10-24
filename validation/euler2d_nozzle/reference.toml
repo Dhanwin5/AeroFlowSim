@@ -1,0 +1,47 @@
+# The default N2 nozzle of nozzle_axi solved with the 2D axisymmetric Euler solver (aeroflowsim/euler/):
+# p0 = 5 bar, T0 = 293.15 K, back pressure 1 kPa, conical nozzle (30 deg convergent, sharp throat
+# D_t = 0.280 mm, 15 deg divergent, A_e/A_t = 10.59), N2 (gamma = 1.4, R = 296.8 J/(kg K)).
+# Pass/fail values are checked on the finest structured mesh (200 x 40 = 8,000 cells, the template default);
+# the study table shows all six meshes (structured and Gmsh triangles, three sizes each).
+#
+# There is no exact 2D solution, so the references are (1) the conservation laws, which a converged
+# finite-volume solution must satisfy, and (2) quasi-1D theory corrected for the conical divergence:
+# the ideal quasi-1D vacuum Isp of this wall is 72.53 s (the quasi-1D template computes 72.51 s); the flow
+# leaves a 15 deg cone on spherical fronts, so its axial momentum is lambda = (1 + cos 15 deg)/2 = 0.98296
+# of the 1D value (Malina 1940; Sutton & Biblarz, Rocket Propulsion Elements, 9th ed., eq. 3-34), which
+# gives 71.29 s. lambda is exact only for an ideal point-source flow, hence the tolerance of 1 %.
+
+title = "N2 nozzle, 2D axisymmetric Euler (default nozzle_axi; structured and triangle meshes, three sizes)"
+case = "cases/nozzle_axi"
+
+[[reference]]
+id = "mass_balance"
+quantity = "Exit / inlet mass flow (converged: mass is conserved)"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.1
+source = "Conservation of mass: a converged finite-volume solution has equal inlet and exit mass flow"
+
+[[reference]]
+id = "thrust_two_ways"
+quantity = "Thrust from wall pressure + inlet momentum / thrust from the exit plane"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.2
+source = "Conservation of momentum: the x-momentum balance of the nozzle gas (inlet + wall + exit = 0)"
+
+[[reference]]
+id = "Isp_vacuum"
+quantity = "Vacuum specific impulse (structured 200 x 40)"
+value = 71.29
+unit = "s"
+tolerance_percent = 1.0
+source = "Ideal quasi-1D vacuum Isp of this wall, 72.53 s, x conical divergence factor (1 + cos 15 deg)/2 = 0.98296 (Malina 1940; Sutton & Biblarz 2017, eq. 3-34)"
+
+[[reference]]
+id = "Isp_vacuum_triangles"
+quantity = "Vacuum specific impulse (Gmsh triangles, 5,505 cells)"
+value = 71.29
+unit = "s"
+tolerance_percent = 1.0
+source = "Ideal quasi-1D vacuum Isp of this wall, 72.53 s, x conical divergence factor (1 + cos 15 deg)/2 = 0.98296 (Malina 1940; Sutton & Biblarz 2017, eq. 3-34)"
