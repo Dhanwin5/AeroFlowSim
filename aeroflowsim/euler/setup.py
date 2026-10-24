@@ -174,11 +174,17 @@ class Problem:
 
 
 def mesh_wall_profile(mesh, wall_names):
-    """The wall radius r(x) of an axisymmetric internal flow, from the nodes of its wall patches."""
+    """The wall radius r(x) of an axisymmetric internal flow, from the nodes of its wall patches.
+
+    Only wall faces with the gas below them (outward normal pointing up, n_y > 0) count, so the outer surface
+    of a nozzle lip inside a plume region is not taken for the nozzle wall.
+    """
     nodes = []
     for p in mesh.patches:
         if p.name in wall_names:
-            f = mesh.face_nodes[p.start:p.start + p.count]
+            faces = np.arange(p.start, p.start + p.count)
+            faces = faces[mesh.face_normals[faces, 1] > 0.0]
+            f = mesh.face_nodes[faces]
             nodes.append(f[f >= 0])
     if not nodes:
         raise ValueError("The mesh has no wall: the nozzle profile (for the quasi-1D start and the throat "

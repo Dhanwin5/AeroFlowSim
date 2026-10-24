@@ -1,0 +1,33 @@
+# Supersonic flow over a 10 degree wedge at Mach 2 (air, gamma = 1.4), solved with the external_2d template
+# (2D Euler solver, half domain with a symmetry plane, Gmsh triangles, template default numerics).
+# Exact inviscid solution: an attached straight oblique shock from the tip, uniform flow behind it.
+# theta-beta-M relation tan(theta) = 2 cot(beta) (M1² sin²beta - 1) / (M1² (gamma + cos 2 beta) + 2), weak
+# solution: beta = 39.314 deg; p2/p1 = 1 + 2 gamma/(gamma + 1) (M1² sin²beta - 1) = 1.7066;
+# M2 = 1.6405 (Anderson, Modern Compressible Flow, 3rd ed., sec. 4.3-4.4 and the oblique-shock chart).
+
+title = "Oblique shock on a 10 deg wedge at Mach 2 (2D Euler, external_2d)"
+case = "cases/external_2d"
+
+[[reference]]
+id = "beta"
+quantity = "Shock angle beta (fitted through the shock position at 6 stations)"
+value = 39.314
+unit = "deg"
+tolerance_percent = 2.0
+source = "theta-beta-M relation, weak shock, M1 = 2, theta = 10 deg, gamma = 1.4 (Anderson 2003, sec. 4.4)"
+
+[[reference]]
+id = "p_ratio"
+quantity = "Wedge surface pressure / free-stream pressure p2/p1"
+value = 1.7066
+unit = "-"
+tolerance_percent = 1.0
+source = "Oblique-shock relation p2/p1 = 1 + 2 gamma/(gamma + 1)(M1² sin² beta - 1) with beta = 39.314 deg (Anderson 2003, eq. 4.9)"
+
+[[reference]]
+id = "M2"
+quantity = "Mach number behind the shock (on the wedge surface cells)"
+value = 1.6405
+unit = "-"
+tolerance_percent = 1.0
+source = "Oblique-shock relation M2 = Mn2 / sin(beta - theta) (Anderson 2003, eq. 4.12)"

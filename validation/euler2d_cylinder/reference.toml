@@ -1,0 +1,26 @@
+# Mach 6 flow around a circular cylinder (air, gamma = 1.4, calorically perfect), the classic carbuncle test.
+# Solved with the external_2d template on a structured polar grid in front of the cylinder (grid lines follow
+# the bow shock: the setting in which HLLC develops the carbuncle, Quirk 1994), 60 x 80 cells, template numerics
+# with the smart rule's strong-shock start (CFL 0.5, 500 first-order iterations), carbuncle fix on.
+# Reference: Billig's (1967) correlation of the bow-shock stand-off distance for cylinders,
+#   Delta / R = 0.386 exp(4.67 / M^2)  ->  Delta / D = 0.2197 at M = 6,
+# fitted to experiments (accuracy a few per cent; tolerance 5 %).
+
+title = "Mach 6 cylinder: bow-shock stand-off and the carbuncle test (2D Euler, external_2d)"
+case = "cases/external_2d"
+
+[[reference]]
+id = "standoff"
+quantity = "Bow-shock stand-off distance / diameter (polar grid, carbuncle fix on)"
+value = 0.2197
+unit = "-"
+tolerance_percent = 5.0
+source = "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders"
+
+[[reference]]
+id = "standoff_gmsh"
+quantity = "Bow-shock stand-off distance / diameter (Gmsh quad-dominant mesh, full front)"
+value = 0.2197
+unit = "-"
+tolerance_percent = 5.0
+source = "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders"

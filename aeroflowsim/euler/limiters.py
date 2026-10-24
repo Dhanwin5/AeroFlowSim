@@ -18,8 +18,12 @@ max), which can stall a steady residual. Venkatakrishnan's version is smooth; ep
 differences through unlimited, so smooth regions keep second order and the residual converges. The
 classic choice eps² = (K h)³ is not dimensionally consistent; here, as in many codes, it is written for
 non-dimensional values:  eps² = (K h / L_ref)³ * scale²  with h the cell size, L_ref a reference length
-and `scale` a reference size of the variable (e.g. the free-stream pressure). K = 5 is the usual default
-(larger K = less limiting).
+and `scale` the size of the variable. K = 5 is the usual default (larger K = less limiting).
+The scale of the velocity components is a reference speed (free stream, or the speed of sound of the
+reservoir); the scale of density and pressure is their LOCAL cell value. Density and pressure vary over
+orders of magnitude (behind a Mach 6 cylinder the pressure falls to about 1/100 of the free stream): a
+free-stream scale would let unlimited slopes through in such near-vacuum regions and drive the pressure
+negative (found with the Mach 6 cylinder), while a local scale keeps eps a fixed fraction of the value.
 
 Freezing (option, solver.py): after the residual has dropped by a set number of orders, psi is kept
 fixed. This stops limiter "chatter" from stalling the residual (the quasi-1D minmod limiter does exactly
@@ -55,10 +59,14 @@ def limiter_factors(geom, grad, Wc, Wb, kind=VENKATAKRISHNAN, K=5.0, L_ref=1.0, 
     if kind == BARTH_JESPERSEN:
         psi = np.minimum(1.0, bound / safe)
     else:
+        size = np.empty_like(Wc)              # (n_vars, C): the scale of each variable in each cell
         if scale is None:
-            scale = np.maximum(np.abs(Wc).max(axis=1), 1e-30)
-        eps2 = ((K * geom.cell_size / L_ref) ** 3)[None, :] * (np.asarray(scale, dtype=float) ** 2)[:, None]
-        eps2 = eps2[:, :, None]
+            size[:] = np.maximum(np.abs(Wc).max(axis=1), 1e-30)[:, None]
+        else:
+            size[:] = np.asarray(scale, dtype=float)[:, None]
+        if Wc.shape[0] > 2:                   # density and pressure: their local value (see the docstring)
+            size[0], size[-1] = np.abs(Wc[0]), np.abs(Wc[-1])
+        eps2 = (((K * geom.cell_size / L_ref) ** 3)[None, :] * size**2)[:, :, None]
         num = (bound**2 + eps2) * delta + 2.0 * delta**2 * bound
         den = bound**2 + 2.0 * delta**2 + bound * delta + eps2
         psi = num / (den * safe)

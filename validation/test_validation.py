@@ -12,7 +12,7 @@ import pytest
 from validation.common import read_references, validate_folder, validation_folders
 
 FOLDERS = validation_folders()
-NEEDS_GMSH = {"external_geometry"}   # uses Gmsh meshes (pip install -e ".[mesh]")
+NEEDS_GMSH = {"external_geometry", "euler2d_wedge", "euler2d_cylinder", "euler2d_nozzle"}   # use Gmsh meshes
 
 
 def test_every_validation_folder_has_sources_and_tolerances():

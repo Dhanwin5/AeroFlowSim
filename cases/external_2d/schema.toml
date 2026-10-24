@@ -4,13 +4,12 @@
 # shape's reference length (chord, length or diameter), so the same settings fit any body size.
 
 [case]
-name = "Body in free stream - mesh"
-description = "2D or axisymmetric body (wedge, airfoils, cylinder, nose cone, your own coordinates) inside a circular or rectangular far field, meshed with Gmsh: triangles or quad-dominant, optional inflation layers."
+name = "Body in free stream (2D Euler)"
+description = "Steady inviscid flow around a 2D or axisymmetric body (wedge, airfoils, cylinder, nose cone, your own coordinates) inside a circular or rectangular far field, meshed with Gmsh; lift, drag and moment coefficients and Cp along the wall."
 steady = true
-solver = false
-solver_message = "The 2D solver arrives in Prompt 7. For now this case builds, checks and exports the mesh (Mesh and Results tabs)."
 requires = ["gmsh"]
 shape_library = true
+euler_solver = true          # adds the Numerics inputs and the boundary-condition table (aeroflowsim/euler/setup.py)
 
 # ---- far-field domain ---------------------------------------------------------------------------
 
@@ -22,7 +21,7 @@ default = "Circle"
 options = ["Circle", "Rectangle"]
 group = "Domain"
 step = "geometry"
-help = "Shape of the far-field boundary around the body. The body stays at zero angle; the flow direction (angle of attack) will be set in the solver (Prompt 7)."
+help = "Shape of the far-field boundary around the body. The body stays at zero angle; the flow direction (angle of attack) is a Setup input."
 
 [[input]]
 key = "domain_radius"
@@ -200,3 +199,66 @@ group = "Inflation layers"
 step = "mesh"
 help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
 show_if = { inflation = true }
+
+# ---- free stream (Setup step) ------------------------------------------------------------------------
+
+[[input]]
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "air"
+group = "Free stream"
+help = "The gas, from the gas library (calorically perfect: constant gamma and R), or a custom gas of your own."
+
+[[input]]
+key = "mach"
+label = "Mach number"
+unit = "-"
+type = "float"
+default = 2.0
+min = 0.01
+max = 30.0
+group = "Free stream"
+help = "Free-stream Mach number. Supersonic flows get a rectangle domain suggestion (Geometry step) and a first-order start (Run step: Suggested numerics)."
+
+[[input]]
+key = "p_inf"
+label = "Static pressure"
+unit = "Pa"
+type = "float"
+default = 101325.0
+min = 0.001
+max = 1000000000.0
+group = "Free stream"
+help = "Free-stream static pressure (the default of the far-field condition)."
+
+[[input]]
+key = "T_inf"
+label = "Static temperature"
+unit = "K"
+type = "float"
+default = 288.15
+min = 1.0
+max = 10000.0
+group = "Free stream"
+help = "Free-stream static temperature."
+
+[[input]]
+key = "alpha"
+label = "Angle of attack"
+unit = "deg"
+type = "float"
+default = 0.0
+min = -90.0
+max = 90.0
+group = "Free stream"
+help = "Angle of the free stream to the x axis (the body stays fixed). Lift is normal to the free stream, drag along it. With a half domain (symmetry plane) only 0 makes sense."
+
+[[input]]
+key = "initialisation"
+label = "Initial solution"
+type = "choice"
+default = "Uniform (free stream)"
+options = ["Uniform (free stream)", "Previous result (restart)"]
+group = "Free stream"
+help = "Uniform: the free stream everywhere. Previous result: continue the last run of this project on the same mesh."

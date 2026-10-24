@@ -49,7 +49,7 @@ def exact_area():
 
 
 def test_empty_workspace_says_what_to_do():
-    assert not case.has_solver and case.requires == ["gmsh"]
+    assert case.has_solver and case.requires == ["gmsh"]
     with pytest.raises(ValueError, match="no geometry yet"):
         mesh_for(case, DEFAULTS, None)
     with pytest.raises(ValueError, match="no fluid face"):
@@ -81,3 +81,15 @@ def test_sizes_follow_the_reference_length():
         assert np.median(lengths) == pytest.approx(ratio * L, rel=0.3), ratio
     built = replay(nozzle_document(), ReplayContext(case, DEFAULTS, DATA))
     assert built.reference_length() == pytest.approx(0.020)       # no body: the fluid's length along x
+
+
+def test_imported_nozzle_with_a_plume_region_runs_as_internal_flow():
+    """The tutorial nozzle (with a plume region): inlet from the reservoir, outlet and plume top at the ambient."""
+    pytest.importorskip("gmsh")
+    import aeroflowsim
+    mesh = mesh_for(case, {**DEFAULTS, "surface_size": 0.04, "max_size": 0.2}, nozzle_document(), DATA)
+    assert mesh.info["reference_length"] == pytest.approx(0.020)
+    out = aeroflowsim.run_case(case, {"max_iter": 30}, mesh=mesh)
+    bcs = out.result.info["boundaries"]
+    assert bcs["inlet"]["type"] == "total_pressure_inlet" and bcs["plume_top"]["type"] == "pressure_outlet"
+    assert out.result.info["kind"] == "nozzle" and out.result.key_numbers["mdot_inlet"][0] > 0.0

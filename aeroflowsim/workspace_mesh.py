@@ -164,7 +164,8 @@ def workspace_mesh(document, context, settings) -> Mesh:
     if built.axisymmetric:
         nodes[:, 1] = np.maximum(nodes[:, 1], 0.0)                 # round-off just below the axis
     info = {"generator": "workspace", "axisymmetric": bool(built.axisymmetric),
-            "operations": len(document.operations), **gmsh_settings(settings)}
+            "operations": len(document.operations), "reference_length": float(built.reference_length()),
+            **gmsh_settings(settings)}
     return Mesh.from_cells(nodes, types, cells, boundary, dim=2, axisymmetric=built.axisymmetric, info=info)
 
 

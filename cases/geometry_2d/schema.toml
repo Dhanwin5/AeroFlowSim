@@ -1,16 +1,15 @@
 # Inputs of this case. The GUI builds its input panel from this file automatically.
 # The geometry itself is made in the Geometry step (the geometry workspace): import a file (DXF,
 # STEP, IGES, CSV, .dat), draw, put an enclosure around a body, name the boundaries. So this file
-# only has the mesh inputs. Cell sizes are multiples of the geometry's reference length L: the
+# has the mesh and flow inputs. Cell sizes are multiples of the geometry's reference length L: the
 # length along x of the bodies, or of the whole fluid region when there is no body (e.g. a nozzle).
 
 [case]
-name = "Custom 2D geometry - mesh"
-description = "Your own 2D or axisymmetric geometry: import a DXF, STEP, IGES or coordinates file (or draw it), add a fluid domain, name the boundaries by clicking, and mesh it with Gmsh."
+name = "Custom 2D geometry (2D Euler)"
+description = "Your own 2D or axisymmetric geometry: import a DXF, STEP, IGES or coordinates file (or draw it), add a fluid domain, name the boundaries by clicking, mesh it with Gmsh and solve the steady Euler equations (internal nozzle or duct flow, or a body in a free stream)."
 steady = true
-solver = false
-solver_message = "The 2D solver arrives in Prompt 7. For now this template builds, checks and exports the mesh; its patch names come from the boundary names in the Geometry step."
 requires = ["gmsh"]
+euler_solver = true          # adds the Numerics inputs and the boundary-condition table (aeroflowsim/euler/setup.py)
 
 # ---- mesh ---------------------------------------------------------------------------------------
 
@@ -118,3 +117,127 @@ group = "Inflation layers"
 step = "mesh"
 help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
 show_if = { inflation = true }
+
+# ---- flow (Setup step) -------------------------------------------------------------------------------
+
+[[input]]
+key = "flow_type"
+label = "Flow type"
+type = "choice"
+default = "Internal (nozzle, duct)"
+options = ["Internal (nozzle, duct)", "External (body in a free stream)"]
+group = "Flow"
+help = "Internal: gas from a reservoir (total-pressure inlet) to a back pressure; nozzle numbers (mass flow, thrust two ways, Isp). External: a body in a free stream (far field); Cl, Cd, Cm and Cp."
+
+[[input]]
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "N2"
+group = "Flow"
+help = "The gas, from the gas library, or a custom gas of your own."
+
+[[input]]
+key = "p0"
+label = "Total (reservoir) pressure"
+unit = "Pa"
+type = "float"
+default = 500000.0
+min = 1.0
+max = 1000000000.0
+group = "Flow"
+help = "Default of every inlet boundary (total-pressure inlet)."
+show_if = { flow_type = "Internal (nozzle, duct)" }
+
+[[input]]
+key = "T0"
+label = "Total (reservoir) temperature"
+unit = "K"
+type = "float"
+default = 293.15
+min = 1.0
+max = 5000.0
+group = "Flow"
+help = "Default of every inlet boundary (total-pressure inlet)."
+show_if = { flow_type = "Internal (nozzle, duct)" }
+
+[[input]]
+key = "p_back"
+label = "Back (ambient) pressure"
+unit = "Pa"
+type = "float"
+default = 1000.0
+min = 0.0
+max = 1000000000.0
+group = "Flow"
+help = "Default of every outlet and far-field boundary (pressure outlet): the ambient the gas flows into."
+show_if = { flow_type = "Internal (nozzle, duct)" }
+
+[[input]]
+key = "mach"
+label = "Free-stream Mach number"
+unit = "-"
+type = "float"
+default = 2.0
+min = 0.01
+max = 30.0
+group = "Flow"
+help = "Default of every far-field boundary."
+show_if = { flow_type = "External (body in a free stream)" }
+
+[[input]]
+key = "p_inf"
+label = "Free-stream static pressure"
+unit = "Pa"
+type = "float"
+default = 101325.0
+min = 0.001
+max = 1000000000.0
+group = "Flow"
+help = "Default of every far-field boundary."
+show_if = { flow_type = "External (body in a free stream)" }
+
+[[input]]
+key = "T_inf"
+label = "Free-stream static temperature"
+unit = "K"
+type = "float"
+default = 288.15
+min = 1.0
+max = 10000.0
+group = "Flow"
+help = "Default of every far-field boundary."
+show_if = { flow_type = "External (body in a free stream)" }
+
+[[input]]
+key = "alpha"
+label = "Angle of attack"
+unit = "deg"
+type = "float"
+default = 0.0
+min = -90.0
+max = 90.0
+group = "Flow"
+help = "Angle of the free stream to the x axis (counter-clockwise positive)."
+show_if = { flow_type = "External (body in a free stream)" }
+
+[[input]]
+key = "ref_area"
+label = "Reference area (0 = automatic)"
+unit = "m²"
+type = "float"
+default = 0.0
+min = 0.0
+max = 1000000.0
+group = "Flow"
+help = "Area for Cl, Cd, Cm. 0 = automatic: reference length x 1 m (planar) or pi r_max² of the walls (axisymmetric). The reference length is the one of the Geometry step (Dimensions)."
+show_if = { flow_type = "External (body in a free stream)" }
+
+[[input]]
+key = "initialisation"
+label = "Initial solution"
+type = "choice"
+default = "Uniform (free stream)"
+options = ["Uniform (free stream)", "Quasi-1D solution", "Previous result (restart)"]
+group = "Flow"
+help = "Uniform: free stream (external) or a slow state near the reservoir (internal). Quasi-1D: internal axisymmetric nozzles only, the isentropic flow of the wall profile (fast). Previous result: continue the last run on the same mesh."
