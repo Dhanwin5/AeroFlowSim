@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 6f (2026-10-23).
+Last updated: Prompt 7 (2026-10-24).
 
 ## 1. Platform and GUI
 
@@ -24,11 +24,16 @@ Last updated: Prompt 6f (2026-10-23).
 | Light / dark theme, remembered | done | P2 | one app-wide style sheet per theme; plots follow the theme, saved pictures keep the light "paper" style |
 | Dockable panels, menus, toolbar, shortcuts | done | P1 | |
 | Right-click (context) menus in the views | partial | P2 | geometry workspace: menus for points, edges, faces and empty space (21 Oct, `tests/gui/test_view_aids.py`); mesh and results views still have none |
+| Boundary-condition table in the Setup step (one row per named boundary: type, values, Default) | done | P1 | Prompt 7: input type `boundaries`, logic in `gui/boundary_logic.py`, drawn by `panel.py`; defaults follow the template inputs; undoable |
+| Live monitors in the Run step (residual per equation, thrust / mass flow / Cl, Cd, Cm, positivity) | done | P1 | Prompt 7 (`figures.residual_figure`, `tasks.py` batches) |
+| Run step: suggested numerics and 'What to try' after a failed run | done | P2 | Prompt 7 (smart rules, applied only by the user) |
+| Results step for 2D flows: field view (field, colour map, range, edges, cell values), wall p/p0 or Cp, convergence, .vtu | done | P1 | Prompt 7 |
+| Results view: zoom/picture export of the 2D field in the paper style, mirror about the axis, streamlines | planned 7b | P2 | the picture is a screenshot of the view as shown |
 | **Bug: input values hidden when the Inputs dock is narrow** (external_2d: right-aligned numbers scrolled out of view) | done | P1 | fixed after 6d: long labels wrap, boxes keep a minimum width, no sideways scrolling; the dock cannot be made narrower than about 320 px (`tests/gui/test_panel_qt.py`) |
 | Rubber-band (box) selection in the geometry view | done | P2 | 21 Oct: drag a box (left to right: inside only), with a pick filter for points / edges / faces (`tests/gui/test_view_aids.py`) |
 | Workspace view aids: own icon set (both themes), adaptive grid, xyz axes triad, cursor position, 2D/3D switch, revolve preview of axisymmetric geometry | done | P2 | 21 Oct (`gui/icons.py`, `gui/geometry_view.py`; `tests/gui/test_view_aids.py`) |
 | CAD-style mouse handling in the workspace (zoom about the cursor, Shift/middle drag to pan) | done | P2 | 21 Oct (`tests/gui/test_view_aids.py`) |
-| Parity check of the desktop GUI against Streamlit by the user | partial | P1 | user checks every template; then remove `app.py` + streamlit (ask first) |
+| Parity check of the desktop GUI against Streamlit by the user | partial | P1 | user checks every template; then remove `app.py` + streamlit (ask first). The Streamlit GUI cannot edit the boundary-condition table (it uses the defaults) |
 | Remove the Streamlit GUI (`app.py`, `streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) | later | P2 | only after the parity check, with the user's OK |
 | Windows installer + Start-menu shortcut | planned 7b | P1 | |
 | 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |
@@ -100,10 +105,14 @@ Last updated: Prompt 6f (2026-10-23).
 | Custom-gas form: critical point and acentric factor | done | P3 | 6f close-out: optional fields (temperature and pressure in the user's units; all three or none); without them the ideal-gas check says it cannot run and why |
 | Custom-gas form: saturation curve | later | P3 | without it the condensation check reports 'cannot be estimated' for custom gases |
 | Gas mixtures (mole fractions of library gases), humid air | later | P2 | the data model keeps molar mass and critical constants per gas, ready for mixing rules |
-| 2D / axisymmetric Euler with local time stepping, carbuncle fix | planned 7 | P1 | |
-| Full boundary-condition set from named boundaries | planned 7 | P1 | total-pressure / mass-flow inlet, pressure outlet, supersonic in/out, far-field, slip wall, symmetry, axis |
-| Initialisation options, restart from a saved solution, live monitors | planned 7 | P1 | |
-| Thrust / Isp / Cf, Cp / Cl / Cd / Cm | planned 7 | P1 | |
+| 2D / axisymmetric Euler with local time stepping, carbuncle fix | done | P1 | Prompt 7: `aeroflowsim/euler/` (rotated HLLC + HLLE blend at compressions, least-squares gradients, Venkatakrishnan / Barth limiters with freezing, positivity fallback, well-balanced axisymmetric source, SSP-RK3 / Jameson, CFL back-off); 3D-ready (flux and gradients tested on 3D cells) |
+| Residual stall on triangle meshes of the sharp-throat nozzle (about 1e-4, a few cells at the throat corner; slow with a rounded throat) | partial | P2 | Prompt 7 finding: structured meshes converge to 1e-6; on triangles the thrust and Isp settle to about 0.1 % but the residual criterion is not met. Implicit LU-SGS (Prompt 8) is the planned cure |
+| Slow convergence at low Mach number (Mach < 0.3, e.g. the nozzle inlet at Mach 0.01) | partial | P2 | explicit density-based solver; the smart rule warns; preconditioning in 8b, implicit in 8 |
+| Full boundary-condition set from named boundaries | done | P1 | Prompt 7: total-pressure (direction normal or at an angle) and mass-flow inlets, pressure outlet (automatic supersonic switch), supersonic in/out, characteristic far field, slip wall, symmetry, axis; tested one by one |
+| Initialisation options, restart from a saved solution, live monitors | done | P1 | Prompt 7: uniform, quasi-1D (axisymmetric nozzles, from the mesh's wall profile), previous result (same mesh) |
+| Thrust / Isp / Cf, Cp / Cl / Cd / Cm | done | P1 | Prompt 7: thrust two ways (exit plane; wall + inlet), Isp, Cf, discharge coefficient, ideal quasi-1D Isp; Cl, Cd, Cm in body and wind axes, Cp along the wall |
+| Time-accurate 2D runs in the GUI (end time input, snapshots, animation) | later | P2 | the solver supports a global time step and an end time (2D shock tube validation); no template exposes it yet (8e) |
+| Thermally perfect gas in the 2D solver | later | P2 | the solver uses only the GasModel (T(e), c(T)); the far-field and isentropic-inlet relations use gamma at a reference temperature and need generalising with a thermally perfect gas |
 | Implicit time stepping (LU-SGS), Numba, multi-core | planned 8 | P2 | |
 | Low-Mach preconditioning | planned 8b | P2 | |
 | Parametric studies and batch runs | planned 8d | P2 | |
@@ -121,19 +130,21 @@ Last updated: Prompt 6f (2026-10-23).
 | Item | Status | Priority | Notes |
 |---|---|---|---|
 | 1D field plots vs reference, key numbers, shape view, x-t diagram, CSV/PNG export | done | P1 | matplotlib embedded |
-| 2D/3D field contours in the VTK view | planned 7b | P1 | the VTK view already colours cells by any per-cell field |
+| 2D/3D field contours in the VTK view | done | P1 | Prompt 7: field, colour map, range, mesh edges, click a cell for all its values (smooth contour lines and isolines: 7b) |
 | Streamlines, line probes, surface plots (Cp vs x) | planned 7b | P1 | |
-| Image / CSV / VTK export of solution fields | planned 7b | P1 | mesh `.vtu` export done |
+| Image / CSV / VTK export of solution fields | partial | P1 | Prompt 7: `solution.vtu` (all fields + velocity vector), fields CSV (x, y per cell), history CSV, picture of the view; the paper-style picture is 7b |
 
 ## 7. Verification, validation, trust
 
 | Item | Status | Priority | Notes |
 |---|---|---|---|
 | Validity checks (convergence, mass balance, mesh quality) | done | P1 | 6f: + ideal-gas validity, condensation risk, temperature range of the gas data |
-| Validation report (quasi-1D, Sod, nozzle geometry, external geometry, geometry workspace) | done | P1 | 5/5 PASS, numbers unchanged in 6f; 6f added the quasi-1D mesh-refinement study |
+| Validation report (quasi-1D, Sod, nozzle geometry, external geometry, geometry workspace) | done | P1 | numbers of the old cases unchanged in Prompt 7; 6f added the quasi-1D mesh-refinement study |
+| 2D Euler verification and first validation (free stream, well-balanced, gradients, BCs, 2D Sod along x and diagonal, Mach 2 wedge, Mach 6 cylinder + carbuncle test, N2 nozzle on 6 meshes) | done | P1 | Prompt 7: `tests/test_euler_*.py`, `validation/euler2d_*` |
 | Run the validation suite from the GUI (Tools menu) | done | P2 | |
 | MMS order-of-accuracy verification (structured and triangle meshes) | planned 7b | P1 | |
-| 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012) | planned 7b | P1 | |
+| 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012) | partial | P1 | wedge and cylinder stand-off done in Prompt 7; diamond, cone (axisymmetric), BMG nozzle (experiment), NACA 0012 in 7b |
+| Structured C-grid / O-grid for blunt bodies in the GUI | planned 6e | P2 | Prompt 7 has a polar blunt-body grid only in `simple_meshes.py` (carbuncle test) |
 | Cross-code comparison with SU2 / OpenFOAM | later | P2 | Phase 4 |
 | GCI mesh-independence tool | partial | P2 | 6f: mesh-refinement study of the quasi-1D validation (exit Mach, shock position, observed order, Richardson value) in `validation/report.md`; the general GCI tool is Phase 5 |
 
@@ -141,8 +152,9 @@ Last updated: Prompt 6f (2026-10-23).
 
 | Item | Status | Priority | Notes |
 |---|---|---|---|
-| Smart rules: setup suggestions (mesh size, first layer from Re and y+, CFL) | partial | P2 | 6d: sizes and enclosure; first layer from Re / y+ and CFL need the flow inputs (Prompt 7) |
-| Smart rules: failure diagnosis with suggested fixes | planned 7 | P2 | |
+| Smart rules: setup suggestions (mesh size, first layer from Re and y+, CFL) | done | P2 | 6d: sizes and enclosure; Prompt 7: first layer for y+ = 1 from the flow's Reynolds number (inflation on), CFL / first-order start / quasi-1D start from the flow inputs |
+| Smart rules: failure diagnosis with suggested fixes | done | P2 | Prompt 7: after a diverged run or CFL reductions: lower CFL, first-order start, quasi-1D start, boundary values, throat refinement, where it failed |
+| Smart rules: result sanity checks against theory (e.g. Isp vs quasi-1D, Cd vs Newtonian) | partial | P2 | Prompt 7: total-pressure loss and thrust-two-ways checks; Isp shown next to the ideal quasi-1D Isp |
 | AI assistant plugin v1 (opt-in, fills schema inputs only, local-model option) | planned 7c | P3 | |
 | Surrogate models + shape optimisation | later | P2 | Phase 5 headline feature |
 
@@ -152,7 +164,7 @@ Last updated: Prompt 6f (2026-10-23).
 |---|---|---|---|
 | Theory manual | partial | P1 | updated every prompt |
 | Developer guide (GUI architecture) | done | P1 | `docs/developer_guide.md` |
-| User tutorials | partial | P1 | 6d: nozzle with plume region, airfoil in a C-domain (`docs/tutorials/`); more in 7b |
+| User tutorials | partial | P1 | 6d: nozzle with plume region, airfoil in a C-domain; Prompt 7: 2D flow through the N2 nozzle, Mach 2 wedge (`docs/tutorials/`); more in 7b |
 | CI on Windows and Ubuntu incl. GUI tests | done | P1 | headless display action |
 | 2D alpha release on GitHub | planned 7b | P1 | |
 | Zenodo DOI, JOSS paper | later | P2 | Phase 5 |

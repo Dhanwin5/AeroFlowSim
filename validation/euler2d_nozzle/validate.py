@@ -25,12 +25,15 @@ MESHES = [  # (label, inputs)
     ("triangles, wall 0.04 D_t", {"mesh_type": "Triangles (Gmsh)", "surface_size": 0.04, "max_size": 0.2}),
 ]
 RUN = {"max_iter": 80000}       # an upper limit only: every run stops when it has converged
+TRIANGLE_RUN = {"max_iter": 30000}   # triangle meshes stall near a residual of 1e-4 (sharp throat corner, see the
+                                     # notes): a shorter budget; their monitors have settled long before
 RUNS = {}
 
 
 def _run(label, inputs):
     if label not in RUNS:
-        out = aeroflowsim.run_case(CASE, {**inputs, **RUN})
+        budget = TRIANGLE_RUN if inputs.get("mesh_type", "").startswith("Triangles") else RUN
+        out = aeroflowsim.run_case(CASE, {**inputs, **budget})
         RUNS[label] = (out.mesh.n_cells, out.result)
     return RUNS[label]
 
@@ -66,7 +69,13 @@ def study():
              "Cd = mass flow / ideal quasi-1D choked mass flow of the same throat; the throat is sharp (Rcu = Rcd = 0), "
              "so the sonic line is curved and the 2D nozzle passes less than 1D theory.",
              "p0 loss: drop of the mass-flux-weighted exit total pressure below the inlet p0 = 5 bar (numerical "
-             "entropy; an isentropic nozzle loses nothing). It falls as the mesh is refined.",
+             "entropy; an isentropic nozzle loses nothing). Most of it is made at the SHARP throat corner, a singular "
+             "expansion point of the inviscid flow; it does not fall clearly on these meshes. With a rounded throat "
+             "(Rcu/Rt = 1.5, Rcd/Rt = 0.4) the coarsest triangle mesh already gives about 1 %.",
+             "Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, "
+             "but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust "
+             "from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Prompt 8) is the "
+             "planned cure (gap register).",
              "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in Prompt 8)."]
     if isp[2] != isp[1] and (isp[1] - isp[0]) / (isp[2] - isp[1]) > 0:
         p = math.log(abs((isp[1] - isp[0]) / (isp[2] - isp[1]))) / math.log(2.0)

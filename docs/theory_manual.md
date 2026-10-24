@@ -675,7 +675,8 @@ $T = T(e)$ with $e = E/\rho - |\mathbf{u}|^2/2$, $p = \rho R T$, $c = c(T)$.
 disturbances travel along the shock front undamped; the shock then grows a spurious bulge
 (the "carbuncle", Quirk 1994). HLLE (HLL with Einfeldt's speeds) is free of it but smears contacts. The
 fix used here is Quirk's shock-aware hybrid: a pressure sensor per face
-$s_f = |p_R - p_L| / \min(p_L, p_R)$, per cell the largest $s_f$ of its faces, per face the larger of its two
+$s_f = |p_R - p_L| / \min(p_L, p_R)$, counted only where the pressure rises in the direction of the flow through
+the face (a compression; strong expansions such as the flow round a sharp nozzle throat keep pure HLLC), per cell the largest $s_f$ of its faces, per face the larger of its two
 cells, and a smooth blend weight $w = \text{clip}((s - 0.5)/(1.0 - 0.5), 0, 1)$ with
 
 $$ \hat{\mathbf{F}} = (1 - w)\,\hat{\mathbf{F}}_\text{HLLC} + w\,\hat{\mathbf{F}}_\text{HLLE}. $$

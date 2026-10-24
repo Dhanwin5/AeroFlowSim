@@ -22,7 +22,9 @@ Clarity matters more than speed.
   (`run.npz` = exact results). A zipped project reproduces its results exactly (`aeroflowsim/project.py`).
   The GUI works on one project (one template) at a time.
 - Every template has the same two files: `schema.toml` (name, description, steady flag and inputs —
-  no code) and `case.py` (physics, contract in `aeroflowsim/case.py`). New templates are found
+  no code) and `case.py` (physics, contract in `aeroflowsim/case.py`). `euler_solver = true` in
+  `schema.toml` adds the 2D solver's Numerics inputs and the boundary-condition table (input type
+  `boundaries`); the template's `run()` builds a problem with `aeroflowsim/euler/setup.py`. New templates are found
   automatically and never require changes to old ones. Each input has a workflow `step`
   (`geometry`, `mesh` or `setup`, default `setup`); shape-library inputs are `geometry`.
 - **Desktop GUI:** Qt (PySide6) + PyVista/VTK in `aeroflowsim/gui/`, started with
@@ -114,6 +116,12 @@ aeroflowsim/               the Python package
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
     units.py               display units of the GUI (conversions, presets, preferences); SI inside
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
+    euler/                 2D / axisymmetric (3D-ready) finite-volume Euler solver: state.py (GasModel only),
+                           flux.py (rotated HLLC, HLLE, carbuncle blend), geometry.py, gradients.py (least
+                           squares, Green-Gauss), limiters.py, boundary.py (ghost states, BC_TYPES), solver.py
+                           (residual, SSP-RK3 / Jameson, local time steps, CFL back-off), forces.py (thrust,
+                           Cl/Cd/Cm, Cp), initial.py, setup.py (shared inputs, nozzle / external problems)
+    simple_meshes.py       rectangles of quads/triangles and the polar blunt-body grid (tests, validation)
     gui/                   desktop GUI (the ONLY place with Qt / PyVista / VTK / streamlit):
         app.py, main_window.py   start-up, main window (menus, docks, jobs, undo)
         panel_model.py, panel.py input panel: logic (no Qt) + Qt drawing
@@ -122,6 +130,7 @@ aeroflowsim/               the Python package
         geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt), view, dialogs
         sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
         gas_logic.py, gas_dialog.py  gas dropdown / Details / custom-gas form: logic (no Qt) + dialogs
+        boundary_logic.py        boundary-condition table of the Setup step (no Qt; drawn by panel.py)
         vtk_view.py, figures.py  VTK view (meshes, picking), embedded matplotlib plots
         jobs.py, undo.py, logic.py, theme.py, widgets.py, dialogs.py, app_info.py
         streamlit_panel.py       old Streamlit input panel
@@ -132,8 +141,9 @@ cases/<case_name>/         one folder per case
     test_case.py           pytest validation test
     mesh/                  generated mesh.npz + mesh.vtu (git-ignored)
 cases/_template/           copy-me skeleton for a new case (ignored by discovery and pytest)
-cases/external_2d/         body in a free stream (shape library + Gmsh), mesh only until Prompt 7
-cases/geometry_2d/         custom 2D geometry from the workspace (import / sketch), mesh only until Prompt 7
+cases/nozzle_axi/          axisymmetric nozzle (structured or Gmsh mesh), 2D Euler: thrust, Isp, Cf, Cd
+cases/external_2d/         body in a free stream (shape library + Gmsh), 2D Euler: Cl, Cd, Cm, Cp
+cases/geometry_2d/         custom 2D geometry from the workspace (import / sketch), 2D Euler (internal / external)
 docs/theory_manual.md      equations and methods, with references and where they are in the code
 docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK view, jobs, projects)
 docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)
@@ -241,7 +251,7 @@ Commands (from the project folder):
     (transfinite); mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh).
   - 6f materials: gas library + custom gas (designed for mixtures, real gas and liquids later); units
     system (SI, mm, imperial in the GUI; SI inside) (done).
-  - 7 2D Euler solver (2D + axisymmetric) with local time stepping; full boundary-condition set
+  - 7 2D Euler solver (2D + axisymmetric) with local time stepping (done; see the gap register for what moved to 7b); full boundary-condition set
     (total-pressure inlet, mass-flow inlet, pressure outlet, supersonic inlet/outlet, far-field, slip wall,
     symmetry, axis) taken from the named boundaries; initialisation options; live monitors (residuals,
     forces, mass flow); restart from a saved solution; carbuncle fix; thrust/Isp/Cf, Cp/Cl/Cd/Cm; smart

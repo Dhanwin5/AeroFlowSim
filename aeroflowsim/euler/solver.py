@@ -189,15 +189,20 @@ class EulerSolver:
     def _shock_weight(self, W, ghost_c):
         """HLLE blend weight per face from a pressure-jump sensor (flux.py, carbuncle fix).
 
-        Face jump s_f = |p_R - p_L| / min(p_L, p_R) with cell (first-order) pressures; cell sensor = largest
-        s_f over its faces; face weight from the larger cell sensor of its two cells: a band about two cells
-        wide on each side of a strong shock.
+        Face jump s_f = |p_R - p_L| / min(p_L, p_R) with cell (first-order) pressures, counted only where the
+        pressure RISES in the direction of the flow through the face (a compression: a shock); a strong
+        expansion (e.g. round a sharp nozzle throat) keeps pure HLLC. Cell sensor = largest s_f over its faces;
+        face weight from the larger cell sensor of its two cells: a band about two cells wide on each side of
+        a strong shock.
         """
         g = self.geom
         p = W[-1]
-        p_other = np.concatenate([p[g.neighbour], ghost_c[-1]])
+        W_other = np.concatenate([W[:, g.neighbour], ghost_c], axis=1)
+        p_other = W_other[-1]
         p_own = p[g.owner]
-        s_face = np.abs(p_other - p_own) / np.minimum(p_own, p_other)
+        un = 0.5 * (normal_velocity(W[:, g.owner], g.normals) + normal_velocity(W_other, g.normals))  # [m/s]
+        compression = (p_other - p_own) * un > 0.0     # flow from the low to the high pressure side
+        s_face = np.where(compression, np.abs(p_other - p_own) / np.minimum(p_own, p_other), 0.0)
         s_cell = np.where(g.slot_used, s_face[np.maximum(g.slot_face, 0)], 0.0).max(axis=1)
         s = s_cell[g.owner].copy()
         s[:g.n_interior] = np.maximum(s[:g.n_interior], s_cell[g.neighbour])

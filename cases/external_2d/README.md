@@ -1,15 +1,27 @@
-# Body in a free stream, mesh (`external_2d`)
+# Body in a free stream, 2D Euler (`external_2d`)
 
-The mesh of the flow around a body: a planar 2D body (1 m deep) or an axisymmetric body, inside a
-far-field boundary. It needs the optional Gmsh mesher (`pip install -e ".[mesh]"`); without it, the
-GUI says how to install it.
-
-**Status:** mesh only (`solver = false` in `schema.toml`). The 2D / axisymmetric Euler solver
-arrives in Prompt 7 and will use these meshes unchanged.
+Steady inviscid flow around a body: a planar 2D body (1 m deep) or an axisymmetric body, inside a
+far-field boundary, meshed with Gmsh.
 
 **Angle of attack is not part of the mesh.** The body always sits at zero angle, with its front at
-x = 0 and its axis (or chord line) on y = 0. The flow direction will be set in the solver (Prompt 7),
+x = 0 and its axis (or chord line) on y = 0. The flow direction is the Setup input *Angle of attack*,
 so one mesh serves every angle of attack (full domain only: a half domain needs zero angle).
+
+## Flow (Setup step)
+
+- **Free stream:** gas (default air), Mach number, static pressure and temperature, angle of attack.
+- **Boundary conditions** (table; each boundary starts from the default for its kind): far field =
+  characteristic far field with the free stream (Riemann invariants: waves leave without reflection),
+  wall = slip wall, symmetry / axis. Any boundary can be changed, e.g. a supersonic inlet upstream.
+- **Solver:** `aeroflowsim/euler/` (theory manual, section 12), uniform free-stream start or restart.
+  For strong shocks (Mach 3 and above) the Run step's *Suggested numerics* proposes CFL 0.5 and 500
+  first-order iterations; the carbuncle fix (HLLE blend at strong shocks) is on by default.
+- **Results:** Cl, Cd, Cm (about the quarter-length point, nose-up positive) with the shape's reference
+  length and area (a half domain counts the whole body: drag doubled, lift and moment zero), forces in
+  body axes (Fx, Fy) and wind axes (drag, lift), Cp along the wall, all fields, `solution.vtu`.
+- **Validation:** 10° wedge at Mach 2 against oblique-shock theory (shock angle, p2/p1, M2) and the
+  Mach 6 cylinder against Billig's stand-off correlation, with the carbuncle test
+  (`validation/euler2d_wedge`, `validation/euler2d_cylinder`).
 
 ## Shapes
 
