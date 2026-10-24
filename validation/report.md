@@ -1,8 +1,126 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.1.0.dev0, generated 2026-10-23 by `python validation/run_all.py`.
+AeroFlowSim 0.1.0.dev0, generated 2026-10-24 by `python validation/run_all.py`.
 
-**Overall: PASS** (5 of 5 cases pass)
+**Overall: PASS** (9 of 9 cases pass)
+
+## Mach 6 cylinder: bow-shock stand-off and the carbuncle test (2D Euler, external_2d): PASS
+
+Case: `cases/external_2d`, references: `validation/euler2d_cylinder/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Bow-shock stand-off distance / diameter (polar grid, carbuncle fix on) | 0.2197 | 0.22486 | 2.348 | 5 | PASS |
+| Bow-shock stand-off distance / diameter (Gmsh quad-dominant mesh, full front) | 0.2197 | 0.229327 | 4.382 | 5 | PASS |
+
+Sources:
+
+- Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders
+
+### Runs
+
+| Run | Cells | Iterations | Converged | Final residual | Time [s] | Stand-off / D | Shock roughness | Positivity events |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| polar grid, carbuncle fix on | 4,800 | 6,184 | yes | 1.0e-06 | 176 | 0.2249 | 0.77 | 0 |
+| polar grid, carbuncle fix OFF | 4,800 | 12,000 | NO | 3.2e-01 | 381 | 0.2246 | 0.84 | 0 |
+| Gmsh quad-dominant, fix on | 1,329 | 2,423 | yes | 9.9e-07 | 17 | 0.2293 | - | 0 |
+
+- Billig correlation: stand-off / D = 0.2197.
+- Shock roughness: largest second difference of the shock radius between neighbouring grid rays, divided by the radial cell size (below 1: the front never jumps a whole cell between rays; it is similar with and without the fix here, so convergence is the clearer sign).
+- Without the fix (pure HLLC) the bow shock never settles on the shock-aligned grid: the residual stalls high; with the HLLE blend near the shock the run converges.
+- Inviscid, calorically perfect air (gamma = 1.4): a numerics test, not real Mach 6 air.
+
+## N2 nozzle, 2D axisymmetric Euler (default nozzle_axi; structured and triangle meshes, three sizes): PASS
+
+Case: `cases/nozzle_axi`, references: `validation/euler2d_nozzle/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Exit / inlet mass flow (converged: mass is conserved) | 1 | 1 | 1.7e-06 | 0.1 | PASS |
+| Thrust from wall pressure + inlet momentum / thrust from the exit plane | 1 | 0.999999 | 6.6e-05 | 0.2 | PASS |
+| Vacuum specific impulse (structured 200 x 40) | 71.29 s | 71.4748 s | 0.259 | 1 | PASS |
+| Vacuum specific impulse (Gmsh triangles, 5,505 cells) | 71.29 s | 71.4729 s | 0.257 | 1 | PASS |
+
+Sources:
+
+- Conservation of mass: a converged finite-volume solution has equal inlet and exit mass flow
+- Conservation of momentum: the x-momentum balance of the nozzle gas (inlet + wall + exit = 0)
+- Ideal quasi-1D vacuum Isp of this wall, 72.53 s, x conical divergence factor (1 + cos 15 deg)/2 = 0.98296 (Malina 1940; Sutton & Biblarz 2017, eq. 3-34)
+
+### Mesh study
+
+| Mesh | Cells | Iterations | Converged | Time [s] | Mass flow [mg/s] | Cd | F exit [mN] | F wall [mN] | Isp [s] | Isp / Isp 1D | p0 loss [%] |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| structured 50 x 10 | 500 | 4,672 | yes | 17 | 68.4750 | 0.9581 | 47.9973 | 47.9975 | 71.477 | 0.9855 | 2.609 |
+| structured 100 x 20 | 2,000 | 8,095 | yes | 121 | 67.6312 | 0.9463 | 47.3907 | 47.3913 | 71.454 | 0.9852 | 2.902 |
+| structured 200 x 40 | 8,000 | 24,688 | yes | 1120 | 67.2131 | 0.9404 | 47.1116 | 47.1115 | 71.475 | 0.9855 | 2.541 |
+| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 176 | 67.5969 | 0.9458 | 47.3525 | 47.3324 | 71.432 | 0.9849 | 4.715 |
+| triangles, wall 0.08 D_t | 2,350 | 30,000 | NO | 335 | 67.2139 | 0.9405 | 47.0977 | 47.1522 | 71.453 | 0.9852 | 4.053 |
+| triangles, wall 0.04 D_t | 5,505 | 30,000 | NO | 1013 | 67.0689 | 0.9384 | 47.0092 | 46.9295 | 71.473 | 0.9855 | 3.504 |
+
+- Quasi-1D template (cases/quasi1d_nozzle, defaults): vacuum Isp 72.509 s, mass flow 71.6005 mg/s; ideal quasi-1D theory of the same wall 72.526 s.
+- Conical divergence estimate: 72.53 s x (1 + cos 15 deg)/2 = 71.29 s (point-source flow).
+- Cd = mass flow / ideal quasi-1D choked mass flow of the same throat; the throat is sharp (Rcu = Rcd = 0), so the sonic line is curved and the 2D nozzle passes less than 1D theory.
+- p0 loss: drop of the mass-flux-weighted exit total pressure below the inlet p0 = 5 bar (numerical entropy; an isentropic nozzle loses nothing). Most of it is made at the SHARP throat corner, a singular expansion point of the inviscid flow; it does not fall clearly on these meshes. With a rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4) the coarsest triangle mesh already gives about 1 %.
+- Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Prompt 8) is the planned cure (gap register).
+- Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in Prompt 8).
+
+## Sod shock tube with the 2D Euler solver (along x, and along a diagonal of a triangle mesh): PASS
+
+Case: `cases/sod_shock_tube`, references: `validation/euler2d_sod/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Along x: star-region pressure p* | 0.30313 Pa | 0.303131 Pa | 0.00018 | 1 | PASS |
+| Along x: star-region velocity u* | 0.92745 m/s | 0.927483 m/s | 0.0035 | 1 | PASS |
+| Along x: density left of the contact rho*L | 0.42632 kg/m³ | 0.426291 kg/m³ | 0.0069 | 1 | PASS |
+| Along x: density right of the contact rho*R | 0.26557 kg/m³ | 0.26559 kg/m³ | 0.0076 | 1 | PASS |
+| Along x: shock distance from the diaphragm | 0.350432 m | 0.350815 m | 0.109 | 2 | PASS |
+| Along x: contact distance from the diaphragm | 0.18549 m | 0.185673 m | 0.098 | 2 | PASS |
+| Diagonal, triangles: star-region pressure p* | 0.30313 Pa | 0.300762 Pa | 0.781 | 2 | PASS |
+| Diagonal, triangles: star-region speed along the diagonal u* | 0.92745 m/s | 0.917851 m/s | 1.035 | 2 | PASS |
+| Diagonal, triangles: density left of the contact rho*L | 0.42632 kg/m³ | 0.424467 kg/m³ | 0.435 | 2 | PASS |
+| Diagonal, triangles: shock distance from the diaphragm | 0.350432 m | 0.35129 m | 0.245 | 3 | PASS |
+
+Sources:
+
+- Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557
+- Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)
+
+### Runs
+
+| Run | Cells | Wall-clock time [s] |
+|---:|---:|---:|
+| along x, quads | 800 | 3.4 |
+| diagonal, triangles | 20,000 | 30.9 |
+
+- Second order (least-squares gradients, Venkatakrishnan limiter), SSP-RK3, CFL 0.8, one global time step; time-accurate to t = 0.2 s.
+
+## Oblique shock on a 10 deg wedge at Mach 2 (2D Euler, external_2d): PASS
+
+Case: `cases/external_2d`, references: `validation/euler2d_wedge/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Shock angle beta (fitted through the shock position at 6 stations) | 39.314 deg | 39.3509 deg | 0.094 | 2 | PASS |
+| Wedge surface pressure / free-stream pressure p2/p1 | 1.7066 | 1.70719 | 0.035 | 1 | PASS |
+| Mach number behind the shock (on the wedge surface cells) | 1.6405 | 1.63161 | 0.542 | 1 | PASS |
+
+Sources:
+
+- theta-beta-M relation, weak shock, M1 = 2, theta = 10 deg, gamma = 1.4 (Anderson 2003, sec. 4.4)
+- Oblique-shock relation p2/p1 = 1 + 2 gamma/(gamma + 1)(M1² sin² beta - 1) with beta = 39.314 deg (Anderson 2003, eq. 4.9)
+- Oblique-shock relation M2 = Mn2 / sin(beta - theta) (Anderson 2003, eq. 4.12)
+
+### Two meshes
+
+| Mesh | Cells | Iterations | Converged | Time [s] | beta [deg] | p2/p1 | M2 | Cd (incl. base) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| wall 0.02 L | 3,553 | 1,935 | yes | 41 | 39.351 | 1.7072 | 1.6316 | 0.1965 |
+| wall 0.01 L | 11,958 | 30,000 | NO | 2536 | 39.244 | 1.7067 | 1.6328 | 0.1978 |
+
+- Theory: beta = 39.314 deg, p2/p1 = 1.7066, M2 = 1.6405.
+- Cd includes the base drag of the flat base (the base pressure is not part of the oblique-shock theory).
 
 ## Gmsh mesh geometry: external domains and rounded-throat nozzle: PASS
 

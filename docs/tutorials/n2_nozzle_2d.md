@@ -23,8 +23,8 @@ throat. About 20 minutes, most of it waiting for the run.
    - **Numerics:** the defaults (CFL 0.8, second order, Venkatakrishnan limiter frozen after 4 orders,
      residual tolerance 1e-6, thrust and mass flow settled to 1e-4 over 500 iterations).
 5. **Run step → Run.** Watch the four residuals fall, and under them the thrust computed two ways and the
-   mass flow in and out: they come together as the run converges. The Medium mesh needs about 25,000
-   iterations, about 13 minutes in plain NumPy (Numba arrives in Prompt 8).
+   mass flow in and out: they come together as the run converges. The Medium mesh needs 24,688
+   iterations, 13 to 19 minutes in plain NumPy depending on the computer (Numba arrives in Prompt 8).
 6. **Results step.**
    - **Key results:** mass flow, discharge coefficient, exit Mach number and pressure, vacuum thrust and
      thrust at the back pressure, vacuum Isp, and the Isp of the ideal quasi-1D nozzle of the same wall.
@@ -34,11 +34,13 @@ throat. About 20 minutes, most of it waiting for the run.
    - **Plot: Wall pressure p/p0 along x:** the dots (2D) follow the dashed quasi-1D line except just after
      the throat, where the flow over-expands round the corner and recompresses.
    - Click any cell: all its values are in Properties.
-7. **Compare with theory.** The 2D vacuum Isp is about **71.5 s**: 1.5 % below the ideal quasi-1D 72.53 s.
+7. **Compare with theory.** On the Medium mesh: mass flow **67.21 mg/s**, discharge coefficient **0.940**,
+   vacuum thrust **47.11 mN** (exit plane and wall + inlet agree to 0.0002 %), vacuum Isp **71.47 s**: 1.5 %
+   below the ideal quasi-1D 72.53 s (the quasi-1D template: 72.51 s).
    A conical nozzle sends its gas out along spherical fronts, so only a fraction λ = (1 + cos 15°)/2 = 0.983 of
    the exit momentum is axial (Malina 1940): 72.53 s × 0.983 = 71.29 s. The 2D solver is 0.26 % above that
-   estimate (λ is exact only for flow from a point source), on every mesh. The mass flow is about 6 % below
-   the ideal choked mass flow (discharge coefficient about 0.94): with a sharp throat the sonic line bends
+   estimate (λ is exact only for flow from a point source), on every mesh (71.43 to 71.48 s on six meshes).
+   The mass flow is 6 % below the ideal choked mass flow (71.47 mg/s): with a sharp throat the sonic line bends
    upstream, so the effective throat is smaller than the geometric one.
 8. **Check what the validity checks say:** convergence, mass balance, thrust two ways, monitors settled,
    positivity, gas checks (ideal gas, condensation margin at the cold exit, temperature range) and the total-
