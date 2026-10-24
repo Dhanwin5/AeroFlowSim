@@ -111,6 +111,32 @@ def test_nozzle_run_shows_monitors_2d_field_wall_pressure_and_restarts(qtbot, wi
     assert abs(result.key_numbers["mdot"][0] / first_mdot - 1.0) < 0.02
 
 
+def test_results_of_an_older_mesh_are_not_painted_on_a_new_mesh(qtbot, window, tmp_path):
+    """Run on the coarse mesh, then mesh finer: the Results step says the results belong to the old mesh
+    (it once tried to paint 2,000 values onto 8,000 cells and crashed when the colour map changed)."""
+    from aeroflowsim.gui.logic import results_mesh_mismatch
+    _mesh(qtbot, window, tmp_path, max_iter=5)
+    window.run_case()
+    _wait_job(qtbot, window)
+    window.apply_values({"mesh_preset": "Medium"})
+    _wait_job(qtbot, window)                     # automatic re-mesh (8,000 cells)
+    if window.mesh.n_cells != 8000:
+        window.generate_mesh()
+        _wait_job(qtbot, window)
+    assert window.mesh.n_cells == 8000
+    result = window.results["result"]
+    assert "older mesh (2,000 cells)" in results_mesh_mismatch(result, window.mesh)
+    page = window.pages["results"]
+    window.go_to("results")
+    page._shown = None
+    page.refresh()
+    page.flow_cmap.setCurrentText("viridis")    # the colour-map change that crashed
+    page.cell_picked(0)                          # no values of the old mesh shown for a new-mesh cell
+    page.save_vtu()                              # does nothing (no dialog)
+    assert not page.vtu_button.isEnabled()
+    assert page.flow_view.mesh_actor is None     # the view shows the message, not a field
+
+
 def test_results_view_draws_the_field_in_both_themes(qtbot, window, tmp_path):
     _mesh(qtbot, window, tmp_path, max_iter=10)
     window.run_case()

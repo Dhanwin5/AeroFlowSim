@@ -13,10 +13,11 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QSplitter, QStackedWidget, QVBoxLayout, QWidget)
 
-from aeroflowsim.gui.figures import PlotCanvas, field_figure, residual_figure, wall_figure
+from aeroflowsim.gui.figures import PlotCanvas, field_figure, message_figure, residual_figure, wall_figure
 from aeroflowsim.gui.theme import paper_style
 from aeroflowsim.gui.logic import (available_views, cell_value_rows, display_field, flow_plots, history_extras,
-                                   is_face_mesh, key_number_rows, key_result_tiles, run_status_text)
+                                   is_face_mesh, key_number_rows, key_result_tiles, results_mesh_mismatch,
+                                   run_status_text)
 from aeroflowsim.gui.vtk_view import MeshView
 from aeroflowsim.gui.widgets import Banner, SummaryCard, ValueTable
 from aeroflowsim.runner import fields_csv_text
@@ -251,6 +252,14 @@ class ResultsPage(QWidget):
         key = self.field.currentData()
         if payload is None or key is None:
             return
+        mismatch = results_mesh_mismatch(payload["result"], self.window.mesh)
+        self.vtu_button.setEnabled(mismatch is None)
+        if mismatch is not None:                 # results of an older mesh: never painted on the new one
+            if is_face_mesh(self.window.mesh):
+                self.flow_view.clear(mismatch)
+            else:
+                self.field_plot.set_figure(message_figure(mismatch))
+            return
         if is_face_mesh(self.window.mesh):
             f = display_field(payload["result"].fields[key], self.window.units)
             clim = None
@@ -289,7 +298,7 @@ class ResultsPage(QWidget):
 
     def cell_picked(self, cell):
         payload = self.window.results
-        if payload is None:
+        if payload is None or results_mesh_mismatch(payload["result"], self.window.mesh) is not None:
             return
         self.window.show_properties(f"Cell #{cell}",
                                     cell_value_rows(payload["result"], self.window.mesh, cell, self.window.units))
@@ -297,6 +306,8 @@ class ResultsPage(QWidget):
     def save_vtu(self):
         from aeroflowsim.vtk import solution_cell_data, write_vtu
         payload = self.window.results
+        if results_mesh_mismatch(payload["result"], self.window.mesh) is not None:
+            return
         path = self._ask("Save the solution for ParaView", f"{self.window.project.name}_solution.vtu",
                          "VTK unstructured grid (*.vtu)")
         if path:
@@ -325,7 +336,7 @@ class ResultsPage(QWidget):
     def contour_figure(self):
         payload, mesh = self.window.results, self.window.mesh
         key = self.cfield.currentData()
-        if payload is None or key is None:
+        if payload is None or key is None or results_mesh_mismatch(payload["result"], mesh) is not None:
             return None
         result = payload["result"]
         f = display_field(self._contour_fields()[key], self.window.units)
@@ -371,6 +382,10 @@ class ResultsPage(QWidget):
 
     def save_csv(self):
         payload = self.window.results
+        mismatch = results_mesh_mismatch(payload["result"], self.window.mesh)
+        if mismatch is not None:
+            self.window.log(mismatch, "warning")
+            return
         path = self._ask("Save fields as CSV", f"{self.window.project.name}_fields.csv", "CSV files (*.csv)")
         if path:
             Path(path).write_text(fields_csv_text(self.window.mesh, payload["result"], payload.get("reference"),
@@ -380,6 +395,10 @@ class ResultsPage(QWidget):
     def save_png(self):
         payload = self.window.results
         key = self.field.currentData()
+        mismatch = results_mesh_mismatch(payload["result"], self.window.mesh)
+        if mismatch is not None:
+            self.window.log(mismatch, "warning")
+            return
         path = self._ask("Save field plot", f"{self.window.project.name}_{key}.png", "PNG pictures (*.png)")
         if path and is_face_mesh(self.window.mesh):
             self.flow_view.save_picture(path)    # the 2D field as shown (colour map, range, zoom)
@@ -392,6 +411,8 @@ class ResultsPage(QWidget):
             self.window.log(f"Plot saved to {path}")
 
     def save_contour(self):
+        if self.contour_figure() is None:        # nothing to save (e.g. results of an older mesh)
+            return
         view = self.view.currentText().split()[0].lower()
         path = self._ask("Save picture", f"{self.window.project.name}_{view}_{self.cfield.currentData()}.png",
                          "PNG pictures (*.png)")

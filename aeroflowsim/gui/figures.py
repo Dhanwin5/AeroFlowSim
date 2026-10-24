@@ -158,6 +158,15 @@ def field_figure(mesh, field, ref_field=None, prefs=None):
     return fig
 
 
+def message_figure(text):
+    """An empty figure with one message in the middle (e.g. why a plot cannot be drawn)."""
+    import textwrap
+    fig, ax = _figure(3.0)
+    ax.axis("off")
+    ax.text(0.5, 0.5, "\n".join(textwrap.wrap(text, 90)), ha="center", va="center", transform=ax.transAxes)
+    return fig
+
+
 def wall_figure(result, which, prefs=None):
     """Pressure along the wall of a 2D result: p/p0 of a nozzle (with the ideal quasi-1D p/p0 of the same
     wall for comparison), or the pressure coefficient Cp of a body (negative upwards, as usual)."""

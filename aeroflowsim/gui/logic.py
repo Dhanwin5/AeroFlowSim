@@ -79,6 +79,29 @@ def run_status_text(result, run_s=None):
     return text + (f" in {run_s:.3g} s" if run_s is not None else "")
 
 
+def results_mesh_mismatch(result, mesh):
+    """None if the result's fields fit the mesh shown; else a sentence saying why they cannot be drawn on it.
+
+    A project keeps its last results when the mesh is made again (they are labelled out of date); their
+    fields then belong to the OLD mesh and must never be painted onto the new one.
+    """
+    if mesh is None or not result.fields:
+        return None
+    n = len(next(iter(result.fields.values())).values)
+    if isinstance(mesh, Mesh):
+        cells = mesh.n_cells
+    elif isinstance(mesh, Mesh1D):
+        if n in (mesh.n_nodes, mesh.n_cells):
+            return None
+        cells = mesh.n_cells
+    else:
+        return None
+    if n == cells:
+        return None
+    return (f"These results were computed on an older mesh ({n:,} cells); the current mesh has {cells:,} cells. "
+            "Run again to see the flow on the new mesh. The key numbers and plots below still belong to the old run.")
+
+
 def cell_value_rows(result, mesh, cell, prefs=None):
     """[(quantity, value text, unit)] of every field in one cell of a 2D result (Properties panel)."""
     c = mesh.cell_centres[cell]
