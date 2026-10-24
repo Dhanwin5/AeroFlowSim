@@ -105,6 +105,17 @@ class FVGeometry:
                                     self.face_centres[f] - self.cell_centres[:, None, :], 0.0)
         self.slot_normal = np.where(self.slot_used[..., None], self.normals[f] * self.slot_sign[..., None], 0.0)
         self.slot_planar_area = np.where(self.slot_used, self.planar_areas[f], 0.0)
+        # The same vectors component by component, (dim, C, k_max): a dot product with a per-cell vector is
+        # then dim multiply-adds of whole arrays (much faster than einsum for 2 or 3 components)
+        self.slot_offset_by_axis = np.ascontiguousarray(self.slot_offset.transpose(2, 0, 1))
+        self.slot_normal_by_axis = np.ascontiguousarray(self.slot_normal.transpose(2, 0, 1))
+
+    def change_to_faces(self, grad):
+        """grad . r_f for every cell and each of its faces: (n_vars, dim, C) -> (n_vars, C, k_max)."""
+        out = grad[:, 0, :, None] * self.slot_offset_by_axis[0]
+        for k in range(1, self.dim):
+            out += grad[:, k, :, None] * self.slot_offset_by_axis[k]
+        return out
 
     def sum_over_faces(self, face_values):
         """Net outward sum per cell of face values (n_vars, F) -> (n_vars, C): owner +, neighbour -."""

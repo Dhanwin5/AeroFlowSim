@@ -19,8 +19,10 @@ AUTO_REBUILD_CELLS = 50_000   # rebuild the mesh after every input change only b
 # (key_numbers of its Result). Nozzle templates use these names; other templates show only the run
 # status there (picking "some" key numbers would mix computed and exact values, e.g. for Sod).
 KEY_RESULTS = (("M_exit", "Exit Mach number"), ("p_exit", "Exit pressure"), ("mdot", "Mass flow"),
+               ("discharge_coefficient", "Discharge coefficient"),
                ("F_vacuum", "Thrust (vacuum)"), ("F_at_p_back", "Thrust at back pressure"),
-               ("Isp_vacuum", "Specific impulse (vacuum)"))
+               ("Isp_vacuum", "Specific impulse (vacuum)"), ("Isp_quasi1D", "Isp of the ideal quasi-1D nozzle"),
+               ("Cl", "Lift coefficient Cl"), ("Cd", "Drag coefficient Cd"), ("Cm", "Moment coefficient Cm"))
 LENGTH_UNITS = ("m", "m²")                                     # only these in the full-precision tables
 
 
@@ -47,6 +49,18 @@ def key_result_tiles(result, prefs=None):
     return [(title, *readable(*numbers[key], prefs=prefs)) for key, title in KEY_RESULTS if key in numbers]
 
 
+def history_extras(result) -> dict:
+    """The per-equation residuals and monitors of a finished 2D result, as residual_figure() wants them
+    (an empty dict for 1D results)."""
+    series = getattr(result, "series", None) or {}
+    names = [k for k in series if k.startswith("residual_")]
+    if not names:
+        return {}
+    eq = np.column_stack([series[k] for k in names])
+    monitors = {k[len("monitor_"):]: series[k] for k in series if k.startswith("monitor_")}
+    return {"equation_residuals": eq, "equations": [k[len("residual_"):] for k in names], "monitors": monitors}
+
+
 def display_field(field, prefs=None):
     """The Field with its values in the user's unit for its quantity (a copy; the SI field is unchanged)."""
     if prefs is None or prefs.unit_for(field.unit) is None:
@@ -57,9 +71,33 @@ def display_field(field, prefs=None):
 
 def run_status_text(result, run_s=None):
     """One line about the run, e.g. 'Converged after 44,600 iterations in 14.2 s'."""
+    info = getattr(result, "info", None) or {}
     state = "Converged" if result.converged else "NOT converged"
+    if info.get("status") == "diverged":
+        state = "DIVERGED (the last good state is shown)"
     text = f"{state} after {result.iterations:,} iterations"
     return text + (f" in {run_s:.3g} s" if run_s is not None else "")
+
+
+def cell_value_rows(result, mesh, cell, prefs=None):
+    """[(quantity, value text, unit)] of every field in one cell of a 2D result (Properties panel)."""
+    c = mesh.cell_centres[cell]
+    rows = [("centre x", *readable(c[0], "m", 6, prefs=prefs)), ("centre y", *readable(c[1], "m", 6, prefs=prefs))]
+    rows += [(f.label, *readable(float(f.values[cell]), f.unit, 6, prefs=prefs)) for f in result.fields.values()]
+    return rows
+
+
+def flow_plots(result) -> list:
+    """Names of the plots under a 2D field view, for what the result holds."""
+    series = getattr(result, "series", None) or {}
+    plots = []
+    if "wall_p_over_p0" in series:
+        plots.append("Wall pressure p/p0 along x")
+    if "wall_Cp" in series:
+        plots.append("Pressure coefficient Cp along the wall")
+    if any(k.startswith("residual_") for k in series):
+        plots.append("Convergence history")
+    return plots
 
 
 def estimated_cells(case, params):

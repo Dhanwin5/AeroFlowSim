@@ -14,7 +14,8 @@ import time
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QProgressBar, QVBoxLayout, QWidget
 
 from aeroflowsim.gui.figures import PlotCanvas, residual_figure
-from aeroflowsim.gui.logic import progress_fraction
+from aeroflowsim.euler.setup import EQUATIONS
+from aeroflowsim.gui.logic import history_extras, progress_fraction
 from aeroflowsim.gui.widgets import Banner
 
 REDRAW_S = 0.3   # [s] shortest time between two redraws of the live residual plot
@@ -45,6 +46,7 @@ class RunPage(QWidget):
         layout.addWidget(self.plot, 1)
         self._last_draw = 0.0
         self._history = ([], [], None)          # what the plot shows: iterations, residuals, tolerance
+        self._extra = {}                        # 2D solvers: residual per equation and the monitors
 
     def refresh(self):
         w = self.window
@@ -84,13 +86,18 @@ class RunPage(QWidget):
         if task.iterations:
             it, res = task.iterations[-1], task.residuals[-1]
             self.progress.setValue(int(1000 * progress_fraction(params, it, res)))
-            self.info.setText(f"{task.stage}: iteration {it:,}, residual {res:.3e}, {task.elapsed_s:.1f} s")
+            text = f"{task.stage}: iteration {it:,}, residual {res:.3e}, {task.elapsed_s:.1f} s"
+            if task.positivity:
+                text += f", first-order fallback at {task.positivity} faces"
+            self.info.setText(text)
         else:
             self.info.setText(f"{task.stage} ... {task.elapsed_s:.1f} s")
         now = time.perf_counter()
         if force or now - self._last_draw > REDRAW_S:
             self._last_draw = now
             self._history = (task.iterations, task.residuals, params.get("tol"))
+            self._extra = ({"equation_residuals": task.equation_residuals, "equations": EQUATIONS,
+                            "monitors": task.monitors} if task.equation_residuals else {})
             self.redraw()
 
     def reset(self):
@@ -98,15 +105,17 @@ class RunPage(QWidget):
         self.info.setText("")
         self.progress.setValue(0)
         self._history = ([], [], None)
+        self._extra = {}
         self.redraw()
 
     def redraw(self):
         """Draw the residual plot again (new data, or a theme change)."""
-        residual_figure(*self._history, figure=self.plot.figure)
+        residual_figure(*self._history, figure=self.plot.figure, prefs=self.window.units, **self._extra)
         self.plot.canvas.draw_idle()
 
     def show_history(self, result, tol):
         """The residual history of finished results (e.g. after opening a project)."""
         self._history = (list(range(1, len(result.residuals) + 1)), result.residuals, tol)
+        self._extra = history_extras(result)
         self.redraw()
         self.progress.setValue(1000 if result.converged else self.progress.value())

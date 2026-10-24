@@ -81,7 +81,7 @@ class RunJob:
 
     # ---- runs in the background thread -------------------------------------------------
 
-    def _progress(self, iteration, residual):
+    def _progress(self, iteration, residual, info=None):
         """The progress callback handed to case.run()."""
         with self._lock:
             self.iterations.append(iteration)

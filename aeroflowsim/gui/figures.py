@@ -54,19 +54,49 @@ def _figure(height=3.5):
     return fig, fig.add_subplot()
 
 
-def residual_figure(iterations, residuals, tol=None, figure=None):
-    """Convergence history on a log axis, with the tolerance as a dotted line. Reuses `figure` if given."""
+EQUATION_COLOURS = ("#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#8c564b")   # one per equation
+
+
+def _thin(n):
+    """Indices of at most MAX_PLOT_POINTS of n points (the last one always kept)."""
+    if n <= MAX_PLOT_POINTS:
+        return np.arange(n)
+    return np.unique(np.r_[np.linspace(0, n - 1, MAX_PLOT_POINTS).astype(int), n - 1])
+
+
+def residual_figure(iterations, residuals, tol=None, figure=None, equation_residuals=None, equations=None,
+                    monitors=None, prefs=None):
+    """Convergence history on a log axis, with the tolerance as a dotted line. Reuses `figure` if given.
+
+    2D solvers also give equation_residuals (one row per iteration, one column per equation, named by
+    `equations`) and monitors {name: values per iteration}: then every equation gets its own line and
+    the monitors are drawn under it, one small plot per unit (e.g. thrust [N], mass flow [kg/s]), in the
+    user's units (prefs).
+    """
     if figure is None:
         figure = Figure(figsize=(7, 3.5), layout="constrained")
     figure.clear()
     figure.set_facecolor(matplotlib.rcParams["figure.facecolor"])   # follows the theme when reused
-    ax = figure.add_subplot()
+    groups = _monitor_groups(monitors or {})
+    if groups:
+        grid = figure.add_gridspec(2, len(groups), height_ratios=(1.4, 1.0))
+        ax = figure.add_subplot(grid[0, :])
+        for k, (unit, names) in enumerate(groups.items()):
+            _monitor_axes(figure.add_subplot(grid[1, k]), unit, names, monitors, prefs)
+    else:
+        ax = figure.add_subplot()
     it = np.asarray(iterations)
     res = np.maximum(np.asarray(residuals, dtype=float), 1e-300)   # 0 cannot be drawn on a log axis
-    if len(it) > MAX_PLOT_POINTS:
-        keep = np.unique(np.r_[np.linspace(0, len(it) - 1, MAX_PLOT_POINTS).astype(int), len(it) - 1])
-        it, res = it[keep], res[keep]
-    if len(it):
+    keep = _thin(len(it))
+    it, res = it[keep], res[keep]
+    eq = np.asarray(equation_residuals if equation_residuals is not None else [], dtype=float)
+    if eq.ndim == 2 and len(eq) == len(iterations) and len(eq):
+        eq = np.maximum(eq[keep], 1e-300)
+        for j in range(eq.shape[1]):
+            name = equations[j] if equations and j < len(equations) else f"equation {j + 1}"
+            ax.semilogy(it, eq[:, j], color=EQUATION_COLOURS[j % len(EQUATION_COLOURS)], lw=1.2, label=name)
+        ax.legend(loc="upper right", frameon=False, fontsize=8, ncol=eq.shape[1])
+    elif len(it):
         ax.semilogy(it, res, color=COLOR_NUMERICAL, lw=1.6)
     if tol:
         ax.axhline(tol, color=COLOR_MUTED, ls=":", lw=1)
@@ -77,6 +107,36 @@ def residual_figure(iterations, residuals, tol=None, figure=None):
     ax.set_title("Convergence history")
     style_axes(ax)
     return figure
+
+
+def _monitor_groups(monitors):
+    """{SI unit: [monitor names]} of the monitors that have data, in a fixed order."""
+    from aeroflowsim.euler.setup import MONITOR_LABELS
+    groups = {}
+    for name, values in monitors.items():
+        if len(values):
+            unit = MONITOR_LABELS.get(name, (name, "-"))[1]
+            groups.setdefault(unit, []).append(name)
+    return groups
+
+
+def _monitor_axes(ax, unit, names, monitors, prefs):
+    """One small plot of the monitors that share a unit (last value in the legend)."""
+    from aeroflowsim.euler.setup import MONITOR_LABELS
+    for j, name in enumerate(names):
+        values = np.asarray(monitors[name], dtype=float)
+        shown_unit = unit
+        if prefs is not None and prefs.unit_for(unit) is not None:
+            values, shown_unit = prefs.display(values, unit)
+            values = np.asarray(values)
+        keep = _thin(len(values))
+        label = MONITOR_LABELS.get(name, (name, unit))[0]
+        ax.plot(np.arange(1, len(values) + 1)[keep], values[keep], lw=1.2,
+                color=EQUATION_COLOURS[j % len(EQUATION_COLOURS)], label=f"{label}: {values[-1]:.5g}")
+        ax.set_ylabel(f"[{shown_unit}]")
+    ax.set_xlabel("iteration [-]")
+    ax.legend(loc="best", frameon=False, fontsize=7)
+    style_axes(ax)
 
 
 def field_figure(mesh, field, ref_field=None, prefs=None):
@@ -94,6 +154,43 @@ def field_figure(mesh, field, ref_field=None, prefs=None):
     ax.set_ylabel(f"{field.label} [{field.unit}]")
     ax.set_title(field.label)
     ax.legend(loc="best", frameon=False)
+    style_axes(ax)
+    return fig
+
+
+def wall_figure(result, which, prefs=None):
+    """Pressure along the wall of a 2D result: p/p0 of a nozzle (with the ideal quasi-1D p/p0 of the same
+    wall for comparison), or the pressure coefficient Cp of a body (negative upwards, as usual)."""
+    from aeroflowsim import gasdynamics as gd
+    fig, ax = _figure(3.2)
+    s = result.series
+    unit = prefs.unit_for("m") if prefs is not None else None
+    x = np.asarray(s["wall_x"])
+    order = np.argsort(x)
+    if which.startswith("Wall pressure"):
+        ax.plot(x[order], s["wall_p_over_p0"][order], ".", ms=3, color=COLOR_NUMERICAL, label="2D Euler (wall)")
+        r = np.asarray(s["wall_y"])[order]
+        gamma = result.info.get("gamma", 1.4)
+        r_t, i_t = float(r.min()), int(np.argmin(r))
+        ratio = (r / r_t) ** 2 if result.info.get("axisymmetric", True) else r / r_t
+        M = [gd.mach_from_area_ratio(max(a, 1.0 + 1e-9), gamma, k > i_t) for k, a in enumerate(ratio)]
+        ax.plot(x[order], 1.0 / gd.p0_over_p(np.asarray(M), gamma), "--", color=COLOR_REFERENCE, lw=1.4,
+                label="quasi-1D isentropic (same wall)")
+        ax.set_yscale("log")
+        ax.set_ylabel("p / p0 [-]")
+        ax.set_title("Wall pressure")
+    else:
+        y = np.asarray(s["wall_y"])
+        upper = y[order] >= 0.0
+        ax.plot(x[order][upper], s["wall_Cp"][order][upper], ".", ms=3, color=COLOR_NUMERICAL, label="upper side (y >= 0)")
+        if np.any(~upper):
+            ax.plot(x[order][~upper], s["wall_Cp"][order][~upper], ".", ms=3, color=COLOR_REFERENCE,
+                    label="lower side (y < 0)")
+        ax.invert_yaxis()
+        ax.set_ylabel("Cp [-]")
+        ax.set_title("Pressure coefficient along the wall")
+    length_axes(ax, float(x.max() - x.min()) or 1.0, "x", unit=unit)
+    ax.legend(loc="best", frameon=False, fontsize=8)
     style_axes(ax)
     return fig
 

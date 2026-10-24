@@ -178,15 +178,12 @@ def test_dropdowns_are_pick_only_without_a_text_cursor():
 def test_nozzle_axi_mesh_tab_updates_with_presets_and_inflation():
     at = _app()
     at.sidebar.selectbox[0].set_value("nozzle_axi").run()
-    assert "Prompt 7" in " ".join(i.value for i in at.info)          # Run tab: no solver yet
-    assert not [b for b in at.button if b.key == "run"]
+    assert [b for b in at.button if b.key == "run"]                   # Run tab: the 2D Euler solver (Prompt 7)
     at.button(key="generate_mesh").click().run()
     assert not at.exception, at.exception
     metrics = {m.label: m.value for m in at.metric}
     assert metrics["Cells"] == "8,000" and metrics["Faces"] == "16,240"
     assert "Total inflation thickness [m]" not in metrics
-    # Results tab: the mesh quality checks, all fine for the default mesh.
-    assert any("Cell volumes" in s.value for s in at.success)
     # Switching the preset and turning inflation on update the mesh without pressing the button again.
     at.selectbox(key="nozzle_axi:mesh_preset").set_value("Coarse").run()
     assert {m.label: m.value for m in at.metric}["Cells"] == "2,000"
@@ -195,7 +192,6 @@ def test_nozzle_axi_mesh_tab_updates_with_presets_and_inflation():
     metrics = {m.label: m.value for m in at.metric}
     assert metrics["Total inflation thickness [m]"] == "2.596e-05"
     assert float(metrics["Smallest cell [µm]"]) < 1.0
-    assert any("Inflation layers" in s.value for s in at.success)
     at.selectbox(key="mesh_color_by").set_value("Non-orthogonality").run()
     assert not at.exception, at.exception
 

@@ -106,6 +106,7 @@ class MeshView(QWidget):
             p.add_text(message, position="upper_left", font_size=10, color=colours["text"])
         self.mesh = self.grid = self.lines = self.mesh_actor = self.highlight = None
         self.body_bounds = None
+        self.bar_room = False
         self.body_button.setVisible(False)
         p.render()
 
@@ -115,18 +116,24 @@ class MeshView(QWidget):
                                     bcolor=None, face="line", size=(0.12, 0.035 * len(entries)),
                                     loc="upper right", font_family="arial")
 
-    def show_mesh(self, mesh, values=None, title="", edges=True, body_bounds=None):
-        """Draw a face-based Mesh; values: one number per cell to colour by (None = plain)."""
+    def show_mesh(self, mesh, values=None, title="", edges=True, body_bounds=None, cmap="viridis", clim=None,
+                  keep_camera=False):
+        """Draw a face-based Mesh; values: one number per cell to colour by (None = plain).
+
+        cmap: colour map name; clim: (min, max) of the colour range (None = the values' own range);
+        keep_camera: True keeps the current zoom (e.g. when only the field or colour map changed)."""
+        camera = self.plotter.camera_position if keep_camera and self.mesh is not None else None
         if self.closed:
             return
         self.clear()
         colours = view_colours(self.dark)
         p = self.plotter
         self.mesh, self.grid, self.lines = mesh, mesh_to_grid(mesh), patch_lines(mesh)
+        self.bar_room = values is not None      # leave room under the drawing for the colour bar
         style = dict(show_edges=edges, edge_color=colours["edges"], line_width=0.5)
         if values is not None:
             self.grid.cell_data[title or "value"] = np.asarray(values, dtype=float)
-            self.mesh_actor = p.add_mesh(self.grid, scalars=title or "value", cmap="viridis", nan_color="gray",
+            self.mesh_actor = p.add_mesh(self.grid, scalars=title or "value", cmap=cmap, nan_color="gray", clim=clim,
                                          scalar_bar_args={"title": title, "color": colours["text"],
                                                           "vertical": False, "position_x": 0.25,
                                                           "position_y": 0.05, "width": 0.5, "height": 0.05,
@@ -140,7 +147,11 @@ class MeshView(QWidget):
         p.add_mesh(self.lines, scalars="rgb", rgb=True, line_width=3, reset_camera=False)
         self._legend([(pt.name, pt.type) for pt in mesh.patches])
         self._set_body(body_bounds)
-        self.fit()
+        if camera is not None:
+            self.plotter.camera_position = camera
+            self.plotter.render()
+        else:
+            self.fit()
 
     def show_curves(self, preview):
         """Draw a GeometryPreview: each named boundary curve in its patch colour."""
@@ -203,7 +214,10 @@ class MeshView(QWidget):
         b = self.plotter.renderer.ComputeVisiblePropBounds()
         if b[0] > b[1]:                       # nothing drawn
             return
-        self._show_box(b[0], b[1], b[2], b[3])
+        ymin = b[2]
+        if getattr(self, "bar_room", False):  # the horizontal colour bar sits in the bottom fifth of the view
+            ymin -= 0.3 * max(b[3] - b[2], 0.25 * (b[1] - b[0]))
+        self._show_box(b[0], b[1], ymin, b[3])
 
     def zoom_to_body(self):
         if self.body_bounds is not None:

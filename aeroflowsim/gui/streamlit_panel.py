@@ -79,6 +79,9 @@ def input_widget(case, p, uploads_dir, project_dir):
         from aeroflowsim.gases import builtin_gas, builtin_ids
         st.selectbox(p.label, builtin_ids(), key=key, help=p.help or None, filter_mode=None,
                      format_func=lambda gid: f"{gid} - {builtin_gas(gid).name}")
+    elif p.type == "boundaries":              # the table of boundary conditions: desktop GUI only
+        st.caption(f"{p.label}: the defaults of each boundary are used here; change them in the desktop GUI "
+                   "(python -m aeroflowsim gui).")
     elif p.type == "text":
         st.text_input(p.label, key=key, help=p.help or None)
     elif p.type == "bool":

@@ -18,6 +18,10 @@ A case folder holds two required files:
         Solves the problem. While iterating it calls progress(iteration, residual)
         so the GUI or the command line can show how the solution is converging.
         Returns a Result (see aeroflowsim/results.py).
+        A solver may also call progress(iteration, residual, info) with a dict info = {"residuals":
+        [one per equation], "monitors": {name: value}, ...}; the GUI then plots the monitors live.
+        A case that can continue a previous run defines  run(params, mesh, progress, restart=None):
+        restart is then the fields {key: array} of the previous result on the same mesh.
         Not needed when schema.toml says solver = false (a mesh-only case, e.g. before its
         solver exists); the GUI then shows solver_message instead of the Run button.
 
@@ -130,9 +134,16 @@ class Case:
         folder = Path(folder)
         schema = load_schema(folder / SCHEMA_FILE)
         if schema.shape_library:   # add the Shape dropdown and every shape's inputs in front
-            from aeroflowsim.schema import check_inputs
             from aeroflowsim.shapes import shape_parameters
             schema.inputs = shape_parameters() + schema.inputs
+        if schema.euler_solver:    # add the Euler solver's numerics and boundary-condition inputs after
+            from aeroflowsim.euler.setup import solver_parameters
+            try:
+                schema.inputs = schema.inputs + solver_parameters(schema.solver_defaults)
+            except ValueError as error:
+                raise ValueError(f"{SCHEMA_FILE}: {error}") from None
+        if schema.shape_library or schema.euler_solver:
+            from aeroflowsim.schema import check_inputs
             try:
                 check_inputs(schema.inputs)
             except ValueError as error:

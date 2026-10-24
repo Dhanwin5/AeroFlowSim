@@ -46,11 +46,11 @@ class RunOutput:
     out_dir: Path | None = None  # folder the files were saved to (None = not saved)
 
 
-def _no_progress(iteration, residual):
+def _no_progress(iteration, residual, info=None):
     """Default progress callback: do nothing."""
 
 
-def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None) -> RunOutput:
+def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, restart=None) -> RunOutput:
     """Run one case and return a RunOutput.
 
     case      a case folder ("cases/quasi1d_nozzle"), a case name ("quasi1d_nozzle"),
@@ -59,6 +59,8 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None) -> Ru
     mesh      a ready mesh (the GUI passes the one shown in its Mesh tab); None = build it here
     progress  function progress(iteration, residual) called by the solver every iteration
     out_dir   folder to save fields.csv, summary.yaml, plots ... into; None = save nothing
+    restart   fields {key: array} of a previous result on the same mesh, for cases that can continue a
+              run (case.run(..., restart=...)); None = start from the case's own initial solution
     """
     if isinstance(case, (str, Path)):
         case = load_case(case)
@@ -74,7 +76,10 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None) -> Ru
     if mesh_errors:   # e.g. inverted cells: the solver must not run on this mesh
         raise MeshError(" ".join(f"{c.name}: {c.message}" for c in mesh_errors))
 
-    result = case.run(values, mesh, progress or _no_progress)
+    if restart is not None:
+        result = case.run(values, mesh, progress or _no_progress, restart=restart)
+    else:
+        result = case.run(values, mesh, progress or _no_progress)
     output = RunOutput(case=case, params=values, mesh=mesh, result=result,
                        reference=get_reference(case, values, mesh),
                        reference_lines=get_reference_lines(case, values, mesh),

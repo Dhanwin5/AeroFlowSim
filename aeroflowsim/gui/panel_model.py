@@ -117,6 +117,9 @@ def details(spec: WidgetSpec, value=None, base=None) -> list[tuple[str, str]]:
         rows.append(("File types", spec.file_filter.split(";;")[0].replace("Allowed files ", "")))
     elif spec.kind == "text":
         rows.append(("Type", "text"))
+    elif spec.kind == "boundaries":
+        rows.append(("Type", "a table: one boundary condition per named boundary of the mesh"))
+        return rows + [("Workflow step", spec.step.capitalize())]
     if spec.default is not None:
         default = "yes" if spec.default is True else "no" if spec.default is False else display_text(spec, spec.default)
         rows.append(("Default", default + (f" {spec.unit}" if spec.unit not in ("", "-") else "")))

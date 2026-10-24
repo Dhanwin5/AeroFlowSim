@@ -50,6 +50,16 @@ def mesh_cell_data(mesh) -> dict:
     return data
 
 
+def solution_cell_data(result) -> dict:
+    """The solution fields of a 2D/3D Result for ParaView: every field, plus the velocity as a vector."""
+    data = {key: f.values for key, f in result.fields.items()}
+    if "u" in data and "v" in data:
+        u, v = data["u"], data["v"]
+        w = data.get("w", np.zeros_like(u))
+        data["velocity"] = np.column_stack([u, v, w])            # [m/s]
+    return data
+
+
 def _data_array(out, name, values, n_components=1):
     """One <DataArray> in ASCII: integers stay integers, everything else is Float64."""
     values = np.asarray(values)

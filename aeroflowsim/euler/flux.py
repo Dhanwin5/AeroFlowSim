@@ -37,7 +37,7 @@ SENSOR_FULL = 1.0      # pressure ratio 2 across one face: pure HLLE
 
 def normal_velocity(W, normals):
     """u . n for every column; normals has shape (n, dim)."""
-    return np.einsum("kn,nk->n", W[1:-1], normals)
+    return np.sum(W[1:-1] * normals.T, axis=0)
 
 
 def physical_flux(W, U, un, normals):

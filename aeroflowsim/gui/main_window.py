@@ -37,7 +37,7 @@ from aeroflowsim.gui.gas_logic import form_from_gas
 from aeroflowsim.gui.icons import icon
 from aeroflowsim.gui.jobs import JobRunner
 from aeroflowsim.gui.logic import auto_rebuild, estimated_cells, is_face_mesh, progress_fraction
-from aeroflowsim.gui.panel import GasHandler, InputPanel
+from aeroflowsim.gui.panel import BoundaryHandler, GasHandler, InputPanel
 from aeroflowsim.gui.panel_model import PanelModel
 from aeroflowsim.gui.steps.geometry import GeometryPage
 from aeroflowsim.gui.steps.mesh import MeshPage
@@ -97,6 +97,31 @@ class ProjectGases(GasHandler):
             return None
         self.window.log(f"Custom gas '{name}' saved in your gas library ({path}) and copied into the project.")
         return value
+
+class ProjectBoundaries(BoundaryHandler):
+    """The boundary-condition table of the open project: one row per patch of its mesh, starting from the
+    template's defaults (case.boundary_defaults) for the current inputs."""
+
+    def __init__(self, window):
+        self.window = window
+
+    def rows(self, table, units=None):
+        from aeroflowsim.euler.setup import table_rows
+        from aeroflowsim.gui.boundary_logic import rows
+        project, mesh = self.window.project, self.window.mesh
+        if project is None or not is_face_mesh(mesh):
+            return None
+        try:
+            params = project.params_for(("setup",))
+        except ValueError:                       # a setup input is being typed: defaults for the others
+            params = defaults(project.case.parameters())
+        base = project.case.boundary_defaults(params) if hasattr(project.case, "boundary_defaults") else {}
+        try:
+            effective = table_rows({"boundaries": table}, mesh, base)
+        except (ValueError, KeyError):
+            effective = table_rows({"boundaries": {}}, mesh, base)
+        return rows(table, effective, units)
+
 
 PANEL_FOR_STEP = {"geometry": "geometry", "mesh": "mesh", "setup": "setup", "run": "setup", "results": "setup"}
 AUTO_MESH_DELAY_MS = 500    # wait this long after the last input change before an automatic re-mesh
@@ -405,9 +430,9 @@ class MainWindow(QMainWindow):
         for page in self.pages.values():
             if hasattr(page, "update_icons"):
                 page.update_icons()
-            view = getattr(page, "view", None)
-            if hasattr(view, "set_dark"):
-                view.set_dark(dark)
+            for view in (getattr(page, "view", None), getattr(page, "flow_view", None)):
+                if hasattr(view, "set_dark"):
+                    view.set_dark(dark)
         if save:
             self.settings.setValue("theme", "dark" if dark else "light")
         self.redraw_for_theme()
@@ -507,6 +532,8 @@ class MainWindow(QMainWindow):
                 self.mesh_checks = run_mesh_checks(project.case, project.params_for(("geometry", "mesh")), self.mesh)
         except (ValueError, OSError) as error:
             self.log(f"The saved mesh could not be read: {error}", "warning")
+        for panel in self.panels.values():
+            panel.refresh_boundaries()           # the boundary table lists the patches of the loaded mesh
         try:
             self.results = project.load_results()
             if self.results is not None and self.mesh is None and "mesh1d" in self.results:
@@ -535,7 +562,7 @@ class MainWindow(QMainWindow):
         for step in INPUT_STEPS:
             panel = InputPanel(PanelModel(self.project.case.parameters(), step, self.units), self.project.values,
                                file_handler=lambda name, path: self.project.import_file(path),
-                               gas_handler=ProjectGases(self))
+                               gas_handler=ProjectGases(self), boundary_handler=ProjectBoundaries(self))
             panel.value_changed.connect(self.on_panel_edit)
             self.panels[step] = panel
             self.inputs.addWidget(panel)
@@ -695,6 +722,7 @@ class MainWindow(QMainWindow):
             self.project.set_value(name, value)
         for panel in self.panels.values():
             panel.set_values(values)
+            panel.refresh_boundaries()           # their defaults follow inputs such as p0 and the free stream
         steps = {p.step for p in self.project.case.parameters() if p.name in values}
         if "geometry" in steps:
             self.geometry_timer.start()
@@ -792,7 +820,9 @@ class MainWindow(QMainWindow):
         params = project.params()
         mesh = str(project.mesh_dir / "mesh.npz") if is_face_mesh(self.mesh) else self.mesh
         self.pending = ("run", project.fingerprint("run"), params)
-        self.runner.submit(Job("run", str(project.case.folder), params, str(project.results_dir), mesh=mesh))
+        restart = project.restart_file(params)
+        self.runner.submit(Job("run", str(project.case.folder), params, str(project.results_dir), mesh=mesh,
+                               restart=None if restart is None else str(restart)))
         self.strip.set_busy("run", 0.0, "starting")
         self.log(f"Run started ({project.case.title})")
         self.go_to("run")
@@ -823,6 +853,8 @@ class MainWindow(QMainWindow):
             project.record_mesh(mesh, {"build_s": round(payload.get("build_s", 0.0), 3)}, fingerprint=fingerprint)
             self.undo.setClean()                  # making a mesh saves the project (see project.py)
             self.mesh = mesh
+            for panel in self.panels.values():
+                panel.refresh_boundaries()       # the table lists the patches of the new mesh
             self.mesh_checks = run_mesh_checks(project.case, params, mesh)
             self.log(f"Mesh ready: {mesh.n_cells:,} cells in {seconds}")
             errors = [c for c in self.mesh_checks if c.level == "error"]
@@ -917,7 +949,7 @@ class MainWindow(QMainWindow):
         self.auto_mesh_timer.stop()
         self.runner.shutdown()
         for page in self.pages.values():
-            view = getattr(page, "view", None)
-            if hasattr(view, "close_view"):
-                view.close_view()
+            for view in (getattr(page, "view", None), getattr(page, "flow_view", None)):
+                if hasattr(view, "close_view"):
+                    view.close_view()
         super().closeEvent(event)

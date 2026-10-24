@@ -39,12 +39,16 @@ def neighbour_bounds(geom, Wc, Wb):
     return np.maximum(values.max(axis=2) - Wc, 0.0), np.minimum(values.min(axis=2) - Wc, 0.0)
 
 
-def limiter_factors(geom, grad, Wc, Wb, kind=VENKATAKRISHNAN, K=5.0, L_ref=1.0, scale=None):
-    """psi (n_vars, C) for the gradients grad (n_vars, dim, C)."""
+def limiter_factors(geom, grad, Wc, Wb, kind=VENKATAKRISHNAN, K=5.0, L_ref=1.0, scale=None, delta=None):
+    """psi (n_vars, C) for the gradients grad (n_vars, dim, C).
+
+    delta: the unlimited changes grad . r_f (n_vars, C, k_max) if the caller has them already.
+    """
     if kind not in LIMITERS:
         raise ValueError(f"Unknown limiter '{kind}'; use one of {', '.join(LIMITERS)}.")
     d_max, d_min = neighbour_bounds(geom, Wc, Wb)
-    delta = np.einsum("vkc,cfk->vcf", grad, geom.slot_offset)   # unlimited change to each face (n_vars, C, k)
+    if delta is None:
+        delta = geom.change_to_faces(grad)                     # unlimited change to each face (n_vars, C, k)
     bound = np.where(delta > 0.0, d_max[:, :, None], d_min[:, :, None])
     small = np.abs(delta) < 1e-300
     safe = np.where(small, 1.0, delta)

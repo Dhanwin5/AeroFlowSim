@@ -153,13 +153,14 @@ class EulerSolver:
 
         if second_order:
             grad = self.grad.gradient(W, Wb_face)            # (n_vars, dim, C)
+            dW = g.change_to_faces(grad)                     # unlimited changes to the faces (n_vars, C, k)
             if self.psi_frozen is not None:
                 psi = self.psi_frozen
             else:
                 psi = limiter_factors(g, grad, W, Wb_face, self.numerics.limiter, self.numerics.venkat_k,
-                                      self.L_ref, self.scales)
+                                      self.L_ref, self.scales, delta=dW)
             self.last_psi = psi
-            dW = np.einsum("vkc,cfk->vcf", grad, g.slot_offset) * psi[:, :, None]   # (n_vars, C, k)
+            dW *= psi[:, :, None]
             WL = W[:, own] + dW[:, own, g.owner_slot]
             WR_int = W[:, nb] + dW[:, nb, g.neighbour_slot]
             WR_b = self.ghosts(WL[:, nI:])
@@ -208,7 +209,10 @@ class EulerSolver:
         """Stable time step of every cell [s] (local time stepping; take the minimum for a global step)."""
         g = self.geom
         c = sound_speed(W, self.gas)                                     # [m/s]
-        un = np.abs(np.einsum("kc,cfk->cf", W[1:-1], g.slot_normal))     # |u_i . n_f| [m/s]
+        un = W[1][:, None] * g.slot_normal_by_axis[0]
+        for k in range(1, g.dim):
+            un += W[1 + k][:, None] * g.slot_normal_by_axis[k]
+        un = np.abs(un)                                                  # |u_i . n_f| [m/s]
         lam = 0.5 * np.sum((un + c[:, None]) * g.slot_planar_area, axis=1)   # [m³/s]
         return cfl * g.planar_volumes / lam
 

@@ -170,11 +170,12 @@ def test_command_line_runs_a_project_with_identical_results(tmp_path, capsys):
     assert main(["run", str(project.folder), "--out", str(tmp_path)]) == 1     # --out not for projects
 
 
-def test_command_line_meshes_a_mesh_only_project(tmp_path, capsys):
-    project = Project.create("nozzle_axi", tmp_path / "P.afsproj")
-    assert main(["run", str(project.folder)]) == 0
-    assert "8000 cells" in capsys.readouterr().out
-    assert Project.open(project.folder).status("mesh") == "ok"
+def test_command_line_meshes_and_runs_a_2d_project(tmp_path, capsys):
+    project = Project.create("nozzle_axi", tmp_path / "P.afsproj", {"mesh_preset": "Coarse", "max_iter": 20})
+    assert main(["run", str(project.folder)]) == 2          # 2 = finished but not converged (20 iterations)
+    assert "Results saved" in capsys.readouterr().out
+    reopened = Project.open(project.folder)
+    assert reopened.status("mesh") == "ok" and reopened.load_results()["result"].iterations == 20
 
 
 def test_old_settings_file_becomes_a_project(tmp_path):

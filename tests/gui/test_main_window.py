@@ -58,7 +58,7 @@ def test_nozzle_project_geometry_mesh_and_picking(qtbot, window, tmp_path):
     geometry = window.pages["geometry"]
     assert geometry.built is not None and set(geometry.built.patches()) == {"wall", "inlet", "outlet", "axis"}
     assert window.strip.chips["mesh"].status == "none"
-    assert window.strip.chips["run"].status == "disabled"          # mesh-only template
+    assert window.strip.chips["run"].status == "none"              # the 2D solver can run (not run yet)
     window.go_to("mesh")
     window.generate_mesh()
     assert window.strip.chips["mesh"].progress.isVisible()          # progress shown in the strip

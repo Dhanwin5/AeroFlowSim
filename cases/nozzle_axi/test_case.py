@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """Tests for nozzle_axi (axisymmetric nozzle mesh): presets, CSV geometry, quality checks,
-exact geometry, saved files, and that the case has no solver yet."""
+exact geometry, saved files, and short solver runs (boundary table, restart)."""
 
 import math
 
@@ -72,7 +72,38 @@ def test_mesh_files_are_saved_and_reload_identically(tmp_path):
     assert np.array_equal(loaded.axi_cell_volumes, mesh.axi_cell_volumes)
 
 
-def test_no_solver_yet_run_case_says_so():
-    assert not case.has_solver
-    with pytest.raises(ValueError, match="Prompt 7"):
-        aeroflowsim.run_case(case)
+def test_short_run_gives_sensible_nozzle_numbers_and_keeps_mass():
+    """200 iterations from the quasi-1D start on the coarse mesh: not converged, but already a nozzle.
+
+    (The converged results on three meshes are in validation/euler2d_nozzle.)"""
+    assert case.has_solver
+    out = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 200})
+    k = out.result.key_numbers
+    assert out.result.iterations == 200 and out.result.info["positivity_events"] == 0
+    assert 0.9 < k["discharge_coefficient"][0] < 1.0                                  # a sharp throat passes a little less than 1D
+    assert abs(k["Isp_vacuum"][0] / k["Isp_quasi1D"][0] - 1.0) < 0.03
+    assert set(out.result.fields) >= {"rho", "u", "v", "p", "T", "M", "p0", "s"}
+
+
+def test_boundary_table_overrides_a_default_and_bad_tables_are_refused():
+    params = {"mesh_preset": "Coarse", "max_iter": 5,
+              "boundaries": {"outlet": {"type": "supersonic_outlet"}}}
+    out = aeroflowsim.run_case(case, params)
+    assert out.result.info["boundaries"]["outlet"]["type"] == "supersonic_outlet"
+    assert out.result.info["boundaries"]["inlet"]["p0"] == 5e5      # default from the p0 input
+    with pytest.raises(ValueError, match="no such boundary"):
+        aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 5,
+                                    "boundaries": {"exit": {"type": "supersonic_outlet"}}})
+    with pytest.raises(ValueError, match="unknown boundary-condition type"):
+        aeroflowsim.run_case(case, {"boundaries": {"outlet": {"type": "vortex"}}})
+
+
+def test_restart_needs_a_previous_result_and_continues_it():
+    with pytest.raises(ValueError, match="needs a previous result"):
+        aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 5, "initialisation": "Previous result (restart)"})
+    first = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 30})
+    fields = {k: f.values for k, f in first.result.fields.items()}
+    again = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 1,
+                                        "initialisation": "Previous result (restart)"}, mesh=first.mesh, restart=fields)
+    # One more iteration changes the state only a little: it continued, it did not start again
+    assert abs(again.result.key_numbers["mdot"][0] / first.result.key_numbers["mdot"][0] - 1.0) < 0.01

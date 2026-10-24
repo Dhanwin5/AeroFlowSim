@@ -12,6 +12,8 @@ only turns each WidgetSpec into a Qt widget:
     text         -> QLineEdit
     file         -> QLineEdit + "Browse..." button (a file dialog)
     gas          -> QComboBox of the gas library (gui/gas_logic.py) + "Custom..." button (gui/gas_dialog.py)
+    boundaries   -> BoundaryTable: one row per named boundary of the mesh, a type dropdown and the type's
+                    own inputs (gui/boundary_logic.py decides the rows)
 Every label and box shows the help text and allowed range as a tooltip (rest the mouse on it), and
 the Details area under the inputs shows the same facts for the input that was last clicked or
 reached with the keyboard (Tab). A red message appears under a bad value.
@@ -30,6 +32,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QGridL
                                QLineEdit, QPushButton, QScrollArea, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
+from aeroflowsim.gui import boundary_logic
 from aeroflowsim.gui.gas_logic import gas_choices
 from aeroflowsim.gui.theme import colour
 from aeroflowsim.gui.panel_model import PanelModel, WidgetSpec, details, display_text, text_to_value, value_to_text
@@ -125,8 +128,12 @@ class InputRow:
         self.error.setObjectName("error")
         self.error.setTextInteractionFlags(Qt.TextSelectableByMouse)
         row = section.grid.rowCount()
-        section.grid.addWidget(self.label, row, 0)
-        section.grid.addWidget(editor_widget, row, 1)
+        if spec.kind == "boundaries":            # a table: the whole width of the panel
+            section.grid.addWidget(editor_widget, row, 0, 1, 2)
+            self.label.setVisible(False)
+        else:
+            section.grid.addWidget(self.label, row, 0)
+            section.grid.addWidget(editor_widget, row, 1)
         section.grid.addWidget(self.hint, row + 1, 1)
         section.grid.addWidget(self.error, row + 2, 1)
         self.widgets = [self.label, editor_widget]
@@ -157,6 +164,9 @@ class InputRow:
                 if option in s.missing:         # greyed out: cannot be chosen until the package is installed
                     editor.model().item(editor.count() - 1).setEnabled(False)
             editor.currentIndexChanged.connect(lambda i: self.panel._edited(s.name, editor.itemData(i)))
+            return editor, editor
+        if s.kind == "boundaries":
+            editor = BoundaryTable(self.panel, s.name)
             return editor, editor
         if s.kind == "gas":
             editor = QComboBox()
@@ -232,6 +242,8 @@ class InputRow:
                 self.editor.addItem(choice.text, choice.data)
             index = self.editor.findData(str(value))
             self.editor.setCurrentIndex(max(index, 0))
+        elif self.spec.kind == "boundaries":
+            self.editor.show_table(value)
         elif self.spec.kind == "bool":
             self.editor.setChecked(bool(value))
         elif self.spec.kind == "choice":
@@ -250,7 +262,7 @@ class InputRow:
 
     def set_visible(self, shown):
         for w in self.widgets:
-            w.setVisible(shown)
+            w.setVisible(shown and not (w is self.label and self.spec.kind == "boundaries"))
         self.hint.setVisible(shown and bool(self.spec.missing))
         if not shown:
             self.error.setVisible(False)
@@ -258,6 +270,118 @@ class InputRow:
     def set_problem(self, message):
         self.error.setText(message or "")
         self.error.setVisible(bool(message))
+
+
+class BoundaryTable(QWidget):
+    """The boundary-condition table: for every named boundary of the mesh a type dropdown, a Default
+    button and the inputs of its type. Rows come from the panel's boundary handler (the main window knows
+    the mesh and the template's defaults); every edit gives a new table value to the panel."""
+
+    def __init__(self, panel, name):
+        super().__init__()
+        self.panel, self.name = panel, name
+        self.layout_ = QVBoxLayout(self)
+        self.layout_.setContentsMargins(0, 0, 0, 0)
+        self.message = QLabel(wordWrap=True)
+        self.message.setObjectName("hint")
+        self.layout_.addWidget(self.message)
+        self.frames = []
+        self._shown_key = "nothing shown yet"   # differs from every real key (None = no mesh)
+        self.table = {}
+        self.rows = []
+
+    def show_table(self, value):
+        """Show the table for this value (rebuilt only when the rows to show changed)."""
+        self.table = dict(value or {})
+        rows = self.panel.boundary_handler.rows(self.table, self.panel.model.units)
+        key = None if rows is None else [(r.name, r.kind, r.condition.to_dict(), r.changed) for r in rows]
+        if key == self._shown_key:
+            return
+        self._shown_key = key
+        for frame in self.frames:
+            self.layout_.removeWidget(frame)
+            frame.hide()
+            frame.setParent(None)
+            frame.deleteLater()
+        self.frames = []
+        self.rows = rows or []
+        self.message.setText(boundary_logic.NO_MESH if rows is None else
+                             "Each boundary starts from the template's default for its kind; changed ones are "
+                             "marked 'changed'. Default puts one back.")
+        for row in self.rows:
+            frame = self._row_frame(row)
+            self.frames.append(frame)
+            self.layout_.addWidget(frame)
+
+    def _row_frame(self, row):
+        frame = QFrame()
+        frame.setFrameShape(QFrame.StyledPanel)
+        grid = QGridLayout(frame)
+        grid.setContentsMargins(6, 4, 6, 4)
+        grid.setColumnStretch(1, 1)
+        title = QLabel(f"<b>{row.name}</b>  ({row.kind}{', changed' if row.changed else ''})")
+        grid.addWidget(title, 0, 0, 1, 2)
+        kind = QComboBox()
+        kind.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        kind.setMinimumContentsLength(8)
+        for key, label in boundary_logic.type_choices():
+            kind.addItem(label, key)
+        kind.setCurrentIndex(kind.findData(row.condition.type))
+        kind.setToolTip(BC_HELP.get(row.condition.type, ""))
+        kind.setProperty(INPUT_PROPERTY, self.name)
+        kind.currentIndexChanged.connect(
+            lambda i, r=row, box=kind: self._edit(boundary_logic.with_type(self.table, r, box.itemData(i))))
+        default = QPushButton("Default")
+        default.setToolTip("Back to the template's default condition for this boundary.")
+        default.setEnabled(row.changed)
+        default.clicked.connect(lambda _=False, r=row: self._edit(boundary_logic.without(self.table, r)))
+        grid.addWidget(QLabel("Type"), 1, 0)
+        line = QHBoxLayout()
+        line.addWidget(kind, 1)
+        line.addWidget(default)
+        grid.addLayout(line, 1, 1)
+        if not row.suits:
+            warn = QLabel(f"Unusual for a boundary of kind '{row.kind}'. Check this is what you want.", wordWrap=True)
+            warn.setObjectName("error")
+            grid.addWidget(warn, 2, 1)
+        for spec in row.specs:
+            if spec.name not in row.visible:
+                continue
+            r = grid.rowCount()
+            label = QLabel(spec.label, wordWrap=True)
+            label.setToolTip(spec.tooltip)
+            value = row.condition.values.get(spec.name, spec.default)
+            if spec.kind == "choice":
+                editor = QComboBox()
+                for option in spec.options:
+                    editor.addItem(option, option)
+                editor.setCurrentIndex(max(editor.findData(value), 0))
+                editor.currentIndexChanged.connect(
+                    lambda i, r_=row, s=spec, box=editor: self._edit(
+                        boundary_logic.with_value(self.table, r_, s.name, box.itemData(i))))
+            else:
+                editor = NumberEdit(spec)
+                editor.setText(display_text(spec, value))
+                editor.setProperty("shown", (editor.text(), value))
+                editor.editingFinished.connect(lambda r_=row, s=spec, box=editor: self._number_edited(r_, s, box))
+            editor.setToolTip(spec.tooltip)
+            editor.setMinimumWidth(MIN_EDITOR_WIDTH)
+            grid.addWidget(label, r, 0)
+            grid.addWidget(editor, r, 1)
+        return frame
+
+    def _number_edited(self, row, spec, box):
+        text, value = box.property("shown")
+        if box.text() == text:              # not changed (a unit round trip is no edit)
+            return
+        self._edit(boundary_logic.with_value(self.table, row, spec.name, text_to_value(spec, box.text())))
+
+    def _edit(self, table):
+        self.panel._edited(self.name, table)
+        self.show_table(table)
+
+
+BC_HELP = {key: t.help for key, t in boundary_logic.BC_TYPES.items()}
 
 
 class DetailsBox(QFrame):
@@ -333,6 +457,14 @@ class GasHandler:
         return None
 
 
+class BoundaryHandler:
+    """What a boundary-condition table asks of its owner (the main window gives one that knows the mesh):
+        rows(table, units) -> [BoundaryRow], or None when there is no mesh yet."""
+
+    def rows(self, table, units=None):
+        return None
+
+
 class InputPanel(QWidget):
     """All inputs of a PanelModel, in collapsible groups, with a Details area underneath.
     Emits value_changed(name, value) on user edits.
@@ -340,16 +472,19 @@ class InputPanel(QWidget):
     file_handler(name, chosen_path) -> value to store: lets the owner copy a chosen file into the
     project folder and store a relative path (default: store the chosen path as it is).
     gas_handler: what a gas input needs from the owner (see GasHandler).
+    boundary_handler: what a boundary-condition table needs from the owner (see BoundaryHandler).
     """
 
     value_changed = Signal(str, object)
 
-    def __init__(self, model: PanelModel, values: dict, file_handler=None, gas_handler=None, parent=None):
+    def __init__(self, model: PanelModel, values: dict, file_handler=None, gas_handler=None, boundary_handler=None,
+                 parent=None):
         super().__init__(parent)
         self.model = model
         self._values = dict(values)
         self.file_handler = file_handler or (lambda name, path: path)
         self.gas_handler = gas_handler or GasHandler()
+        self.boundary_handler = boundary_handler or BoundaryHandler()
         self.scroll = QScrollArea(widgetResizable=True)
         self.details = DetailsBox()
         outer = QVBoxLayout(self)
@@ -376,7 +511,8 @@ class InputPanel(QWidget):
             side += grid.contentsMargins().left() + grid.contentsMargins().right() + max(grid.horizontalSpacing(), 0)
         editor_width = max((row.widgets[1].minimumSizeHint().width() for row in self.rows.values()), default=0)
         self._label_full = max((row.label.fontMetrics().horizontalAdvance(row.label.text())
-                                for row in self.rows.values()), default=0) + 2   # longest label on one line
+                                for row in self.rows.values() if row.spec.kind != "boundaries"),
+                               default=0) + 2   # longest label on one line
         self._beside_labels = side + max(editor_width, MIN_EDITOR_WIDTH)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # So the dock cannot be made narrower than the narrowest label column + the narrowest box.
@@ -395,8 +531,8 @@ class InputPanel(QWidget):
         room = self.scroll.viewport().width() - self._beside_labels
         label_width = max(MIN_LABEL_WIDTH, min(self._label_full, room))
         for row in self.rows.values():
-            if row.label.maximumWidth() != label_width:      # (only on a change: avoids needless re-layouts)
-                row.label.setFixedWidth(label_width)
+            if row.spec.kind != "boundaries" and row.label.maximumWidth() != label_width:   # (only on a change:
+                row.label.setFixedWidth(label_width)                                           # fewer re-layouts)
 
     def eventFilter(self, watched, event):
         """Watches every input widget: a click or keyboard focus shows that input in Details.
@@ -433,6 +569,12 @@ class InputPanel(QWidget):
             if name in self._values:
                 row.display(self._values[name])
         self._refresh()
+
+    def refresh_boundaries(self):
+        """Draw the boundary tables again (a new mesh, or an input their defaults depend on changed)."""
+        for name, row in self.rows.items():
+            if row.spec.kind == "boundaries":
+                row.display(self._values.get(name))
 
     def _edited(self, name, value):
         """Slot for every user edit: store, update visibility and messages, announce the change."""

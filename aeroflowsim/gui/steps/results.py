@@ -11,12 +11,13 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit, QPushButton, QSplitter, QVBoxLayout, QWidget)
+                               QLineEdit, QPushButton, QSplitter, QStackedWidget, QVBoxLayout, QWidget)
 
-from aeroflowsim.gui.figures import PlotCanvas, field_figure
+from aeroflowsim.gui.figures import PlotCanvas, field_figure, residual_figure, wall_figure
 from aeroflowsim.gui.theme import paper_style
-from aeroflowsim.gui.logic import (available_views, display_field, key_number_rows, key_result_tiles,
-                                   run_status_text)
+from aeroflowsim.gui.logic import (available_views, cell_value_rows, display_field, flow_plots, history_extras,
+                                   is_face_mesh, key_number_rows, key_result_tiles, run_status_text)
+from aeroflowsim.gui.vtk_view import MeshView
 from aeroflowsim.gui.widgets import Banner, SummaryCard, ValueTable
 from aeroflowsim.runner import fields_csv_text
 from aeroflowsim.visualise import COLORMAPS, contour_2d, shape_view, xt_diagram
@@ -46,18 +47,47 @@ class ResultsPage(QWidget):
         png.clicked.connect(self.save_png)
         folder = QPushButton("Open results folder")
         folder.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(window.project.results_dir))))
+        # 2D results: the field in the VTK view, with its own colour map, range and mesh edges
+        self.flow_view = MeshView()
+        self.flow_view.cell_picked.connect(self.cell_picked)
+        self.flow_cmap = QComboBox()
+        self.flow_cmap.addItems(COLORMAPS)
+        self.flow_cmap.setCurrentText("turbo")
+        self.flow_auto = QCheckBox("Auto range", checked=True)
+        self.flow_min, self.flow_max = QLineEdit(), QLineEdit()
+        for box in (self.flow_min, self.flow_max):
+            box.setFixedWidth(84)
+            box.setAlignment(Qt.AlignRight)
+            box.editingFinished.connect(lambda: self.draw_field(keep_camera=True))
+        self.flow_edges = QCheckBox("Mesh edges")
+        self.flow_cmap.currentIndexChanged.connect(lambda _: self.draw_field(keep_camera=True))
+        self.flow_auto.toggled.connect(lambda _: self.draw_field(keep_camera=True))
+        self.flow_edges.toggled.connect(self.flow_view.set_edges)
+        self.flow_controls = QWidget()
+        controls = QHBoxLayout(self.flow_controls)
+        controls.setContentsMargins(0, 0, 0, 0)
+        for w in (QLabel("Colour map"), self.flow_cmap, self.flow_auto, QLabel("min"), self.flow_min, QLabel("max"),
+                  self.flow_max, self.flow_edges):
+            controls.addWidget(w)
+        vtu = QPushButton("Save .vtu...")
+        vtu.setToolTip("The solution for ParaView: every field per cell, and the velocity vector.")
+        vtu.clicked.connect(self.save_vtu)
+        self.vtu_button = vtu
         top = QHBoxLayout()
-        for w in (QLabel("Field"), self.field):
+        for w in (QLabel("Field"), self.field, self.flow_controls):
             top.addWidget(w)
         top.addStretch(1)
-        for w in (csv, png, folder):
+        for w in (csv, png, vtu, folder):
             top.addWidget(w)
         self.field.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.field_stack = QStackedWidget()
+        self.field_stack.addWidget(self.field_plot)
+        self.field_stack.addWidget(self.flow_view)
         plot_area = QWidget()
         plot_layout = QVBoxLayout(plot_area)
         plot_layout.setContentsMargins(0, 0, 0, 0)
         plot_layout.addLayout(top)
-        plot_layout.addWidget(self.field_plot, 1)
+        plot_layout.addWidget(self.field_stack, 1)
         numbers_area = QWidget()
         numbers_layout = QVBoxLayout(numbers_area)
         numbers_layout.setContentsMargins(0, 0, 0, 0)
@@ -117,9 +147,23 @@ class ResultsPage(QWidget):
         for combo in (self.view, self.cfield, self.cmap):
             combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         controls.setMaximumWidth(300)
+        # 2D results: wall pressure / Cp and the convergence history under the field view
+        self.flow_plot_choice = QComboBox()
+        self.flow_plot_choice.currentIndexChanged.connect(lambda _: self.draw_flow_plot())
+        self.flow_plot = PlotCanvas()
+        flow_box = QGroupBox("Plots")
+        flow_layout = QVBoxLayout(flow_box)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Plot"))
+        row.addWidget(self.flow_plot_choice)
+        row.addStretch(1)
+        flow_layout.addLayout(row)
+        flow_layout.addWidget(self.flow_plot, 1)
+        self.flow_box = flow_box
         splitter = QSplitter(Qt.Vertical)      # field plot + key numbers above, colour pictures below
         splitter.addWidget(upper)
         splitter.addWidget(contour_box)
+        splitter.addWidget(flow_box)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
         layout = QVBoxLayout(self)
@@ -171,12 +215,29 @@ class ResultsPage(QWidget):
         units = self.window.units
         for key, f in result.fields.items():
             self.field.addItem(f"{f.label} [{units.label(f.unit)}]", key)
+        if is_face_mesh(self.window.mesh) and "M" in result.fields:
+            self.field.setCurrentIndex(self.field.findData("M"))   # 2D flow: the Mach number says most
         self.field.blockSignals(False)
         self.numbers.set_rows(key_number_rows(result, payload.get("reference"), payload.get("run_s"), units))
         tiles = key_result_tiles(result, units)
         status = run_status_text(result, payload.get("run_s"))
         self.card.set_results(status if tiles else f"{status}. All numbers are in the Key numbers table.", tiles)
+        two_d = is_face_mesh(self.window.mesh)
+        self.field_stack.setCurrentWidget(self.flow_view if two_d else self.field_plot)
+        self.flow_controls.setVisible(two_d)
+        self.vtu_button.setVisible(two_d)
+        self._first_draw = True
         self.draw_field()
+        plots = flow_plots(result) if two_d else []
+        self.flow_box.setVisible(bool(plots))
+        self.flow_plot_choice.blockSignals(True)
+        self.flow_plot_choice.clear()
+        self.flow_plot_choice.addItems(plots)
+        self.flow_plot_choice.blockSignals(False)
+        self.draw_flow_plot()
+        if two_d:                                # the field view gets most of the height, the plots the rest
+            height = max(self.splitter.height(), 600)
+            self.splitter.setSizes([int(0.55 * height), 0, int(0.45 * height)])
         views = available_views(result, self.window.mesh)
         self.contour_box.setVisible(bool(views))
         self.view.blockSignals(True)
@@ -185,14 +246,62 @@ class ResultsPage(QWidget):
         self.view.blockSignals(False)
         self._fill_contour_fields()
 
-    def draw_field(self):
+    def draw_field(self, keep_camera=False):
         payload = self.window.results
         key = self.field.currentData()
         if payload is None or key is None:
             return
+        if is_face_mesh(self.window.mesh):
+            f = display_field(payload["result"].fields[key], self.window.units)
+            clim = None
+            if self.flow_auto.isChecked():
+                self.flow_min.setText(f"{float(f.values.min()):.5g}")
+                self.flow_max.setText(f"{float(f.values.max()):.5g}")
+            else:
+                lo, hi = _number(self.flow_min.text()), _number(self.flow_max.text())
+                clim = (lo, hi) if lo is not None and hi is not None and hi > lo else None
+            for box in (self.flow_min, self.flow_max):
+                box.setEnabled(not self.flow_auto.isChecked())
+            mesh = self.window.mesh
+            bbox = mesh.info.get("body_bbox")
+            body = (bbox[0], bbox[2], bbox[1], bbox[3]) if bbox is not None and len(bbox) == 4 else None
+            self.flow_view.show_mesh(mesh, f.values, f"{f.label} [{f.unit}]", edges=self.flow_edges.isChecked(),
+                                     body_bounds=body, cmap=self.flow_cmap.currentText(), clim=clim,
+                                     keep_camera=keep_camera or not getattr(self, "_first_draw", True))
+            self._first_draw = False
+            return
         reference = payload.get("reference") or {}
         self.field_plot.set_figure(field_figure(self.window.mesh, payload["result"].fields[key], reference.get(key),
                                                 self.window.units))
+
+    def draw_flow_plot(self):
+        payload = self.window.results
+        which = self.flow_plot_choice.currentText()
+        if payload is None or not which:
+            return
+        result = payload["result"]
+        if which == "Convergence history":
+            fig = residual_figure(list(range(1, len(result.residuals) + 1)), result.residuals,
+                                  payload["params"].get("tol"), prefs=self.window.units, **history_extras(result))
+        else:
+            fig = wall_figure(result, which, self.window.units)
+        self.flow_plot.set_figure(fig)
+
+    def cell_picked(self, cell):
+        payload = self.window.results
+        if payload is None:
+            return
+        self.window.show_properties(f"Cell #{cell}",
+                                    cell_value_rows(payload["result"], self.window.mesh, cell, self.window.units))
+
+    def save_vtu(self):
+        from aeroflowsim.vtk import solution_cell_data, write_vtu
+        payload = self.window.results
+        path = self._ask("Save the solution for ParaView", f"{self.window.project.name}_solution.vtu",
+                         "VTK unstructured grid (*.vtu)")
+        if path:
+            write_vtu(path, self.window.mesh, solution_cell_data(payload["result"]))
+            self.window.log(f"Solution saved to {path}")
 
     def _contour_fields(self):
         result = self.window.results["result"]
@@ -272,7 +381,10 @@ class ResultsPage(QWidget):
         payload = self.window.results
         key = self.field.currentData()
         path = self._ask("Save field plot", f"{self.window.project.name}_{key}.png", "PNG pictures (*.png)")
-        if path:
+        if path and is_face_mesh(self.window.mesh):
+            self.flow_view.save_picture(path)    # the 2D field as shown (colour map, range, zoom)
+            self.window.log(f"Picture saved to {path}")
+        elif path:
             with paper_style():                  # saved pictures: light "paper" style in both themes, user's units
                 reference = payload.get("reference") or {}
                 field_figure(self.window.mesh, payload["result"].fields[key], reference.get(key),

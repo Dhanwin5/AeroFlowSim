@@ -2,11 +2,10 @@
 # Format: see aeroflowsim/schema.py. SI units, except where the unit says otherwise.
 
 [case]
-name = "Axisymmetric nozzle (2D mesh)"
-description = "2D axisymmetric mesh of a converging-diverging nozzle (conical or CSV wall profile), from the axis to the wall, with throat clustering, optional inflation layers and mesh quality checks."
+name = "Axisymmetric nozzle (2D Euler)"
+description = "Steady 2D axisymmetric inviscid flow of a gas (default N2) through a converging-diverging nozzle (conical or CSV wall profile): structured or Gmsh mesh from the axis to the wall, finite-volume Euler solver; thrust two ways, Isp, Cf and discharge coefficient, compared with quasi-1D theory."
 steady = true
-solver = false
-solver_message = "The 2D axisymmetric Euler solver arrives in Prompt 7. For now this case builds, checks and exports the mesh (Mesh and Results tabs)."
+euler_solver = true          # adds the Numerics inputs and the boundary-condition table (aeroflowsim/euler/setup.py)
 
 # ---- geometry (same inputs as the quasi-1D nozzle) --------------------------------------------
 
@@ -324,3 +323,55 @@ group = "Inflation layers"
 step = "mesh"
 help = "Each layer is this many times thicker than the one below it (1.1 to 1.3 is usual)."
 show_if = { inflation = true }
+
+# ---- flow (Setup step) ----------------------------------------------------------------------------
+
+[[input]]
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "N2"
+group = "Gas"
+help = "The gas, from the gas library (calorically perfect: constant gamma and R; see the Details for the values and their sources), or a custom gas of your own. N2 gives gamma = 1.4 and R = 296.8 J/(kg K)."
+
+[[input]]
+key = "p0"
+label = "Total (chamber) pressure"
+unit = "Pa"
+type = "float"
+default = 500000.0
+min = 1.0
+max = 1000000000.0
+group = "Operating conditions"
+help = "Reservoir pressure: the default of the inlet's total-pressure condition (the boundary table can override it)."
+
+[[input]]
+key = "T0"
+label = "Total (chamber) temperature"
+unit = "K"
+type = "float"
+default = 293.15
+min = 1.0
+max = 5000.0
+group = "Operating conditions"
+help = "Reservoir temperature: the default of the inlet's total-pressure condition."
+
+[[input]]
+key = "p_back"
+label = "Back pressure"
+unit = "Pa"
+type = "float"
+default = 1000.0
+min = 0.0
+max = 1000000000.0
+group = "Operating conditions"
+help = "Ambient pressure at the exit: the default of the outlet's pressure condition. Acts only where the exit flow is subsonic; a supersonic exit ignores it (as in a real nozzle)."
+
+[[input]]
+key = "initialisation"
+label = "Initial solution"
+type = "choice"
+default = "Quasi-1D solution"
+options = ["Quasi-1D solution", "Uniform (free stream)", "Previous result (restart)"]
+group = "Operating conditions"
+help = "Quasi-1D: start from the isentropic quasi-1D flow of this nozzle (fast, recommended). Uniform: slow gas at rest-like state. Previous result: continue the last run of this project on the same mesh."

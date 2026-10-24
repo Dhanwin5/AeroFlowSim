@@ -473,6 +473,13 @@ class Project:
                 return Mesh1D(data["x"])
         return None
 
+    def restart_file(self, params):
+        """results/run.npz when the inputs ask to continue the previous result (initialisation =
+        'Previous result (restart)') and there is one; else None (the case then says what is missing)."""
+        from aeroflowsim.euler.initial import RESTART
+        path = self.results_dir / RUN_FILE
+        return path if params.get("initialisation") == RESTART and path.is_file() else None
+
     def load_results(self):
         """The saved run payload (result, reference, checks, ...), or None if there is none."""
         path = self.results_dir / RUN_FILE
@@ -531,7 +538,11 @@ def run_project(project, progress=None):
     mesh = project.load_mesh() if project.status("mesh") == "ok" else None
     if mesh is None:
         mesh = build_project_mesh(project)
-    output = run_case(project.case, params, mesh=mesh, progress=progress, out_dir=project.results_dir)
+    restart = project.restart_file(params)
+    if restart is not None:
+        restart = {k: f.values for k, f in load_run(restart)["result"].fields.items()}
+    output = run_case(project.case, params, mesh=mesh, progress=progress, out_dir=project.results_dir,
+                      restart=restart)
     payload = {"result": output.result, "reference": output.reference, "reference_lines": output.reference_lines,
                "checks": output.checks, "params": output.params}
     project.record_run(payload, mesh)

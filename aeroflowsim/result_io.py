@@ -62,7 +62,11 @@ def save_run(folder, payload, mesh=None) -> Path:
         "lines": [],
         "snapshots": None,
         "shape": None,
+        "series": sorted(result.series),          # 2D solvers: histories, wall distributions
+        "info": result.info,                      # 2D solvers: status, positivity events, ...
     }
+    for key, values in result.series.items():
+        arrays[f"series/{key}"] = np.asarray(values)
     if result.snapshots is not None:
         arrays["snapshots/times"] = np.asarray(result.snapshots.times)
         meta["snapshots"] = _fields_out("snapshots", result.snapshots.fields, arrays)
@@ -98,7 +102,9 @@ def load_run(path) -> dict:
         result = Result(fields=_fields_in("fields", meta["fields"], data), residuals=data["residuals"].tolist(),
                         key_numbers={k: (v, u) for k, (v, u) in meta["key_numbers"].items()},
                         iterations=meta["iterations"], converged=meta["converged"], snapshots=snapshots,
-                        shape=shape, shape_note=meta["shape_note"])
+                        shape=shape, shape_note=meta["shape_note"],
+                        series={k: data[f"series/{k}"] for k in meta.get("series", [])},
+                        info=meta.get("info", {}))
         lines = [Line(label=m["label"], x=data[f"lines/{i}/x"], y=data[f"lines/{i}/y"], style=m["style"])
                  for i, m in enumerate(meta["lines"])]
         payload = {"result": result, "reference": _fields_in("reference", meta["reference"], data),

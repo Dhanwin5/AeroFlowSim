@@ -20,7 +20,9 @@ How Cancel works:
 
 The child sends messages back (all plain, picklable Python objects):
     ("stage", text)                      what it is doing now
-    ("progress", iterations, residuals)  new residual history, sent in batches every 0.1 s
+    ("progress", iterations, residuals, extras)  new residual history, sent in batches every 0.1 s;
+                                         extras: one dict per iteration from solvers that report more
+                                         (residual per equation, monitors such as thrust), else None
     ("done", payload)                    a dict with the outputs (see _mesh_job and _run_job)
     ("stopped",)                         the run ended early because Stop was pressed
     ("error", text)                      the job failed (the message names the problem)
@@ -53,6 +55,7 @@ class Job:
     params: dict              # validated inputs
     out_dir: str | None       # where the outputs are written (mesh files, or results)
     mesh: object = None       # run only: a Mesh / Mesh1D object, or the path of a saved mesh.npz
+    restart: str = None       # run only: path of a previous run.npz to continue from (its fields), or None
     geometry: dict = None     # mesh only: the edited workspace geometry (GeometryDocument.to_dict()), or None
     folder: str = None        # mesh only: the project folder (files imported into the workspace are there)
 
@@ -67,6 +70,9 @@ class Task:
     stage: str = "Starting"   # short text of what is being done
     iterations: list = field(default_factory=list)   # residual history so far [-]
     residuals: list = field(default_factory=list)
+    equation_residuals: list = field(default_factory=list)   # per iteration: residual of each equation [-]
+    monitors: dict = field(default_factory=dict)             # name -> list of values per iteration
+    positivity: int = 0       # faces that fell back to first order in the latest iteration
     payload: dict | None = None   # outputs when finished
     error: str = ""           # one-line message when failed
     details: str = ""         # traceback of a failure (for the Messages panel)
@@ -124,28 +130,41 @@ def _run_job(job, send, stop_event):
     if isinstance(mesh, (str, Path)):
         send("stage", "Loading the mesh")
         mesh = Mesh.load(mesh)
-    batch_its, batch_res = [], []
+    restart = None
+    if job.restart:
+        from aeroflowsim.result_io import load_run
+        send("stage", "Reading the previous result")
+        restart = {k: f.values for k, f in load_run(job.restart)["result"].fields.items()}
+    batch_its, batch_res, batch_extra = [], [], []
     last_sent = [time.perf_counter()]
 
-    def progress(iteration, residual):
+    def progress(iteration, residual, info=None):
         batch_its.append(iteration)
         batch_res.append(residual)
+        if info is not None:        # plain numbers only (they are pickled to the parent process)
+            batch_extra.append({"residuals": [float(r) for r in info.get("residuals", ())],
+                                "monitors": {k: float(v) for k, v in info.get("monitors", {}).items()},
+                                "positivity": int(info.get("positivity", 0))})
         now = time.perf_counter()
         if now - last_sent[0] >= PROGRESS_INTERVAL_S:
-            send("progress", list(batch_its), list(batch_res))
-            batch_its.clear()
-            batch_res.clear()
+            flush()
             last_sent[0] = now
         if stop_event.is_set():
             raise StopRequested()
 
+    def flush():
+        send("progress", list(batch_its), list(batch_res), list(batch_extra) if batch_extra else None)
+        batch_its.clear()
+        batch_res.clear()
+        batch_extra.clear()
+
     send("stage", "Solving")
     t0 = time.perf_counter()
     try:
-        output = run_case(case, job.params, mesh=mesh, progress=progress, out_dir=job.out_dir)
+        output = run_case(case, job.params, mesh=mesh, progress=progress, out_dir=job.out_dir, restart=restart)
     finally:
         if batch_its:
-            send("progress", list(batch_its), list(batch_res))
+            flush()
     return {"result": output.result, "reference": output.reference, "reference_lines": output.reference_lines,
             "checks": output.checks, "params": output.params, "out_dir": job.out_dir,
             "run_s": time.perf_counter() - t0}
@@ -270,6 +289,11 @@ class Worker:
             elif kind == "progress":
                 task.iterations.extend(message[2])
                 task.residuals.extend(message[3])
+                for extra in (message[4] if len(message) > 4 and message[4] else ()):
+                    task.equation_residuals.append(extra["residuals"])
+                    for name, value in extra["monitors"].items():
+                        task.monitors.setdefault(name, []).append(value)
+                    task.positivity = extra["positivity"]
             elif kind == "done":
                 task.payload = message[2]
                 self._finish(task, "finished")

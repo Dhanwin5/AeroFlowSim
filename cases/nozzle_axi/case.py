@@ -2,17 +2,23 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Axisymmetric nozzle: 2D face-based mesh of the upper half of a converging-diverging nozzle.
+"""Axisymmetric nozzle: steady 2D axisymmetric Euler flow through a converging-diverging nozzle.
 
-Mesh only for now (schema.toml: solver = false); the 2D axisymmetric Euler solver follows in
-Prompt 7 and will use the same mesh. Geometry from aeroflowsim/geometry.py (conical with a sharp or
-rounded throat, or CSV); structured mesh from aeroflowsim/nozzle_mesh.py or triangle mesh from
-aeroflowsim/gmsh_mesh.py (optional Gmsh); quality checks from aeroflowsim/checks.py. See README.md.
+Geometry from aeroflowsim/geometry.py (conical with a sharp or rounded throat, or CSV); structured mesh
+from aeroflowsim/nozzle_mesh.py or Gmsh mesh from aeroflowsim/gmsh_mesh.py, the upper half of the
+meridional plane (patches inlet, outlet, wall, axis); quality checks from aeroflowsim/checks.py.
+Flow: the finite-volume Euler solver of aeroflowsim/euler/ (inputs added by euler_solver = true in
+schema.toml); this file only says what is special about a nozzle: the reservoir inlet, the back
+pressure, the quasi-1D start and the nozzle numbers (aeroflowsim/euler/setup.py, nozzle_problem).
+See README.md.
 """
 
 import math
 from pathlib import Path
 
+from aeroflowsim.euler.boundary import BoundaryCondition
+from aeroflowsim.euler.setup import nozzle_problem, solve
+from aeroflowsim.gases import gas_model
 from aeroflowsim.geometry import conical_nozzle, read_profile_csv
 from aeroflowsim.nozzle_mesh import CLUSTER_STRENGTHS, PRESETS, Inflation, structured_nozzle_mesh
 
@@ -115,3 +121,28 @@ def derived(params):
     if layers is not None:
         numbers["Total inflation thickness"] = (layers.thickness, "m")
     return numbers
+
+
+# ---- flow -------------------------------------------------------------------------------------------
+
+def gas(params):
+    """The GasModel of the "gas" input (a relative custom-gas path is read from the project folder)."""
+    return gas_model(params["gas"], base=PROJECT_DIR)
+
+
+def reservoir_state(params):
+    """Chamber (total) state checked by the gas validity checks: (p0 [Pa], T0 [K])."""
+    return params["p0"], params["T0"]
+
+
+def boundary_defaults(params):
+    """The condition each kind of boundary starts with (the Setup table can change any of them)."""
+    return {"inlet": BoundaryCondition("total_pressure_inlet", {"p0": params["p0"], "T0": params["T0"]}),
+            "outlet": BoundaryCondition("pressure_outlet", {"p": params["p_back"]}),
+            "wall": BoundaryCondition("slip_wall"), "axis": BoundaryCondition("axis")}
+
+
+def run(params, mesh, progress, restart=None):
+    """Solve the steady axisymmetric Euler equations on the mesh; return the Result."""
+    problem = nozzle_problem(params, mesh, gas(params), boundary_defaults(params), restart)
+    return solve(problem, params, mesh, progress)

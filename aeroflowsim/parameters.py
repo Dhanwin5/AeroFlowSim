@@ -17,6 +17,10 @@ Input types:
     "text"    a short text, e.g. the NACA digits "2412" (optionally checked against a pattern)
     "gas"     the gas: a built-in gas id such as "N2", or the path of a custom gas file (.toml,
               relative paths are read from the project folder); see aeroflowsim/gases/
+    "boundaries"  the boundary condition of each named boundary (patch) of the mesh, as a dict
+              {patch name: {"type": <type>, <input>: <value>, ...}} (types and their inputs:
+              aeroflowsim/euler/boundary.py, BC_TYPES). Only the patches the user changed are stored; the
+              others follow the case's defaults. Shown in the GUI as a table.
 An input can be shown only when another input has a given value (show_if), e.g. the CSV file
 only when the geometry source is "Custom profile (CSV)". If that other input is itself hidden,
 this one is hidden too.
@@ -30,7 +34,7 @@ import importlib.util
 import re
 from dataclasses import dataclass, field
 
-TYPES = ("float", "int", "bool", "choice", "file", "text", "gas")
+TYPES = ("float", "int", "bool", "choice", "file", "text", "gas", "boundaries")
 NUMBER_TYPES = ("float", "int")
 STEPS = ("geometry", "mesh", "setup")   # workflow step an input belongs to (Geometry, Mesh or Setup page)
 
@@ -159,6 +163,8 @@ def clean_value(p: Parameter, value):
             raise ValueError(f"'{p.name}' ({p.label}) = '{value}' is neither a built-in gas "
                              f"({', '.join(builtin_ids())}) nor a custom gas file (.toml).")
         return value
+    if p.type == "boundaries":
+        return clean_boundaries(p, value)
     if p.type == "bool":
         if not isinstance(value, bool):
             raise ValueError(f"'{p.name}' ({p.label}) must be true or false, got {value!r}.")
@@ -178,6 +184,31 @@ def clean_value(p: Parameter, value):
         raise ValueError(f"'{p.name}' ({p.label}) = {number} {p.unit} is outside the allowed range "
                          f"[{p.min}, {p.max}] {p.unit}.")
     return number
+
+
+def clean_boundaries(p: Parameter, value) -> dict:
+    """Check a "boundaries" value: {patch: {"type": ..., inputs}}; numbers inside their ranges.
+
+    Whether the patch names exist is checked when the mesh is known (aeroflowsim/euler/setup.py).
+    """
+    from aeroflowsim.euler.boundary import BC_TYPES
+    if not isinstance(value, dict):
+        raise ValueError(f"'{p.name}' ({p.label}) must be a table of boundary conditions, got {value!r}.")
+    clean = {}
+    for patch, entry in value.items():
+        if not isinstance(entry, dict) or entry.get("type") not in BC_TYPES:
+            raise ValueError(f"Boundary '{patch}': unknown boundary-condition type "
+                             f"{entry.get('type') if isinstance(entry, dict) else entry!r}.")
+        kind = BC_TYPES[entry["type"]]
+        out = {"type": entry["type"]}
+        for q in kind.inputs:
+            if q.name in entry:
+                try:
+                    out[q.name] = clean_value(q, entry[q.name])
+                except ValueError as error:
+                    raise ValueError(f"Boundary '{patch}' ({kind.label}): {error}") from None
+        clean[str(patch)] = out
+    return clean
 
 
 def check_values(param_list: list[Parameter], values: dict) -> dict[str, str]:
@@ -220,6 +251,9 @@ def parse_value(p: Parameter, text: str):
         if lowered in ("false", "no", "0", "off"):
             return False
         raise ValueError(f"'{text}' is not true or false.")
+    if p.type == "boundaries":
+        import json
+        return json.loads(text)
     if not p.is_number:
         return text
     return int(text) if p.is_integer and float(text) == int(float(text)) else float(text)

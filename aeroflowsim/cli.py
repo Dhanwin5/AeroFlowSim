@@ -54,7 +54,7 @@ def parse_settings(case, assignments):
 
 def print_progress_every(n):
     """A progress callback that prints the residual at iteration 1 and every n iterations."""
-    def progress(iteration, residual):
+    def progress(iteration, residual, info=None):
         if iteration == 1 or iteration % n == 0:
             print(f"  iteration {iteration:>7d}   residual {residual:.3e}", flush=True)
     return progress

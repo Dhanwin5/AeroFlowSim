@@ -20,6 +20,9 @@ Example (one [case] table, then one [[input]] table per input, in the order show
     requires = ["gmsh"]               # optional: packages the case needs (the GUI says how to install them)
     shape_library = true              # optional: put the "Shape" dropdown and every shape's inputs
                                       # (aeroflowsim/shapes/) in front of the inputs below
+    euler_solver = true               # optional: add the 2D Euler solver's inputs after the inputs below
+                                      # (numerics and the boundary-condition table, aeroflowsim/euler/setup.py)
+    solver_defaults = { cfl = 0.5 }   # optional, with euler_solver: other defaults for those inputs
 
     [[input]]
     key = "d_throat"                  # name used in the code: params["d_throat"]
@@ -65,6 +68,8 @@ class Schema:
     solver_message: str = "This case has no solver yet."   # shown instead of the Run button
     requires: list = field(default_factory=list)   # optional packages the case needs, e.g. ["gmsh"]
     shape_library: bool = False  # True: the shape dropdown and shape inputs are added (aeroflowsim/case.py)
+    euler_solver: bool = False   # True: the Euler solver's numerics and boundary-condition inputs are added
+    solver_defaults: dict = field(default_factory=dict)   # other defaults for those inputs {key: value}
 
 
 def _input_to_parameter(entry: dict, number: int) -> Parameter:
@@ -148,8 +153,12 @@ def parse_schema(data: dict) -> Schema:
     shape_library = info.get("shape_library", False)
     if not isinstance(shape_library, bool):
         raise ValueError("[case] 'shape_library' must be true or false.")
+    euler_solver = info.get("euler_solver", False)
+    solver_defaults = info.get("solver_defaults", {})
+    if not isinstance(euler_solver, bool) or not isinstance(solver_defaults, dict):
+        raise ValueError("[case] 'euler_solver' must be true or false and 'solver_defaults' a table.")
     inputs = [_input_to_parameter(entry, i + 1) for i, entry in enumerate(data.get("input", []))]
-    if not shape_library:
+    if not (shape_library or euler_solver):
         check_inputs(inputs)
     requires = info.get("requires", [])
     if not (isinstance(requires, list) and all(isinstance(r, str) for r in requires)):
@@ -161,7 +170,8 @@ def parse_schema(data: dict) -> Schema:
     if not isinstance(message, str):
         raise ValueError("[case] 'solver_message' must be text.")
     return Schema(title=info["name"], description=info["description"], steady=info["steady"], inputs=inputs,
-                  solver=solver, solver_message=message, requires=requires, shape_library=shape_library)
+                  solver=solver, solver_message=message, requires=requires, shape_library=shape_library,
+                  euler_solver=euler_solver, solver_defaults=dict(solver_defaults))
 
 
 def load_schema(path) -> Schema:

@@ -102,3 +102,7 @@ class Result:
     snapshots: Snapshots | None = None   # fields over time (unsteady cases) -> x-t diagram
     shape: WallProfile | None = None     # outline r(x) for the shape view
     shape_note: str | None = None        # second title line of the shape view (None = default text)
+    # 2D solvers: extra 1D arrays (convergence history per equation and per monitor, wall pressure
+    # distribution, ...) and plain facts about the run (status, positivity events, CFL reductions, ...)
+    series: dict[str, np.ndarray] = field(default_factory=dict)
+    info: dict = field(default_factory=dict)

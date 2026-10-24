@@ -19,6 +19,7 @@ import numpy as np
 import yaml
 
 # Plot colours (numerical, reference, muted grid/axes) and axis style are shared with visualise.py
+from aeroflowsim.mesh import Mesh
 from aeroflowsim.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png, length_axes,
                                    shape_view, style_axes, xt_diagram)
 
@@ -35,8 +36,14 @@ def save_outputs(out_dir, output) -> Path:
     save_residuals_csv(out_dir / "residuals.csv", result)
     save_summary_yaml(out_dir / "summary.yaml", case.name, case, case.parameters(), output.params,
                       result, errors, output.checks)
-    plot_fields(out_dir / "fields.png", case, mesh, result, reference)
     plot_residuals(out_dir / "residuals.png", case, result)
+    if isinstance(mesh, Mesh):
+        # 2D / 3D: the solution for ParaView, and the history of every equation and monitor
+        from aeroflowsim.vtk import solution_cell_data, write_vtu
+        write_vtu(out_dir / "solution.vtu", mesh, solution_cell_data(result))
+        save_history_csv(out_dir / "history.csv", result)
+        return out_dir
+    plot_fields(out_dir / "fields.png", case, mesh, result, reference)
     if result.snapshots is not None:
         # Unsteady case: x-t diagram of the first field, with the exact lines (if any) on top.
         save_xt_diagram(out_dir, mesh, result, output.reference_lines)
@@ -68,9 +75,16 @@ def save_fields_csv(path, mesh, result, reference, units=None):
     """
     convert = (lambda values, unit: (values, unit)) if units is None else units.display
     first = next(iter(result.fields.values()))
-    x, x_unit = convert(mesh.positions(len(first.values)), "m")
-    columns = [x]
-    header = [f"x_{x_unit}"]
+    if isinstance(mesh, Mesh):        # cell centres x, y (, z): one row per cell
+        columns, header = [], []
+        for axis, name in enumerate("xyz"[:mesh.dim]):
+            values, x_unit = convert(mesh.cell_centres[:, axis], "m")
+            columns.append(values)
+            header.append(f"{name}_{x_unit}")
+    else:
+        x, x_unit = convert(mesh.positions(len(first.values)), "m")
+        columns = [x]
+        header = [f"x_{x_unit}"]
     for key, f in result.fields.items():
         values, unit = convert(f.values, f.unit)
         columns.append(values)
@@ -96,6 +110,15 @@ def save_residuals_csv(path, result):
                header="iteration,residual", comments="", fmt=["%d", "%.6e"])
 
 
+def save_history_csv(path, result):
+    """Write the per-iteration series of a 2D run (residual per equation, monitors) as columns."""
+    n = len(result.residuals)
+    keys = [k for k, v in result.series.items() if len(v) == n and (k.startswith("residual_") or k.startswith("monitor_"))]
+    columns = [np.arange(1, n + 1)] + [np.asarray(result.series[k]) for k in keys]
+    np.savetxt(path, np.column_stack(columns), delimiter=",", header=",".join(["iteration"] + keys), comments="",
+               fmt=["%d"] + ["%.10e"] * len(keys))
+
+
 def save_summary_yaml(path, name, case, param_list, values, result, errors, checks=()):
     """Write inputs, convergence info, key numbers, errors and validity checks to a readable YAML file."""
     summary = {
@@ -110,6 +133,10 @@ def save_summary_yaml(path, name, case, param_list, values, result, errors, chec
         "max_error_vs_reference": {k: {"value": e, "unit": u} for k, (e, u) in errors.items()},
         "checks": [c.as_dict() for c in checks],
     }
+    if result.info:
+        summary["run"] = {k: v for k, v in result.info.items() if k not in ("monitor_labels", "boundaries")}
+        if "boundaries" in result.info:
+            summary["boundary_conditions"] = result.info["boundaries"]
     with open(path, "w", encoding="utf-8") as file:
         yaml.safe_dump(summary, file, sort_keys=False, allow_unicode=True)
 

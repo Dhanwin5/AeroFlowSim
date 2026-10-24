@@ -1,13 +1,32 @@
-# Axisymmetric nozzle, 2D mesh (`nozzle_axi`)
+# Axisymmetric nozzle, 2D Euler (`nozzle_axi`)
 
-A 2D **axisymmetric** mesh of a converging-diverging nozzle: the upper half of the meridional
-plane, from the axis (r = 0) to the wall, from the inlet to the exit. The default geometry is the
-same N2 cold-gas thruster as the quasi-1D case (inlet Ø 2.0 mm, straight inlet 1.33 mm, 30°
-convergent cone, throat Ø 0.280 mm, 15° divergent cone, exit Ø 0.911 mm, A_e/A* = 10.59).
+Steady **axisymmetric inviscid** flow through a converging-diverging nozzle: the upper half of the
+meridional plane, from the axis (r = 0) to the wall, from the inlet to the exit. The default geometry is
+the same N2 cold-gas thruster as the quasi-1D case (inlet Ø 2.0 mm, straight inlet 1.33 mm, 30°
+convergent cone, throat Ø 0.280 mm, 15° divergent cone, exit Ø 0.911 mm, A_e/A* = 10.59), with
+p0 = 5 bar, T0 = 293.15 K and a back pressure of 1 kPa.
 
-**Status:** mesh only (`solver = false` in `schema.toml`). The 2D axisymmetric Euler solver
-arrives in Prompt 7 and will use this mesh unchanged. The GUI's Run tab says so; the Results tab
-shows the mesh quality checks.
+## Flow (Setup step)
+
+- **Solver:** the finite-volume Euler solver of `aeroflowsim/euler/` (theory manual, section 13):
+  HLLC flux in the face-normal frame with an HLLE blend near strong shocks, MUSCL reconstruction with
+  least-squares gradients and the Venkatakrishnan limiter, SSP-RK3 with local time steps. The
+  axisymmetric pressure source is written in the well-balanced form, so gas at rest stays at rest.
+- **Boundary conditions** (table in the Setup step; each boundary starts from the default for its kind):
+  inlet = total-pressure inlet (p0, T0 of the Operating conditions), outlet = pressure outlet (the back
+  pressure acts only where the exit flow is subsonic), wall = slip wall, axis = axis.
+- **Initial solution:** the isentropic quasi-1D flow of this nozzle (default), a slow uniform state, or
+  the previous result of the project (restart, same mesh).
+- **Convergence:** the residual has dropped below the tolerance (default 6 orders) AND the thrust and the
+  exit mass flow changed less than 1e-4 (relative) over the last 500 iterations.
+- **Results:** mass flow (in, out, and the ideal quasi-1D choked mass flow), discharge coefficient,
+  exit Mach number (mass-flux weighted) and pressure (area weighted), vacuum thrust computed two ways
+  (exit-plane momentum + pressure; wall pressure + inlet momentum: equal when converged), thrust at the
+  back pressure, vacuum Isp and Cf, and the ideal quasi-1D Isp of the same wall for comparison. Fields:
+  rho, u, v, p, T, Mach, total pressure, total temperature, entropy; the wall pressure p/p0 against the
+  quasi-1D isentropic p/p0; the solution as `results/solution.vtu` for ParaView.
+- **Speed:** plain NumPy (Numba and implicit time stepping are Prompt 8): the coarse mesh (2,000 cells)
+  converges in about 8,000 iterations, 75 s; the default medium mesh (8,000 cells) takes several minutes.
 
 ## Geometry
 

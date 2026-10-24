@@ -1,0 +1,398 @@
+# AeroFlowSim - open-source CFD for nozzle aerodynamics and propulsion
+# Copyright (C) 2026 Dhanwin Mehta
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""From a template's inputs to a finished Euler run: shared inputs, boundary conditions, monitors, Result.
+
+Templates with  euler_solver = true  in their schema.toml get the inputs of solver_parameters() (the
+Numerics group and the boundary-condition table) added automatically, so the numerics look the same in
+every template and are written only here. A template's case.py then only says what is special about it:
+
+    nozzle_problem(...)    internal flow (nozzle, duct): mass flows, thrust two ways, Isp, Cf, Cd
+    external_problem(...)  a body in a free stream: Cl, Cd, Cm in body and wind axes, Cp along the wall
+
+and calls solve(problem, params, mesh, progress, restart). The boundary condition of each patch is the
+case's default for its kind (inlet, outlet, wall, ...) unless the user changed it in the Setup table.
+"""
+
+import math
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from aeroflowsim import gasdynamics as gd
+from aeroflowsim.euler import forces
+from aeroflowsim.euler.boundary import BC_TYPES, DEFAULT_FOR_KIND, BoundaryCondition, boundary_problems
+from aeroflowsim.euler.gradients import METHODS as GRADIENT_METHODS
+from aeroflowsim.euler.initial import QUASI_1D, RESTART, UNIFORM, quasi1d_state, restart_state
+from aeroflowsim.euler.limiters import LIMITERS
+from aeroflowsim.euler.solver import (CONVERGED, DIVERGED, TIME_SCHEMES, EulerSolver, Numerics)
+from aeroflowsim.euler.state import (entropy, mach_number, primitive_to_conserved, state_from_mach, temperature,
+                                     total_pressure, total_temperature, uniform_state)
+from aeroflowsim.geometry import WallProfile
+from aeroflowsim.parameters import Parameter, clean_value
+from aeroflowsim.results import Field, Result
+
+SECOND_ORDER, FIRST_ORDER = "Second order (MUSCL)", "First order"
+# Every monitor a template may report: name -> (label, SI unit). The GUI uses this table for its live plots.
+MONITOR_LABELS = {
+    "thrust": ("Thrust (vacuum), exit plane", "N"), "thrust_wall": ("Thrust (vacuum), wall + inlet", "N"),
+    "mdot_in": ("Mass flow in", "kg/s"), "mdot_out": ("Mass flow out", "kg/s"),
+    "Cd": ("Drag coefficient Cd", "-"), "Cl": ("Lift coefficient Cl", "-"), "Cm": ("Moment coefficient Cm", "-"),
+}
+EQUATIONS = ("mass", "x-momentum", "y-momentum", "energy")
+G0 = forces.G0
+
+
+def _number(key, label, unit, default, lo, hi, help, kind="float"):
+    return Parameter(key, label, unit, default, lo, hi, help, type=kind, group="Numerics", step="setup")
+
+
+def _choice(key, label, options, default, help):
+    return Parameter(key, label, "", default, help=help, type="choice", options=tuple(options), group="Numerics",
+                     step="setup")
+
+
+def solver_parameters(overrides=None) -> list:
+    """The inputs every Euler template gets (Numerics group + boundary-condition table).
+
+    overrides: {key: default} from the template's [case] solver_defaults.
+    """
+    inputs = [
+        Parameter("boundaries", "Boundary conditions", "", {}, help="The condition on every named boundary of the "
+                  "mesh. Each boundary starts from the default for its kind (inlet, outlet, wall, ...); "
+                  "change the type or its values in the table.", type="boundaries", group="Boundary conditions",
+                  step="setup"),
+        _number("cfl", "CFL number", "-", 0.8, 0.01, 5.0, "Courant number: the time step as a fraction of the "
+                "largest stable one. Lower it (0.3) if a run diverges; the solver halves it by itself at most "
+                "4 times."),
+        _choice("order", "Order of accuracy", (SECOND_ORDER, FIRST_ORDER), SECOND_ORDER,
+                "Second order (MUSCL reconstruction with a limiter) for results; first order is very robust "
+                "but smears shocks and expansions."),
+        _number("first_order_iterations", "First-order iterations at the start", "-", 0, 0, 1_000_000,
+                "Run this many first-order iterations before switching to second order (a robust start for "
+                "strong shocks).", "int"),
+        _choice("limiter", "Limiter", LIMITERS, LIMITERS[0], "Venkatakrishnan: smooth, converges well (default). "
+                "Barth-Jespersen: strict, may stall the residual."),
+        _number("venkat_k", "Venkatakrishnan K", "-", 5.0, 0.0, 100.0, "Larger K = less limiting in smooth "
+                "regions (0 = as strict as Barth-Jespersen).", ),
+        _number("freeze_limiter", "Freeze the limiter after a drop of", "orders", 4.0, 0.0, 15.0,
+                "Keep the limiter fixed once the residual has dropped this many orders of magnitude, so it "
+                "cannot stall the convergence. 0 = never freeze."),
+        _choice("gradient", "Gradients", GRADIENT_METHODS, GRADIENT_METHODS[0], "Weighted least squares (exact "
+                "for linear fields on any cell) or Green-Gauss."),
+        _choice("time_scheme", "Time stepping", TIME_SCHEMES, TIME_SCHEMES[0], "SSP-RK3 (robust) or Jameson's "
+                "four-stage scheme (allows a larger CFL number for steady flow)."),
+        _number("max_iter", "Maximum iterations", "-", 20000, 1, 10_000_000, "The run stops here if it has not "
+                "converged.", "int"),
+        _number("tol", "Residual tolerance", "-", 1e-6, 1e-15, 1.0, "Converged when the normalised residual is "
+                "below this (1e-6 = six orders of magnitude) AND the monitors have settled."),
+        _number("monitor_tol", "Monitor tolerance", "-", 1e-4, 1e-12, 1.0, "The monitors (thrust, mass flow, "
+                "Cd, ...) have settled when they change less than this fraction over the monitor window."),
+        _number("monitor_window", "Monitor window", "-", 500, 2, 1_000_000, "Number of iterations over which the "
+                "monitors must have settled.", "int"),
+        Parameter("carbuncle_fix", "Carbuncle fix (HLLE near strong shocks)", "", True, help="Blend the flux "
+                  "towards the more dissipative HLLE only near strong shocks, which prevents the 'carbuncle' "
+                  "shock instability.", type="bool", group="Numerics", step="setup"),
+    ]
+    for key, value in (overrides or {}).items():
+        p = next((q for q in inputs if q.name == key), None)
+        if p is None:
+            raise ValueError(f"solver_defaults: '{key}' is not an Euler solver input.")
+        p.default = clean_value(p, value)
+    return inputs
+
+
+def numerics(params, steady=True) -> Numerics:
+    """The Numerics of the template inputs."""
+    return Numerics(cfl=params["cfl"], order=2 if params["order"] == SECOND_ORDER else 1,
+                    gradient=params["gradient"], limiter=params["limiter"], venkat_k=params["venkat_k"],
+                    freeze_limiter_orders=params["freeze_limiter"],
+                    first_order_iterations=params["first_order_iterations"], time_scheme=params["time_scheme"],
+                    local_time_stepping=steady, max_iterations=params["max_iter"],
+                    residual_drop=-math.log10(params["tol"]), monitor_tolerance=params["monitor_tol"],
+                    monitor_window=params["monitor_window"], carbuncle_fix=params["carbuncle_fix"])
+
+
+# ---- boundary conditions ------------------------------------------------------------------------------
+
+def conditions(params, mesh, defaults) -> dict:
+    """{patch name: BoundaryCondition}: the user's entry from the table, else the default for its kind.
+
+    defaults: {patch kind: BoundaryCondition} of the template (e.g. inlet -> total-pressure inlet with the
+    template's p0 and T0); kinds it does not list get DEFAULT_FOR_KIND with that type's default values.
+    Raises ValueError (in plain words) if a patch has no valid condition.
+    """
+    table = params.get("boundaries") or {}
+    out = {}
+    for p in mesh.patches:
+        if p.name in table:
+            out[p.name] = BoundaryCondition.from_dict(table[p.name])
+        elif p.type in defaults:
+            out[p.name] = defaults[p.type]
+        else:
+            out[p.name] = BoundaryCondition(DEFAULT_FOR_KIND[p.type])
+    names = [p.name for p in mesh.patches]
+    problems = boundary_problems(out, names)
+    problems += [f"There is a boundary condition for '{name}', but the mesh has no such boundary (the mesh has: "
+                 f"{', '.join(names)})." for name in table if name not in names]
+    if problems:
+        raise ValueError("Boundary conditions: " + " ".join(problems))
+    return out
+
+
+def table_rows(params, mesh, defaults) -> list:
+    """[(patch name, patch kind, BoundaryCondition, changed by the user)] for the Setup table."""
+    table = params.get("boundaries") or {}
+    effective = conditions({"boundaries": {}}, mesh, defaults)
+    rows = []
+    for p in mesh.patches:
+        bc = BoundaryCondition.from_dict(table[p.name]) if p.name in table else effective[p.name]
+        rows.append((p.name, p.type, bc, p.name in table))
+    return rows
+
+
+# ---- problems -----------------------------------------------------------------------------------------
+
+@dataclass
+class Problem:
+    """What a template hands to solve(): gas, conditions, initial state and how to measure the run."""
+
+    kind: str                       # "nozzle" or "external"
+    gas: object
+    conditions: dict
+    W0: np.ndarray
+    L_ref: float                    # [m] (limiter eps, Cm)
+    scales: tuple                   # reference size of rho, u, v, p
+    initialisation: str = UNIFORM
+    monitor: object = None          # function(solver, W) -> {name: value}
+    monitor_labels: dict = field(default_factory=dict)   # name -> (label, unit)
+    converge_on: tuple = ()
+    monitor_scales: dict = field(default_factory=dict)
+    finish: object = None           # function(solver, W, out) -> key_numbers dict
+    series: object = None           # function(solver, W) -> {name: array} (e.g. wall Cp)
+
+
+def mesh_wall_profile(mesh, wall_names):
+    """The wall radius r(x) of an axisymmetric internal flow, from the nodes of its wall patches."""
+    nodes = []
+    for p in mesh.patches:
+        if p.name in wall_names:
+            f = mesh.face_nodes[p.start:p.start + p.count]
+            nodes.append(f[f >= 0])
+    if not nodes:
+        raise ValueError("The mesh has no wall: the nozzle profile (for the quasi-1D start and the throat "
+                         "area) cannot be found.")
+    xy = mesh.nodes[np.unique(np.concatenate(nodes)), :2]
+    x, inverse = np.unique(np.round(xy[:, 0], 12), return_inverse=True)
+    r = np.zeros(len(x))
+    np.maximum.at(r, inverse, xy[:, 1])
+    return WallProfile(x, r)
+
+
+def _inlet_total_state(bcs, params):
+    """(p0 [Pa], T0 [K]) of the first total-pressure inlet, else of the template inputs."""
+    for bc in bcs.values():
+        if bc.type == "total_pressure_inlet":
+            return bc.values["p0"], bc.values["T0"]
+    return params["p0"], params["T0"]
+
+
+def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
+    """Internal (nozzle) flow: total-pressure inlet, pressure outlet, walls, axis.
+
+    params needs p0, T0, p_back and initialisation. defaults: {kind: BoundaryCondition}.
+    """
+    bcs = conditions(params, mesh, defaults)
+    inlets = forces.patch_names_of(bcs, "total_pressure_inlet", "mass_flow_inlet", "supersonic_inlet")
+    outlets = forces.patch_names_of(bcs, "pressure_outlet", "supersonic_outlet")
+    walls = forces.patch_names_of(bcs, "slip_wall")
+    if not inlets or not outlets:
+        raise ValueError("A nozzle needs at least one inlet and one outlet boundary condition.")
+    p0, T0 = _inlet_total_state(bcs, params)
+    p_back = next((bc.values["p"] for bc in bcs.values() if bc.type == "pressure_outlet"), params["p_back"])
+    profile = mesh_wall_profile(mesh, walls)
+    r_t = float(profile.r.min())                                       # throat radius [m]
+    A_t = math.pi * r_t**2 if mesh.axisymmetric else r_t * 1.0         # planar: half height x 1 m (half domain)
+    init = params.get("initialisation", QUASI_1D)
+    if init == RESTART:
+        if restart is None:
+            raise ValueError("Initialisation 'Previous result' needs a previous result on this mesh: run once "
+                             "from the quasi-1D or uniform start first.")
+        W0 = restart_state(restart, mesh)
+    elif init == QUASI_1D:
+        W0 = quasi1d_state(mesh, profile, gas, p0, T0)
+    else:
+        T = 0.95 * T0
+        W0 = uniform_state(mesh.n_cells, p0 / (gas.R * T) * 0.9, (0.1 * float(gas.sound_speed(T)), 0.0), 0.9 * p0)
+    rho0 = p0 / (gas.R * T0)
+    c0 = float(gas.sound_speed(T0))
+    g = float(gas.gamma(T0))
+    mdot_1d = gd.choked_mass_flow(p0, T0, A_t, g, gas.R)               # [kg/s]
+    labels = {k: MONITOR_LABELS[k] for k in ("thrust", "thrust_wall", "mdot_in", "mdot_out")}
+
+    def monitor(solver, W):
+        k = forces.nozzle_numbers(solver, inlets, outlets, walls)
+        return {"thrust": k["thrust_exit"], "thrust_wall": k["thrust_wall"], "mdot_in": k["mdot_in"],
+                "mdot_out": k["mdot_out"]}
+
+    def finish(solver, W, out):
+        k = forces.nozzle_numbers(solver, inlets, outlets, walls)
+        mdot = k["mdot_out"]
+        F_vac, F_wall = k["thrust_exit"], k["thrust_wall"]
+        exit_area = abs(k["exit_area_x"])
+        # Exit-plane averages: Mach number weighted by mass flux, pressure by area
+        local = np.concatenate([loc for name, _bc, loc, _info in solver.patches if name in outlets])
+        mass_w = solver.stage0_boundary_flux[0, local]                       # mass flow per face
+        cells = solver.geom.boundary_owner[local]
+        areas = solver.geom.flux_areas[solver.geom.n_interior + local]
+        M = mach_number(W, gas)
+        M_exit = float(np.sum(mass_w * M[cells]) / np.sum(mass_w)) if np.sum(mass_w) > 0 else float("nan")
+        p_exit = float(np.sum(areas * W[-1, cells]) / np.sum(areas))
+        isp_1d = _ideal_isp(profile, mesh.axisymmetric, gas, p0, T0)
+        numbers = {
+            "mdot": (mdot, "kg/s"), "mdot_inlet": (k["mdot_in"], "kg/s"), "mdot_exit": (mdot, "kg/s"),
+            "mdot_1D": (mdot_1d, "kg/s"), "discharge_coefficient": (mdot / mdot_1d, "-"),
+            "M_exit": (M_exit, "-"), "p_exit": (p_exit, "Pa"),
+            "F_vacuum": (F_vac, "N"), "F_vacuum_wall": (F_wall, "N"),
+            "thrust_difference": (100.0 * abs(F_vac - F_wall) / abs(F_vac) if F_vac else 0.0, "%"),
+            "F_at_p_back": (F_vac - p_back * exit_area, "N"),
+            "Isp_vacuum": (F_vac / (mdot * G0) if mdot > 0 else 0.0, "s"),
+            "Isp_vacuum_wall": (F_wall / (mdot * G0) if mdot > 0 else 0.0, "s"),
+            "Cf_vacuum": (F_vac / (p0 * A_t), "-"),
+            "Isp_quasi1D": (isp_1d, "s"),
+            "Isp_2D_over_quasi1D": (F_vac / (mdot * G0) / isp_1d if mdot > 0 and isp_1d else 0.0, "-"),
+            "A_throat": (A_t, "m²"),
+        }
+        return numbers
+
+    def series(solver, W):
+        x, p = forces.wall_pressure(solver, walls)
+        return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_p_over_p0": p / p0}
+
+    return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, p0), initialisation=init,
+                   monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"),
+                   monitor_scales={}, finish=finish, series=series)
+
+
+def _ideal_isp(profile, axisymmetric, gas, p0, T0):
+    """Vacuum Isp of the ideal (isentropic quasi-1D) nozzle with this profile's exit and throat [s]."""
+    g = float(gas.gamma(T0))
+    if axisymmetric:
+        ratio = (profile.r[-1] / profile.r.min()) ** 2
+    else:
+        ratio = profile.r[-1] / profile.r.min()
+    if ratio <= 1.0:
+        return 0.0
+    M_e = gd.mach_from_area_ratio(ratio, g, True)
+    T_e = T0 / gd.t0_over_t(M_e, g)
+    p_e = p0 / gd.p0_over_p(M_e, g)
+    u_e = M_e * float(gas.sound_speed(T_e))
+    A_t = 1.0
+    mdot = gd.choked_mass_flow(p0, T0, A_t, g, gas.R)
+    return (mdot * u_e + p_e * A_t * ratio) / (mdot * G0)
+
+
+def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=None) -> Problem:
+    """A body in a free stream: far field (or supersonic inlet/outlet) around slip walls.
+
+    params needs mach, p_inf, T_inf, alpha and initialisation (Uniform or Previous result).
+    """
+    bcs = conditions(params, mesh, defaults)
+    walls = forces.patch_names_of(bcs, "slip_wall")
+    if not walls:
+        raise ValueError("A body in a free stream needs at least one slip-wall boundary (the body surface).")
+    M, p_inf, T_inf, alpha = params["mach"], params["p_inf"], params["T_inf"], params["alpha"]
+    direction = (math.cos(math.radians(alpha)), math.sin(math.radians(alpha)))
+    rho, vel = state_from_mach(gas, M, p_inf, T_inf, direction)
+    speed = float(np.linalg.norm(vel))
+    q_inf = 0.5 * rho * speed**2                                        # dynamic pressure [Pa]
+    if params.get("initialisation", UNIFORM) == RESTART:
+        if restart is None:
+            raise ValueError("Initialisation 'Previous result' needs a previous result on this mesh: run once "
+                             "from the uniform start first.")
+        W0 = restart_state(restart, mesh)
+    else:
+        W0 = uniform_state(mesh.n_cells, rho, vel, p_inf)
+    half = any(p.type == "symmetry" for p in mesh.patches) and not mesh.axisymmetric
+    mirror = 2.0 if half else 1.0
+    c = float(gas.sound_speed(T_inf))
+    labels = {k: MONITOR_LABELS[k] for k in ("Cd", "Cl", "Cm")}
+
+    def coefficients(solver):
+        return forces.body_forces(solver, walls, p_inf, q_inf, alpha, A_ref, L_ref, x_ref, mirror)
+
+    def monitor(solver, W):
+        f = coefficients(solver)
+        return {"Cd": f["Cd"], "Cl": f["Cl"], "Cm": f["Cm"]}
+
+    def finish(solver, W, out):
+        f = coefficients(solver)
+        force_unit = "N" if mesh.axisymmetric else "N/m"
+        return {"Cd": (f["Cd"], "-"), "Cl": (f["Cl"], "-"), "Cm": (f["Cm"], "-"),
+                "drag": (f["D"], force_unit), "lift": (f["L"], force_unit),
+                "Fx": (f["Fx"], force_unit), "Fy": (f["Fy"], force_unit),
+                "q_inf": (q_inf, "Pa"), "A_ref": (A_ref, "m²"), "L_ref": (L_ref, "m")}
+
+    def series(solver, W):
+        x, p = forces.wall_pressure(solver, walls)
+        return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_Cp": (p - p_inf) / q_inf}
+
+    return Problem("external", gas, bcs, W0, L_ref=L_ref, scales=(rho, max(speed, c), max(speed, c), p_inf),
+                   initialisation=params.get("initialisation", UNIFORM), monitor=monitor, monitor_labels=labels,
+                   converge_on=("Cd", "Cl"), monitor_scales={"Cd": 0.01, "Cl": 0.01, "Cm": 0.01},
+                   finish=finish, series=series)
+
+
+# ---- solve ----------------------------------------------------------------------------------------------
+
+def flow_fields(W, gas) -> dict:
+    """The Result fields of a primitive state (all per cell, SI)."""
+    fields = {"rho": Field(W[0].copy(), "kg/m³", "Density"), "u": Field(W[1].copy(), "m/s", "Velocity x"),
+              "v": Field(W[2].copy(), "m/s", "Velocity y (radial)"), "p": Field(W[-1].copy(), "Pa", "Pressure"),
+              "T": Field(temperature(W, gas), "K", "Temperature"), "M": Field(mach_number(W, gas), "-", "Mach number"),
+              "p0": Field(total_pressure(W, gas), "Pa", "Total pressure"),
+              "T0": Field(total_temperature(W, gas), "K", "Total temperature"),
+              "s": Field(entropy(W, gas), "J/(kg K)", "Entropy")}
+    return fields
+
+
+def solve(problem, params, mesh, progress=None) -> Result:
+    """Run the solver for a Problem and return the Result (fields, residuals, key numbers, history)."""
+    solver = EulerSolver(mesh, problem.gas, problem.conditions, numerics(params), L_ref=problem.L_ref,
+                         scales=problem.scales)
+
+    def forward(it, res, info):
+        if progress is not None:
+            progress(it, res, info)
+
+    out = solver.solve(problem.W0, forward, problem.monitor, problem.monitor_scales, problem.converge_on)
+    W = out.W
+    # One more residual evaluation of the final state, so the boundary fluxes (forces, mass flows) belong to it
+    solver.residual(primitive_to_conserved(W, problem.gas), params["order"] == SECOND_ORDER, W)
+    solver.stage0_boundary_flux = solver.boundary_flux
+    numbers = problem.finish(solver, W, out) if problem.finish else {}
+    numbers.update({"wall_time": (out.wall_time_s, "s"), "positivity_events": (float(out.positivity_events), "-"),
+                    "cfl_final": (out.cfl_final, "-")})
+    series = {f"residual_{name}": out.residuals[:, i] for i, name in enumerate(EQUATIONS[:W.shape[0]])}
+    series.update({f"monitor_{k}": v for k, v in out.monitors.items()})
+    if problem.series:
+        series.update(problem.series(solver, W))
+    info = {"status": out.status, "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
+            "positivity_events": int(out.positivity_events), "positivity_last": int(out.positivity_last),
+            "cfl_reductions": int(out.cfl_reductions), "cfl_final": float(out.cfl_final),
+            "wall_time_s": float(out.wall_time_s), "limiter_frozen_at": out.limiter_frozen_at,
+            "initialisation": problem.initialisation, "equations": list(EQUATIONS[:W.shape[0]]),
+            "monitor_labels": {k: list(v) for k, v in problem.monitor_labels.items()},
+            "converge_on": list(problem.converge_on), "monitor_tol": params["monitor_tol"],
+            "monitor_window": params["monitor_window"], "tol": params["tol"], "cfl": params["cfl"],
+            "boundaries": {name: bc.to_dict() for name, bc in problem.conditions.items()},
+            "gamma": float(problem.gas.gamma(float(np.median(temperature(W, problem.gas)))))}
+    residual_level = out.residuals.max(axis=1) if len(out.residuals) else np.zeros(0)
+    return Result(fields=flow_fields(W, problem.gas), residuals=residual_level.tolist(), key_numbers=numbers,
+                  iterations=out.iterations, converged=out.status == CONVERGED, series=series, info=info)
+
+
+
+__all__ = ["solver_parameters", "numerics", "conditions", "table_rows", "nozzle_problem", "external_problem",
+           "solve", "flow_fields", "mesh_wall_profile", "Problem", "DIVERGED", "BC_TYPES"]
