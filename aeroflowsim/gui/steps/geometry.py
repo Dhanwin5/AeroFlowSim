@@ -340,7 +340,7 @@ class GeometryPage(QWidget):
 
     def _refresh_preview(self):
         project = self.project
-        self.built = None
+        self.built, self._key = None, None     # (forget the 2D geometry, or reopening it would skip its replay)
         self.summary.set_rows([])
         try:
             self.preview = geometry_preview(project.case, project.params_for(("geometry",)))
@@ -355,7 +355,8 @@ class GeometryPage(QWidget):
         warnings = " ".join(self.preview.warnings)
         self.banner.show_message(warnings, "warning") if warnings else self.banner.hide_message()
         self.view.show_curves(self.preview)
-        self.summary.set_rows([(label, *readable(v, u, 5)) for label, (v, u) in self.preview.summary.items()])
+        self.summary.set_rows([(label, *readable(v, u, 5, prefs=self.window.units))
+                               for label, (v, u) in self.preview.summary.items()])
         self.tabs.setCurrentIndex(2)
 
     def _exists(self, item):
@@ -407,19 +408,22 @@ class GeometryPage(QWidget):
         self.suggestion_note.setText(f"{n} unnamed edge(s) have a suggested name: press Accept suggestions."
                                      if n else "")
         rows = []
+        units = self.window.units                        # the summary follows View > Units
+        shown = logic.Shown(units)
         box = built.bbox()
         if box is not None:
-            rows += [("Width (x)", logic.mm(box[2] - box[0]), "mm"), ("Height (y)", logic.mm(box[3] - box[1]), "mm")]
+            rows += [("Width (x)", shown.len(box[2] - box[0]), shown.length.name),
+                     ("Height (y)", shown.len(box[3] - box[1]), shown.length.name)]
         rows.append(("Symmetry", "axisymmetric" if built.axisymmetric else "planar", ""))
         if built.faces:
-            rows.append(("Reference length L", logic.mm(built.reference_length()), "mm"))
+            rows.append(("Reference length L", shown.len(built.reference_length()), shown.length.name))
         for face in built.faces.values():
-            rows.append((f"Area of {face.id} ({face.role})", f"{face.area / logic.MM**2:.6g}", "mm²"))
+            rows.append((f"Area of {face.id} ({face.role})", *shown.area_text(face.area)))
         rows.append(("Edges / points", f"{len(built.edges)} / {len(built.vertices)}", ""))
         try:
             preview = geometry_preview(self.project.case, self.project.params_for(("geometry",)))
             if preview is not None and self.document.uses_template():
-                rows += [(f"Template: {label}", *readable(v, u, 5)) for label, (v, u) in preview.summary.items()]
+                rows += [(f"Template: {label}", *readable(v, u, 5, prefs=units)) for label, (v, u) in preview.summary.items()]
         except ValueError:
             pass
         self.summary.set_rows(rows)
@@ -455,7 +459,7 @@ class GeometryPage(QWidget):
         self.view.set_selection(self.selection)
         if self.built is not None:
             self.window.show_properties("Selection" if self.selection else "Nothing selected",
-                                        logic.selection_rows(self.built, self.selection))
+                                        logic.selection_rows(self.built, self.selection, self.window.units))
             self.act_points.setEnabled(self._points_operation() is not None)
             if self.view.mode == "points":
                 self._show_handles()

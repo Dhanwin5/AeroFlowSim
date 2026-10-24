@@ -38,6 +38,7 @@ import numpy as np
 from aeroflowsim import mesh_quality
 from aeroflowsim.gases import peng_robinson_z
 from aeroflowsim.mesh import TRIANGLE, Mesh
+from aeroflowsim.units import Quantity
 
 LEVELS = ("info", "warning", "error")
 
@@ -65,20 +66,36 @@ class CheckResult:
 
     name: str              # short name, e.g. "Convergence"
     level: str             # "info", "warning" or "error"
-    message: str           # one sentence for the user
+    message: str           # one sentence for the user (with quantities: a template with {0}, {1}, ...)
     value: float | None = None   # the number the check is based on (None if there is none)
     unit: str = ""         # unit of value, e.g. "%" or "orders"
+    quantities: tuple = () # dimensional numbers of the message (aeroflowsim.units.Quantity): the GUI shows
+                           # them in the user's units, text() without preferences writes them in SI
+    template: str = ""     # the message with {0}, {1}, ... in place of the quantities (set automatically)
 
     def __post_init__(self):
         if self.level not in LEVELS:
             raise ValueError(f"Check level must be one of {LEVELS}, got '{self.level}'.")
         if self.value is not None:
             self.value = float(self.value)   # plain Python float (numpy numbers cannot go into YAML)
+        if self.quantities:
+            self.quantities = tuple(Quantity(**q) if isinstance(q, dict) else q for q in self.quantities)
+            if not self.template:
+                self.template = self.message
+            self.message = self.text()       # the SI text: command line, summary.yaml, reports
+
+    def text(self, prefs=None) -> str:
+        """The message, with its quantities in the user's units (prefs: UnitPreferences) or in SI."""
+        if not self.quantities:
+            return self.message
+        return self.template.format(*(q.text(prefs) for q in self.quantities))
 
     def as_dict(self) -> dict:
         """Plain dictionary (for summary.yaml and reports)."""
-        return {"name": self.name, "level": self.level, "message": self.message,
-                "value": self.value, "unit": self.unit}
+        d = {"name": self.name, "level": self.level, "message": self.message, "value": self.value, "unit": self.unit}
+        if self.quantities:
+            d.update(quantities=[q.as_dict() for q in self.quantities], template=self.template)
+        return d
 
 
 def convergence(case, params, mesh, result):
@@ -145,8 +162,25 @@ def _gas_states(case, params, result):
     return gas, T, p, reservoir
 
 
-def _state(p, T) -> str:
-    return f"{p / 1e5:.4g} bar, {T:.4g} K"
+class _Numbers:
+    """Collects the dimensional numbers of one message: q() returns the placeholder {i} for the template
+    and remembers the Quantity, so the GUI can show it in the user's units (see CheckResult.text)."""
+
+    def __init__(self):
+        self.quantities = []
+
+    def q(self, value, unit, digits=4, delta=False) -> str:
+        self.quantities.append(Quantity(float(value), unit, digits, delta))
+        return "{" + str(len(self.quantities) - 1) + "}"
+
+
+def _literal(text) -> str:
+    """Text put into a message template as it is (a custom gas name may contain braces)."""
+    return str(text).replace("{", "{{").replace("}", "}}")
+
+
+def _state(n, p, T) -> str:
+    return f"{n.q(p, 'Pa')}, {n.q(T, 'K')}"
 
 
 def ideal_gas_validity(case, params, mesh, result):
@@ -158,23 +192,28 @@ def ideal_gas_validity(case, params, mesh, result):
     gas, T, p, reservoir = states
     data = gas.data
     if not data.has_critical_point:
-        return CheckResult("Ideal gas", "info", f"No critical point stored for {gas.name}: the ideal-gas "
-                           "validity cannot be estimated.")
+        return CheckResult("Ideal gas", "info", f"Cannot run for {gas.name}: its critical temperature, critical "
+                           "pressure and acentric factor are not known, and the compressibility estimate "
+                           "(Peng-Robinson) needs all three. For a custom gas, add them in the custom-gas form "
+                           "(Custom... next to the gas, or Tools > Gas library).")
     crit = (data.T_critical, data.p_critical, data.acentric_factor)
     deviation = 100.0 * np.abs(peng_robinson_z(p, T, *crit) - 1.0)     # [%] per cell
     i = int(np.argmax(deviation))
-    worst, where = deviation[i], f"in the flow ({_state(p[i], T[i])})"
+    flow, tank = _Numbers(), _Numbers()
+    worst, where, n = deviation[i], f"in the flow ({_state(flow, p[i], T[i])})", flow
     if reservoir is not None:
         z0 = peng_robinson_z(reservoir[0], reservoir[1], *crit)
         if 100.0 * abs(z0 - 1.0) >= worst:
-            worst, where = 100.0 * abs(z0 - 1.0), f"in the reservoir ({_state(*reservoir)}, Z = {z0:.4f})"
+            worst, n = 100.0 * abs(z0 - 1.0), tank
+            where = f"in the reservoir ({_state(tank, *reservoir)}, Z = {z0:.4f})"
+    name = _literal(gas.name)
     if worst > MAX_Z_DEVIATION:
         return CheckResult("Ideal gas", "warning",
                            f"The compressibility factor Z differs from 1 by {worst:.3g} % {where}: the ideal-gas "
-                           f"model of {gas.name} is not accurate there (limit {MAX_Z_DEVIATION:g} %, Peng-Robinson "
-                           "estimate). A real-gas model is planned (Phase 5).", worst, "%")
+                           f"model of {name} is not accurate there (limit {MAX_Z_DEVIATION:g} %, Peng-Robinson "
+                           "estimate). A real-gas model is planned (Phase 5).", worst, "%", n.quantities)
     return CheckResult("Ideal gas", "info", f"The ideal-gas law holds within {worst:.2g} % (largest |Z - 1|, "
-                       f"Peng-Robinson estimate, {where}).", worst, "%")
+                       f"Peng-Robinson estimate, {where}).", worst, "%", n.quantities)
 
 
 def condensation_risk(case, params, mesh, result):
@@ -191,26 +230,31 @@ def condensation_risk(case, params, mesh, result):
     T_sat = curve.T_sat(p)                                        # nan above the critical pressure
     margin = np.where(np.isnan(T_sat), T - curve.T_critical, T - T_sat)   # [K]
     i = int(np.argmin(margin))
+    name = _literal(gas.name)
+    n = _Numbers()
     estimate = (". Below the triple-point pressure the frost temperature is estimated by extending the "
                 "vapour-pressure curve (Clausius-Clapeyron); the true frost point is somewhat higher (N2 at the "
-                "default exit: about 0.6 K), so read this margin as an upper limit"
+                f"default exit: about {n.q(0.6, 'K', 2, delta=True)}), so read this margin as an upper limit"
                 if np.any(p < curve.p[0]) else "")
-    exit_text = (f"exit: T = {T[-1]:.4g} K at {p[-1] / 1e3:.4g} kPa, saturation temperature "
-                 f"{T[-1] - margin[-1]:.4g} K, margin {margin[-1]:.3g} K")
+    exit_text = (f"exit: T = {n.q(T[-1], 'K')} at {n.q(p[-1], 'Pa')}, saturation temperature "
+                 f"{n.q(T[-1] - margin[-1], 'K')}, margin {n.q(margin[-1], 'K', 3, delta=True)}")
     if reservoir is not None:
         p0, T0 = reservoir
         if T0 < curve.T_critical and p0 > float(curve.p_sat(T0)):
+            r = _Numbers()
             return CheckResult("Condensation", "warning",
-                               f"The reservoir state ({_state(p0, T0)}) is a LIQUID for {gas.name} (saturation "
-                               f"pressure {float(curve.p_sat(T0)) / 1e5:.4g} bar): this gas model does not apply.",
-                               float(margin[i]), "K")
+                               f"The reservoir state ({_state(r, p0, T0)}) is a LIQUID for {name} (saturation "
+                               f"pressure {r.q(curve.p_sat(T0), 'Pa')}): this gas model does not apply.",
+                               float(margin[i]), "K", r.quantities)
     if margin[i] < 0.0:
+        where = f"down to {n.q(-margin[i], 'K', 3, delta=True)} below, at {_state(n, p[i], T[i])}"
         return CheckResult("Condensation", "warning",
-                           f"{gas.name} is colder than its saturation temperature in {int(np.sum(margin < 0))} "
-                           f"cell(s) (down to {-margin[i]:.3g} K below, at {_state(p[i], T[i])}): it may condense "
-                           f"there, which this model does not include; {exit_text}{estimate}.", float(margin[i]), "K")
-    return CheckResult("Condensation", "info", f"No condensation: smallest margin {margin[i]:.3g} K to the "
-                       f"saturation temperature; {exit_text}{estimate}.", float(margin[i]), "K")
+                           f"{name} is colder than its saturation temperature in {int(np.sum(margin < 0))} "
+                           f"cell(s) ({where}): it may condense there, which this model does not include; "
+                           f"{exit_text}{estimate}.", float(margin[i]), "K", n.quantities)
+    smallest = n.q(margin[i], "K", 3, delta=True)
+    return CheckResult("Condensation", "info", f"No condensation: smallest margin {smallest} to the "
+                       f"saturation temperature; {exit_text}{estimate}.", float(margin[i]), "K", n.quantities)
 
 
 def temperature_range(case, params, mesh, result):
@@ -223,17 +267,20 @@ def temperature_range(case, params, mesh, result):
     lo, hi = gas.thermo_range
     T_all = np.append(T, reservoir[1]) if reservoir is not None else T
     T_min, T_max = float(T_all.min()), float(T_all.max())
+    n = _Numbers()
+    temperatures = f"{n.q(T_min, 'K')} to {n.q(T_max, 'K')}"
+    name = _literal(gas.name)
     if not math.isfinite(hi):
-        return CheckResult("Temperature range", "info", f"No valid temperature range stored for {gas.name} "
-                           f"(temperatures {T_min:.4g} to {T_max:.4g} K).")
+        return CheckResult("Temperature range", "info", f"No valid temperature range stored for {name} "
+                           f"(temperatures {temperatures}).", None, "", n.quantities)
+    limits = f"{n.q(lo, 'K')} to {n.q(hi, 'K')}"
     if T_min < lo or T_max > hi:
         return CheckResult("Temperature range", "warning",
-                           f"Temperatures {T_min:.4g} to {T_max:.4g} K leave the range {lo:.4g} to {hi:.4g} K of the "
-                           f"gas data of {gas.name} (where its constant cp is within 2 % of the real cp; the lower end "
-                           "is often the triple point, below which the source has no gas data).",
-                           T_min, "K")
-    return CheckResult("Temperature range", "info", f"Temperatures {T_min:.4g} to {T_max:.4g} K are inside the "
-                       f"valid range of the gas data ({lo:.4g} to {hi:.4g} K).", T_min, "K")
+                           f"Temperatures {temperatures} leave the range {limits} of the gas data of {name} (where "
+                           "its constant cp is within 2 % of the real cp; the lower end is often the triple point, "
+                           "below which the source has no gas data).", T_min, "K", n.quantities)
+    return CheckResult("Temperature range", "info", f"Temperatures {temperatures} are inside the valid range of "
+                       f"the gas data ({limits}).", T_min, "K", n.quantities)
 
 
 GAS_CHECKS = [ideal_gas_validity, condensation_risk, temperature_range]
@@ -321,23 +368,23 @@ def mesh_inflation(case, params, mesh, result):
                                f"The inflation layers are {fraction:.3g} % of the reference length thick (more "
                                f"than {100 * MAX_INFLATION_FRACTION_BODY:g} %): much thicker than a boundary layer.",
                                fraction, "%")
-        return CheckResult("Inflation layers", "info",
-                           f"The inflation layers are {thickness * 1e6:.4g} µm thick, {fraction:.3g} % of the "
-                           "reference length.", fraction, "%")
+        return CheckResult("Inflation layers", "info", f"The inflation layers are {{0}} thick, {fraction:.3g} % "
+                           "of the reference length.", fraction, "%", [Quantity(thickness, "m")])
     thickness, r_throat = mesh.info["inflation_thickness"], mesh.info["r_throat"]   # [m]
     fraction = 100.0 * thickness / r_throat                                         # [%]
     if thickness >= r_throat:
         return CheckResult("Inflation layers", "warning",
-                           f"The inflation layers ({thickness * 1e3:.4g} mm) are thicker than the throat "
-                           "radius: layers from the wall would overlap at the axis.", fraction, "%")
+                           "The inflation layers ({0}) are thicker than the throat radius ({1}): layers from the "
+                           "wall would overlap at the axis.", fraction, "%",
+                           [Quantity(thickness, "m"), Quantity(r_throat, "m")])
     if fraction > 100.0 * MAX_INFLATION_FRACTION:
         return CheckResult("Inflation layers", "warning",
                            f"The inflation layers are {fraction:.3g} % of the throat radius thick (more than "
                            f"{100 * MAX_INFLATION_FRACTION:g} %): they fill much of the throat. Use a smaller "
                            "first layer height, fewer layers or a smaller growth rate.", fraction, "%")
     return CheckResult("Inflation layers", "info",
-                       f"The inflation layers are {thickness * 1e6:.4g} µm thick, {fraction:.3g} % of the "
-                       "throat radius.", fraction, "%")
+                       f"The inflation layers are {{0}} thick, {fraction:.3g} % of the throat radius.", fraction, "%",
+                       [Quantity(thickness, "m")])
 
 
 def mesh_min_angle(case, params, mesh, result):
@@ -374,8 +421,8 @@ def mesh_smallest_cell(case, params, mesh, result):
     if _face_mesh(mesh) is None:
         return None
     smallest = float(mesh_quality.cell_size(mesh).min())   # [m]
-    return CheckResult("Smallest cell", "info", f"The smallest cell is {smallest * 1e6:.4g} µm thick.",
-                       smallest, "m")
+    return CheckResult("Smallest cell", "info", "The smallest cell is {0} thick.", smallest, "m",
+                       [Quantity(smallest, "m")])
 
 
 # Mesh-only checks: run before the solver, and shown with the other checks. Add new ones here.
@@ -451,12 +498,12 @@ def geometry_feature_size(built, settings):
         return None
     feature = min(e.length for e in walls)                      # [m]
     cells = feature / settings.surface_size
-    text = (f"The smallest wall feature is {feature * 1e3:.4g} mm long: {cells:.3g} surface cells "
-            f"of {settings.surface_size * 1e3:.4g} mm.")
+    text = f"The smallest wall feature is {{0}} long: {cells:.3g} surface cells of {{1}}."
+    sizes = [Quantity(feature, "m"), Quantity(settings.surface_size, "m")]
     if cells < MIN_CELLS_PER_FEATURE:
         return CheckResult("Smallest feature", "warning", text + " Use smaller wall cells (see Suggestions) to "
-                           "resolve it.", cells, "cells")
-    return CheckResult("Smallest feature", "info", text, cells, "cells")
+                           "resolve it.", cells, "cells", sizes)
+    return CheckResult("Smallest feature", "info", text, cells, "cells", sizes)
 
 
 def geometry_axisymmetric(built, settings):
@@ -465,8 +512,8 @@ def geometry_axisymmetric(built, settings):
         return None
     y_min = min((float(e.points[:, 1].min()) for e in built.edges.values()), default=0.0)
     if y_min < -AXIS_TOLERANCE * built.size:
-        return CheckResult("Axisymmetric rules", "error", f"Part of the geometry is below the axis (y = "
-                           f"{y_min * 1e3:.4g} mm); axisymmetric geometry must have y = r >= 0.", y_min, "m")
+        return CheckResult("Axisymmetric rules", "error", "Part of the geometry is below the axis (y = {0}); "
+                           "axisymmetric geometry must have y = r >= 0.", y_min, "m", [Quantity(y_min, "m")])
     axis = [e for e in built.boundary_edges() if e in built.names and built.names[e].type == "axis"]
     if built.faces and not axis:
         return CheckResult("Axisymmetric rules", "error", "An axisymmetric geometry needs a boundary of type axis "

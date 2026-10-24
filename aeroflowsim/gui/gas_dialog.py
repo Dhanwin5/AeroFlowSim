@@ -17,15 +17,17 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout
                                QListWidget, QPushButton, QScrollArea, QSplitter, QVBoxLayout)
 
 from aeroflowsim.gases import save_user_gas, user_gas_dir
-from aeroflowsim.gui.gas_logic import HEAT, LAWS, SPECIFY, form_from_gas, form_to_toml, gas_choices, gas_detail_rows
+from aeroflowsim.gui.gas_logic import (HEAT, LAWS, SPECIFY, critical_units, form_from_gas, form_to_toml, gas_choices,
+                                       gas_detail_rows)
 from aeroflowsim.gui.theme import colour
 
 
 class CustomGasDialog(QDialog):
     """form() -> the field values; result_toml -> (name, TOML text) after OK."""
 
-    def __init__(self, form, parent=None):
+    def __init__(self, form, parent=None, prefs=None):
         super().__init__(parent)
+        self.prefs = prefs                         # the user's units (critical temperature and pressure)
         self.setWindowTitle("Custom gas")
         self.setMinimumWidth(460)
         self.result_toml = None
@@ -64,6 +66,13 @@ class CustomGasDialog(QDialog):
         edit("T_ref", "Reference temperature T_ref [K]")
         edit("S", "Sutherland temperature S [K]")
         edit("prandtl", "Prandtl number [-]")
+        t_unit, p_unit = critical_units(prefs)
+        critical = QLabel("Critical point (optional: needed by the ideal-gas validity check)")
+        critical.setObjectName("hint")
+        grid.addRow(critical)
+        edit("T_c", f"Critical temperature [{t_unit.name}]")
+        edit("p_c", f"Critical pressure [{p_unit.name}]")
+        edit("omega", "Acentric factor [-]")
         self.grid = grid
         layout.addLayout(grid)
         self.problem = QLabel(wordWrap=True)
@@ -93,7 +102,7 @@ class CustomGasDialog(QDialog):
 
     def _check(self, *_):
         try:
-            form_to_toml(self.form())
+            form_to_toml(self.form(), self.prefs)
             problem = ""
         except ValueError as error:
             problem = str(error)
@@ -102,7 +111,7 @@ class CustomGasDialog(QDialog):
         self.buttons.button(QDialogButtonBox.Save).setEnabled(not problem)
 
     def _save(self):
-        self.result_toml = form_to_toml(self.form())
+        self.result_toml = form_to_toml(self.form(), self.prefs)
         self.accept()
 
 
@@ -110,8 +119,9 @@ class GasLibraryDialog(QDialog):
     """Tools > Gas library: every built-in and custom gas with its values and sources (read-only), and
     "New custom gas..." to add one to the user's own library (no project needed)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, prefs=None):
         super().__init__(parent)
+        self.prefs = prefs
         self.setWindowTitle("Gas library")
         self.resize(900, 560)
         self.list = QListWidget()
@@ -159,7 +169,8 @@ class GasLibraryDialog(QDialog):
 
     def new_gas(self):
         row = self.list.currentRow()
-        dialog = CustomGasDialog(form_from_gas(self.choices[row].data if row >= 0 else "N2"), self)
+        dialog = CustomGasDialog(form_from_gas(self.choices[row].data if row >= 0 else "N2", prefs=self.prefs), self,
+                                 self.prefs)
         if dialog.exec() and dialog.result_toml:
             name, text = dialog.result_toml
             path = save_user_gas(text, name)

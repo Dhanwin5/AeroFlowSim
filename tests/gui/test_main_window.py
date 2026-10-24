@@ -256,7 +256,8 @@ def test_quasi1d_setup_shows_derived_numbers_and_geometry_units(qtbot, window, t
     assert rows["Throat area"][2] == "mm²" and rows["Choked mass flow"][2] == "mg/s"
     window.go_to("geometry")
     dims = {r[0]: r for r in window.pages["geometry"].summary.rows()}
-    assert dims["d throat"][1:] == ("280", "µm") and dims["d inlet"][1:] == ("2", "mm")
+    # Geometry dimensions follow the length unit of View > Units (default mm), no automatic prefixes
+    assert dims["d throat"][1:] == ("0.28", "mm") and dims["d inlet"][1:] == ("2", "mm")
     assert dims["area ratio"][2] == ""
 
 

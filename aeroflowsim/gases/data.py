@@ -275,8 +275,9 @@ def _toml_value(value) -> str:
 
 
 def custom_gas_toml(name, gid, R=None, molar_mass=None, gamma=None, cp=None, viscosity=None, prandtl=0.71,
-                    note="") -> str:
-    """The TOML text of a custom gas (the form of the GUI writes this). viscosity: dict of a law."""
+                    note="", critical=None) -> str:
+    """The TOML text of a custom gas (the form of the GUI writes this). viscosity: dict of a law;
+    critical: optional (T_critical [K], p_critical [Pa], acentric factor [-]) for the ideal-gas check."""
     lines = ["# Custom gas made with AeroFlowSim (calorically perfect gas).", "",
              f"id = {_toml_value(gid)}", f"name = {_toml_value(name)}", 'model = "calorically perfect"']
     if note:
@@ -293,6 +294,10 @@ def custom_gas_toml(name, gid, R=None, molar_mass=None, gamma=None, cp=None, vis
     lines += ["constants_source = \"entered by the user\"", "", "[transport]",
               f"viscosity = {_toml_value(viscosity)}", f"prandtl = {_toml_value(float(prandtl))}",
               'source = "entered by the user"', ""]
+    if critical is not None:
+        T_c, p_c, omega = (float(x) for x in critical)
+        lines += ["[critical]", f"T = {_toml_value(T_c)}   # K", f"p = {_toml_value(p_c)}   # Pa",
+                  f"acentric_factor = {_toml_value(omega)}", 'source = "entered by the user"', ""]
     text = "\n".join(lines)
     parse_gas(tomllib.loads(text))            # never write a file that cannot be read back
     return text

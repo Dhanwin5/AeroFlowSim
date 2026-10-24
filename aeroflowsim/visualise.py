@@ -21,7 +21,7 @@ import io
 import matplotlib
 import numpy as np
 from matplotlib.figure import Figure
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, Locator, MaxNLocator
 
 # Plot colours (also used by the line plots in aeroflowsim/runner.py)
 COLOR_NUMERICAL = "#2a78d6"
@@ -41,6 +41,20 @@ def length_unit(size):
     return ("m", 1.0) if size >= 0.5 else ("mm", 1e3)
 
 
+class _UnitLocator(Locator):
+    """Tick positions at round numbers of the DISPLAY unit (e.g. 0.05 in), for data stored in metres."""
+
+    def __init__(self, unit):
+        self.unit = unit
+        self.nice = MaxNLocator(nbins="auto", steps=[1, 2, 2.5, 5, 10])
+
+    def __call__(self):
+        lo, hi = self.axis.get_view_interval()
+        self.nice.set_axis(self.axis)               # "auto" bins: as many ticks as the axis length allows
+        ticks = self.nice.tick_values(self.unit.from_si(float(lo)), self.unit.from_si(float(hi)))
+        return [self.unit.to_si(float(t)) for t in ticks]
+
+
 def length_axes(ax, size, x_label="x", y_label=None, unit=None):
     """Label length axes in a readable unit: mm when the geometry is smaller than 0.5 m, or the user's
     chosen length unit (unit: an aeroflowsim.units.Unit).
@@ -48,16 +62,21 @@ def length_axes(ax, size, x_label="x", y_label=None, unit=None):
     The data stay in metres (SI inside); only the tick labels are scaled, so round tick positions
     in metres stay round numbers in millimetres. size: the largest extent drawn [m].
     """
-    if unit is not None:
+    locator = None
+    if unit is not None:                  # ticks at round numbers of the user's unit (not of metres)
+        locator = lambda chosen=unit: _UnitLocator(chosen)
         unit, convert = unit.name, unit.from_si
     else:
         unit, scale = length_unit(abs(size))
         convert = lambda value: value * scale
     formatter = FuncFormatter(lambda value, _: f"{convert(value):.6g}")
-    ax.xaxis.set_major_formatter(formatter)
+    axes = [ax.xaxis] + ([ax.yaxis] if y_label is not None else [])
+    for axis in axes:
+        axis.set_major_formatter(formatter)
+        if locator is not None:
+            axis.set_major_locator(locator())
     ax.set_xlabel(f"{x_label} [{unit}]")
     if y_label is not None:
-        ax.yaxis.set_major_formatter(formatter)
         ax.set_ylabel(f"{y_label} [{unit}]")
 
 

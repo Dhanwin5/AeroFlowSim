@@ -70,8 +70,8 @@ class CheckList(QListWidget):
         self.setWordWrap(True)
         self.setSelectionMode(QAbstractItemView.NoSelection)
 
-    def set_sections(self, sections):
-        """sections: [(heading, [CheckResult])]."""
+    def set_sections(self, sections, prefs=None):
+        """sections: [(heading, [CheckResult])]; numbers in the user's units (prefs: UnitPreferences)."""
         self.clear()
         for heading, checks in sections:
             item = QListWidgetItem(heading)
@@ -82,9 +82,10 @@ class CheckList(QListWidget):
             if not checks:
                 self.addItem(QListWidgetItem("    No checks apply."))
             for check in checks:
-                line = QListWidgetItem(f"{CHECK_ICONS[check.level]}  {check.name}: {check.message}")
+                text = check.text(prefs)
+                line = QListWidgetItem(f"{CHECK_ICONS[check.level]}  {check.name}: {text}")
                 line.setForeground(QColor(check_colour(check.level)))
-                line.setToolTip(f"{check.level}: {check.message}")
+                line.setToolTip(f"{check.level}: {text}")
                 self.addItem(line)
         if not sections:
             self.addItem(QListWidgetItem("No checks yet: generate a mesh or run the case."))

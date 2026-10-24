@@ -90,6 +90,9 @@ def test_the_form_checks_its_values(qtbot):
     dialog.combos["law"].setCurrentText("Power law")
     assert dialog.grid.labelForField(dialog.edits["S"]).text().startswith("Exponent")
     assert gas_dialog.form_to_toml is not None
+    assert dialog.edits["T_c"].text() == "126.192" and dialog.edits["p_c"].text() == "33.958"   # K and bar (no prefs)
+    dialog.edits["omega"].setText("")
+    assert not save.isEnabled() and "acentric factor" in dialog.problem.text()
 
 
 def test_gas_library_window_lists_every_gas_and_adds_custom_ones(qtbot, window, monkeypatch):

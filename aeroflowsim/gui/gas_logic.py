@@ -83,33 +83,37 @@ def gas_detail_rows(value, base=None) -> list[tuple[str, str]]:
 
 # ---- the custom-gas form ---------------------------------------------------------------------------
 
-FORM_FIELDS = (   # key, label, unit, default
-    ("name", "Name", "", "My gas"),
-    ("molar_mass", "Molar mass", "g/mol", "28.0134"),
-    ("gamma", "Ratio of specific heats gamma", "-", "1.4"),
-    ("mu_ref", "Viscosity at the reference temperature", "Pa s", "1.663e-5"),
-    ("T_ref", "Reference temperature", "K", "273.15"),
-    ("S", "Sutherland temperature S (or exponent n)", "K", "107"),
-    ("prandtl", "Prandtl number", "-", "0.71"),
-)
 SPECIFY = ("Molar mass", "Gas constant R")                 # first choice of the form
 HEAT = ("gamma", "cp")                                     # second choice
 LAWS = ("Sutherland", "Power law")                         # third choice
 
 
-def form_from_gas(value, base=None) -> dict:
-    """Form fields filled from an existing gas (to make a variant of it)."""
+def critical_units(prefs=None):
+    """(temperature unit, pressure unit) of the critical-point fields: the user's units, else K and bar."""
+    from aeroflowsim.units import QUANTITIES
+    if prefs is None:
+        return QUANTITIES["temperature"][1]["K"], QUANTITIES["pressure"][1]["bar"]
+    return prefs.unit_for("K"), prefs.unit_for("Pa")
+
+
+def form_from_gas(value, base=None, prefs=None) -> dict:
+    """Form fields filled from an existing gas (to make a variant of it); the critical point in the
+    user's temperature and pressure units (empty when the gas has none)."""
     g = gas_data(value, base)
     law = g.viscosity
-    return {"name": f"{g.name} (custom)", "specify": SPECIFY[0], "molar_mass": f"{g.molar_mass * 1e3:.8g}",
+    t_unit, p_unit = critical_units(prefs)
+    critical = ({"T_c": f"{t_unit.from_si(g.T_critical):.8g}", "p_c": f"{p_unit.from_si(g.p_critical):.8g}",
+                 "omega": f"{g.acentric_factor:g}"} if g.has_critical_point else {"T_c": "", "p_c": "", "omega": ""})
+    return {**critical,"name": f"{g.name} (custom)", "specify": SPECIFY[0], "molar_mass": f"{g.molar_mass * 1e3:.8g}",
             "R": f"{g.R:.8g}", "heat": HEAT[0], "gamma": f"{g.gamma:.8g}", "cp": f"{g.cp:.8g}",
             "law": LAWS[0] if law.law == "sutherland" else LAWS[1], "mu_ref": f"{law.ref:.6g}",
             "T_ref": f"{law.T_ref:g}", "S": f"{law.S if law.law == 'sutherland' else law.n:g}",
             "prandtl": f"{g.prandtl:.4g}"}
 
 
-def form_to_toml(form: dict) -> tuple[str, str]:
-    """(gas name, TOML text) from the form fields; ValueError with a clear message for a bad field."""
+def form_to_toml(form: dict, prefs=None) -> tuple[str, str]:
+    """(gas name, TOML text) from the form fields; ValueError with a clear message for a bad field.
+    The critical point is optional: all three fields, or none (then the ideal-gas check cannot run)."""
     def number(key, label, positive=True):
         try:
             x = float(str(form.get(key, "")).strip())
@@ -146,5 +150,20 @@ def form_to_toml(form: dict) -> tuple[str, str]:
     else:
         viscosity = {"law": "power", "ref": mu_ref, "T_ref": T_ref, "n": number("S", "Exponent n", False)}
     prandtl = number("prandtl", "Prandtl number")
+    given = [str(form.get(k, "")).strip() for k in ("T_c", "p_c", "omega")]
+    critical = None
+    if any(given):
+        if not all(given):
+            raise ValueError("Critical point: give the critical temperature, critical pressure AND acentric factor, "
+                             "or leave all three empty (the ideal-gas check then cannot run).")
+        t_unit, p_unit = critical_units(prefs)
+        T_c = t_unit.to_si(number("T_c", "Critical temperature", False))
+        p_c = p_unit.to_si(number("p_c", "Critical pressure"))
+        omega = number("omega", "Acentric factor", False)
+        if not T_c > 0:
+            raise ValueError("The critical temperature must be above absolute zero.")
+        if not -1.0 < omega < 2.0:
+            raise ValueError("The acentric factor must lie between -1 and 2 (He -0.38, N2 0.037, water 0.34).")
+        critical = (T_c, p_c, omega)
     gid = "custom-" + "".join(c if c.isalnum() else "_" for c in name)
-    return name, custom_gas_toml(name, gid, viscosity=viscosity, prandtl=prandtl, **kw)
+    return name, custom_gas_toml(name, gid, viscosity=viscosity, prandtl=prandtl, critical=critical, **kw)

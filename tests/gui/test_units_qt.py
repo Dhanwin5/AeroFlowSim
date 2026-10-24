@@ -48,6 +48,9 @@ def test_switching_units_changes_what_is_shown_never_the_project(qtbot, window, 
     assert {t[0]: t[1:] for t in window.pages["results"].card._content[1]}["Thrust (vacuum)"][1] == "N"
     assert (dict(window.project.values), window.project.fingerprint("run"), window.project.statuses()) == before
     assert not window.project.dirty
+    lines = [window.checks.item(i).text() for i in range(window.checks.count())]
+    condensation = next(line for line in lines if "Condensation" in line)
+    assert "°C" in condensation and "kPa" not in condensation and " Pa" in condensation   # SI pressure, degC
 
 
 def test_units_dialog_presets_and_remembered_choice(qtbot, window, tmp_path):
@@ -62,3 +65,13 @@ def test_units_dialog_presets_and_remembered_choice(qtbot, window, tmp_path):
     assert again.units == UnitPreferences(SI)
     again.runner.shutdown()
     assert window.act["units"] in window.menuBar().actions()[2].menu().actions()
+
+
+def test_reopening_a_2d_project_after_a_1d_one(qtbot, window, tmp_path):
+    """The Geometry page once kept the replay key of the 2D geometry while showing a 1D template, so the
+    same 2D project opened again was not replayed (no geometry: crash)."""
+    axi = Project.create("nozzle_axi", tmp_path / "A.afsproj")
+    q1d = Project.create("quasi1d_nozzle", tmp_path / "Q.afsproj")
+    for folder in (axi.folder, q1d.folder, axi.folder):
+        window.load_project(Project.open(folder))
+    assert window.pages["geometry"].built is not None and window.pages["geometry"].built.faces

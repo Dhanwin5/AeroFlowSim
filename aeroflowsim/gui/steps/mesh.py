@@ -126,7 +126,7 @@ class MeshPage(QWidget):
         if not is_face_mesh(mesh):
             self.plot1d.set_figure(mesh1d_figure(mesh, edges=self.edges.isChecked()))
             self.stack.setCurrentWidget(self.plot1d)
-            self.summary.set_rows(mesh_1d_rows(mesh))
+            self.summary.set_rows(mesh_1d_rows(mesh, self.window.units))
             return
         self.stack.setCurrentWidget(self.view)
         name = self.colour.currentText()
@@ -135,25 +135,30 @@ class MeshPage(QWidget):
         bbox = mesh.info.get("body_bbox")
         body = (bbox[0], bbox[2], bbox[1], bbox[3]) if bbox is not None and len(bbox) == 4 else None
         self.view.show_mesh(mesh, values, title, edges=self.edges.isChecked(), body_bounds=body)
-        self.summary.set_rows(mesh_summary_rows(mesh, quality_summary(mesh)) +
+        self.summary.set_rows(mesh_summary_rows(mesh, quality_summary(mesh), self.window.units) +
                               [(f"patch {p.name}", f"{p.type}, {p.count} faces") for p in mesh.patches])
 
     def cell_picked(self, cell):
         mesh = self.window.mesh
         c = mesh.cell_centres[cell]
+        units = self.window.units                        # Properties follow View > Units
         rows = [("type", CELL_TYPES[int(mesh.cell_types[cell])].name, ""),
-                ("centre x", *readable(c[0], "m", 6)), ("centre y", *readable(c[1], "m", 6)),
-                ("volume (per m depth)", f"{mesh.cell_volumes[cell]:.4g}", "m³")]
-        rows += [(name, *readable(self.quality(name)[cell], unit)) for name, (_, unit) in QUALITY_COLORINGS.items()]
+                ("centre x", *readable(c[0], "m", 6, prefs=units)), ("centre y", *readable(c[1], "m", 6, prefs=units)),
+                (("volume per metre depth (= area)", *readable(mesh.cell_volumes[cell], "m²", prefs=units))
+                 if mesh.dim == 2 else ("volume", f"{mesh.cell_volumes[cell]:.4g}", "m³"))]
+        rows += [(name, *readable(self.quality(name)[cell], unit, prefs=units))
+                 for name, (_, unit) in QUALITY_COLORINGS.items()]
         self.window.show_properties(f"Cell #{cell}", rows)
 
     def edge_picked(self, patch_index, face):
         mesh = self.window.mesh
         patch = mesh.patches[patch_index]
         c = mesh.face_centres[face]
+        units = self.window.units
         rows = [("boundary", patch.name, ""), ("type", patch.type, ""), ("faces in boundary", f"{patch.count}", ""),
-                ("face number", f"{face}", ""), ("centre x", *readable(c[0], "m", 6)),
-                ("centre y", *readable(c[1], "m", 6)), ("edge length", *readable(mesh.face_areas[face], "m"))]
+                ("face number", f"{face}", ""), ("centre x", *readable(c[0], "m", 6, prefs=units)),
+                ("centre y", *readable(c[1], "m", 6, prefs=units)),
+                ("edge length", *readable(mesh.face_areas[face], "m", prefs=units))]
         self.window.show_properties(f"Boundary '{patch.name}'", rows)
 
     def export_vtu(self):

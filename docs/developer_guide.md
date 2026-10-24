@@ -93,6 +93,12 @@ Enter or switching units never counts as an edit. Result pages convert only for 
 project files, `run.npz`, the command line and the validation report stay SI. Changing units rebuilds
 the panels (`MainWindow.set_units`).
 
+Check messages: a check puts its dimensional numbers into the message as `Quantity` objects
+(`aeroflowsim/units.py`) with placeholders `{0}`, `{1}` in the text. `CheckResult.message` is the SI text
+(command line, `summary.yaml`); `CheckResult.text(prefs)` is what the Validity checks panel shows. The
+Geometry Dimensions table and Properties use `geometry_logic.Shown(prefs)` (lengths, areas, volumes in
+the length unit cubed); the mesh table and cell Properties use `readable(..., prefs=...)`.
+
 ### Gas inputs
 
 An input of type `gas` is drawn as a dropdown (`gui/gas_logic.gas_choices`: built-in gases, the

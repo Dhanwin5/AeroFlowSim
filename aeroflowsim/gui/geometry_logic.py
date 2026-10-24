@@ -493,10 +493,33 @@ def mm(value) -> str:
     return f"{value / MM:.6g}"
 
 
-def selection_rows(built, selection) -> list:
-    """(property, value, unit) rows describing the selection."""
+class Shown:
+    """How the Geometry summary and the Properties panel write lengths, areas and volumes: in the user's
+    length and area units (prefs: aeroflowsim.units.UnitPreferences), or in mm, mm² and mm³ like the
+    workspace itself (prefs None). Volumes use the length unit cubed."""
+
+    def __init__(self, prefs=None):
+        from aeroflowsim.units import QUANTITIES
+        self.length = prefs.unit_for("m") if prefs is not None else QUANTITIES["length"][1]["mm"]
+        self.area = prefs.unit_for("m²") if prefs is not None else QUANTITIES["area"][1]["mm²"]
+
+    def len(self, value) -> str:
+        return f"{self.length.from_si(float(value)):.6g}"
+
+    def area_text(self, value) -> tuple:
+        return f"{self.area.from_si(float(value)):.6g}", self.area.name
+
+    def volume_text(self, value) -> tuple:
+        factor = self.length.from_si(1.0) ** 3
+        return f"{float(value) * factor:.6g}", f"{self.length.name}³"
+
+
+def selection_rows(built, selection, prefs=None) -> list:
+    """(property, value, unit) rows describing the selection (lengths in the user's units, see Shown)."""
     if not selection:
         return []
+    u = Shown(prefs)
+    mm, unit = u.len, u.length.name
     if len(selection) > 1:
         counts = {}
         for kind, _ in selection:
@@ -504,29 +527,29 @@ def selection_rows(built, selection) -> list:
         rows = [(f"Selected {k}s", str(n), "") for k, n in counts.items()]
         length = sum(built.edges[e].length for k, e in selection if k == "edge")
         if length:
-            rows.append(("Total edge length", mm(length), "mm"))
+            rows.append(("Total edge length", mm(length), unit))
         return rows
     kind, entity = selection[0]
     if kind == "edge":
         e = built.edges[entity]
         b = built.names.get(entity)
-        return [("Edge", e.id, ""), ("Kind", e.kind, ""), ("Length", mm(e.length), "mm"),
-                ("Start x, y", f"{mm(e.points[0, 0])}, {mm(e.points[0, 1])}", "mm"),
-                ("End x, y", f"{mm(e.points[-1, 0])}, {mm(e.points[-1, 1])}", "mm"),
+        return [("Edge", e.id, ""), ("Kind", e.kind, ""), ("Length", mm(e.length), unit),
+                ("Start x, y", f"{mm(e.points[0, 0])}, {mm(e.points[0, 1])}", unit),
+                ("End x, y", f"{mm(e.points[-1, 0])}, {mm(e.points[-1, 1])}", unit),
                 ("Boundary", f"{b.name} ({b.type})" if b else ("inside the fluid" if len(e.faces) > 1 else
                                                                 "no name yet" if e.faces else "free curve"), ""),
                 ("Inflation", "yes" if b and b.inflation else "no", "")]
     if kind == "vertex":
         v = built.vertices[entity]
-        rows = [("Point x", mm(v.xy[0]), "mm"), ("Point y", mm(v.xy[1]), "mm"), ("Edges here", str(len(v.edges)), "")]
+        rows = [("Point x", mm(v.xy[0]), unit), ("Point y", mm(v.xy[1]), unit), ("Edges here", str(len(v.edges)), "")]
         if len(v.edges) == 2:
             rows.append(("Corner angle", f"{corner_angle(built, v):.4g}", "°"))
         return rows
     f = built.faces[entity]
-    rows = [("Face", f.id, ""), ("Role", f.role, ""), ("Area", f"{f.area / MM**2:.6g}", "mm²"),
-            ("Centroid x, y", f"{mm(f.centroid[0])}, {mm(f.centroid[1])}", "mm"), ("Holes", str(len(f.loops) - 1), "")]
+    rows = [("Face", f.id, ""), ("Role", f.role, ""), ("Area", *u.area_text(f.area)),
+            ("Centroid x, y", f"{mm(f.centroid[0])}, {mm(f.centroid[1])}", unit), ("Holes", str(len(f.loops) - 1), "")]
     if built.axisymmetric:
-        rows.append(("Volume of revolution", f"{2 * math.pi * f.area * f.centroid[1] / MM**3:.6g}", "mm³"))
+        rows.append(("Volume of revolution", *u.volume_text(2 * math.pi * f.area * f.centroid[1])))
     return rows
 
 

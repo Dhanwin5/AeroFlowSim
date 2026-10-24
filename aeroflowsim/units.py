@@ -84,6 +84,55 @@ PRESETS = {"Small propulsion (mm, kPa, mg/s, mN)": SMALL_PROPULSION, "SI (m, Pa,
 DEFAULTS = SMALL_PROPULSION
 
 
+SCALABLE_UNITS = ("Pa", "N", "W", "J", "m", "m²", "kg/s")   # SI units written with k / m / µ prefixes
+PREFIXES = ((1e9, "G"), (1e6, "M"), (1e3, "k"), (1.0, ""), (1e-3, "m"), (1e-6, "µ"), (1e-9, "n"))
+AREA_PREFIXES = ((1.0, ""), (1e-6, "m"), (1e-12, "µ"))         # m², mm², µm²
+
+
+def prefixed(value, unit, digits=4, scalable=SCALABLE_UNITS):
+    """(value text, unit) in SI with a prefix that keeps the number between 1 and 1000, e.g.
+    3369.88 Pa -> ("3.37", "kPa"), 7.16e-5 kg/s -> ("71.6", "mg/s"), 2.8e-4 m -> ("280", "µm"),
+    6.16e-8 m² -> ("0.06158", "mm²"). digits = significant digits; scalable = which units may get a
+    prefix (others keep their unit). Used where no unit preference applies (command line, SI text)."""
+    value = float(value)
+    if unit not in scalable or value == 0.0 or not np.isfinite(value):
+        return f"{value:.{digits}g}", "" if unit == "-" else unit
+    if unit == "m²":                         # area: the prefix is squared (1 mm² = 1e-6 m²)
+        for factor, prefix in AREA_PREFIXES:
+            if abs(value) >= 1e-2 * factor or factor == AREA_PREFIXES[-1][0]:
+                return f"{value / factor:.{digits}g}", f"{prefix}m²"
+    if unit == "kg/s":                       # prefixes go on the gram: g/s, mg/s, ...
+        if abs(value) >= 1.0:
+            return f"{value:.{digits}g}", "kg/s"
+        value, unit = value * 1e3, "g/s"
+    for factor, prefix in PREFIXES:
+        if abs(value) >= factor or factor == PREFIXES[-1][0]:
+            return f"{value / factor:.{digits}g}", prefix + unit
+
+
+@dataclass(frozen=True)
+class Quantity:
+    """A number with its SI unit inside a message (e.g. a check message): written in SI with a readable
+    prefix by default, or in the user's chosen unit. delta = a difference (temperature margins: a
+    difference in degC equals one in K, so no 273.15 offset)."""
+
+    value: float
+    unit: str
+    digits: int = 4
+    delta: bool = False
+
+    def text(self, prefs=None) -> str:
+        unit = prefs.unit_for(self.unit) if prefs is not None else None
+        if unit is not None and np.isfinite(self.value):
+            shown = self.value * unit.divide / unit.scale if self.delta else unit.from_si(self.value)
+            return f"{shown:.{self.digits}g} {unit.name}"
+        number, name = prefixed(self.value, self.unit, self.digits)
+        return f"{number} {name}".strip()
+
+    def as_dict(self) -> dict:
+        return {"value": float(self.value), "unit": self.unit, "digits": self.digits, "delta": self.delta}
+
+
 class UnitPreferences:
     """The chosen display unit per quantity; converts SI numbers for display and typed numbers back."""
 

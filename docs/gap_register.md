@@ -34,7 +34,8 @@ Last updated: Prompt 6f (2026-10-23).
 | 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |
 | Units system in the GUI (SI, mm, imperial; SI inside) | done | P2 | 6f: View > Units (length, pressure, temperature, mass flow, force, area, velocity; presets small propulsion / SI / imperial); inputs, Setup table, key numbers, card, plots, colour pictures, CSV/PNG export follow it; projects, command line, summary.yaml and the validation report stay SI. The geometry workspace stays in mm |
 | Geometry workspace follows the length-unit preference | later | P3 | the workspace still shows and accepts mm only |
-| Units in the Geometry summary, mesh Properties and validity-check messages | later | P3 | these still use SI with readable prefixes |
+| Units in the Geometry summary, mesh Properties and validity-check messages | done | P2 | 6f close-out: check messages carry their numbers as quantities (SI text for the command line and summary.yaml, the user's units in the GUI); Geometry Dimensions and Properties, mesh table and cell/boundary Properties follow View > Units; plot ticks at round values of the chosen unit |
+| Properties panel too narrow for long values by default | later | P3 | the dock can be widened by hand; values are cut off at first |
 | Gmsh "save .msh" writes into the template folder, not the project | partial | P2 | case code uses `CASE_DIR/mesh`; move to the project's `mesh/` (needs a case-contract change) |
 | GUI usable at 125-150 % display scaling, keyboard-only use | later | P2 | not yet checked systematically |
 
@@ -96,7 +97,8 @@ Last updated: Prompt 6f (2026-10-23).
 | 1D Euler (HLLC, MUSCL, SSP-RK2), quasi-1D nozzle, local time stepping | done | P1 | validated |
 | Gas library + custom gas (designed for mixtures) | done | P1 | 6f: `GasModel` interface (`aeroflowsim/gases/`), calorically perfect gas with Sutherland / power laws; N2, air, O2, Ar, He, Kr, Xe, CO2, H2, H2O, R-236fa with a source for every value (NIST WebBook fits, US Std Atmosphere 1976, GRI-Mech 3.0); gas dropdown in the quasi-1D Setup, custom gases in the user library and copied into projects; Tools > Gas library |
 | Thermally perfect gas (cp(T) from the stored NASA 7-coefficient polynomials) | later | P2 | polynomials stored for N2, O2, Ar, CO2, H2, H2O; needed for hot gases (CO2 and R-236fa are constant-cp only within about 15 K of room temperature) |
-| Custom-gas form: critical point, acentric factor, saturation curve | later | P3 | without them the ideal-gas and condensation checks report 'cannot be estimated' for custom gases |
+| Custom-gas form: critical point and acentric factor | done | P3 | 6f close-out: optional fields (temperature and pressure in the user's units; all three or none); without them the ideal-gas check says it cannot run and why |
+| Custom-gas form: saturation curve | later | P3 | without it the condensation check reports 'cannot be estimated' for custom gases |
 | Gas mixtures (mole fractions of library gases), humid air | later | P2 | the data model keeps molar mass and critical constants per gas, ready for mixing rules |
 | 2D / axisymmetric Euler with local time stepping, carbuncle fix | planned 7 | P1 | |
 | Full boundary-condition set from named boundaries | planned 7 | P1 | total-pressure / mass-flow inlet, pressure outlet, supersonic in/out, far-field, slip wall, symmetry, axis |

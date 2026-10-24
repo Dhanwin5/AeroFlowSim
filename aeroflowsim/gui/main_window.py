@@ -80,11 +80,12 @@ class ProjectGases(GasHandler):
             return None
 
     def new(self, current):
+        units = self.window.units
         try:
-            form = form_from_gas(current, self.base)
+            form = form_from_gas(current, self.base, units)
         except ValueError:
-            form = form_from_gas("N2")
-        dialog = CustomGasDialog(form, self.window)
+            form = form_from_gas("N2", prefs=units)
+        dialog = CustomGasDialog(form, self.window, units)
         if not dialog.exec() or dialog.result_toml is None:
             return None
         name, text = dialog.result_toml
@@ -364,7 +365,7 @@ class MainWindow(QMainWindow):
         if self.results is not None and self.project is not None:
             note = "" if self.project.status("results") == "ok" else " (out of date)"
             sections.append((f"Results{note}", self.results.get("checks", [])))
-        self.checks.set_sections(sections)
+        self.checks.set_sections(sections, self.units)
 
     # ================================================================================== navigation
 
@@ -866,7 +867,7 @@ class MainWindow(QMainWindow):
     # ================================================================================== tools and help
 
     def show_gas_library(self):
-        GasLibraryDialog(self).exec()
+        GasLibraryDialog(self, self.units).exec()
         for panel in self.panels.values():          # a new custom gas appears in the dropdowns at once
             panel.set_values({})
 

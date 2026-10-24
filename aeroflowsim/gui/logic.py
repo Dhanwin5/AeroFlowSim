@@ -11,6 +11,7 @@ import numpy as np
 from aeroflowsim.mesh import Mesh, Mesh1D, Mesh2D
 from aeroflowsim.results import Field
 from aeroflowsim.runner import max_errors
+from aeroflowsim.units import SCALABLE_UNITS, prefixed
 
 AUTO_REBUILD_CELLS = 50_000   # rebuild the mesh after every input change only below this size [cells]
 
@@ -20,10 +21,7 @@ AUTO_REBUILD_CELLS = 50_000   # rebuild the mesh after every input change only b
 KEY_RESULTS = (("M_exit", "Exit Mach number"), ("p_exit", "Exit pressure"), ("mdot", "Mass flow"),
                ("F_vacuum", "Thrust (vacuum)"), ("F_at_p_back", "Thrust at back pressure"),
                ("Isp_vacuum", "Specific impulse (vacuum)"))
-PREFIXES = ((1e9, "G"), (1e6, "M"), (1e3, "k"), (1.0, ""), (1e-3, "m"), (1e-6, "µ"), (1e-9, "n"))
-SCALABLE_UNITS = ("Pa", "N", "W", "J", "m", "m²", "kg/s")   # units that get k / m / µ prefixes for reading
 LENGTH_UNITS = ("m", "m²")                                     # only these in the full-precision tables
-AREA_PREFIXES = ((1.0, ""), (1e-6, "m"), (1e-12, "µ"))         # m², mm², µm²
 
 
 def readable(value, unit, digits=4, units=SCALABLE_UNITS, prefs=None):
@@ -39,19 +37,7 @@ def readable(value, unit, digits=4, units=SCALABLE_UNITS, prefs=None):
     if prefs is not None and prefs.unit_for(unit) is not None and math.isfinite(value):
         shown, name = prefs.display(value, unit)
         return f"{shown:.{digits}g}", name
-    if unit not in units or value == 0.0 or not math.isfinite(value):
-        return f"{value:.{digits}g}", "" if unit == "-" else unit
-    if unit == "m²":                         # area: the prefix is squared (1 mm² = 1e-6 m²)
-        for factor, prefix in AREA_PREFIXES:
-            if abs(value) >= 1e-2 * factor or factor == AREA_PREFIXES[-1][0]:
-                return f"{value / factor:.{digits}g}", f"{prefix}m²"
-    if unit == "kg/s":                       # prefixes go on the gram: g/s, mg/s, ...
-        if abs(value) >= 1.0:
-            return f"{value:.{digits}g}", "kg/s"
-        value, unit = value * 1e3, "g/s"
-    for factor, prefix in PREFIXES:
-        if abs(value) >= factor or factor == PREFIXES[-1][0]:
-            return f"{value / factor:.{digits}g}", prefix + unit
+    return prefixed(value, unit, digits, units)
 
 
 def key_result_tiles(result, prefs=None):
@@ -130,11 +116,12 @@ def key_number_rows(result, reference, run_s=None, prefs=None):
     return rows
 
 
-def mesh_summary_rows(mesh, quality):
-    """[(label, value text)] summarising a face-based mesh; quality = mesh_quality.quality_summary(mesh)."""
+def mesh_summary_rows(mesh, quality, prefs=None):
+    """[(label, value text)] summarising a face-based mesh; quality = mesh_quality.quality_summary(mesh);
+    lengths and areas in the user's units (prefs)."""
     rows = [("cells", f"{mesh.n_cells:,}"), ("faces", f"{mesh.n_faces:,}"), ("nodes", f"{mesh.n_nodes:,}"),
             ("memory", f"{mesh.memory_bytes() / 1e6:.3g} MB"),
-            ("smallest cell", " ".join(readable(quality["min_cell_size"], "m"))),
+            ("smallest cell", " ".join(readable(quality["min_cell_size"], "m", prefs=prefs))),
             ("max aspect ratio", f"{quality['max_aspect_ratio']:.3g}"),
             ("max non-orthogonality", f"{quality['max_non_orthogonality']:.3g}°"),
             ("max volume ratio", f"{quality['max_volume_ratio']:.3g}"),
@@ -143,15 +130,15 @@ def mesh_summary_rows(mesh, quality):
     for key in ("reference_length", "reference_area"):
         if key in mesh.info:
             unit = "m" if key == "reference_length" else "m²"
-            rows.append((key.replace("_", " "), " ".join(readable(mesh.info[key], unit))))
+            rows.append((key.replace("_", " "), " ".join(readable(mesh.info[key], unit, prefs=prefs))))
     return rows
 
 
-def mesh_1d_rows(mesh):
+def mesh_1d_rows(mesh, prefs=None):
     rows = [("nodes", f"{mesh.n_nodes:,}"), ("cells", f"{mesh.n_cells:,}")]
     if len(mesh.x) > 1:
-        rows += [("smallest spacing", " ".join(readable(mesh.dx.min(), "m"))),
-                 ("largest spacing", " ".join(readable(mesh.dx.max(), "m")))]
+        rows += [("smallest spacing", " ".join(readable(mesh.dx.min(), "m", prefs=prefs))),
+                 ("largest spacing", " ".join(readable(mesh.dx.max(), "m", prefs=prefs)))]
     return rows
 
 
