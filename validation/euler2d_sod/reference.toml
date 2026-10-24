@@ -1,0 +1,89 @@
+# Sod shock tube solved with the 2D Euler solver (aeroflowsim/euler/), on 2D meshes:
+#   along x: 400 x 2 quads (the flow runs along the grid lines);
+#   diagonal: 100 x 100 squares split into triangles, diaphragm on the line x + y = 1, so the waves cross
+#   the triangle edges at an angle (flow NOT aligned with the mesh); values read along the diagonal x = y.
+# Values: E. F. Toro, Riemann Solvers and Numerical Methods for Fluid Dynamics, 3rd ed., Springer 2009,
+# chapter 4, test 1 (rho, u, p = 1, 0, 1 left; 0.125, 0, 0.1 right; gamma = 1.4), t = 0.2 s.
+
+title = "Sod shock tube with the 2D Euler solver (along x, and along a diagonal of a triangle mesh)"
+case = "cases/sod_shock_tube"
+
+[[reference]]
+id = "p_star_x"
+quantity = "Along x: star-region pressure p*"
+value = 0.30313
+unit = "Pa"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "u_star_x"
+quantity = "Along x: star-region velocity u*"
+value = 0.92745
+unit = "m/s"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "rho_star_L_x"
+quantity = "Along x: density left of the contact rho*L"
+value = 0.42632
+unit = "kg/m³"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "rho_star_R_x"
+quantity = "Along x: density right of the contact rho*R"
+value = 0.26557
+unit = "kg/m³"
+tolerance_percent = 1.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "shock_travel_x"
+quantity = "Along x: shock distance from the diaphragm"
+value = 0.350432
+unit = "m"
+tolerance_percent = 2.0
+source = "Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)"
+
+[[reference]]
+id = "contact_travel_x"
+quantity = "Along x: contact distance from the diaphragm"
+value = 0.18549
+unit = "m"
+tolerance_percent = 2.0
+source = "Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)"
+
+[[reference]]
+id = "p_star_diag"
+quantity = "Diagonal, triangles: star-region pressure p*"
+value = 0.30313
+unit = "Pa"
+tolerance_percent = 2.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "u_star_diag"
+quantity = "Diagonal, triangles: star-region speed along the diagonal u*"
+value = 0.92745
+unit = "m/s"
+tolerance_percent = 2.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "rho_star_L_diag"
+quantity = "Diagonal, triangles: density left of the contact rho*L"
+value = 0.42632
+unit = "kg/m³"
+tolerance_percent = 2.0
+source = "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557"
+
+[[reference]]
+id = "shock_travel_diag"
+quantity = "Diagonal, triangles: shock distance from the diaphragm"
+value = 0.350432
+unit = "m"
+tolerance_percent = 3.0
+source = "Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)"
