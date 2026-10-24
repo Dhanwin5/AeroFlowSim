@@ -462,6 +462,9 @@ class Project:
         self.steps["run"] = {"fingerprint": fingerprint or self.fingerprint("run"), "time": _now(),
                              "converged": bool(result.converged), "iterations": int(result.iterations),
                              "run_s": payload.get("run_s")}
+        status = (getattr(result, "info", None) or {}).get("status")
+        if status:                               # 2D runs: converged, max_iterations, stopped or diverged
+            self.steps["run"]["status"] = status
         self.save()
 
     def load_mesh(self):

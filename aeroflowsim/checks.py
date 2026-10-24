@@ -17,6 +17,9 @@ Gas checks (ideal-gas validity, condensation risk, temperature range) apply to c
 gas they use (case.gas(params), aeroflowsim/gases/) and return "T" [K] and "p" [Pa] fields; they also
 look at the case's reservoir_state(params) (e.g. the chamber), if it has one.
 
+Setup checks (SETUP_CHECKS) look at the inputs and the mesh before the solver starts, e.g. an angle of
+attack on an axisymmetric mesh; an error-level setup check stops the run (run_setup_checks, engine).
+
 Mesh quality checks (MESH_CHECKS) only look at the mesh, so they can run BEFORE the solver:
 run_mesh_checks() is called by the run engine, which refuses to start the solver when one of
 them reports an error (e.g. a cell with zero or negative volume). They apply to face-based
@@ -451,7 +454,10 @@ def run_status(case, params, mesh, result):
                            f"The run diverged: {info.get('message', '')} The fields shown are the last good state; "
                            "do not use them. See the suggestions (Run step: What to try).")
     if info["status"] == "stopped":
-        return CheckResult("Run status", "warning", "The run was stopped before it converged.")
+        return CheckResult("Run status", "warning",
+                           f"You stopped the run after {result.iterations:,} iterations, before it converged: the "
+                           "results show the flow of that moment. Continue it with Initial solution = Previous "
+                           "result (restart).")
     return CheckResult("Run status", "info", f"The run ended normally ({info['status'].replace('_', ' ')}).")
 
 
@@ -571,10 +577,37 @@ def total_pressure_loss(case, params, mesh, result):
                        "is numerical error).", loss, "%")
 
 
+FREE_STREAM_TYPES = ("far_field", "supersonic_inlet")   # boundary conditions that carry a free-stream angle
+
+
+def axisymmetric_incidence(case, params, mesh, result):
+    """An axisymmetric flow is the same at every angle round the axis, so its free stream must be parallel
+    to the axis: an angle of attack (template input or a far-field / supersonic-inlet row of the boundary
+    table) on an axisymmetric mesh is an error. It is known before the run, so it is also a setup check."""
+    if not isinstance(mesh, Mesh) or not mesh.axisymmetric:
+        return None
+    angles = []
+    if params.get("alpha"):
+        angles.append(f"angle of attack {params['alpha']:g}°")
+    for name, entry in (params.get("boundaries") or {}).items():
+        if isinstance(entry, dict) and entry.get("type") in FREE_STREAM_TYPES and entry.get("flow_angle"):
+            angles.append(f"boundary '{name}' at {entry['flow_angle']:g}°")
+    if not angles:
+        return CheckResult("Axisymmetric free stream", "info",
+                           "The free stream is parallel to the axis, as an axisymmetric flow needs.") \
+            if "alpha" in params else None
+    return CheckResult("Axisymmetric free stream", "error",
+                       f"The mesh is axisymmetric (a body of revolution), but the free stream is at an angle "
+                       f"({'; '.join(angles)}). An axisymmetric flow is the same all round the axis, so it cannot "
+                       "have an angle of attack. Set the angle to 0, or use a planar (2D) body for incidence.")
+
+
+SETUP_CHECKS = [axisymmetric_incidence]   # checks of the inputs and the mesh, before the solver starts
+
 FLOW_CHECKS = [run_status, monitors_settled, thrust_two_ways, total_pressure_loss, positivity_events, cfl_reductions]
 
 # Every check, in the order shown. Add new checks here.
-CHECKS = [convergence, mass_balance] + FLOW_CHECKS + GAS_CHECKS + MESH_CHECKS
+CHECKS = [convergence, mass_balance] + FLOW_CHECKS + SETUP_CHECKS + GAS_CHECKS + MESH_CHECKS
 
 
 # ---- geometry checks (before meshing) ------------------------------------------------------------
@@ -701,6 +734,11 @@ def run_checks(case, params, mesh, result, checks=None) -> list[CheckResult]:
 def run_mesh_checks(case, params, mesh) -> list[CheckResult]:
     """Run only the mesh quality checks (possible before the solver has run)."""
     return run_checks(case, params, mesh, None, checks=MESH_CHECKS)
+
+
+def run_setup_checks(case, params, mesh) -> list[CheckResult]:
+    """Run the setup checks (inputs + mesh, before the solver starts; an error stops the run)."""
+    return run_checks(case, params, mesh, None, checks=SETUP_CHECKS)
 
 
 def worst_level(results: list[CheckResult]) -> str:

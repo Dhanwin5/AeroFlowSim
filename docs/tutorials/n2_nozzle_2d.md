@@ -51,8 +51,10 @@ throat. About 20 minutes, most of it waiting for the run.
   about 0.99 and the total-pressure loss falls to about 1 %: the corner was the cause.
 - **Triangles (Gmsh)** mesh type: the same Isp to 0.1 %, but the residual stalls near 1e-4 at the sharp throat
   (see the gap register); the run stops at the iteration limit and the Convergence check says so.
+- **Stop and look:** press **Stop** at any time: the Results step shows the flow of that moment (marked
+  *stopped*, not converged).
 - **Restart:** set *Initial solution: Previous result (restart)* and *Maximum iterations* to a few thousand
-  more: the run continues from the saved result.
+  more: the run continues from the saved (or stopped) result.
 - **Save .vtu…** in the Results step writes every field and the velocity vector for ParaView.
 
 The numbers of all six meshes (structured and triangles, three sizes each) are in `validation/report.md`

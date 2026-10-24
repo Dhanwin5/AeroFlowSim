@@ -372,7 +372,8 @@ def solve(problem, params, mesh, progress=None) -> Result:
 
     def forward(it, res, info):
         if progress is not None:
-            progress(it, res, info)
+            return progress(it, res, info)      # True = the user pressed Stop (keep the flow as it is)
+        return False
 
     out = solver.solve(problem.W0, forward, problem.monitor, problem.monitor_scales, problem.converge_on)
     W = out.W

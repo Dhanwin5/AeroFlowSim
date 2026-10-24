@@ -79,6 +79,25 @@ def test_stop_ends_a_run_cleanly(worker):
     assert task.status == "stopped"           # stopped by the solver itself, not by killing the process
 
 
+def test_stop_keeps_the_flow_of_a_2d_run(worker, tmp_path):
+    """A 2D run answers Stop by ending after the current iteration and returning the flow of that moment."""
+    case, params = _params("nozzle_axi", mesh_preset="Coarse", max_iter=1_000_000)
+    task = worker.submit(Job("run", str(case.folder), params, str(tmp_path / "results"), mesh=case.build_mesh(params)))
+    end = time.perf_counter() + 60
+    while len(task.iterations) < 20 and time.perf_counter() < end:
+        worker.poll()
+        time.sleep(0.05)
+    assert task.iterations, task.error
+    worker.cancel()
+    worker.cancel()                            # pressing Stop twice changes nothing
+    worker.wait(timeout=60)
+    assert task.status == "finished", task.error   # a normal end, with results
+    result = task.payload["result"]
+    assert result.info["status"] == "stopped" and not result.converged
+    assert 20 <= result.iterations < 1_000_000 and len(result.fields["M"].values) == 2000
+    assert (tmp_path / "results" / "solution.vtu").is_file()
+
+
 def test_cancel_kills_a_running_gmsh_mesh_and_the_worker_still_works(worker, tmp_path):
     pytest.importorskip("gmsh")
     case, params = _params("external_2d", shape="Circular cylinder", surface_size=0.0008, farfield_size=0.5)

@@ -379,6 +379,18 @@ class MainWindow(QMainWindow):
             settings = None
         return run_geometry_checks(built, settings)
 
+    def setup_checks(self):
+        """Checks of the current inputs with the current mesh (before a run), e.g. an angle of attack on an
+        axisymmetric mesh; [] while there is no 2D mesh or an input is being typed."""
+        from aeroflowsim.checks import run_setup_checks
+        if self.project is None or not is_face_mesh(self.mesh):
+            return []
+        try:
+            params = self.project.params_for(("setup",))
+        except ValueError:
+            return []
+        return run_setup_checks(self.project.case, params, self.mesh)
+
     def update_checks(self):
         sections = []
         geometry = self.geometry_checks()
@@ -387,6 +399,9 @@ class MainWindow(QMainWindow):
         if self.mesh is not None and self.project is not None:
             note = "" if self.project.status("mesh") == "ok" else " (out of date)"
             sections.append((f"Mesh{note}", self.mesh_checks))
+        setup = self.setup_checks()
+        if setup:
+            sections.append(("Setup", setup))
         if self.results is not None and self.project is not None:
             note = "" if self.project.status("results") == "ok" else " (out of date)"
             sections.append((f"Results{note}", self.results.get("checks", [])))
@@ -818,6 +833,13 @@ class MainWindow(QMainWindow):
     def start_run(self):
         project = self.project
         params = project.params()
+        errors = [c for c in self.setup_checks() if c.level == "error"]
+        if errors:                               # e.g. an angle of attack on an axisymmetric mesh
+            QMessageBox.warning(self, "Cannot run this setup", "\n\n".join(c.text(self.units) for c in errors))
+            self.log(" ".join(f"{c.name}: {c.message}" for c in errors), "error")
+            self.go_to("setup")
+            self.refresh_all()
+            return
         mesh = str(project.mesh_dir / "mesh.npz") if is_face_mesh(self.mesh) else self.mesh
         self.pending = ("run", project.fingerprint("run"), params)
         restart = project.restart_file(params)
@@ -876,6 +898,8 @@ class MainWindow(QMainWindow):
             self.results = payload
             result = payload["result"]
             done = "converged" if result.converged else "finished, NOT converged"
+            if (getattr(result, "info", None) or {}).get("status") == "stopped":
+                done = "stopped by you (NOT converged; the flow of that moment is kept and can be continued)"
             self.log(f"Run {done}: {result.iterations:,} iterations, {payload.get('run_s', 0):.3g} s")
             self.pages["run"].show_task(task, force=True)
             self.refresh_all()

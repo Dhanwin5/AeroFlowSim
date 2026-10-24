@@ -11,9 +11,10 @@
 Because the GUI (through aeroflowsim/job.py) and the command line (aeroflowsim/cli.py) both call
 this same function, the same case with the same inputs gives identical numbers in both.
 
-Steps: load case -> check inputs -> mesh -> mesh checks -> solve -> reference -> validity checks
--> (save files). If a mesh check reports an error (e.g. a cell with negative volume), the solver
-is not started and MeshError is raised. A case without a solver yet (solver = false in its
+Steps: load case -> check inputs -> mesh -> mesh checks -> setup checks -> solve -> reference ->
+validity checks -> (save files). If a mesh check reports an error (e.g. a cell with negative volume),
+the solver is not started and MeshError is raised; a setup-check error (e.g. an angle of attack on an
+axisymmetric mesh) raises SetupError. A case without a solver yet (solver = false in its
 schema.toml) raises ValueError with the case's message.
 """
 
@@ -21,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from aeroflowsim.case import get_reference, get_reference_lines
-from aeroflowsim.checks import CheckResult, run_checks, run_mesh_checks
+from aeroflowsim.checks import CheckResult, run_checks, run_mesh_checks, run_setup_checks
 from aeroflowsim.discovery import load_case
 from aeroflowsim.parameters import defaults, validate
 from aeroflowsim.results import Result
@@ -30,6 +31,11 @@ from aeroflowsim.runner import save_outputs
 
 class MeshError(ValueError):
     """The mesh failed a mesh check at "error" level, so the solver was not started."""
+
+
+class SetupError(ValueError):
+    """The inputs failed a setup check at "error" level (e.g. an angle of attack on an axisymmetric
+    mesh), so the solver was not started."""
 
 
 @dataclass
@@ -57,7 +63,8 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, resta
               or an already loaded Case
     params    {key: value} inputs to change; the others keep their default from schema.toml
     mesh      a ready mesh (the GUI passes the one shown in its Mesh tab); None = build it here
-    progress  function progress(iteration, residual) called by the solver every iteration
+    progress  function progress(iteration, residual[, info]) called by the solver every iteration; a 2D
+              solver ends cleanly (status "stopped") when it returns True
     out_dir   folder to save fields.csv, summary.yaml, plots ... into; None = save nothing
     restart   fields {key: array} of a previous result on the same mesh, for cases that can continue a
               run (case.run(..., restart=...)); None = start from the case's own initial solution
@@ -75,6 +82,9 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, resta
     mesh_errors = [c for c in run_mesh_checks(case, values, mesh) if c.level == "error"]
     if mesh_errors:   # e.g. inverted cells: the solver must not run on this mesh
         raise MeshError(" ".join(f"{c.name}: {c.message}" for c in mesh_errors))
+    setup_errors = [c for c in run_setup_checks(case, values, mesh) if c.level == "error"]
+    if setup_errors:  # e.g. an angle of attack on an axisymmetric mesh: the run would not mean anything
+        raise SetupError(" ".join(f"{c.name}: {c.message}" for c in setup_errors))
 
     if restart is not None:
         result = case.run(values, mesh, progress or _no_progress, restart=restart)

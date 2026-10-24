@@ -107,6 +107,39 @@ def test_a_diverged_run_stops_cleanly_and_is_diagnosed(monkeypatch):
     assert titles[:3] == ["Lower CFL", "First-order start", "Initial solution"] and "Where it failed" in titles
 
 
+def test_a_stopped_run_returns_the_flow_of_that_moment_and_can_be_continued():
+    """progress() returning True (the user pressed Stop) ends the run cleanly with status 'stopped'."""
+    out = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 100000},
+                               progress=lambda it, res, info=None: it >= 25)
+    r = out.result
+    assert r.info["status"] == "stopped" and r.iterations == 25 and not r.converged
+    check = next(c for c in out.checks if c.name == "Run status")
+    assert check.level == "warning" and "Previous result (restart)" in check.message
+    fields = {k: f.values for k, f in r.fields.items()}
+    again = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 1,
+                                          "initialisation": "Previous result (restart)"}, mesh=out.mesh, restart=fields)
+    assert abs(again.result.key_numbers["mdot"][0] / r.key_numbers["mdot"][0] - 1.0) < 0.01
+
+
+def test_an_angle_of_attack_on_an_axisymmetric_mesh_is_refused_before_the_run():
+    pytest.importorskip("gmsh")
+    from aeroflowsim.engine import SetupError
+    body = load_case("external_2d")
+    cone = {"shape": "Conical nose cone", "domain_shape": "Rectangle", "upstream": 1.0, "downstream": 1.0,
+            "height": 2.0, "surface_size": 0.05, "farfield_size": 0.5, "max_iter": 3}
+    with pytest.raises(SetupError, match="cannot have an angle of attack"):
+        aeroflowsim.run_case(body, {**cone, "alpha": 10.0})
+    with pytest.raises(SetupError, match="boundary 'farfield' at 5"):
+        aeroflowsim.run_case(body, {**cone, "boundaries": {"farfield": {"type": "far_field", "mach": 2.0,
+                                                                         "flow_angle": 5.0}}})
+    out = aeroflowsim.run_case(body, cone)          # zero angle: runs, and the check says it is fine
+    assert next(c for c in out.checks if c.name == "Axisymmetric free stream").level == "info"
+    # Planar bodies may have an angle of attack; nozzles (no alpha input) are not checked
+    assert checks.axisymmetric_incidence(body, {"alpha": 10.0}, load_case("nozzle_axi").build_mesh(
+        {**defaults(NOZZLE.parameters()), "mesh_preset": "Coarse"}), None).level == "error"
+    assert checks.axisymmetric_incidence(NOZZLE, defaults(NOZZLE.parameters()), out.mesh, None) is None
+
+
 def test_a_cfl_reduction_keeps_the_run_going(monkeypatch):
     out = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 60, "cfl": 5.0})
     info = out.result.info

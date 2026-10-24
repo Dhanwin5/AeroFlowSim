@@ -157,8 +157,10 @@ toolbar (zoom, pan, save). `visualise.py` figures (contour, shape view, x-t diag
   equation, the monitors (thrust, mass flow, Cd, Cl, Cm) and the positivity count, which the Run page plots
   live (`figures.residual_figure`, one small plot per monitor unit). `Job.restart` names the previous
   `results/run.npz` when the inputs ask to continue it.
-- **Stop** of a run: a shared flag makes the progress callback raise `StopRequested` between two
-  iterations (clean). **Cancel** of a mesh (Gmsh cannot be interrupted) or a run that does not stop
+- **Stop** of a run: a shared flag is seen by the progress callback between two iterations. A 2D run
+  (its solver passes `info`) gets `True` back, ends after that iteration and finishes normally with the
+  flow of that moment (status "stopped", restartable); the helper then reports the stage "Stopped: saving
+  the results ..." and is never terminated while it saves. A 1D run raises `StopRequested` (no results). **Cancel** of a mesh (Gmsh cannot be interrupted) or a run that does not stop
   within 3 s: the helper process is terminated and a new one started.
 - `__main__.py` must keep its `if __name__ == "__main__":` guard: "spawn" imports it again in the helper.
 

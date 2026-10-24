@@ -227,7 +227,8 @@ class EulerSolver:
     def solve(self, W0, progress=None, monitor=None, monitor_scales=None, converge_on=()):
         """March from the primitive state W0 (n_vars, C) and return a SolveResult.
 
-        progress(iteration, residual, info): called every iteration (may raise to stop the run).
+        progress(iteration, residual, info): called every iteration. If it returns True (the user pressed Stop),
+            the run ends cleanly after this iteration with status "stopped" and the flow of that moment.
         monitor(solver, W) -> {name: value}: monitors recorded every iteration (mass flows, forces, ...),
             from the state W at the start of the iteration and its boundary fluxes (solver.stage0_boundary_flux).
         converge_on: names of the monitors that must settle for steady convergence;
@@ -301,9 +302,11 @@ class EulerSolver:
                         and level <= 10.0 ** (-num.freeze_limiter_orders)):
                     self.psi_frozen = self.last_psi.copy()
                     frozen_at = it
-                if progress is not None:
-                    progress(it, level, {"residuals": res, "monitors": values, "positivity": self.last_positivity,
-                                         "cfl": cfl})
+                if progress is not None and progress(it, level, {"residuals": res, "monitors": values,
+                                                                 "positivity": self.last_positivity, "cfl": cfl}):
+                    status = STOPPED                     # the user pressed Stop: keep the flow as it is now
+                    message = f"Stopped by the user after {it:,} iterations."
+                    break
                 if it % CHECKPOINT_EVERY == 0:
                     good_U, good_it, good_t = U.copy(), it, t_phys
                 if not steady:

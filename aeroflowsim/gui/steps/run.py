@@ -80,6 +80,10 @@ class RunPage(QWidget):
         elif status == "ok" and self._diagnosis() and w.results["result"].info.get("status") == "diverged":
             self.banner.show_message("The run DIVERGED (the solution became unphysical). Press 'What to try...' "
                                      "for suggestions; the Validity checks say where it failed.", "error")
+        elif status == "ok" and record.get("status") == "stopped":
+            self.banner.show_message(f"Stopped by you after {record.get('iterations', 0):,} iterations: the Results step "
+                                     "shows the flow of that moment (NOT converged). To continue from it, set Initial "
+                                     "solution to 'Previous result (restart)' and press Run.", "warning")
         elif status == "ok":
             done = "converged" if record.get("converged") else "finished but NOT converged"
             self.banner.show_message(f"Up to date: {done} after {record.get('iterations', 0):,} iterations "

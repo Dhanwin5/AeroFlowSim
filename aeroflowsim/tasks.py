@@ -12,11 +12,14 @@ Why one *warm* process: starting Python and importing numpy/scipy takes about 1.
 much longer than a small mesh (0.04 s). So the Worker starts its helper process once and keeps it
 running; jobs are sent to it one after another through a queue.
 
-How Cancel works:
-  - a run: the progress callback sees the stop flag and raises StopRequested, so the solver ends
-    cleanly between two iterations (as with the old thread-based job.py);
-  - a mesh (Gmsh has no progress callback), or a run that does not stop within a short grace
-    time: the helper process is terminated and a fresh one is started in the background.
+How Stop / Cancel works:
+  - a 2D run (its solver reports info with every iteration): the progress callback returns True, the
+    solver ends cleanly after that iteration and the run finishes normally with the flow of that moment,
+    marked "stopped" (not converged), so it can be looked at and continued (restart);
+  - a 1D run: the progress callback raises StopRequested, the run ends without results (they take seconds);
+  - a mesh (Gmsh has no progress callback), or a run that does not answer Stop within a grace time:
+    the helper process is terminated and a fresh one is started in the background. A 2D run that has
+    answered (stage SAVING_STOPPED) is never terminated while it saves its results.
 
 The child sends messages back (all plain, picklable Python objects):
     ("stage", text)                      what it is doing now
@@ -39,7 +42,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 PROGRESS_INTERVAL_S = 0.1   # [s] the child sends residual batches at most this often
-STOP_GRACE_S = 3.0          # [s] a run gets this long to stop cleanly before the process is terminated
+STOP_GRACE_S = 10.0         # [s] a run gets this long to answer Stop before the process is terminated
+SAVING_STOPPED = "Stopped: saving the results of this moment"   # stage text of a 2D run that is ending
 
 
 class StopRequested(Exception):
@@ -150,7 +154,16 @@ def _run_job(job, send, stop_event):
             flush()
             last_sent[0] = now
         if stop_event.is_set():
-            raise StopRequested()
+            if info is None:                # a 1D solver: end at once, no result
+                raise StopRequested()
+            if not stopping[0]:             # a 2D solver: it ends cleanly and returns the flow of this moment
+                stopping[0] = True
+                flush()
+                send("stage", SAVING_STOPPED)
+            return True
+        return False
+
+    stopping = [False]
 
     def flush():
         send("progress", list(batch_its), list(batch_res), list(batch_extra) if batch_extra else None)
@@ -259,8 +272,8 @@ class Worker:
     def cancel(self):
         """Stop the current job: a run is asked to stop cleanly, a mesh is terminated at once."""
         task = self.task
-        if task is None or not task.running:
-            return
+        if task is None or not task.running or task.stage == SAVING_STOPPED:
+            return                              # (a stopped 2D run is already saving its results)
         if task.job.kind == "run":
             self._stop_event.set()
             self._stop_asked_at = time.perf_counter()
@@ -286,6 +299,8 @@ class Worker:
             kind = message[1]
             if kind == "stage":
                 task.stage = message[2]
+                if message[2] == SAVING_STOPPED:
+                    self._stop_asked_at = None  # it has answered Stop and saves its results: never terminate it
             elif kind == "progress":
                 task.iterations.extend(message[2])
                 task.residuals.extend(message[3])

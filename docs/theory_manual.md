@@ -765,7 +765,10 @@ smallest one everywhere and stop exactly at the end time.
 **Robust start:** an optional number of first-order iterations before second order. **CFL back-off:** if a
 step produces a negative density or pressure (or NaN), the last good state (saved every 20 iterations) is
 restored and the CFL number halved, at most 4 times; then the run stops cleanly as *diverged*, keeps the last
-good state, reports where it failed and the smart rule suggests what to change (12.10).
+good state, reports where it failed and the smart rule suggests what to change (12.10). **Stop** (the user)
+ends the run after the current iteration with the flow of that moment (status *stopped*, not converged), which
+can be inspected and continued with the restart initialisation. A **setup check** refuses an angle of attack on
+an axisymmetric mesh before the run: an axisymmetric flow is the same all round the axis.
 
 ### 12.8 Residuals, monitors and convergence
 

@@ -137,6 +137,42 @@ def test_results_of_an_older_mesh_are_not_painted_on_a_new_mesh(qtbot, window, t
     assert page.flow_view.mesh_actor is None     # the view shows the message, not a field
 
 
+def test_stop_keeps_the_flow_of_that_moment(qtbot, window, tmp_path):
+    _mesh(qtbot, window, tmp_path, max_iter=1_000_000)
+    window.run_case()
+    qtbot.waitUntil(lambda: window.runner.task is not None and len(window.runner.task.iterations) >= 10,
+                    timeout=60_000)
+    window.cancel_job()
+    _wait_job(qtbot, window)
+    assert window.results is not None
+    result = window.results["result"]
+    assert result.info["status"] == "stopped" and not result.converged
+    assert window.strip.chips["results"].status == "ok"          # results of the current inputs, not converged
+    window.go_to("run")
+    assert "Stopped by you" in window.pages["run"].banner.text()
+    window.go_to("results")
+    assert window.pages["results"].flow_view.mesh_actor is not None   # the field is drawn
+
+
+def test_angle_of_attack_on_an_axisymmetric_body_is_refused_before_the_run(qtbot, window, tmp_path, monkeypatch):
+    pytest.importorskip("gmsh")
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: warnings.append(a[2]) or QMessageBox.Ok)
+    project = Project.create("external_2d", tmp_path / "C.afsproj",
+                             values={"shape": "Conical nose cone", "domain_shape": "Rectangle", "upstream": 1.0,
+                                     "downstream": 1.0, "height": 2.0, "surface_size": 0.05, "farfield_size": 0.5,
+                                     "alpha": 10.0})
+    window.load_project(project)
+    _wait_job(qtbot, window)
+    window.generate_mesh()
+    _wait_job(qtbot, window)
+    names = [c.name for c in window.setup_checks() if c.level == "error"]
+    assert names == ["Axisymmetric free stream"]
+    window.run_case()
+    assert not window.runner.busy and window.current_step == "setup"
+    assert warnings and "cannot have an angle of attack" in warnings[-1]
+
+
 def test_results_view_draws_the_field_in_both_themes(qtbot, window, tmp_path):
     _mesh(qtbot, window, tmp_path, max_iter=10)
     window.run_case()
