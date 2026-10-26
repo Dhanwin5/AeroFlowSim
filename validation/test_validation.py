@@ -19,7 +19,7 @@ def test_every_validation_folder_has_sources_and_tolerances():
     assert {f.name for f in FOLDERS} >= {"sod", "quasi1d_nozzle", "nozzle_axi_geometry", "external_geometry"}
     for folder in FOLDERS:
         header, references = read_references(folder)
-        assert header["case"].startswith("cases/") and references
+        assert header["case"].startswith(("cases/", "aeroflowsim/")) and references
         for r in references:
             assert r.source and r.tolerance_percent > 0 and r.value != 0
 
@@ -32,7 +32,7 @@ def test_validation_case_passes(folder):
     v = validate_folder(folder)
     for c in v.comparisons:
         print(f"  {c.reference.quantity}: ref {c.reference.value:.6g}, AeroFlowSim {c.measured:.6g} "
-              f"{c.reference.unit}, error {c.error_percent:.3f} % (tolerance {c.reference.tolerance_percent:g} %)")
+              f"{c.reference.unit}, error {c.error_percent:.3f} % (tolerance {c.reference.tolerance:g} %)")
     failed = [c.reference.quantity for c in v.comparisons if not c.passed]
     assert not failed, f"{v.title}: outside tolerance: {failed}"
     if folder.name == "quasi1d_nozzle":       # mesh-refinement study: the exit Mach number converges

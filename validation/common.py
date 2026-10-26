@@ -30,6 +30,7 @@ under pytest (marker "validation").
 
 import datetime
 import importlib.util
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +39,18 @@ import aeroflowsim
 
 VALIDATION_DIR = Path(__file__).resolve().parent
 REPORT = VALIDATION_DIR / "report.md"
+QUICK_REPORT = VALIDATION_DIR / "report_quick.md"
+SET_VARIABLE = "AEROFLOWSIM_VALIDATION_SET"     # "quick" = coarse meshes of every case (CI on every push)
+
+
+def is_quick() -> bool:
+    """True when the quick validation set runs (environment variable AEROFLOWSIM_VALIDATION_SET=quick).
+    A validate.py then uses its coarse meshes; the full set (default) uses all meshes."""
+    return os.environ.get(SET_VARIABLE, "full").strip().lower() == "quick"
+
+
+def set_name() -> str:
+    return "quick" if is_quick() else "full"
 
 
 @dataclass
@@ -50,6 +63,15 @@ class Reference:
     unit: str
     tolerance_percent: float
     source: str
+    tolerance_percent_quick: float | None = None   # wider tolerance for the coarse meshes of the quick set
+    pending: str = ""                              # non-empty: the reference could not be obtained yet (why)
+
+    @property
+    def tolerance(self) -> float:
+        """The tolerance that applies to the set being run [%]."""
+        if is_quick() and self.tolerance_percent_quick is not None:
+            return self.tolerance_percent_quick
+        return self.tolerance_percent
 
 
 @dataclass
@@ -66,7 +88,7 @@ class Comparison:
 
     @property
     def passed(self) -> bool:
-        return self.error_percent <= self.reference.tolerance_percent
+        return self.error_percent <= self.reference.tolerance
 
 
 @dataclass
@@ -127,14 +149,19 @@ def error_text(error_percent) -> str:
     return f"{error_percent:.3f}"
 
 
-def write_report(validations: list[CaseValidation], path: Path = REPORT) -> Path:
-    """Write the pass/fail tables as Markdown."""
+def write_report(validations: list[CaseValidation], path: Path | None = None) -> Path:
+    """Write the pass/fail tables as Markdown (full set: report.md; quick set: report_quick.md)."""
+    path = path or (QUICK_REPORT if is_quick() else REPORT)
     overall = all(v.passed for v in validations)
     lines = [
         "# AeroFlowSim validation report",
         "",
         f"AeroFlowSim {aeroflowsim.__version__}, generated {datetime.date.today().isoformat()} "
-        "by `python validation/run_all.py`.",
+        f"by `python validation/run_all.py{' --quick' if is_quick() else ''}`.",
+        "",
+        f"**Validation set: {set_name()}** "
+        + ("(coarse meshes of every case, run on every push; the full set runs weekly and on version tags)."
+           if is_quick() else "(all meshes of every case; run weekly and on version tags)."),
         "",
         f"**Overall: {'PASS' if overall else 'FAIL'}** "
         f"({sum(v.passed for v in validations)} of {len(validations)} cases pass)",
@@ -153,7 +180,7 @@ def write_report(validations: list[CaseValidation], path: Path = REPORT) -> Path
             r = c.reference
             unit = "" if r.unit == "-" else f" {r.unit}"
             lines.append(f"| {r.quantity} | {r.value:.6g}{unit} | {c.measured:.6g}{unit} | "
-                         f"{error_text(c.error_percent)} | {r.tolerance_percent:g} | {'PASS' if c.passed else 'FAIL'} |")
+                         f"{error_text(c.error_percent)} | {r.tolerance:g} | {'PASS' if c.passed else 'FAIL'} |")
         lines += ["", "Sources:", ""]
         for source in dict.fromkeys(c.reference.source for c in v.comparisons):
             lines.append(f"- {source}")

@@ -148,6 +148,7 @@ class EulerSolver:
         self.psi_frozen = None
         self.last_positivity = 0
         self.boundary_flux = None       # (n_vars, B) flux x flux area of the last residual evaluation
+        self.source = None              # optional (n_vars, C) source integrated over each cell (MMS); None = none
 
     # ---- boundary ghost states ---------------------------------------------------------------------
 
@@ -168,7 +169,7 @@ class EulerSolver:
         own, nb = g.owner, g.neighbour
         Wb_in = W[:, g.boundary_owner]
         ghost_c = self.ghosts(Wb_in)                         # first-order ghosts
-        Wb_face = 0.5 * (Wb_in + ghost_c)                    # boundary value at the face centre
+        Wb_face = self.boundary_face_values(Wb_in, ghost_c)  # boundary value at the face centre
 
         if second_order:
             grad = self.grad.gradient(W, Wb_face)            # (n_vars, dim, C)
@@ -202,7 +203,14 @@ class EulerSolver:
         self.boundary_flux = FA[:, nI:]
         R = g.sum_over_faces(FA)
         R[1:-1] -= W[-1] * g.geometric_source               # well-balanced pressure term (see docstring)
+        if self.source is not None:
+            R -= self.source                                 # extra cell sources (MMS verification)
         return -R / g.volumes, W
+
+    def boundary_face_values(self, Wb_in, ghost_c):
+        """Value at each boundary face centre for the gradients: the mean of inside and ghost state.
+        (The MMS verification overrides this with the exact solution.)"""
+        return 0.5 * (Wb_in + ghost_c)
 
     def _shock_weight(self, W, ghost_c):
         """HLLE blend weight per face from a pressure-jump sensor (flux.py, carbuncle fix).

@@ -13,11 +13,13 @@ from aeroflowsim.mesh import QUAD, TRIANGLE, Mesh
 
 
 def rectangle_mesh(nx=8, ny=6, x0=0.0, x1=1.0, y0=0.0, y1=1.0, triangles=False, distort=0.0, seed=1,
-              kinds=None, axisymmetric=False, mixed=False):
+              kinds=None, axisymmetric=False, mixed=False, warp=0.0):
     """Rectangle [x0, x1] x [y0, y1] with patches left, right, bottom, top.
 
     triangles: split every quad along a diagonal (alternating); mixed: only the left half;
     distort: move interior nodes randomly by up to this fraction of a cell width;
+    warp: smooth distortion, interior nodes moved by warp x (domain size) x sin(2 pi s) sin(2 pi t) (s, t in
+          [0, 1] along the sides): the same curved grid on every refinement level (MMS order studies);
     kinds: patch types {name: type}, default left inlet, right outlet, bottom symmetry, top wall.
     """
     kinds = {"left": "inlet", "right": "outlet", "bottom": "symmetry", "top": "wall", **(kinds or {})}
@@ -29,6 +31,10 @@ def rectangle_mesh(nx=8, ny=6, x0=0.0, x1=1.0, y0=0.0, y1=1.0, triangles=False, 
         inner = (slice(1, -1), slice(1, -1))
         X[inner] += distort * dx * rng.uniform(-1, 1, X[inner].shape)
         Y[inner] += distort * dy * rng.uniform(-1, 1, Y[inner].shape)
+    if warp:
+        S, T = (X - x0) / (x1 - x0), (Y - y0) / (y1 - y0)
+        bump = np.sin(2.0 * np.pi * S) * np.sin(2.0 * np.pi * T)
+        X, Y = X + warp * (x1 - x0) * bump, Y + warp * (y1 - y0) * bump
     nodes = np.column_stack([X.ravel(), Y.ravel()])
     nid = lambda i, j: i * (ny + 1) + j
     types, cells = [], []

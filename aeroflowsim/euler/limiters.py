@@ -32,8 +32,8 @@ that on fine meshes, see the gap register).
 
 import numpy as np
 
-VENKATAKRISHNAN, BARTH_JESPERSEN = "Venkatakrishnan", "Barth-Jespersen"
-LIMITERS = (VENKATAKRISHNAN, BARTH_JESPERSEN)
+VENKATAKRISHNAN, BARTH_JESPERSEN, NO_LIMITER = "Venkatakrishnan", "Barth-Jespersen", "None"
+LIMITERS = (VENKATAKRISHNAN, BARTH_JESPERSEN, NO_LIMITER)   # "None": psi = 1 (smooth flows, MMS verification)
 
 
 def neighbour_bounds(geom, Wc, Wb):
@@ -50,6 +50,8 @@ def limiter_factors(geom, grad, Wc, Wb, kind=VENKATAKRISHNAN, K=5.0, L_ref=1.0, 
     """
     if kind not in LIMITERS:
         raise ValueError(f"Unknown limiter '{kind}'; use one of {', '.join(LIMITERS)}.")
+    if kind == NO_LIMITER:
+        return np.ones_like(Wc)
     d_max, d_min = neighbour_bounds(geom, Wc, Wb)
     if delta is None:
         delta = geom.change_to_faces(grad)                     # unlimited change to each face (n_vars, C, k)

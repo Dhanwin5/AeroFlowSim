@@ -1,0 +1,80 @@
+# Order-of-accuracy verification of the 2D / axisymmetric Euler solver by the Method of Manufactured Solutions
+# (aeroflowsim/mms.py). A smooth manufactured flow (Roy et al. 2004 form, Mach 0.5 to 1.6) is imposed with its
+# analytical source term; the discretisation error is measured on four meshes (refinement ratio 2) and the
+# observed order between the two finest meshes is compared with the formal order 2 of the scheme
+# (MUSCL reconstruction with least-squares gradients, no limiter).
+# The value compared is the SMALLEST observed L2 order over the four variables (rho, u, v, p).
+# Acceptance (Prompt 7b): >= 1.8 on structured / distorted quads, >= 1.7 on triangles and mixed meshes,
+# i.e. a tolerance of 10 % (quads) and 15 % (triangles, mixed) below the formal order 2.
+# The quick set (CI on every push) uses three coarser meshes (8, 16, 32 cells per side); there the
+# distorted quads are not yet in the asymptotic range, so the quick set has its own, wider tolerance
+# (tolerance_percent_quick), stated in the report.
+
+title = "Method of Manufactured Solutions: order of accuracy of the 2D Euler solver"
+case = "aeroflowsim/mms.py"
+
+[[reference]]
+id = "quads"
+quantity = "Observed order (min L2 over rho, u, v, p), planar quads"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+source = "Formal order of the MUSCL / least-squares scheme (Barth & Jespersen 1989); MMS of Roy et al. (2004)"
+
+[[reference]]
+id = "distorted_quads"
+quantity = "Observed order, planar smoothly distorted quads"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 25.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "triangles"
+quantity = "Observed order, planar triangles"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "mixed"
+quantity = "Observed order, planar mixed quads + triangles"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "axi_quads"
+quantity = "Observed order, axisymmetric quads (with the pressure source)"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "axi_distorted_quads"
+quantity = "Observed order, axisymmetric distorted quads"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 25.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "axi_triangles"
+quantity = "Observed order, axisymmetric triangles"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "axi_mixed"
+quantity = "Observed order, axisymmetric mixed"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+source = "Formal order 2 (as above)"

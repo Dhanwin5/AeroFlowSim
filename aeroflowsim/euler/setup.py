@@ -73,7 +73,8 @@ def solver_parameters(overrides=None) -> list:
                 "Run this many first-order iterations before switching to second order (a robust start for "
                 "strong shocks).", "int"),
         _choice("limiter", "Limiter", LIMITERS, LIMITERS[0], "Venkatakrishnan: smooth, converges well (default). "
-                "Barth-Jespersen: strict, may stall the residual."),
+                "Barth-Jespersen: strict, may stall the residual. None: no limiting (smooth flows only; "
+                "oscillates at shocks)."),
         _number("venkat_k", "Venkatakrishnan K", "-", 5.0, 0.0, 100.0, "Larger K = less limiting in smooth "
                 "regions (0 = as strict as Barth-Jespersen).", ),
         _number("freeze_limiter", "Freeze the limiter after a drop of", "orders", 4.0, 0.0, 15.0,
@@ -432,6 +433,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
         series.update(problem.series(solver, W))
     if out.limiter is not None:                  # a frozen limiter stays frozen when the run is continued
         series["limiter_frozen"] = out.limiter
+    series["boundary_flux"] = solver.boundary_flux.copy()   # flux x area of every boundary face (post-processing)
     info = {"status": out.status, "first_iteration": out.first_iteration, "mesh_signature": mesh_signature(mesh),
             "continued_from": None if previous is None else previous.iterations,
             "residual_norm": None if out.norm is None else [float(v) for v in out.norm], "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
@@ -439,6 +441,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "cfl_reductions": int(out.cfl_reductions), "cfl_final": float(out.cfl_final),
             "wall_time_s": float(out.wall_time_s), "limiter_frozen_at": out.limiter_frozen_at,
             "diverged_at": None if out.diverged_at is None else list(out.diverged_at),
+            "L_ref": float(problem.L_ref), "scales": [float(v) for v in problem.scales],
             "initialisation": problem.initialisation, "equations": list(EQUATIONS[:W.shape[0]]),
             "monitor_labels": {k: list(v) for k, v in problem.monitor_labels.items()},
             "converge_on": list(problem.converge_on), "monitor_tol": params["monitor_tol"],
