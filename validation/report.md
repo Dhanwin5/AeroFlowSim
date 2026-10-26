@@ -1,6 +1,6 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.1.0.dev0, generated 2026-10-24 by `python validation/run_all.py`.
+AeroFlowSim 0.1.0.dev0, generated 2026-10-26 by `python validation/run_all.py`.
 
 **Overall: PASS** (9 of 9 cases pass)
 
@@ -21,8 +21,8 @@ Sources:
 
 | Run | Cells | Iterations | Converged | Final residual | Time [s] | Stand-off / D | Shock roughness | Positivity events |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| polar grid, carbuncle fix on | 4,800 | 6,184 | yes | 1.0e-06 | 176 | 0.2249 | 0.77 | 0 |
-| polar grid, carbuncle fix OFF | 4,800 | 12,000 | NO | 3.2e-01 | 381 | 0.2246 | 0.84 | 0 |
+| polar grid, carbuncle fix on | 4,800 | 6,184 | yes | 1.0e-06 | 192 | 0.2249 | 0.77 | 0 |
+| polar grid, carbuncle fix OFF | 4,800 | 12,000 | NO | 3.2e-01 | 370 | 0.2246 | 0.84 | 0 |
 | Gmsh quad-dominant, fix on | 1,329 | 2,423 | yes | 9.9e-07 | 17 | 0.2293 | - | 0 |
 
 - Billig correlation: stand-off / D = 0.2197.
@@ -39,7 +39,7 @@ Case: `cases/nozzle_axi`, references: `validation/euler2d_nozzle/reference.toml`
 | Exit / inlet mass flow (converged: mass is conserved) | 1 | 1 | 1.7e-06 | 0.1 | PASS |
 | Thrust from wall pressure + inlet momentum / thrust from the exit plane | 1 | 0.999999 | 6.6e-05 | 0.2 | PASS |
 | Vacuum specific impulse (structured 200 x 40) | 71.29 s | 71.4748 s | 0.259 | 1 | PASS |
-| Vacuum specific impulse (Gmsh triangles, 5,505 cells) | 71.29 s | 71.4729 s | 0.257 | 1 | PASS |
+| Vacuum specific impulse (Gmsh triangles, 5,505 cells) | 71.29 s | 71.4732 s | 0.257 | 1 | PASS |
 
 Sources:
 
@@ -51,12 +51,12 @@ Sources:
 
 | Mesh | Cells | Iterations | Converged | Time [s] | Mass flow [mg/s] | Cd | F exit [mN] | F wall [mN] | Isp [s] | Isp / Isp 1D | p0 loss [%] |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| structured 50 x 10 | 500 | 4,672 | yes | 17 | 68.4750 | 0.9581 | 47.9973 | 47.9975 | 71.477 | 0.9855 | 2.609 |
-| structured 100 x 20 | 2,000 | 8,095 | yes | 121 | 67.6312 | 0.9463 | 47.3907 | 47.3913 | 71.454 | 0.9852 | 2.902 |
-| structured 200 x 40 | 8,000 | 24,688 | yes | 1120 | 67.2131 | 0.9404 | 47.1116 | 47.1115 | 71.475 | 0.9855 | 2.541 |
-| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 176 | 67.5969 | 0.9458 | 47.3525 | 47.3324 | 71.432 | 0.9849 | 4.715 |
-| triangles, wall 0.08 D_t | 2,350 | 30,000 | NO | 335 | 67.2139 | 0.9405 | 47.0977 | 47.1522 | 71.453 | 0.9852 | 4.053 |
-| triangles, wall 0.04 D_t | 5,505 | 30,000 | NO | 1013 | 67.0689 | 0.9384 | 47.0092 | 46.9295 | 71.473 | 0.9855 | 3.504 |
+| structured 50 x 10 | 500 | 4,672 | yes | 16 | 68.4750 | 0.9581 | 47.9973 | 47.9975 | 71.477 | 0.9855 | 2.609 |
+| structured 100 x 20 | 2,000 | 8,095 | yes | 69 | 67.6312 | 0.9463 | 47.3907 | 47.3913 | 71.454 | 0.9852 | 2.902 |
+| structured 200 x 40 | 8,000 | 24,688 | yes | 700 | 67.2131 | 0.9404 | 47.1116 | 47.1115 | 71.475 | 0.9855 | 2.541 |
+| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 112 | 67.5969 | 0.9458 | 47.3525 | 47.3324 | 71.432 | 0.9849 | 4.715 |
+| triangles, wall 0.08 D_t | 2,350 | 30,000 | NO | 202 | 67.2139 | 0.9405 | 47.0977 | 47.1522 | 71.453 | 0.9852 | 4.053 |
+| triangles, wall 0.04 D_t | 5,505 | 30,000 | NO | 472 | 67.0710 | 0.9385 | 47.0109 | 46.9250 | 71.473 | 0.9855 | 3.501 |
 
 - Quasi-1D template (cases/quasi1d_nozzle, defaults): vacuum Isp 72.509 s, mass flow 71.6005 mg/s; ideal quasi-1D theory of the same wall 72.526 s.
 - Conical divergence estimate: 72.53 s x (1 + cos 15 deg)/2 = 71.29 s (point-source flow).
@@ -91,8 +91,8 @@ Sources:
 
 | Run | Cells | Wall-clock time [s] |
 |---:|---:|---:|
-| along x, quads | 800 | 3.4 |
-| diagonal, triangles | 20,000 | 30.9 |
+| along x, quads | 800 | 1.5 |
+| diagonal, triangles | 20,000 | 14.6 |
 
 - Second order (least-squares gradients, Venkatakrishnan limiter), SSP-RK3, CFL 0.8, one global time step; time-accurate to t = 0.2 s.
 
@@ -116,8 +116,8 @@ Sources:
 
 | Mesh | Cells | Iterations | Converged | Time [s] | beta [deg] | p2/p1 | M2 | Cd (incl. base) |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| wall 0.02 L | 3,553 | 1,935 | yes | 41 | 39.351 | 1.7072 | 1.6316 | 0.1965 |
-| wall 0.01 L | 11,958 | 30,000 | NO | 2536 | 39.244 | 1.7067 | 1.6328 | 0.1978 |
+| wall 0.02 L | 3,553 | 1,935 | yes | 20 | 39.351 | 1.7072 | 1.6316 | 0.1965 |
+| wall 0.01 L | 11,958 | 4,478 | yes | 166 | 39.244 | 1.7067 | 1.6328 | 0.1978 |
 
 - Theory: beta = 39.314 deg, p2/p1 = 1.7066, M2 = 1.6405.
 - Cd includes the base drag of the flat base (the base pressure is not part of the oblique-shock theory).

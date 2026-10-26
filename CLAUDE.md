@@ -223,6 +223,12 @@ Commands (from the project folder):
     counter-clockwise, corners marked, reference length and area) - plus tests. No GUI or case code.
 18. **Gap register:** read `docs/gap_register.md` at the start of every prompt. At the end, update it
     (status of the items that moved, new gaps found) and report both to the user.
+19. **Next prompt:** prompts live in `docs/prompts/` (index in its README). At the end of every prompt, write
+    the next prompt file in the same style: complete enough to be finished in ONE session without follow-up
+    prompts (context, decisions already made, parts, quality gates, "Done when"; first line: the model to use,
+    Opus for new numerics or many design decisions, Sonnet for well-defined building), including every finding of
+    this session that belongs to it. Behaviour must match the best commercial CFD tools by default; walk
+    through the user's next actions (stop, run again, change an input, re-mesh, reopen) for every feature.
 
 ## Intelligence
 - **Principle:** intelligence assists, never replaces physics. Every suggestion is shown to the
