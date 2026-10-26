@@ -9,8 +9,8 @@ Geometry: the NACA 0012 equation with its ORIGINAL last coefficient (-0.1015), e
 closes and scaled to unit chord, as in the reference (Vassberg & Jameson 2010) - the file
 naca0012_vassberg_jameson.dat, read by the shape library's coordinates-file shape.
 Domain: C-domain (workspace Enclosure) of radius 30 c, 30 c downstream; characteristic far field without a point
-vortex correction (as OVERFLOW and CFL3D without vortex in the reference). Gmsh triangles, wall cells of 0.01, 0.005
-and 0.0025 c (refinement ratio 2); the quick set runs only the coarsest mesh.
+vortex correction (as OVERFLOW and CFL3D without vortex in the reference). Gmsh triangles, wall cells of 0.02, 0.01
+and 0.005 c (refinement ratio 2); the quick set runs only the coarsest mesh with a short budget.
 The three-mesh GCI (aeroflowsim/gci.py) gives the extrapolated Cl and Cd, compared with the grid-converged values
 of the reference. Prompt 8 speed is needed for the finer meshes of a proper study (see the gap register).
 """
@@ -28,13 +28,16 @@ from validation.common import is_quick
 
 HERE = Path(__file__).resolve().parent
 CASE = "cases/external_2d"
-LEVELS = {"wall 0.01 c": 0.01, "wall 0.005 c": 0.005, "wall 0.0025 c": 0.0025}
+LEVELS = {"wall 0.02 c": 0.02, "wall 0.01 c": 0.01, "wall 0.005 c": 0.005}
 CONDITIONS = {"transonic": 0.8, "subcritical": 0.5}
 RUNS = {}
 
 
+QUICK_LEVELS = {"wall 0.02 c": 0.02}
+
+
 def _levels():
-    return dict(list(LEVELS.items())[:1]) if is_quick() else LEVELS
+    return QUICK_LEVELS if is_quick() else LEVELS
 
 
 def _run(condition, label, size):
@@ -44,7 +47,8 @@ def _run(condition, label, size):
         params = validate(case.parameters(), {
             **defaults(case.parameters()), "shape": "Custom coordinates file",
             "coordinates_file.file": str(HERE / "naca0012_vassberg_jameson.dat"), "mach": CONDITIONS[condition],
-            "alpha": 1.25, "surface_size": size, "farfield_size": 2.0, "size_growth": 1.15, "max_iter": 60000})
+            "alpha": 1.25, "surface_size": size, "farfield_size": 2.0, "size_growth": 1.15,
+            "max_iter": 5000 if is_quick() else 40000})
         doc = template_document(case)
         doc.operations[1].suppressed = True                     # the template's own far field is replaced by
         doc.add(Enclosure(kind="c_domain", radius=30.0, downstream=30.0))   # a C-domain from the workspace

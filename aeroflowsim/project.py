@@ -64,6 +64,8 @@ MESH_1D_FILE = "mesh1d.npz"
 DEPENDS_ON = {"geometry": ("geometry",), "mesh": ("geometry", "mesh"), "run": INPUT_STEPS}
 
 
+OPEN_FILE = "project.afsproj"   # a small file in every project folder; the installer associates .afsproj with AeroFlowSim
+
 POST_DEFAULTS = {
     "surfaces": [],              # named surfaces (aeroflowsim/post/surfaces.py), geometric: survive re-meshing
     "report_definitions": [],    # aeroflowsim/post/definitions.py
@@ -256,6 +258,10 @@ class Project:
         tmp = self.folder / (PROJECT_FILE + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         tmp.replace(self.folder / PROJECT_FILE)    # never a half-written project.yaml
+        opener = self.folder / OPEN_FILE           # double-click this file to open the project (installed program)
+        if not opener.exists():
+            opener.write_text("AeroFlowSim project: double-click to open this folder in AeroFlowSim.\n",
+                              encoding="utf-8")
         if self._history_loaded:                   # the workspace history, if the geometry was edited
             if self._history is None:
                 self.history_path.unlink(missing_ok=True)

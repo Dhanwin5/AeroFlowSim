@@ -24,3 +24,10 @@ cases/*/settings/
 
 # Generated mesh files of each case (mesh.npz, mesh.vtu)
 cases/*/mesh/
+
+# Screenshots made by tools/screenshots.py (and their example projects)
+docs/screenshots/
+
+# Example projects ship their results
+!examples/**/results/
+validation/mms_euler2d/last_study_quick.json

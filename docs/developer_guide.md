@@ -240,3 +240,41 @@ the history is unedited, so validated meshes never change by accident.
   Preferences go to a temporary INI file, never the user's own.
 
 Run them all: `.venv\Scripts\python.exe -m pytest` (test windows appear briefly on Windows).
+
+## Post-processing (`aeroflowsim/post/`, Prompt 7b)
+
+All post-processing logic lives in `aeroflowsim/post/` and imports neither Qt nor VTK, so the command line
+(`report`, `export`, `snapshot`), scripts, the automatic report and the GUI share it. The GUI only draws.
+
+| Module | Role |
+|---|---|
+| `solution.py` | `Solution`: mesh + cell fields + gas + boundary conditions of one result; geometry, gradients, boundary face values and the solver's stored boundary fluxes, all computed once (cached) |
+| `fields.py` | derived fields (`_DERIVED` table + `_compute`), custom formulas (ast whitelist, unit algebra), node values |
+| `sampling.py` | point location, linear reconstruction, line cutting (one piece per cell), interpolation onto another mesh |
+| `surfaces.py` | `Surface` (stored definition) -> `SurfaceData` (segments on the current mesh) |
+| `integrals.py` | surface / volume operations, flux balance, forces and moments |
+| `definitions.py` | report definitions, `MonitorEvaluator` (during the run), `ReportFileWriter` (CSV) |
+| `xy.py`, `pictures.py` | matplotlib figures (paper style) |
+| `snapshots.py`, `compare.py`, `export.py`, `report.py` | snapshots, differences, files, HTML / PDF report |
+
+GUI side: `gui/results_logic.py` (Scene and the arrays to draw, no Qt), `gui/flow_view.py` (VTK drawing, linked
+views), `gui/post_panels.py` (the six panels), `gui/steps/results.py` (the page that owns the Solution).
+Project settings are stored in `project.yaml` under `surfaces`, `report_definitions`, `custom_fields`, `scenes`,
+`xy_plots`, `init_patches`, `interpolate_new_mesh` (`Project.post`, `Project.set_post`). A run receives them
+through `run_case(..., extras=project.run_extras(mesh))`; `aeroflowsim/euler/setup.py` reads them from the context
+variable `RUN_EXTRAS` (monitors, patches, interpolation).
+
+**How to add a derived field:** add a line to `_DERIVED` in `post/fields.py` (label, unit, group) and its formula
+in `_compute`; add a test with a field whose value is known (e.g. a linear or solid-body field). It then appears in
+every field list, the report, the exports and the formulas.
+
+**How to add a surface type:** add it to `TYPES` / `TYPE_LABELS` in `post/surfaces.py`, store its parameters in
+`Surface` (`to_dict` / `from_dict`), build its segments in `evaluate_surface`, and add its inputs to
+`SurfaceDialog` in `gui/post_panels.py`. Integrals, XY plots and report definitions then work on it unchanged.
+
+**How to add a report section:** in `post/report.py` add the title to `SECTIONS` and a block in `build()` using
+`d.section`, `d.text`, `d.table`, `d.figure`; `tests/test_report.py` checks that every section is present.
+
+**Validation sets:** a `validate.py` calls `validation.common.is_quick()` to choose its coarse meshes for the quick
+set (CI on every push, under 10 minutes); a reference may have `tolerance_percent_quick`. `run_all.py --quick` writes
+`report_quick.md`; the full set writes `report.md`.

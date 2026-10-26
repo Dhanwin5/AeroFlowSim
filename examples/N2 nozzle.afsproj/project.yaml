@@ -1,0 +1,82 @@
+format_version: 1
+aeroflowsim_version: 0.2.0a1
+template: nozzle_axi
+template_title: Axisymmetric nozzle (2D Euler)
+template_fingerprint: 2ee6d31fc7dd1916d2f79a51a61fb9ad5a6b3b8bdd5441fe8f1a36c70ffac2f0
+created: '2026-10-26T20:36:48'
+modified: '2026-10-26T20:37:57'
+inputs:
+  geometry_source: Parametric (conical)
+  d_inlet: 0.002
+  L_inlet: 0.00133
+  half_angle_conv: 30.0
+  d_throat: 0.00028
+  half_angle_div: 15.0
+  d_exit: 0.000911
+  Rcu_ratio: 0.0
+  Rcd_ratio: 0.0
+  profile_csv: geometry/n2_conical_nozzle.csv
+  mesh_type: Structured
+  mesh_preset: Coarse
+  nx: 200
+  nr: 40
+  throat_clustering: true
+  clustering_strength: Moderate
+  cell_type: Triangles
+  surface_size: 0.04
+  max_size: 0.2
+  size_growth: 1.2
+  edge_refinement: true
+  save_msh: false
+  inflation: false
+  first_layer_height: 1.0e-06
+  n_layers: 10
+  growth_rate: 1.2
+  gas: N2
+  p0: 500000.0
+  T0: 293.15
+  p_back: 1000.0
+  initialisation: Quasi-1D solution
+  boundaries: {}
+  cfl: 0.8
+  order: Second order (MUSCL)
+  first_order_iterations: 0
+  limiter: Venkatakrishnan
+  venkat_k: 5.0
+  freeze_limiter: 4.0
+  gradient: least squares
+  time_scheme: SSP-RK3
+  max_iter: 20000
+  tol: 1.0e-06
+  monitor_tol: 0.0001
+  monitor_window: 500
+  carbuncle_fix: true
+steps:
+  mesh:
+    fingerprint: f37736728e79fba5ae4c8a7c28f2ac9b7efe655169b94700ac4bbcd4daad1e74
+    time: '2026-10-26T20:36:48'
+    cells: 2000
+  run:
+    fingerprint: b9d8da98db33fc523d8883edcbc98f415ca7b240e0eae11c2371eb437ddb0688
+    time: '2026-10-26T20:37:57'
+    converged: true
+    iterations: 8095
+    run_s: null
+    status: converged
+surfaces: []
+report_definitions:
+- name: exit p0 (mass-weighted)
+  kind: surface
+  monitor: false
+  converge: false
+  tolerance: 0.0001
+  window: 500
+  surface: outlet
+  operation: mass_weighted
+  field: p0
+  quantity: mass
+custom_fields: {}
+scenes: {}
+xy_plots: {}
+init_patches: []
+interpolate_new_mesh: true

@@ -11,9 +11,8 @@ profile, structured mesh, 2D axisymmetric Euler), air (gamma = 1.4), p0 = 150 ps
 pressure ratio p/p0 (from the solver's wall fluxes) is interpolated to the measured positions.
 
 Pointwise tolerance band: +-0.03 in p/p0 (absolute), written per point as a percentage of the measured value; the
-band covers the digitizing uncertainty (+-0.005), the spread between runs and the effect of the boundary layer that
-an inviscid solver leaves out (the report gives a displacement thickness up to 0.4 % of the radius near the throat,
-delta/R = 0.45 at the inlet). At z = 2.46 in, where the runs differ by 0.04, the band is +-0.05.
+band covers the digitizing uncertainty (+-0.005) and the spread between runs (the report finds boundary-layer
+effects on the wall pressure negligible, and tap-size effects of up to 7 %). At z = 2.46 in, where the runs differ by 0.04, the band is +-0.05.
 Only points with p/p0 between 0.09 and 0.97 are compared as percentages (smaller values would turn an absolute band
 into huge percentages; they are listed in the study table).
 """

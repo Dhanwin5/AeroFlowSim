@@ -1,0 +1,38 @@
+format_version: 1
+aeroflowsim_version: 0.2.0a1
+template: sod_shock_tube
+template_title: Sod shock tube
+template_fingerprint: 66c6230c79bc1f1f6986c509f6a3aed6c88bcf380ecd6452783663a6c11d62b0
+created: '2026-10-26T20:37:57'
+modified: '2026-10-26T20:37:58'
+inputs:
+  rho_L: 1.0
+  u_L: 0.0
+  p_L: 1.0
+  rho_R: 0.125
+  u_R: 0.0
+  p_R: 0.1
+  gamma: 1.4
+  L: 1.0
+  x0: 0.5
+  t_end: 0.2
+  n_cells: 400
+  cfl: 0.5
+steps:
+  mesh:
+    fingerprint: 99ddd51f0c3b1e398cc82e64046b7e69c7b65e8ca38af701dd4847b8366594ae
+    time: '2026-10-26T20:37:57'
+    cells: 400
+  run:
+    fingerprint: 027161432fa6d838b8d41180b7f71ece5e40f9cf455ec107cfb3a258614bf496
+    time: '2026-10-26T20:37:58'
+    converged: true
+    iterations: 349
+    run_s: null
+surfaces: []
+report_definitions: []
+custom_fields: {}
+scenes: {}
+xy_plots: {}
+init_patches: []
+interpolate_new_mesh: true

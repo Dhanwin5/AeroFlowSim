@@ -111,6 +111,9 @@ class FlowView(MeshView):
                     p.add_mesh(lines.reflect((0.0, 1.0, 0.0), point=(0.0, 0.0, 0.0)), scalars="rgb", rgb=True,
                                line_width=2.5, reset_camera=False)
             self.draw_surfaces(surfaces)
+        for bar_actor in getattr(p, "scalar_bars", {}).values():   # labels on the far side of the title
+            if scene.bar_position != "Right":
+                bar_actor.SetTextPositionToPrecedeScalarBar()
         bbox = mesh.info.get("body_bbox")
         self._set_body((bbox[0], bbox[2], bbox[1], bbox[3]) if bbox is not None and len(bbox) == 4 else None)
         if scene.revolve:
@@ -138,7 +141,7 @@ class FlowView(MeshView):
         if scene.bar_position == "Right":
             pos = {"vertical": True, "position_x": 0.86, "position_y": 0.15, "width": 0.07, "height": 0.7}
         else:
-            pos = {"vertical": False, "position_x": 0.2, "position_y": 0.04, "width": 0.6, "height": 0.06}
+            pos = {"vertical": False, "position_x": 0.2, "position_y": 0.07, "width": 0.6, "height": 0.05}
         return {"title": data.title, "color": colours["text"], "n_labels": 5, "fmt": scene.bar_format or "%.4g",
                 "title_font_size": 12, "label_font_size": 11, **pos}
 

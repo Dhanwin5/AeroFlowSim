@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 7 (2026-10-24).
+Last updated: Prompt 7b (2026-10-26).
 
 ## 1. Platform and GUI
 
@@ -23,26 +23,30 @@ Last updated: Prompt 7 (2026-10-24).
 | Undo / redo of input changes | done | P1 | QUndoStack; geometry workspace edits are undoable too (6d: one command per history change) |
 | Light / dark theme, remembered | done | P2 | one app-wide style sheet per theme; plots follow the theme, saved pictures keep the light "paper" style |
 | Dockable panels, menus, toolbar, shortcuts | done | P1 | |
-| Right-click (context) menus in the views | partial | P2 | geometry workspace: menus for points, edges, faces and empty space (21 Oct, `tests/gui/test_view_aids.py`); mesh and results views still have none |
+| Right-click (context) menus in the views | done | P2 | geometry workspace (21 Oct); mesh and results views (7b): zoom to fit, reset view, save picture; results also probe, pin probe, line surface, streamline seed |
 | Boundary-condition table in the Setup step (one row per named boundary: type, values, Default) | done | P1 | Prompt 7: input type `boundaries`, logic in `gui/boundary_logic.py`, drawn by `panel.py`; defaults follow the template inputs; undoable |
 | Live monitors in the Run step (residual per equation, thrust / mass flow / Cl, Cd, Cm, positivity) | done | P1 | Prompt 7 (`figures.residual_figure`, `tasks.py` batches) |
 | Run step: suggested numerics and 'What to try' after a failed run | done | P2 | Prompt 7 (smart rules, applied only by the user) |
 | Results step for 2D flows: field view (field, colour map, range, edges, cell values), wall p/p0 or Cp, convergence, .vtu | done | P1 | Prompt 7 |
-| Results view: zoom/picture export of the 2D field in the paper style, mirror about the axis, streamlines | planned 7b | P2 | the picture is a screenshot of the view as shown |
+| Results view: picture export in the paper style, mirror about the axis, streamlines | done | P2 | 7b: Display panel (gui/post_panels.py, gui/flow_view.py); PNG 1-8 x resolution, transparent, paper style in both themes, copy to clipboard |
+| Results workspace (Fluent-level post-processing): contours (smooth / cell / banded), lines with labels, vectors, streamlines, 3D revolve, 1/2/4 linked views, saved scenes, surfaces, integrals, fluxes, forces, report definitions, XY plots, snapshots and differences, custom fields, histogram, hover values | done | P1 | 7b: logic in aeroflowsim/post (no Qt), tests/test_post*.py, tests/gui/test_post_gui.py |
 | **Bug: input values hidden when the Inputs dock is narrow** (external_2d: right-aligned numbers scrolled out of view) | done | P1 | fixed after 6d: long labels wrap, boxes keep a minimum width, no sideways scrolling; the dock cannot be made narrower than about 320 px (`tests/gui/test_panel_qt.py`) |
 | Rubber-band (box) selection in the geometry view | done | P2 | 21 Oct: drag a box (left to right: inside only), with a pick filter for points / edges / faces (`tests/gui/test_view_aids.py`) |
 | Workspace view aids: own icon set (both themes), adaptive grid, xyz axes triad, cursor position, 2D/3D switch, revolve preview of axisymmetric geometry | done | P2 | 21 Oct (`gui/icons.py`, `gui/geometry_view.py`; `tests/gui/test_view_aids.py`) |
 | CAD-style mouse handling in the workspace (zoom about the cursor, Shift/middle drag to pan) | done | P2 | 21 Oct (`tests/gui/test_view_aids.py`) |
 | Parity check of the desktop GUI against Streamlit by the user | partial | P1 | user checks every template; then remove `app.py` + streamlit (ask first). The Streamlit GUI cannot edit the boundary-condition table (it uses the defaults) |
 | Remove the Streamlit GUI (`app.py`, `streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) | later | P2 | only after the parity check, with the user's OK |
-| Windows installer + Start-menu shortcut | planned 7b | P1 | |
+| Windows installer + Start-menu shortcut | done | P1 | 7b: PyInstaller one-folder + Inno Setup (tools/build_installer.py), per user, .afsproj association (project.afsproj in each project), uninstaller, smoke test; GitHub workflow on tags. NOT code-signed (SmartScreen warning documented) |
+| Code signing of the installer | later | P2 | needs a certificate; until then SmartScreen warns |
+| Help > Copy diagnostic info, log file, error dialog | done | P1 | 7b: aeroflowsim/diagnostics.py, %APPDATA%/AeroFlowSim/aeroflowsim.log |
+| Example projects on the start page | done | P1 | 7b: examples/ (N2 nozzle with result, NACA 0012, wedge, Sod), tools/make_examples.py |
 | 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |
 | Units system in the GUI (SI, mm, imperial; SI inside) | done | P2 | 6f: View > Units (length, pressure, temperature, mass flow, force, area, velocity; presets small propulsion / SI / imperial); inputs, Setup table, key numbers, card, plots, colour pictures, CSV/PNG export follow it; projects, command line, summary.yaml and the validation report stay SI. The geometry workspace stays in mm |
 | Geometry workspace follows the length-unit preference | later | P3 | the workspace still shows and accepts mm only |
 | Units in the Geometry summary, mesh Properties and validity-check messages | done | P2 | 6f close-out: check messages carry their numbers as quantities (SI text for the command line and summary.yaml, the user's units in the GUI); Geometry Dimensions and Properties, mesh table and cell/boundary Properties follow View > Units; plot ticks at round values of the chosen unit |
 | Properties panel too narrow for long values by default | later | P3 | the dock can be widened by hand; values are cut off at first |
 | Gmsh "save .msh" writes into the template folder, not the project | partial | P2 | case code uses `CASE_DIR/mesh`; move to the project's `mesh/` (needs a case-contract change) |
-| GUI usable at 125-150 % display scaling, keyboard-only use | later | P2 | not yet checked systematically |
+| GUI usable at 125-150 % display scaling, keyboard-only use | partial | P2 | 7b: screenshots at 100 % and 150 % (tools/screenshots.py --scale 1.5) looked at; keyboard-only use not checked |
 
 ## 2. Projects and reproducibility
 
@@ -56,7 +60,8 @@ Last updated: Prompt 7 (2026-10-24).
 | Import of old Streamlit settings files | done | P2 | old files are left untouched |
 | Template change detection on open (warning) | done | P2 | fingerprint of `schema.toml` + `case.py` |
 | Project archive export/import as one `.zip` from the GUI | later | P3 | a zipped folder already works |
-| Automatic report (HTML/PDF) of a project | planned 7b | P1 | |
+| Automatic report (HTML/PDF) of a project | done | P1 | 7b: aeroflowsim/post/report.py (self-contained HTML, matplotlib PDF), GUI and `python -m aeroflowsim report` |
+| Solution snapshots, interpolation onto a new mesh, patch regions | done | P1 | 7b; interpolated start saves only ~8 % of the iterations on the N2 nozzle because the residual is normalised by the first iterations (already small for a good start): normalise by the previous run's level, as a continued run does (Prompt 8) |
 
 ## 3. Geometry
 
@@ -131,8 +136,9 @@ Last updated: Prompt 7 (2026-10-24).
 |---|---|---|---|
 | 1D field plots vs reference, key numbers, shape view, x-t diagram, CSV/PNG export | done | P1 | matplotlib embedded |
 | 2D/3D field contours in the VTK view | done | P1 | Prompt 7: field, colour map, range, mesh edges, click a cell for all its values (smooth contour lines and isolines: 7b) |
-| Streamlines, line probes, surface plots (Cp vs x) | planned 7b | P1 | |
-| Image / CSV / VTK export of solution fields | partial | P1 | Prompt 7: `solution.vtu` (all fields + velocity vector), fields CSV (x, y per cell), history CSV, picture of the view; the paper-style picture is 7b |
+| Streamlines, line probes, surface plots (Cp vs x) | done | P1 | 7b |
+| Image / CSV / VTK export of solution fields | done | P1 | 7b: CSV (cells / nodes), VTU with node data, Tecplot ASCII, surface CSV, report-definition CSV; GUI and `export` command |
+| Order-preserving limiter | later | P2 | 7b MMS finding: Venkatakrishnan with a constant K loses order under refinement on smooth flows (triangles 0.7-1.0 at 32->64); e.g. Michalak and Ollivier-Gooch (2008) or a K that scales with h |
 
 ## 7. Verification, validation, trust
 
@@ -142,11 +148,14 @@ Last updated: Prompt 7 (2026-10-24).
 | Validation report (quasi-1D, Sod, nozzle geometry, external geometry, geometry workspace) | done | P1 | numbers of the old cases unchanged in Prompt 7; 6f added the quasi-1D mesh-refinement study |
 | 2D Euler verification and first validation (free stream, well-balanced, gradients, BCs, 2D Sod along x and diagonal, Mach 2 wedge, Mach 6 cylinder + carbuncle test, N2 nozzle on 6 meshes) | done | P1 | Prompt 7: `tests/test_euler_*.py`, `validation/euler2d_*` |
 | Run the validation suite from the GUI (Tools menu) | done | P2 | |
-| MMS order-of-accuracy verification (structured and triangle meshes) | planned 7b | P1 | |
-| 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012) | partial | P1 | wedge and cylinder stand-off done in Prompt 7; diamond, cone (axisymmetric), BMG nozzle (experiment), NACA 0012 in 7b |
+| MMS order-of-accuracy verification (structured and triangle meshes) | done | P1 | 7b: aeroflowsim/mms.py, validation/mms_euler2d: L2 order 1.98-2.02 on quads, distorted quads, triangles, mixed, planar and axisymmetric |
+| 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012, Prandtl-Meyer) | done | P1 | 7b: all added; BMG point z = 2.24 in is a documented SHORTFALL (0.80 vs 0.87, mesh-converged; cause not settled: steep gradient, position and tap-size uncertainty); NACA 0012 study on three coarse meshes only (finer ones need Prompt 8 speed) |
+| BMG nozzle: tabulated measurements and a position-uncertainty band | later | P2 | the data are digitized from the report's Fig. 4; a z-uncertainty band (slope x dz) would judge the steep throat region fairly |
+| Diamond-airfoil residual stall | partial | P2 | 7b: ~4e-3 in a few cells at the lower leading-edge shock foot (limiter limit cycle, found with the per-cell residual field); Cl, Cd steady to 1e-6. Prompt 8 (implicit) |
+| Quick validation set on every push, full set weekly / on tags | done | P1 | 7b: AEROFLOWSIM_VALIDATION_SET=quick, run_all.py --quick, workflows tests.yml / validation.yml |
 | Structured C-grid / O-grid for blunt bodies in the GUI | planned 6e | P2 | Prompt 7 has a polar blunt-body grid only in `simple_meshes.py` (carbuncle test) |
 | Cross-code comparison with SU2 / OpenFOAM | later | P2 | Phase 4 |
-| GCI mesh-independence tool | partial | P2 | 6f: mesh-refinement study of the quasi-1D validation (exit Mach, shock position, observed order, Richardson value) in `validation/report.md`; the general GCI tool is Phase 5 |
+| GCI mesh-independence tool | done | P2 | 7b: aeroflowsim/gci.py (Roache / Celik et al. 2008), used by the MMS, nozzle and NACA 0012 studies; a GUI dialog for it is later |
 
 ## 8. Intelligence
 
@@ -164,9 +173,10 @@ Last updated: Prompt 7 (2026-10-24).
 |---|---|---|---|
 | Theory manual | partial | P1 | updated every prompt |
 | Developer guide (GUI architecture) | done | P1 | `docs/developer_guide.md` |
-| User tutorials | partial | P1 | 6d: nozzle with plume region, airfoil in a C-domain; Prompt 7: 2D flow through the N2 nozzle, Mach 2 wedge (`docs/tutorials/`); more in 7b |
+| User tutorials | done | P1 | 7b adds post-processing a nozzle, NACA 0012 transonic, experimental nozzle; user guide docs/user_guide.md |
 | CI on Windows and Ubuntu incl. GUI tests | done | P1 | headless display action |
-| 2D alpha release on GitHub | planned 7b | P1 | |
+| 2D alpha release on GitHub | done | P1 | 7b: v0.2.0a1 pre-release on the PRIVATE repository; before the installer is shared with anyone, the repository must be public or the source attached (GPL) |
 | Zenodo DOI, JOSS paper | later | P2 | Phase 5 |
-| Contributing guide, code of conduct, issue templates | later | P2 | needed before inviting contributors |
+| Contributing guide, code of conduct, issue templates, security policy | done | P2 | 7b |
+| Repository pre-public check | done | P1 | 7b: no secrets, personal paths or large binaries in history; CAD test files are generated; commit e-mail becomes public |
 | Optional web demo | later | P3 | |

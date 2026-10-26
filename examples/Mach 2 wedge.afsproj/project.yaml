@@ -1,0 +1,70 @@
+format_version: 1
+aeroflowsim_version: 0.2.0a1
+template: external_2d
+template_title: Body in free stream (2D Euler)
+template_fingerprint: 8dcb34d686c389968d1fb4a2e09e28d8dc631683933c9654205684fd25d7ee88
+created: '2026-10-26T20:37:57'
+modified: '2026-10-26T20:37:57'
+inputs:
+  shape: Wedge
+  diamond.chord: 1.0
+  diamond.thickness_ratio: 0.1
+  diamond.x_max_thickness: 0.5
+  wedge.half_angle: 10.0
+  wedge.length: 1.0
+  naca4.digits: '0012'
+  naca4.chord: 1.0
+  naca4.closed_te: true
+  naca4.points_per_side: 200
+  cone.half_angle: 15.0
+  cone.length: 1.0
+  cone.base: Flat base
+  cone.afterbody_length: 1.0
+  cylinder.diameter: 1.0
+  coordinates_file.file: geometry/naca2412_selig.dat
+  coordinates_file.body_type: Planar
+  coordinates_file.reference_length: 1.0
+  domain_shape: Rectangle
+  domain_radius: 20.0
+  upstream: 0.5
+  downstream: 0.5
+  height: 1.5
+  half_domain: true
+  cell_type: Triangles
+  surface_size: 0.02
+  farfield_size: 0.05
+  size_growth: 1.2
+  edge_refinement: true
+  save_msh: false
+  inflation: false
+  first_layer_height: 1.0e-06
+  n_layers: 10
+  growth_rate: 1.2
+  gas: air
+  mach: 2.0
+  p_inf: 101325.0
+  T_inf: 288.15
+  alpha: 0.0
+  initialisation: Uniform (free stream)
+  boundaries: {}
+  cfl: 0.8
+  order: Second order (MUSCL)
+  first_order_iterations: 200
+  limiter: Venkatakrishnan
+  venkat_k: 5.0
+  freeze_limiter: 4.0
+  gradient: least squares
+  time_scheme: SSP-RK3
+  max_iter: 20000
+  tol: 1.0e-06
+  monitor_tol: 0.0001
+  monitor_window: 500
+  carbuncle_fix: true
+steps: {}
+surfaces: []
+report_definitions: []
+custom_fields: {}
+scenes: {}
+xy_plots: {}
+init_patches: []
+interpolate_new_mesh: true

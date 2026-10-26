@@ -826,7 +826,109 @@ refine at the throat if it failed there). Suggestions are only applied by the us
 
 ---
 
-## 13. References
+## 13. Verification, post-processing and the new validation cases (Prompt 7b)
+
+### 13.1 Method of Manufactured Solutions (`aeroflowsim/mms.py`)
+
+A manufactured flow W_m(x, y) of the form of Roy et al. (2004),
+
+    phi = phi_0 + phi_x f(a_x pi x / L) + phi_y g(a_y pi y / L)      (f, g = sin or cos)
+
+for rho, u, v, p (constants chosen so the Mach number ranges from about 0.5 to 1.6), is put into the Euler
+equations. What is left is the source term
+
+    planar:        S = dF/dx + dG/dy
+    axisymmetric:  S = r (dF/dx + dG/dr) + G - (0, 0, p, 0)       (r = y, per radian)
+
+with F = (rho u, rho u² + p, rho u v, u (E + p)), G = (rho v, rho u v, rho v² + p, v (E + p)),
+E = rho e(T) + rho |V|²/2. The derivatives are written out with the product and chain rules
+(`mms.source`; dE = e drho + rho cv dT + rho (u du + v dv), dT = (dp rho - p drho) / (rho² R)); a test checks them
+against finite differences. The solver integrates S over each cell by the midpoint rule (S at the centroid times
+the cell area: second order) through the hook `EulerSolver.source`. Boundary conditions are the exact solution:
+ghost state and the boundary value of the gradients both equal W_m at the face centre (`MMSSolver`).
+
+Each mesh is solved from the exact solution to a residual drop of 8 orders; the error e = W_h - W_m(x_c) is measured
+in L1, L2 and Linf (area weighted) and the observed order between levels with ratio 2 is
+p = ln(e_coarse / e_fine) / ln 2. Results (full set, finest pair 64 -> 128 cells per side; `validation/report.md`):
+
+| Mesh | planar, 2nd order, no limiter | axisymmetric | first order | Venkatakrishnan (32 -> 64) |
+|---|---|---|---|---|
+| quads | 1.98 - 2.17 | 2.02 - 2.07 | 0.89 - 0.97 | 1.17 - 1.58 |
+| smoothly distorted quads | 1.98 - 2.0 | 2.02 - 2.08 | 0.78 - 0.93 | 1.23 - 1.70 |
+| triangles | 2.00 - 2.09 | 2.02 - 2.08 | 0.92 - 0.99 | 0.71 - 1.01 |
+| mixed | 1.99 - 2.04 | 2.00 - 2.04 | 0.94 - 0.99 | 0.84 - 0.95 |
+
+(ranges over rho, u, v, p in L2). The scheme is second-order accurate on every cell type and in axisymmetric form
+(including the well-balanced pressure source). With Venkatakrishnan's limiter the order stays near 1-1.6 and does
+not approach 2 under refinement: its threshold eps² = (K h / L)³ scale² falls like h³ while the squared cell-to-cell
+differences of a smooth field fall like h², so smooth extrema are clipped more and more (Michalak and
+Ollivier-Gooch 2008 discuss this and an order-preserving alternative). For smooth flows on fine meshes use the
+limiter "None" or a larger K.
+
+### 13.2 Grid Convergence Index (`aeroflowsim/gci.py`)
+
+From three meshes h1 < h2 < h3 with values phi1, phi2, phi3 (Roache 1998; Celik et al. 2008):
+e21 = phi2 - phi1, e32 = phi3 - phi2, r21 = h2/h1, r32 = h3/h2,
+
+    p = |ln|e32/e21| + q(p)| / ln r21,   q(p) = ln((r21^p - s)/(r32^p - s)),  s = sign(e32/e21)   (fixed point)
+    phi_ext = (r21^p phi1 - phi2) / (r21^p - 1)
+    GCI21 = 1.25 |e21/phi1| / (r21^p - 1),   GCI32 = 1.25 |e32/phi2| / (r32^p - 1)
+    asymptotic range: GCI32 / (r21^p GCI21) ~ 1.
+
+Oscillatory convergence (s < 0) is flagged. With two meshes an assumed order and Fs = 3 are used (`two_mesh`).
+
+### 13.3 Derived fields and node values (`aeroflowsim/post/fields.py`)
+
+Gradients are the solver's weighted least-squares gradients with the boundary condition's face values. Vorticity
+omega_z = dv/dx - du/dy; divergence du/dx + dv/dy (+ v/r axisymmetric); numerical schlieren exp(-15 |grad rho| /
+max |grad rho|); shock indicator M_n = V . grad p / (c |grad p|) (a shock is where M_n crosses 1; Lovely and Haimes
+1999); Cp = (p - p_inf)/q_inf (external) or p/p0 (internal). Node values (smooth contours, streamlines): the
+inverse-distance mean of the cells around an interior node; at a boundary node the mean of its boundary-face states
+(the mean of the inside cell and the ghost state, i.e. the boundary condition's value). Point values use the cell's
+linear reconstruction phi_c + grad phi . (x - x_c); line samples are taken at the ends of each piece of the line
+inside one cell, so a plot is exact per cell and shows the jumps between cells.
+
+### 13.4 Integrals and weighting (`aeroflowsim/post/integrals.py`)
+
+Surface element dA = dl (planar, per metre of depth) or 2 pi r dl (axisymmetric, full circle); each segment is
+integrated with 2-point Gauss quadrature, exact for a linear field times the linear radius. Area-weighted average
+int f dA / int dA; mass-weighted average int f rho |V.n| dA / int rho |V.n| dA (Fluent's convention); mass flow
+int rho V.n dA. On a boundary the mass flow and the fluxes are the solver's own numerical boundary fluxes (stored
+with every run), so a report equals the solver's balance to round-off. Volume integrals sum cell values times the
+cell volume (2 pi times the per-radian volume for axisymmetric meshes). The flux balance sums mass, momentum
+(with the pressure force) and energy over every boundary; for axisymmetric meshes the radial momentum is balanced by
+the pressure source int p dA, reported separately.
+
+### 13.5 Interpolation onto a new mesh and patch regions
+
+When the mesh has changed, a run starts from the old solution moved to the new cell centres by Shepard
+inverse-distance weighting of the 4 nearest old centres (scipy cKDTree): phi_new = sum w_k phi_k / sum w_k,
+w_k = 1/d_k. Measured on the N2 nozzle (30 x 6 -> 60 x 12): 4,712 iterations instead of 5,087 from the quasi-1D
+start, same mass flow to 4e-6 relative. The gain is modest because the residual is normalised by its first
+iterations, which are already small for a good initial solution (gap register). Patch regions replace p, T, u, v in
+the cells whose centroid lies in a box, circle or polygon, on top of the Initial solution of a fresh start.
+
+### 13.6 Theory of the new validation cases (`aeroflowsim/gasdynamics.py`)
+
+- Oblique shock: theta-beta-M relation tan(theta) = 2 cot(beta) (M1² sin²beta - 1) / (M1² (gamma + cos 2beta) + 2),
+  weak root; normal-shock relations with Mn1 = M1 sin(beta) (Anderson 2003, ch. 4).
+- Prandtl-Meyer: nu(M) = sqrt((g+1)/(g-1)) atan(sqrt((g-1)/(g+1) (M²-1))) - atan(sqrt(M²-1)); after a turn
+  theta, nu(M2) = nu(M1) + theta; isentropic pressure ratio.
+- Shock-expansion theory of the diamond airfoil: oblique shock (or expansion) at the leading edge, Prandtl-Meyer
+  expansion at the shoulder on each surface; forces from the four face pressures.
+- Taylor-Maccoll: behind a conical shock the flow depends on the polar angle only;
+  (g-1)/2 (1 - Vr² - Vt²)(2 Vr + Vt cot(theta) + dVt/dtheta) - Vt (Vr Vt + Vt dVt/dtheta) = 0 with Vt = dVr/dtheta
+  (velocities over V_max), integrated from the shock (oblique-shock state) to the cone surface where Vt = 0; the shock
+  angle is found by root finding (weak branch). Checked against Sims (1964, NASA SP-3004) to 7e-5 in Cp.
+
+### 13.7 Carbuncle metric
+
+The cylinder validation records, as a report-definition monitor, the volume-weighted pressure in a box around the
+stagnation region that contains the bow shock. The metric is its peak-to-peak change over the last 1,000 iterations
+divided by its mean: a settled shock gives a tiny value, a carbuncle (a shock that keeps moving) a large one. It
+separates the HLLE-blend on / off runs by orders of magnitude, unlike the earlier spatial shock-roughness measure.
+
+## 14. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.
 - Anderson, J. D. (2003). *Modern Compressible Flow*, 3rd ed. McGraw-Hill.
@@ -870,3 +972,18 @@ refine at the throat if it failed there). Suggestions are only applied by the us
 - Venkatakrishnan, V. (1995). Convergence to steady state solutions of the Euler equations on unstructured grids
   with limiters. *J. Comput. Phys.* 118, 120-130.
 - White, F. M. (2006). *Viscous Fluid Flow*, 3rd ed. McGraw-Hill (Sutherland constants, Tables 1-2 and 1-3).
+- Celik, I. B., Ghia, U., Roache, P. J., Freitas, C. J., Coleman, H., Raad, P. E. (2008). Procedure for estimation
+  and reporting of uncertainty due to discretization in CFD applications. *J. Fluids Eng.* 130, 078001.
+- Back, L. H., Massier, P. F., Gier, H. L. (1964). Comparisons of experimental with predicted wall static-pressure
+  distributions in conical supersonic nozzles. JPL Technical Report 32-654 (NASA NTRS 19650001801).
+- Lovely, D., Haimes, R. (1999). Shock detection from computational fluid dynamics results. AIAA Paper 99-3285.
+- Michalak, C., Ollivier-Gooch, C. (2008). Limiters for unstructured higher-order accurate solutions of the Euler
+  equations. AIAA Paper 2008-776.
+- Roache, P. J. (1998). *Verification and Validation in Computational Science and Engineering*. Hermosa.
+- Roy, C. J., Nelson, C. C., Smith, T. M., Ober, C. C. (2004). Verification of Euler/Navier-Stokes codes using the
+  method of manufactured solutions. *Int. J. Numer. Meth. Fluids* 44, 599-620.
+- Sims, J. L. (1964). Tables for supersonic flow around right circular cones at zero angle of attack. NASA SP-3004.
+- Taylor, G. I., Maccoll, J. W. (1933). The air pressure on a cone moving at high speeds. *Proc. R. Soc. A* 139,
+  278-311.
+- Vassberg, J. C., Jameson, A. (2010). In pursuit of grid convergence for two-dimensional Euler solutions.
+  *J. Aircraft* 47(4), 1152-1166.

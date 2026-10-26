@@ -204,8 +204,10 @@ class ResultsPage(QWidget):
         for panel, name in ((self.display, "Display"), (self.surfaces_panel, "Surfaces"), (self.reports, "Reports"),
                             (self.xy, "XY plot"), (self.snapshots_panel, "Snapshots"), (self.fields_panel, "Fields")):
             self.post_tabs.addTab(panel, name)
-        self.post_tabs.setMinimumWidth(340)
+        self.post_tabs.setTabPosition(QTabWidget.West)      # every tab visible, also in a narrow panel
+        self.post_tabs.setMinimumWidth(360)
         self.plots2d_choice = QComboBox()
+        self.plots2d_choice.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.plots2d_choice.currentIndexChanged.connect(lambda _: self.draw_plot2d())
         self.plots2d = PlotCanvas()
         plots = QWidget()
@@ -224,6 +226,7 @@ class ResultsPage(QWidget):
         pl.addWidget(self.plots2d, 1)
         self.numbers2d = ValueTable(["Quantity", "Value", "Unit"])
         lower = QTabWidget()
+        self.lower_tabs = lower
         lower.addTab(plots, "Plots")
         lower.addTab(self.numbers2d, "Key numbers")
         right = QSplitter(Qt.Vertical)
@@ -459,6 +462,7 @@ class ResultsPage(QWidget):
         self.numbers2d.set_rows(key_number_rows(result, self.window.results.get("reference"),
                                                 self.window.results.get("run_s"), self.window.units))
         plots = flow_plots(result)
+        self._panel_figures = {}
         self.plots2d_choice.blockSignals(True)
         self.plots2d_choice.clear()
         self.plots2d_choice.addItems(plots)
@@ -469,12 +473,29 @@ class ResultsPage(QWidget):
             panel.fill()
         self.draw_all(keep_camera=False)
 
+    def show_figure(self, fig, name):
+        """Show a figure made by a panel (e.g. the XY plot) in the Plots area under the view."""
+        if self.plots2d_choice.findText(name) < 0:
+            self.plots2d_choice.blockSignals(True)
+            self.plots2d_choice.addItem(name)
+            self.plots2d_choice.blockSignals(False)
+        self.plots2d_choice.blockSignals(True)
+        self.plots2d_choice.setCurrentText(name)
+        self.plots2d_choice.blockSignals(False)
+        self._panel_figures = getattr(self, "_panel_figures", {})
+        self._panel_figures[name] = fig
+        self.plots2d.set_figure(fig)
+        self.lower_tabs.setCurrentIndex(0)
+
     def draw_plot2d(self):
         payload = self.window.results
         which = self.plots2d_choice.currentText()
         if payload is None or not which:
             return
         result = payload["result"]
+        if which in getattr(self, "_panel_figures", {}):
+            self.plots2d.set_figure(self._panel_figures[which])
+            return
         if which == "Convergence history":
             fig = residual_figure(list(range(1, len(result.residuals) + 1)), result.residuals,
                                   payload["params"].get("tol"), prefs=self.window.units, **history_extras(result))

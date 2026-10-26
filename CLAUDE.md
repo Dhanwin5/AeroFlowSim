@@ -121,7 +121,15 @@ aeroflowsim/               the Python package
                            squares, Green-Gauss), limiters.py, boundary.py (ghost states, BC_TYPES), solver.py
                            (residual, SSP-RK3 / Jameson, local time steps, CFL back-off), forces.py (thrust,
                            Cl/Cd/Cm, Cp), initial.py, setup.py (shared inputs, nozzle / external problems)
-    simple_meshes.py       rectangles of quads/triangles and the polar blunt-body grid (tests, validation)
+    simple_meshes.py       rectangles of quads/triangles (optionally warped) and the polar blunt-body grid
+    post/                  post-processing without Qt/VTK (GUI, CLI, scripts, report share it): solution.py, fields.py
+                           (derived + safe custom formulas, node values), sampling.py, surfaces.py, integrals.py
+                           (integrals, flux balance, forces), definitions.py (report definitions, run monitors),
+                           xy.py, pictures.py, compare.py, snapshots.py, export.py (CSV/VTU/Tecplot), report.py (HTML/PDF)
+    mms.py                 Method of Manufactured Solutions (order of accuracy of the 2D solver)
+    gci.py                 Grid Convergence Index (Roache / Celik et al.)
+    diagnostics.py         Help > Copy diagnostic info, log file
+    examples.py            example projects (examples/, made by tools/make_examples.py)
     gui/                   desktop GUI (the ONLY place with Qt / PyVista / VTK / streamlit):
         app.py, main_window.py   start-up, main window (menus, docks, jobs, undo)
         panel_model.py, panel.py input panel: logic (no Qt) + Qt drawing
@@ -131,7 +139,9 @@ aeroflowsim/               the Python package
         sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
         gas_logic.py, gas_dialog.py  gas dropdown / Details / custom-gas form: logic (no Qt) + dialogs
         boundary_logic.py        boundary-condition table of the Setup step (no Qt; drawn by panel.py)
-        vtk_view.py, figures.py  VTK view (meshes, picking), embedded matplotlib plots
+        vtk_view.py, figures.py  VTK view (meshes, picking, right-click menu), embedded matplotlib plots
+        results_logic.py, flow_view.py, post_panels.py   2D Results workspace: scenes (no Qt), VTK drawing with linked
+                                 views, the six panels (Display, Surfaces, Reports, XY plot, Snapshots, Fields)
         jobs.py, undo.py, logic.py, theme.py, widgets.py, dialogs.py, app_info.py
         streamlit_panel.py       old Streamlit input panel
 cases/<case_name>/         one folder per case
@@ -147,11 +157,16 @@ cases/geometry_2d/         custom 2D geometry from the workspace (import / sketc
 docs/theory_manual.md      equations and methods, with references and where they are in the code
 docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK view, jobs, projects)
 docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)
+docs/user_guide.md         user guide (install, steps, post-processing, report, files, troubleshooting)
+docs/parity_checklist.md   Streamlit -> desktop GUI parity, for the user to tick before Streamlit is removed
 docs/tutorials/            step-by-step tutorials (nozzle with plume region, airfoil in a C-domain)
 spikes/                    throwaway proofs of concept (not part of the package)
 tools/gas_data/            developer tool that writes aeroflowsim/gases/*.toml from NIST data (not packaged)
+tools/screenshots.py       screenshots of every GUI page (light/dark, scaling); tools/build_installer.py: Windows
+                           installer (PyInstaller + Inno Setup, tools/installer/); tools/make_examples.py
+examples/                  example projects shipped with the installer (N2 nozzle with result, NACA 0012, wedge, Sod)
 validation/<case_name>/    reference.toml (values, sources, tolerances) + validate.py
-validation/run_all.py      runs all validation cases, writes validation/report.md
+validation/run_all.py      runs all validation cases, writes validation/report.md (--quick: coarse set, report_quick.md)
 tests/                     tests for aeroflowsim/ (tests/gui/: pytest-qt tests of the desktop GUI)
 run_case.py                old command line, thin wrapper around aeroflowsim.cli
 results/<case_name>/       output of the command line (not committed)
@@ -162,7 +177,8 @@ requirements.txt           exact versions used in .venv
 
 Commands (from the project folder):
 - Fast tests: `.venv\Scripts\python.exe -m pytest`
-- Validation tests: `.venv\Scripts\python.exe -m pytest -m validation`
+- Validation tests: `.venv\Scripts\python.exe -m pytest -m validation` (quick set: env AEROFLOWSIM_VALIDATION_SET=quick)
+- Report of a project: `.venv\Scripts\python.exe -m aeroflowsim report "<path>/<name>.afsproj"`
 - Validation report: `.venv\Scripts\python.exe validation/run_all.py`
 - Desktop GUI: `.venv\Scripts\python.exe -m aeroflowsim gui` (optionally followed by a project folder)
 - Old Streamlit GUI: `.venv\Scripts\python.exe -m streamlit run app.py`

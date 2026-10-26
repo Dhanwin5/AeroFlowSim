@@ -19,12 +19,15 @@ python -m pip install -e .
 
 | What | Command |
 |---|---|
-| GUI | `python -m streamlit run app.py` |
+| Desktop GUI | `python -m aeroflowsim gui` |
+| Old Streamlit GUI | `python -m streamlit run app.py` |
 | List cases | `python -m aeroflowsim list` |
 | Run a case | `python -m aeroflowsim run cases/<case_name>` |
 | Fast tests | `python -m pytest` |
 | Validation tests | `python -m pytest -m validation` |
-| Validation report | `python validation/run_all.py` (writes `validation/report.md`) |
+| Validation report | `python validation/run_all.py` (full set, writes `validation/report.md`; `--quick` for the coarse set) |
+| Screenshots of every page | `python tools/screenshots.py` |
+| Installer | `python tools/build_installer.py --smoke` (needs PyInstaller and Inno Setup) |
 
 ## Rules for every contribution
 
@@ -156,3 +159,9 @@ A check is one function in `aeroflowsim/checks.py` with the signature
 `check(case, params, mesh, result) -> CheckResult | None` (level `info`, `warning` or `error`,
 a short message and a value), added to the `CHECKS` list. Planned: mesh quality, Knudsen number,
 ideal-gas validity, y+.
+
+## Reporting problems and ideas
+
+Use the issue templates on GitHub (bug report, feature request). For a bug, paste the output of
+**Help > Copy diagnostic info** (version, system, package versions, last log lines; no personal data).
+Security problems: see SECURITY.md. Everyone taking part follows CODE_OF_CONDUCT.md.

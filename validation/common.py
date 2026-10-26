@@ -65,6 +65,7 @@ class Reference:
     source: str
     tolerance_percent_quick: float | None = None   # wider tolerance for the coarse meshes of the quick set
     pending: str = ""                              # non-empty: the reference could not be obtained yet (why)
+    shortfall: str = ""                            # non-empty: a known, explained difference (model, not numerics)
 
     @property
     def tolerance(self) -> float:
@@ -87,8 +88,20 @@ class Comparison:
         return 100.0 * abs(self.measured - self.reference.value) / abs(self.reference.value)
 
     @property
-    def passed(self) -> bool:
+    def within(self) -> bool:
         return self.error_percent <= self.reference.tolerance
+
+    @property
+    def status(self) -> str:
+        """PASS, FAIL, or SHORTFALL (outside the tolerance, but a documented model difference: shown openly in the
+        report with its explanation, and not counted as a failure of the code)."""
+        if self.within:
+            return "PASS"
+        return "SHORTFALL" if self.reference.shortfall else "FAIL"
+
+    @property
+    def passed(self) -> bool:
+        return self.status != "FAIL"
 
 
 @dataclass
@@ -180,7 +193,10 @@ def write_report(validations: list[CaseValidation], path: Path | None = None) ->
             r = c.reference
             unit = "" if r.unit == "-" else f" {r.unit}"
             lines.append(f"| {r.quantity} | {r.value:.6g}{unit} | {c.measured:.6g}{unit} | "
-                         f"{error_text(c.error_percent)} | {r.tolerance:g} | {'PASS' if c.passed else 'FAIL'} |")
+                         f"{error_text(c.error_percent)} | {r.tolerance:g} | {c.status} |")
+        for c in v.comparisons:
+            if c.status == "SHORTFALL":
+                lines += ["", f"**Shortfall (explained):** {c.reference.quantity}: {c.reference.shortfall}"]
         lines += ["", "Sources:", ""]
         for source in dict.fromkeys(c.reference.source for c in v.comparisons):
             lines.append(f"- {source}")

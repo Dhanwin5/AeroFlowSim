@@ -1166,8 +1166,6 @@ class XYPanel(_Base):
         self.overlay.setMaximumHeight(80)
         plot = QPushButton("Plot")
         plot.clicked.connect(self.plot)
-        self.canvas = PlotCanvas()
-        self.canvas.setMinimumHeight(260)
         save = QPushButton("Save picture...")
         save.clicked.connect(self.save_picture)
         csv = QPushButton("Save CSV...")
@@ -1202,7 +1200,10 @@ class XYPanel(_Base):
         lay.addLayout(form)
         lay.addLayout(buttons)
         lay.addWidget(self.message)
-        lay.addWidget(self.canvas, 1)
+        note = QLabel("The plot is drawn in the Plots area under the view.")
+        note.setObjectName("note")
+        lay.addWidget(note)
+        lay.addStretch(1)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(_scroll(inner))
@@ -1309,7 +1310,7 @@ class XYPanel(_Base):
         self.message.setText("")
         fig = self.build()
         if fig is not None:
-            self.canvas.set_figure(fig)
+            self.page.show_figure(fig, "XY plot")
 
     def browse(self):
         path, _ = QFileDialog.getOpenFileName(self, "Reference data", str(self.project.folder), "CSV files (*.csv)")

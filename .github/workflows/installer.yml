@@ -1,0 +1,28 @@
+# Windows installer on version tags: PyInstaller one-folder build + Inno Setup, smoke test of the built program
+# (--version, a headless run of the Sod case, the GUI starts and closes), installer kept as an artifact.
+name: installer
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install AeroFlowSim and the build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pyinstaller
+          choco install innosetup --no-progress -y
+      - name: Build and smoke-test
+        run: python tools/build_installer.py --smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist/AeroFlowSim-*-setup.exe

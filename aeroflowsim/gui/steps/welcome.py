@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The start page (no project open): new project from a template, open, recent projects."""
+"""The start page (no project open): new project from a template, open, example projects, recent projects."""
 
 from pathlib import Path
 
@@ -42,8 +42,14 @@ class WelcomePage(QWidget):
         self.recent.setObjectName("recent")
         self.recent.setWordWrap(True)
         self.recent.itemActivated.connect(lambda item: window.open_project(item.data(Qt.UserRole)))
+        self.examples = QListWidget()
+        self.examples.setObjectName("examples")
+        self.examples.setWordWrap(True)
+        self.examples.setToolTip("Double-click to open a copy of the example (saved in your projects folder)")
+        self.examples.itemActivated.connect(lambda item: window.open_example(item.data(Qt.UserRole)))
         lists = QHBoxLayout()
         for title, widget in (("Start from a template (double-click)", self.templates),
+                              ("Example projects (double-click)", self.examples),
                               ("Recent projects (double-click)", self.recent)):
             column = QVBoxLayout()
             column.addWidget(QLabel(f"<b>{title}</b>"))
@@ -70,6 +76,12 @@ class WelcomePage(QWidget):
             self.templates.addItem(item)
             if name == previous:
                 self.templates.setCurrentItem(item)
+        self.examples.clear()
+        from aeroflowsim.examples import list_examples
+        for folder, title in list_examples():
+            item = QListWidgetItem(title)
+            item.setData(Qt.UserRole, str(folder))
+            self.examples.addItem(item)
         self.recent.clear()
         for path in self.window.recent_projects():
             folder = Path(path)

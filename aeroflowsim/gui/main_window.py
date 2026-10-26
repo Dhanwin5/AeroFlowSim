@@ -253,6 +253,11 @@ class MainWindow(QMainWindow):
                                 "Write the automatic report of this project"),
             "gases": a("&Gas library...", self.show_gas_library, None, "Every gas with its values and sources; custom gases"),
             "about": a("&About AeroFlowSim", self.about, None, "Version, licence, how to cite"),
+            "guide": a("&User guide", lambda: self.open_local(app_info.USER_GUIDE), "F1", "How to use AeroFlowSim"),
+            "licences": a("Third-party &licences", lambda: self.open_local(app_info.THIRD_PARTY), None,
+                          "Licences of the software bundled with AeroFlowSim"),
+            "diagnostics": a("Copy &diagnostic info", self.copy_diagnostics, None,
+                             "Version, system and the last log lines, for a bug report (no personal data)"),
             "manual": a("&Theory manual", lambda: self.open_local(app_info.THEORY_MANUAL), None, "Equations and methods"),
             "devguide": a("&Developer guide", lambda: self.open_local(app_info.DEVELOPER_GUIDE), None, "How the GUI works"),
             "report": a("&Validation report", lambda: self.open_local(app_info.VALIDATION_REPORT), None, "Latest validation results"),
@@ -292,9 +297,9 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.act["validation"])
         tools_menu.addAction(self.act["gases"])
         help_menu = menu.addMenu("&Help")
-        help_menu.addActions([self.act[k] for k in ("manual", "devguide", "report")])
+        help_menu.addActions([self.act[k] for k in ("guide", "manual", "devguide", "report")])
         help_menu.addSeparator()
-        help_menu.addAction(self.act["about"])
+        help_menu.addActions([self.act["diagnostics"], self.act["licences"], self.act["about"]])
 
         toolbar = self.addToolBar("Main")
         toolbar.setObjectName("toolbar_main")
@@ -338,6 +343,8 @@ class MainWindow(QMainWindow):
     def log(self, text, level="info"):
         mark = {"info": "", "warning": "WARNING: ", "error": "ERROR: "}[level]
         self.messages.appendPlainText(f"{mark}{text}")
+        import logging
+        getattr(logging.getLogger("aeroflowsim"), level if level != "info" else "info")(text)   # also the log file
 
     def show_properties(self, title, rows):
         self.properties_title.setText(f"<b>{title}</b>")
@@ -991,6 +998,24 @@ class MainWindow(QMainWindow):
         GasLibraryDialog(self, self.units).exec()
         for panel in self.panels.values():          # a new custom gas appears in the dropdowns at once
             panel.set_values({})
+
+    def open_example(self, folder):
+        """Open a COPY of an example project (in the projects folder), so the shipped example stays as it is."""
+        from aeroflowsim.examples import copy_example
+        try:
+            target = copy_example(folder)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Example", str(error))
+            return
+        self.open_project(str(target))
+
+    def copy_diagnostics(self):
+        from PySide6.QtGui import QGuiApplication
+        from aeroflowsim.diagnostics import diagnostic_text
+        text = diagnostic_text(self.devicePixelRatioF())
+        QGuiApplication.clipboard().setText(text)
+        self.log("Diagnostic information copied to the clipboard (paste it into a bug report)")
+        return text
 
     def make_report(self):
         """Write the HTML and PDF report of the project (in the user's display units) and offer to open it."""

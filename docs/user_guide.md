@@ -1,0 +1,190 @@
+# AeroFlowSim user guide
+
+AeroFlowSim 0.2.0a1 (2D alpha). A GUI-first, open-source CFD solver for nozzle and propulsion aerodynamics, with
+built-in validity checks and published validation. This guide shows how to install it, make a first project, use
+every step page and the post-processing tools, write a report, and where your files live.
+
+Contents: [Install](#install) · [First project](#first-project) · [The steps](#the-five-steps) ·
+[Post-processing](#post-processing-the-results-step-for-2d-flows) · [Report](#the-automatic-report) ·
+[Units](#units) · [Keyboard](#keyboard-shortcuts) · [Files](#where-files-live) ·
+[Command line](#command-line-and-scripts) · [Troubleshooting](#troubleshooting)
+
+## Install
+
+**Windows installer.** Run `AeroFlowSim-0.2.0a1-setup.exe`. It installs for your user only (no administrator
+rights) into `%LOCALAPPDATA%\Programs\AeroFlowSim`, adds AeroFlowSim to the Start menu and lets you open a project by
+double-clicking the file `project.afsproj` inside its folder. Uninstall from Windows Settings > Apps, or the
+"Uninstall AeroFlowSim" Start-menu entry; your projects are never deleted.
+
+The installer is **not code-signed** yet. Windows SmartScreen may say "Windows protected your PC": click
+*More info*, then *Run anyway*. The download size is about 400 MB (Qt, VTK, Gmsh, NumPy/SciPy are included).
+
+**From the source code** (any system with Python 3.13):
+
+```
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e .
+.venv\Scripts\python.exe -m aeroflowsim gui
+```
+
+## First project
+
+1. Start AeroFlowSim. The start page offers the templates and the example projects (N2 nozzle, NACA 0012
+   transonic, Mach 2 wedge, Sod shock tube).
+2. **File > New project**, choose *Axisymmetric nozzle (2D Euler)*, give it a name. Projects are saved in
+   `Documents\AeroFlowSim Projects` unless you choose another folder.
+3. Press **Run** (F5). AeroFlowSim makes the mesh, then solves; the Run step shows the residuals and the monitors
+   (thrust, mass flow) live. Stop keeps the flow of that moment; Run again continues from it.
+4. Open **Results**: Mach contours, wall pressure against quasi-1D theory, key numbers (thrust, Isp, Cd).
+
+## The five steps
+
+The workflow strip at the bottom shows each step's status: green up to date, amber needs update (an input it depends
+on changed), grey not started, red failed. A running job shows its progress and a cancel button in its chip.
+
+- **Geometry** - the template's shape, or your own: import CSV / DAT / DXF / STEP / IGES, sketch with the mouse
+  (lines, arcs, splines with snapping, constraints and dimensions), edit (move, rotate, fillet, trim, offset, ...),
+  booleans, enclosures (far-field circle, box, C-domain, nozzle plume region), name boundaries by clicking, add
+  refinement regions. Every edit can be undone.
+- **Mesh** - structured or Gmsh meshes (triangles, quad-dominant, inflation layers); quality fields and checks;
+  click a cell for its values.
+- **Setup** - gas, operating conditions, the boundary-condition table (one row per named boundary), numerics.
+  *Suggested numerics* proposes CFL, first-order start and initial solution, with reasons.
+- **Run** - Run / Continue, Start from scratch, Stop. *Start options* holds the **patch regions** (boxes or circles
+  with their own p, T, u, v on top of the Initial solution, for a start from scratch) and the switch for starting a
+  run on a **new mesh from the old solution interpolated onto it** (on by default; the Run step says when it is
+  used). Your **report definitions marked "monitor"** are plotted next to the built-in monitors and written to
+  `results/report_<name>.csv` while the run goes on; a continued run continues the file, Start from scratch begins a
+  new one.
+- **Results** - for 1D flows: field plots against the exact solution, x-t diagram. For 2D flows: the
+  post-processing workspace described next.
+
+## Post-processing: the Results step for 2D flows
+
+On the left are six panels (tabs on the left edge); on the right one, two or four views of the flow (their cameras
+are linked: pan or zoom one and the others follow), and under them the plots and the key numbers.
+
+**Display** - per view: what it shows (the current result, a snapshot, or the difference current minus snapshot
+with a blue-white-red colour map), the field (flow fields, derived fields such as Cp, schlieren, vorticity, the shock
+indicator, mesh quality, the residual of the last iteration per cell, and your own fields), colouring (smooth from
+node values, cell values, or bands), contour lines (number or typed levels, labels), colour map, range (automatic,
+typed, over all snapshots, clipped), log scale, colour-bar position and number format, mesh edges, boundaries,
+vectors (velocity or a gradient; size, density, equal length, colour by a field), streamlines (from a line or rake
+surface or from clicked points, with arrow marks), mirror about the axis, and the 3D revolved view of axisymmetric
+results (rotate it with the mouse; Reset view returns to 2D). **Saved scenes** keep all of this plus the camera in
+the project; Restore brings a scene back in one click. **Picture**: PNG at 1-8 x the window resolution, transparent
+background, paper style (light, whatever the theme); Copy puts it on the clipboard. **Histogram** shows the
+distribution of the field (cell count or volume-weighted) with min / mean / max.
+
+In the view: hover for the value under the mouse; click a cell to see all its values in Properties; right-click for
+*Probe here*, *Pin a probe here* (a point surface), *Start a line surface here*, *Seed a streamline here*, *Zoom to
+fit*, *Reset view*, *Save picture*.
+
+**Surfaces** - named surfaces for plots and integrals: boundaries (always available), lines, rakes (lines with seed
+points), points, iso-lines (where a field has a value) and lines x = c / y = c. Create them by typing values (in your
+length unit) or by clicking: *Line by two clicks*, *Point by one click*. Rename, edit, delete, show or hide. Surfaces
+are geometric, so they survive re-meshing.
+
+**Reports** - *Surface*: area, integral, area- or mass-weighted average, mass flow, flux of mass / momentum / energy,
+min, max, standard deviation on any surface (planar: per metre of depth; axisymmetric: the full circle). On a
+boundary the mass flow uses the solver's own boundary fluxes, so it equals the solver's number. *Volume*: volume,
+mass, volume-weighted average, min, max over the domain, a box or a circle. *Fluxes*: mass, momentum and energy
+through every boundary and the net imbalance. *Forces*: pressure force and moment of any walls, body and wind axes,
+coefficients with editable reference values, centre of pressure. *Definitions*: "Keep as report definition" turns
+any of these into a named quantity of the project, evaluated after every run; *Monitor settings* makes it a live
+monitor and, if wanted, a convergence criterion (settled within a tolerance over a window of iterations).
+
+**XY plot** - any fields along one or more surfaces, against x, y, arc length or another field; reference data from
+a CSV file (two columns x, y in SI units) as markers; snapshots overlaid as dashed lines; log axes; cell values as
+steps. The plot appears in the Plots area; save it as PNG / SVG / PDF (paper style) or CSV, or keep its settings in
+the project.
+
+**Snapshots** - save the current result under a name (compressed, with its mesh), rename, delete (asked first),
+restore as the current result (you are offered to save the current one first), compare with the current result (four
+views: current, snapshot, difference, and a key-number table). The panel shows the project size and warns above
+500 MB.
+
+**Fields** - your own field functions: a name and a formula of fields and constants, e.g. `p / 1e5`,
+`sqrt(u**2 + v**2)`, `rho * u`. Allowed: + - * / ** %, numbers, field names, `pi e g0 gamma R`, and functions such
+as `sqrt exp log log10 abs sin cos tan minimum maximum`. The formula is checked as you type (unknown names, syntax,
+adding different units); it can never run other code. Your fields are available everywhere a field is.
+
+**Export** (button under the views): fields as CSV (cell centres or nodes, in your display units), VTU for ParaView
+(cell and node data, velocity vector) or Tecplot ASCII; *Save .vtu* is the quick ParaView export.
+
+## The automatic report
+
+**Results > Report...** or **Tools > Project report** writes `results/report/<project>_report.html` (one
+self-contained file, pictures included, nothing fetched from the internet) and a PDF: project and fingerprints,
+mesh picture and quality, boundary conditions, gas and its sources, numerics, convergence, key numbers, report
+definitions, flux balance, validity checks, Mach and pressure pictures and your saved scenes, wall plots and saved
+XY plots, comparison with quasi-1D theory (nozzles), snapshots, and how to reproduce the result. In the GUI the
+numbers are in your display units; from the command line in SI (the report says which).
+
+## Units
+
+View > Units chooses the display units (default mm, kPa, mg/s, mN). Inputs, tables, plots, colour bars and GUI
+exports follow it; everything stored in the project and computed stays SI, and so do the command line, the
+validation report and `summary.yaml`.
+
+## Keyboard shortcuts
+
+| Keys | Action |
+|---|---|
+| Ctrl+N / Ctrl+O / Ctrl+S | New, open, save project |
+| Ctrl+Z / Ctrl+Y | Undo / redo an input or geometry change |
+| F5 / Shift+F5 | Run (continue) / stop |
+| Ctrl+T | Light / dark theme |
+| F | Fit the view |
+| F1 | This user guide |
+
+## Where files live
+
+| What | Where |
+|---|---|
+| Your projects | `Documents\AeroFlowSim Projects\<name>.afsproj\` (one folder per project) |
+| Inputs and settings of a project | `project.yaml` (inputs, surfaces, report definitions, scenes, ...) |
+| Geometry, mesh, result | `geometry\`, `mesh\mesh.npz`, `results\run.npz` (exact result) |
+| Snapshots | `results\snapshots\<name>\` |
+| Report definitions monitored during a run | `results\report_<name>.csv` |
+| Report | `results\report\` |
+| Custom gases | `%APPDATA%\AeroFlowSim\gases` (copied into a project that uses them) |
+| Log file | `%APPDATA%\AeroFlowSim\aeroflowsim.log` |
+
+Zip a project folder to share it: it contains everything needed to reproduce its result exactly.
+
+## Command line and scripts
+
+```
+AeroFlowSim.exe run "My nozzle.afsproj"            (from the source: python -m aeroflowsim run ...)
+AeroFlowSim.exe run "My nozzle.afsproj" --fresh    start from scratch
+AeroFlowSim.exe report "My nozzle.afsproj"
+AeroFlowSim.exe export "My nozzle.afsproj" --format tecplot --fields p,M,p0
+AeroFlowSim.exe export "My nozzle.afsproj" --surface wall --fields p,Cp
+AeroFlowSim.exe export "My nozzle.afsproj" --definitions
+AeroFlowSim.exe snapshot "My nozzle.afsproj" save baseline
+```
+
+From Python:
+
+```python
+from aeroflowsim.project import Project
+from aeroflowsim import post
+sol = post.Solution.from_project(Project.open("My nozzle.afsproj"))
+print(post.surface_integral(sol, post.Surface.boundary("outlet"), "mass_flow"))      # (value, "kg/s")
+print(post.surface_integral(sol, post.Surface.x_line(0.003), "mass_weighted", "p0"))
+print(post.flux_balance(sol)["net"])
+```
+
+## Troubleshooting
+
+- **The run does not converge / the residual stalls.** Look at the *Residual of the last iteration* field in the
+  Results view: it shows where. On triangle meshes and at attached shocks the explicit solver can stall near
+  1e-3-1e-4 while forces have settled (see the gap register; implicit time stepping comes in Prompt 8). The
+  "What to try" button lists fixes.
+- **"Results of an older mesh"** - the mesh changed after the run: press Run (it starts from the interpolated old
+  solution).
+- **The 3D view is empty** - only axisymmetric results can be revolved.
+- **SmartScreen warning** - see [Install](#install).
+- **Reporting a problem** - Help > Copy diagnostic info copies the version, system, package versions and the last log
+  lines (no personal data) for a bug report.

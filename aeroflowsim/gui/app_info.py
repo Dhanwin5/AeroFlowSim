@@ -17,6 +17,8 @@ THEORY_MANUAL = DOCS / "theory_manual.md"
 DEVELOPER_GUIDE = DOCS / "developer_guide.md"
 VALIDATION_REPORT = PROJECT_DIR / "validation" / "report.md"
 VALIDATION_SCRIPT = PROJECT_DIR / "validation" / "run_all.py"
+THIRD_PARTY = PROJECT_DIR / "THIRD_PARTY_LICENSES.txt"
+USER_GUIDE = DOCS / "user_guide.md"
 
 ORGANISATION = "AeroFlowSim"
 APPLICATION = "AeroFlowSim"
@@ -31,7 +33,8 @@ def about_html() -> str:
             "You may use, study, share and improve this software; improved versions you share must stay free.</p>"
             "<p><b>How to cite:</b> Mehta, D. <i>AeroFlowSim</i>, version "
             f"{__version__}, 2026. (Full details in CITATION.cff.)</p>"
-            "<p>The desktop GUI uses Qt (PySide6, LGPL) and VTK / PyVista (BSD/MIT).<br>"
+            "<p>The desktop GUI uses Qt (PySide6, LGPL) and VTK / PyVista (BSD/MIT); meshes use Gmsh (GPL). The "
+            "licences of all bundled software are in THIRD_PARTY_LICENSES.txt (Help > Third-party licences).<br>"
             "AeroFlowSim makes no network connections and collects no usage statistics.</p>")
 
 

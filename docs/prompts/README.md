@@ -10,8 +10,10 @@ carried between chats by hand.
 
 | Prompt | File | What it does | Status |
 |---|---|---|---|
-| 7b | `prompt_7b.md` | Post-processing at Fluent level, MMS verification, wider validation, report, installer, 2D alpha release | ready |
-| 8 | `prompt_8.md` | Speed: Numba, implicit LU-SGS, multi-core; triangle-mesh residual stall | written at the end of 7b |
+| 7b | `prompt_7b.md` | Post-processing at Fluent level, MMS verification, wider validation, report, installer, 2D alpha release | done (ledger `7b_progress.md`) |
+| 8 | `prompt_8.md` | Speed: Numba, implicit LU-SGS, multi-core; residual stalls; wall-clock targets | ready |
+
+Where 6e and 7c fit after the alpha: `next_steps.md` (priority: the path to 3D, 8 -> 9 -> 10).
 
 Recommended order after 8: 6e (remaining shapes, structured C/O grids, mesh import), 8b (low-Mach
 preconditioning), 7c (AI assistant plugin), 8c (adaptive refinement), 8d (parametric studies and batch runs),

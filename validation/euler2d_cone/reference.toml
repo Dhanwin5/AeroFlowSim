@@ -3,6 +3,8 @@
 # Sims, J. L. (1964), "Tables for supersonic flow around right circular cones at zero angle of attack",
 # NASA SP-3004: Table 11 (shock-wave angle, page 16) gives theta_w = 0.59192180 rad = 33.915 deg and Table 9
 # (surface pressure coefficient, page 14) gives Cp = 0.2022339 for theta_s = 15 deg, M = 2.
+# The shock position is located to about one cell (the smeared shock is several cells wide); on the quick set's
+# coarse mesh (wall cells 0.02 L) that is about 1 deg of shock angle, hence its wider quick tolerance (4 %).
 
 title = "15 deg cone at Mach 2 (2D axisymmetric Euler, external_2d) vs Taylor-Maccoll"
 case = "cases/external_2d"
@@ -13,6 +15,7 @@ quantity = "Conical shock angle (fitted through the shock position at 6 stations
 value = 33.9146
 unit = "deg"
 tolerance_percent = 2.0
+tolerance_percent_quick = 4.0
 source = "Sims (1964), NASA SP-3004, Table 11, p. 16: theta_w = 0.59192180 rad for theta_s = 15 deg, M = 2"
 
 [[reference]]

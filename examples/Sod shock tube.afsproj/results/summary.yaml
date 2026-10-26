@@ -1,0 +1,99 @@
+case: sod_shock_tube
+description: Unsteady 1D Euler equations from a diaphragm burst (Riemann problem);
+  HLLC + MUSCL finite volumes compared with the exact Riemann solution.
+parameters:
+  rho_L:
+    value: 1.0
+    unit: kg/m³
+    label: Left density
+  u_L:
+    value: 0.0
+    unit: m/s
+    label: Left velocity
+  p_L:
+    value: 1.0
+    unit: Pa
+    label: Left pressure
+  rho_R:
+    value: 0.125
+    unit: kg/m³
+    label: Right density
+  u_R:
+    value: 0.0
+    unit: m/s
+    label: Right velocity
+  p_R:
+    value: 0.1
+    unit: Pa
+    label: Right pressure
+  gamma:
+    value: 1.4
+    unit: '-'
+    label: Ratio of specific heats
+  L:
+    value: 1.0
+    unit: m
+    label: Tube length
+  x0:
+    value: 0.5
+    unit: m
+    label: Diaphragm position
+  t_end:
+    value: 0.2
+    unit: s
+    label: End time
+  n_cells:
+    value: 400
+    unit: '-'
+    label: Number of cells
+  cfl:
+    value: 0.5
+    unit: '-'
+    label: CFL number
+converged: true
+iterations: 349
+final_residual: 0.26915533654220336
+key_numbers:
+  t_final:
+    value: 0.2
+    unit: s
+  p_star_exact:
+    value: 0.3031301780506468
+    unit: Pa
+  u_star_exact:
+    value: 0.9274526200489499
+    unit: m/s
+  x_contact:
+    value: 0.684990828565687
+    unit: m
+  x_contact_exact:
+    value: 0.6854905240097899
+    unit: m
+  x_shock:
+    value: 0.8513445130822072
+    unit: m
+  x_shock_exact:
+    value: 0.8504311464060357
+    unit: m
+max_error_vs_reference:
+  rho:
+    value: 0.07679190220507187
+    unit: kg/m³
+  u:
+    value: 0.5791689720217116
+    unit: m/s
+  p:
+    value: 0.10438858381478527
+    unit: Pa
+  e:
+    value: 0.5956920862275368
+    unit: J/kg
+  M:
+    value: 0.4863678050913072
+    unit: '-'
+checks:
+- name: Convergence
+  level: info
+  message: 'Time-accurate (unsteady) run to the end time: a residual drop is not expected.'
+  value: null
+  unit: ''

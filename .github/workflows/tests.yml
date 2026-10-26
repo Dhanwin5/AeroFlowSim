@@ -1,5 +1,6 @@
 # Automatic testing on GitHub: every push and pull request runs the fast tests (including the
-# desktop-GUI tests) and then the validation tests, on Windows and on Ubuntu Linux, with Python 3.13,
+# desktop-GUI tests) and then the QUICK validation set (coarse meshes of every case, under 10 minutes;
+# the full set runs weekly and on version tags: validation.yml), on Windows and on Ubuntu Linux, with Python 3.13,
 # with the optional Gmsh mesher installed (the fast tests also pass without it; tests that need it
 # are then skipped).
 name: tests
@@ -47,5 +48,7 @@ jobs:
       - name: Fast tests
         run: python -m pytest
 
-      - name: Validation tests
+      - name: Quick validation set
+        env:
+          AEROFLOWSIM_VALIDATION_SET: quick
         run: python -m pytest -m validation

@@ -10,35 +10,35 @@ AeroFlowSim is a free, open-source CFD software for nozzle aerodynamics and prop
 
 ## Status
 
-**Pre-release, under development** (version 0.1.0.dev0). Inputs, file formats and results may
-still change between versions. Not yet published on PyPI.
+**2D alpha, version 0.2.0a1** (pre-release). Inputs, file formats and results may still change between versions.
+Windows installer: see the GitHub release; or install from source (below). User guide: [docs/user_guide.md](docs/user_guide.md).
+
+<p align="center"><img src="docs/showcase/n2_nozzle_mach_mirrored.png" alt="Mach number in the N2 nozzle" width="720"></p>
+<p align="center"><img src="docs/showcase/n2_nozzle_mach_revolved.png" alt="3D revolved view" width="360">
+<img src="docs/showcase/naca0012_mach.png" alt="NACA 0012 at Mach 0.8" width="360"></p>
 
 ## What works now
 
-| Case | Physics | Validated against |
+| Template | Physics | Validated against |
 |---|---|---|
-| `demo_heat1d` | Steady 1D heat conduction with heat generation (demo of the case template) | Exact parabolic solution |
-| `sod_shock_tube` | Unsteady 1D Euler equations, HLLC + MUSCL finite volumes | Exact Riemann solution (Toro, test 1) |
-| `quasi1d_nozzle` | Steady quasi-1D Euler flow of N2 through a conical or CSV-profile nozzle | Isentropic area-Mach and normal-shock theory |
-| `nozzle_axi` | 2D axisymmetric nozzle mesh (structured, or triangles with Gmsh), sharp or rounded throat; solver in Prompt 7 | Exact nozzle area and volume |
-| `external_2d` | Mesh of a body in a free stream (wedge, airfoils, cylinder, nose cone, your own coordinates) with Gmsh; solver in Prompt 7 | Exact domain areas and volumes |
-| `geometry_2d` | Your own 2D geometry from the geometry workspace (DXF, STEP, IGES, CSV, .dat, or sketched), meshed with Gmsh; solver in Prompt 7 | Exact areas and volumes |
+| `nozzle_axi` | 2D axisymmetric Euler flow through a converging-diverging nozzle (conical, rounded throat, or CSV wall); thrust, Isp, Cf, Cd | quasi-1D theory; Back, Massier and Gier (1964) measured wall pressures |
+| `external_2d` | 2D / axisymmetric Euler flow round a body (wedge, diamond, NACA 4-digit, cylinder, cone, coordinates file); Cl, Cd, Cm, Cp | oblique shocks, shock-expansion theory, Taylor-Maccoll cones, Billig stand-off, Vassberg and Jameson (2010) NACA 0012 |
+| `geometry_2d` | your own 2D geometry from the geometry workspace, internal or external flow | Prandtl-Meyer expansion |
+| `sod_shock_tube`, `quasi1d_nozzle`, `demo_heat1d` | 1D / quasi-1D | exact Riemann solution, isentropic and normal-shock theory |
 
-- **Geometry workspace** (Geometry step of the 2D templates): import DXF / STEP / IGES / coordinates,
-  sketch, transform, fillet, booleans, enclosures (circle, rectangle, C-domain, nozzle plume region
-  and plenum), name boundaries by clicking, refinement regions, suggested sizes, export. Tutorials:
-  [nozzle with a plume region](docs/tutorials/nozzle_plume.md),
-  [airfoil in a C-domain](docs/tutorials/airfoil_c_domain.md).
-
-- **GUI** (Streamlit, in the web browser) with Setup, Mesh, Run and Results tabs. The input panel
-  of each case is generated automatically from the case's `schema.toml`.
-- **Validity checks** after every run (convergence, mass balance), shown in the Results tab.
-- **Validation suite** with a pass/fail report: [validation/report.md](validation/report.md).
-- **Command line and Python scripting** using the same engine as the GUI, so results are identical.
-- Nozzle geometry: built-in parametric conical nozzle with a sharp or rounded throat, or your own
-  wall profile from a CSV file (`x_mm,r_mm`).
-- Shape library for bodies in a free stream; adding a shape needs no GUI code (see CONTRIBUTING.md).
-- Equations and methods: [docs/theory_manual.md](docs/theory_manual.md).
+- **Verification:** Method of Manufactured Solutions shows second order (1.98-2.02) on quads, distorted quads,
+  triangles and mixed meshes, planar and axisymmetric; GCI tool for mesh studies.
+- **Desktop GUI** (Qt + VTK): Geometry -> Mesh -> Setup -> Run -> Results with a workflow strip, projects,
+  undo/redo, units, light/dark theme; CAD-like 2D geometry workspace.
+- **Post-processing at Fluent level**: contours, contour lines, vectors, streamlines, mirror and 3D revolved views,
+  linked views, surfaces, integrals, flux balance, forces, report definitions as live monitors and convergence
+  criteria, XY plots with reference data, snapshots and differences, custom field functions, exports (CSV, VTU,
+  Tecplot), automatic HTML/PDF report.
+- **Validity checks** after every run; **validation report** [validation/report.md](validation/report.md) (quick set on
+  every push, full set weekly).
+- **Command line and scripting** with the same engine as the GUI (`python -m aeroflowsim run | report | export |
+  snapshot`, `aeroflowsim.post`).
+- Equations and methods: [docs/theory_manual.md](docs/theory_manual.md); tutorials in [docs/tutorials](docs/tutorials).
 
 ## Install
 

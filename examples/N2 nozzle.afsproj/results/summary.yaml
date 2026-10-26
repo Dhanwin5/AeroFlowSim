@@ -1,0 +1,476 @@
+case: nozzle_axi
+description: 'Steady 2D axisymmetric inviscid flow of a gas (default N2) through a
+  converging-diverging nozzle (conical or CSV wall profile): structured or Gmsh mesh
+  from the axis to the wall, finite-volume Euler solver; thrust two ways, Isp, Cf
+  and discharge coefficient, compared with quasi-1D theory.'
+parameters:
+  geometry_source:
+    value: Parametric (conical)
+    unit: ''
+    label: Geometry source
+  d_inlet:
+    value: 0.002
+    unit: m
+    label: Inlet diameter
+  L_inlet:
+    value: 0.00133
+    unit: m
+    label: Straight inlet length
+  half_angle_conv:
+    value: 30.0
+    unit: deg
+    label: Convergent half-angle
+  d_throat:
+    value: 0.00028
+    unit: m
+    label: Throat diameter
+  half_angle_div:
+    value: 15.0
+    unit: deg
+    label: Divergent half-angle
+  d_exit:
+    value: 0.000911
+    unit: m
+    label: Exit diameter
+  Rcu_ratio:
+    value: 0.0
+    unit: '-'
+    label: Throat radius ratio upstream Rcu/Rt
+  Rcd_ratio:
+    value: 0.0
+    unit: '-'
+    label: Throat radius ratio downstream Rcd/Rt
+  profile_csv:
+    value: C:\Projects\CFD software\examples\N2 nozzle.afsproj\geometry\n2_conical_nozzle.csv
+    unit: ''
+    label: Wall profile CSV
+  mesh_type:
+    value: Structured
+    unit: ''
+    label: Mesh type
+  mesh_preset:
+    value: Coarse
+    unit: ''
+    label: Mesh size preset
+  nx:
+    value: 200
+    unit: '-'
+    label: Cells along x
+  nr:
+    value: 40
+    unit: '-'
+    label: Cells across (axis to wall)
+  throat_clustering:
+    value: true
+    unit: ''
+    label: Throat clustering
+  clustering_strength:
+    value: Moderate
+    unit: ''
+    label: Throat clustering strength
+  cell_type:
+    value: Triangles
+    unit: ''
+    label: Cell type
+  surface_size:
+    value: 0.04
+    unit: '-'
+    label: Wall cell size / throat diameter
+  max_size:
+    value: 0.2
+    unit: '-'
+    label: Largest cell size / throat diameter
+  size_growth:
+    value: 1.2
+    unit: '-'
+    label: Cell growth rate
+  edge_refinement:
+    value: true
+    unit: ''
+    label: Edge refinement
+  save_msh:
+    value: false
+    unit: ''
+    label: Also save Gmsh .msh file
+  inflation:
+    value: false
+    unit: ''
+    label: Inflation layers at the wall
+  first_layer_height:
+    value: 1.0e-06
+    unit: m
+    label: First layer height
+  n_layers:
+    value: 10
+    unit: '-'
+    label: Number of layers
+  growth_rate:
+    value: 1.2
+    unit: '-'
+    label: Growth rate
+  gas:
+    value: N2
+    unit: ''
+    label: Gas
+  p0:
+    value: 500000.0
+    unit: Pa
+    label: Total (chamber) pressure
+  T0:
+    value: 293.15
+    unit: K
+    label: Total (chamber) temperature
+  p_back:
+    value: 1000.0
+    unit: Pa
+    label: Back pressure
+  initialisation:
+    value: Quasi-1D solution
+    unit: ''
+    label: Initial solution
+  boundaries:
+    value: {}
+    unit: ''
+    label: Boundary conditions
+  cfl:
+    value: 0.8
+    unit: '-'
+    label: CFL number
+  order:
+    value: Second order (MUSCL)
+    unit: ''
+    label: Order of accuracy
+  first_order_iterations:
+    value: 0
+    unit: '-'
+    label: First-order iterations at the start
+  limiter:
+    value: Venkatakrishnan
+    unit: ''
+    label: Limiter
+  venkat_k:
+    value: 5.0
+    unit: '-'
+    label: Venkatakrishnan K
+  freeze_limiter:
+    value: 4.0
+    unit: orders
+    label: Freeze the limiter after a drop of
+  gradient:
+    value: least squares
+    unit: ''
+    label: Gradients
+  time_scheme:
+    value: SSP-RK3
+    unit: ''
+    label: Time stepping
+  max_iter:
+    value: 20000
+    unit: '-'
+    label: Maximum iterations
+  tol:
+    value: 1.0e-06
+    unit: '-'
+    label: Residual tolerance
+  monitor_tol:
+    value: 0.0001
+    unit: '-'
+    label: Monitor tolerance
+  monitor_window:
+    value: 500
+    unit: '-'
+    label: Monitor window
+  carbuncle_fix:
+    value: true
+    unit: ''
+    label: Carbuncle fix (HLLE near strong shocks)
+converged: true
+iterations: 8095
+final_residual: 9.894263028731458e-07
+key_numbers:
+  mdot:
+    value: 6.763121383602134e-05
+    unit: kg/s
+  mdot_inlet:
+    value: 6.76316185274865e-05
+    unit: kg/s
+  mdot_exit:
+    value: 6.763121383602134e-05
+    unit: kg/s
+  mdot_1D:
+    value: 7.146926742576224e-05
+    unit: kg/s
+  discharge_coefficient:
+    value: 0.9462978462214177
+    unit: '-'
+  M_exit:
+    value: 3.9425926089068883
+    unit: '-'
+  p_exit:
+    value: 3413.3450777070143
+    unit: Pa
+  p0_exit:
+    value: 485488.4073522932
+    unit: Pa
+  F_vacuum:
+    value: 0.04739073843703309
+    unit: N
+  F_vacuum_wall:
+    value: 0.04739128611644983
+    unit: N
+  thrust_difference:
+    value: 0.0011556676152291098
+    unit: '%'
+  F_at_p_back:
+    value: 0.04673892000786812
+    unit: N
+  Isp_vacuum:
+    value: 71.45384740011912
+    unit: s
+  Isp_vacuum_wall:
+    value: 71.45467316909335
+    unit: s
+  Cf_vacuum:
+    value: 1.5392796487814082
+    unit: '-'
+  Isp_quasi1D:
+    value: 72.52552406093923
+    unit: s
+  Isp_2D_over_quasi1D:
+    value: 0.985223455125679
+    unit: '-'
+  A_throat:
+    value: 6.157521601035994e-08
+    unit: m²
+  wall_time:
+    value: 68.70556540007237
+    unit: s
+  positivity_events:
+    value: 0.0
+    unit: '-'
+  cfl_final:
+    value: 0.8
+    unit: '-'
+max_error_vs_reference: {}
+checks:
+- name: Convergence
+  level: info
+  message: The residual dropped 6.0 orders of magnitude.
+  value: 6.004616548549534
+  unit: orders
+- name: Mass balance
+  level: info
+  message: Inlet and exit mass flow agree within 0.0006 %.
+  value: 0.0005983779255478166
+  unit: '%'
+- name: Run status
+  level: info
+  message: The run ended normally (converged).
+  value: null
+  unit: ''
+- name: Monitors settled
+  level: info
+  message: 'The monitors changed less than 0.01 % over the last 500 iterations (largest:
+    Thrust (vacuum), exit plane, 0.0003 %).'
+  value: 0.0003019658147271161
+  unit: '%'
+- name: Thrust two ways
+  level: info
+  message: The exit-plane and wall-pressure thrusts agree within 0.0012 % (momentum
+    balance).
+  value: 0.0011556676152291098
+  unit: '%'
+- name: Total-pressure loss
+  level: warning
+  message: 'The exit total pressure is 2.9 % below the inlet total pressure (an isentropic
+    nozzle loses nothing). This is numerical (or a shock in the nozzle): refine the
+    mesh, especially at the throat.'
+  value: 2.902318529541359
+  unit: '%'
+- name: Positivity
+  level: info
+  message: The reconstruction never gave a negative density or pressure.
+  value: 0.0
+  unit: ''
+- name: CFL number
+  level: info
+  message: No CFL reductions were needed (CFL 0.8).
+  value: null
+  unit: ''
+- name: Ideal gas
+  level: info
+  message: The ideal-gas law holds within 0.37 % (largest |Z - 1|, Peng-Robinson estimate,
+    in the flow (136.3 kPa, 201.8 K)).
+  value: 0.36620149444139827
+  unit: '%'
+  quantities:
+  - value: 136256.81227326795
+    unit: Pa
+    digits: 4
+    delta: false
+  - value: 201.84396995332722
+    unit: K
+    digits: 4
+    delta: false
+  template: The ideal-gas law holds within 0.37 % (largest |Z - 1|, Peng-Robinson
+    estimate, in the flow ({0}, {1})).
+- name: Condensation
+  level: info
+  message: 'No condensation: smallest margin 11.3 K to the saturation temperature;
+    exit: T = 71.06 K at 2.802 kPa, saturation temperature 55.92 K, margin 15.1 K.
+    Below the triple-point pressure the frost temperature is estimated by extending
+    the vapour-pressure curve (Clausius-Clapeyron); the true frost point is somewhat
+    higher (N2 at the default exit: about 0.6 K), so read this margin as an upper
+    limit.'
+  value: 11.316632175298196
+  unit: K
+  quantities:
+  - value: 0.6
+    unit: K
+    digits: 2
+    delta: true
+  - value: 71.06281107975403
+    unit: K
+    digits: 4
+    delta: false
+  - value: 2802.460930298446
+    unit: Pa
+    digits: 4
+    delta: false
+  - value: 55.92000947753618
+    unit: K
+    digits: 4
+    delta: false
+  - value: 15.142801602217844
+    unit: K
+    digits: 3
+    delta: true
+  - value: 11.316632175298196
+    unit: K
+    digits: 3
+    delta: true
+  template: 'No condensation: smallest margin {5} to the saturation temperature; exit:
+    T = {1} at {2}, saturation temperature {3}, margin {4}. Below the triple-point
+    pressure the frost temperature is estimated by extending the vapour-pressure curve
+    (Clausius-Clapeyron); the true frost point is somewhat higher (N2 at the default
+    exit: about {0}), so read this margin as an upper limit.'
+- name: Temperature range
+  level: info
+  message: Temperatures 67.41 K to 293.2 K are inside the valid range of the gas data
+    (63.15 K to 521.2 K).
+  value: 67.41071135362243
+  unit: K
+  quantities:
+  - value: 67.41071135362243
+    unit: K
+    digits: 4
+    delta: false
+  - value: 293.1521086469233
+    unit: K
+    digits: 4
+    delta: false
+  - value: 63.151
+    unit: K
+    digits: 4
+    delta: false
+  - value: 521.151
+    unit: K
+    digits: 4
+    delta: false
+  template: Temperatures {0} to {1} are inside the valid range of the gas data ({2}
+    to {3}).
+- name: Cell volumes
+  level: info
+  message: All cell volumes are positive.
+  value: 0.0
+  unit: cells
+- name: Aspect ratio
+  level: info
+  message: Largest aspect ratio 4.65.
+  value: 4.649571644022463
+  unit: '-'
+- name: Non-orthogonality
+  level: info
+  message: Largest non-orthogonality 29.4°.
+  value: 29.375878767238753
+  unit: deg
+- name: Cell growth
+  level: info
+  message: Largest volume ratio of neighbouring cells 1.16.
+  value: 1.1648839302674292
+  unit: '-'
+- name: Skewness
+  level: info
+  message: Largest equiangle skewness 0.333.
+  value: 0.33333333333333837
+  unit: '-'
+- name: Smallest cell
+  level: info
+  message: The smallest cell is 5.91 µm thick.
+  value: 5.90963456118382e-06
+  unit: m
+  quantities:
+  - value: 5.90963456118382e-06
+    unit: m
+    digits: 4
+    delta: false
+  template: The smallest cell is {0} thick.
+run:
+  status: converged
+  first_iteration: 1
+  mesh_signature: c44e7a6275ec2bae
+  continued_from: null
+  residual_norm:
+  - 1269927.812869138
+  - 474174434.53225046
+  - 2349198823.700142
+  - 369851385972.5849
+  message: ''
+  kind: nozzle
+  axisymmetric: true
+  positivity_events: 0
+  positivity_last: 0
+  cfl_reductions: 0
+  cfl_final: 0.8
+  wall_time_s: 68.70556540007237
+  limiter_frozen_at: 3911
+  diverged_at: null
+  L_ref: 0.00028
+  scales:
+  - 5.746669345380805
+  - 349.0124467694526
+  - 349.0124467694526
+  - 500000.0
+  initialisation: Quasi-1D solution
+  equations:
+  - mass
+  - x-momentum
+  - y-momentum
+  - energy
+  converge_on:
+  - thrust
+  - mdot_out
+  monitor_rules: {}
+  monitor_tol: 0.0001
+  monitor_window: 500
+  tol: 1.0e-06
+  cfl: 0.8
+  gamma: 1.4
+  report_values:
+    exit p0 (mass-weighted):
+    - 485418.43511311023
+    - Pa
+boundary_conditions:
+  inlet:
+    type: total_pressure_inlet
+    p0: 500000.0
+    T0: 293.15
+    direction: Normal to the boundary
+    flow_angle: 0.0
+  outlet:
+    type: pressure_outlet
+    p: 1000.0
+  wall:
+    type: slip_wall
+  axis:
+    type: axis
