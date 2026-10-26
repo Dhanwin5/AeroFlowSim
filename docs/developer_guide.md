@@ -155,8 +155,11 @@ toolbar (zoom, pan, save). `visualise.py` figures (contour, shape view, x-t diag
 - Messages come back through a queue: stage text, residual batches (every 0.1 s), done/stopped/error.
   A 2D solver calls `progress(iteration, residual, info)`; the batches then also carry the residual of every
   equation, the monitors (thrust, mass flow, Cd, Cl, Cm) and the positivity count, which the Run page plots
-  live (`figures.residual_figure`, one small plot per monitor unit). `Job.restart` names the previous
-  `results/run.npz` when the inputs ask to continue it.
+  live (`figures.residual_figure`, one small plot per monitor unit). `Job.restart` names the
+  `results/run.npz` to carry on from: Run continues the current solution on the same mesh by default
+  (`MainWindow.continuation`, `Project.continuation`, mesh fingerprint in `Result.info`), with the iteration
+  numbers, residual normalisation, histories and frozen limiter carried on (`euler/solver.py`, `Continuation`);
+  *Start from scratch* (`run_from_scratch`) sends no restart.
 - **Stop** of a run: a shared flag is seen by the progress callback between two iterations. A 2D run
   (its solver passes `info`) gets `True` back, ends after that iteration and finishes normally with the
   flow of that moment (status "stopped", restartable); the helper then reports the stage "Stopped: saving

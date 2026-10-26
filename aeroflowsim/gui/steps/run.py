@@ -2,11 +2,16 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Run step: Run / Stop, live progress and residual plot, and the messages of this run.
+"""Run step: Run / Continue, Start from scratch, Stop, live progress and residual plot, messages.
 
 The solver runs in the background worker (aeroflowsim/tasks.py); the main window forwards its
 updates here. The residual plot is redrawn at most about three times a second, so even very fast
 solvers never slow the window down.
+
+Like the best CFD tools, Run CARRIES ON from the current solution when the project has one on this mesh
+(after a Stop at iteration 158 the next iteration is 159, and the plot continues); "Start from scratch" is the
+only way to begin again from the Initial solution. A new mesh starts from scratch by itself (the old flow
+does not fit it).
 """
 
 import time
@@ -26,8 +31,13 @@ class RunPage(QWidget):
         super().__init__()
         self.window = window
         self.run_button = QPushButton("Run")
-        self.run_button.setToolTip("Mesh if needed, then solve (F5)")
+        self.run_button.setToolTip("Mesh if needed, then solve (F5). With a solution on this mesh, the run carries "
+                                   "on from it.")
         self.run_button.clicked.connect(window.run_case)
+        self.fresh_button = QPushButton("Start from scratch")
+        self.fresh_button.setToolTip("Begin again from iteration 1 with the Initial solution (uniform or quasi-1D), "
+                                     "instead of carrying on from the current solution.")
+        self.fresh_button.clicked.connect(window.run_from_scratch)
         self.stop_button = QPushButton("Stop")
         self.stop_button.setToolTip("End the run after the current iteration (Shift+F5)")
         self.stop_button.clicked.connect(window.cancel_job)
@@ -42,7 +52,8 @@ class RunPage(QWidget):
         self.diagnose_button.setToolTip("After a run that diverged or needed CFL reductions: what to change, and why.")
         self.diagnose_button.clicked.connect(self.show_diagnosis)
         bar = QHBoxLayout()
-        for w in (self.run_button, self.stop_button, self.progress, self.numerics_button, self.diagnose_button):
+        for w in (self.run_button, self.fresh_button, self.stop_button, self.progress, self.numerics_button,
+                  self.diagnose_button):
             bar.addWidget(w)
         self.banner = Banner()
         self.plot = PlotCanvas()
@@ -54,6 +65,7 @@ class RunPage(QWidget):
         self._last_draw = 0.0
         self._history = ([], [], None)          # what the plot shows: iterations, residuals, tolerance
         self._extra = {}                        # 2D solvers: residual per equation and the monitors
+        self._before = None                     # history of the run being continued (drawn before the new part)
 
     def refresh(self):
         w = self.window
@@ -64,6 +76,10 @@ class RunPage(QWidget):
         self.stop_button.setEnabled(running)
         if project is None:
             return
+        _path, done = w.continuation() if has_solver else (None, 0)
+        self.run_button.setText(f"Continue (from iteration {done + 1:,})" if done and not running else "Run")
+        self.fresh_button.setVisible(bool(done) or running)
+        self.fresh_button.setEnabled(bool(done) and not w.runner.busy)
         if not has_solver:
             self.banner.show_message(project.case.solver_message, "info")
             return
@@ -82,12 +98,20 @@ class RunPage(QWidget):
                                      "for suggestions; the Validity checks say where it failed.", "error")
         elif status == "ok" and record.get("status") == "stopped":
             self.banner.show_message(f"Stopped by you after {record.get('iterations', 0):,} iterations: the Results step "
-                                     "shows the flow of that moment (NOT converged). To continue from it, set Initial "
-                                     "solution to 'Previous result (restart)' and press Run.", "warning")
+                                     "shows the flow of that moment (NOT converged). Press Continue to carry on from "
+                                     f"iteration {record.get('iterations', 0) + 1:,}, or Start from scratch.", "warning")
         elif status == "ok":
             done = "converged" if record.get("converged") else "finished but NOT converged"
             self.banner.show_message(f"Up to date: {done} after {record.get('iterations', 0):,} iterations "
                                      f"({record.get('run_s') or 0:.3g} s). See Results.", "info")
+        elif status == "outdated" and done:
+            self.banner.show_message("The inputs changed since the last run. Continue carries on from the current "
+                                     "flow with the new inputs (usually much faster); Start from scratch begins again "
+                                     "from the Initial solution.", "warning")
+        elif status == "outdated" and w.results is not None:
+            self.banner.show_message("The last results come from older inputs (or another mesh). Press Run to update "
+                                     "them: it starts from the Initial solution, because the old flow does not fit "
+                                     "this mesh.", "warning")
         elif status == "outdated":
             self.banner.show_message("The last results come from older inputs. Press Run to update them.", "warning")
         else:
@@ -126,6 +150,13 @@ class RunPage(QWidget):
     def _apply(self, suggestion):
         self.window.set_inputs(suggestion.inputs, f"suggested {suggestion.title.lower()}")
 
+    def start(self, previous=None):
+        """A run was sent: previous = the Result it carries on from (its history is drawn first), or None."""
+        self._before = None
+        if previous is not None and len(previous.residuals):
+            extras = history_extras(previous)
+            self._before = (list(range(1, len(previous.residuals) + 1)), list(previous.residuals), extras)
+
     def show_task(self, task, force=False):
         """Live view of a running (or just ended) job."""
         if task.job.kind == "mesh":
@@ -146,9 +177,16 @@ class RunPage(QWidget):
         now = time.perf_counter()
         if force or now - self._last_draw > REDRAW_S:
             self._last_draw = now
-            self._history = (task.iterations, task.residuals, params.get("tol"))
-            self._extra = ({"equation_residuals": task.equation_residuals, "equations": EQUATIONS,
-                            "monitors": task.monitors} if task.equation_residuals else {})
+            its, res, eq, mons = task.iterations, task.residuals, task.equation_residuals, task.monitors
+            if self._before is not None and task.job.restart:      # carry the earlier history on
+                b_its, b_res, b_extra = self._before
+                cut = len(b_its) if not its else min(len(b_its), its[0] - 1)
+                its, res = b_its[:cut] + list(its), b_res[:cut] + list(res)
+                if eq and b_extra:
+                    eq = [list(r) for r in b_extra["equation_residuals"][:cut]] + list(eq)
+                    mons = {k: list(b_extra["monitors"].get(k, ()))[:cut] + list(v) for k, v in mons.items()}
+            self._history = (its, res, params.get("tol"))
+            self._extra = ({"equation_residuals": eq, "equations": EQUATIONS, "monitors": mons} if eq else {})
             self.redraw()
 
     def reset(self):

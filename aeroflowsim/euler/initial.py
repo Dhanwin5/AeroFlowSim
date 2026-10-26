@@ -10,14 +10,17 @@
                    ratio A(x)/A* (subsonic before the throat, supersonic after it), p and T from p0, T0.
                    The radial velocity follows the wall slope, growing linearly from the axis:
                    v = u (r / r_wall) dr_wall/dx. Close to the final flow, so far fewer iterations.
-    restart        the primitive fields of a previous run on the same mesh (continue a run).
+    continue       the flow of the previous result on the same mesh: what Run does by default when the project
+                   has one (the run carries on, iteration 159 after 158); the two starts above are used only
+                   for a fresh start ("Start from scratch", a new mesh, or no result yet).
 """
 
 import numpy as np
 
 from aeroflowsim import gasdynamics as gd
 
-UNIFORM, QUASI_1D, RESTART = "Uniform (free stream)", "Quasi-1D solution", "Previous result (restart)"
+UNIFORM, QUASI_1D = "Uniform (free stream)", "Quasi-1D solution"
+RESTART = "Previous result (restart)"   # an old option of the Initial solution input (projects are converted)
 
 
 def quasi1d_state(mesh, profile, gas, p0, T0):
@@ -52,7 +55,12 @@ def quasi1d_state(mesh, profile, gas, p0, T0):
 
 
 def restart_state(fields, mesh):
-    """Primitive state from the fields of a previous result (keys rho, u, v, p), on the same mesh."""
+    """Primitive state from the fields of a previous result (keys rho, u, v, p), on the same mesh.
+
+    fields: {key: array}, or the continuation dict of aeroflowsim.result_io.continuation_data ({"fields": ...}).
+    """
+    if "fields" in fields:
+        fields = fields["fields"]
     try:
         W = np.array([fields[k] for k in ("rho", "u", "v", "p")], dtype=float)
     except KeyError as error:

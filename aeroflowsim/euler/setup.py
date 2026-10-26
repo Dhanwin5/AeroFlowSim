@@ -26,7 +26,7 @@ from aeroflowsim.euler.boundary import BC_TYPES, DEFAULT_FOR_KIND, BoundaryCondi
 from aeroflowsim.euler.gradients import METHODS as GRADIENT_METHODS
 from aeroflowsim.euler.initial import QUASI_1D, RESTART, UNIFORM, quasi1d_state, restart_state
 from aeroflowsim.euler.limiters import LIMITERS
-from aeroflowsim.euler.solver import (CONVERGED, DIVERGED, TIME_SCHEMES, EulerSolver, Numerics)
+from aeroflowsim.euler.solver import CONVERGED, DIVERGED, TIME_SCHEMES, Continuation, EulerSolver, Numerics
 from aeroflowsim.euler.state import (entropy, mach_number, primitive_to_conserved, state_from_mach, temperature,
                                      total_pressure, total_temperature, uniform_state)
 from aeroflowsim.geometry import WallProfile
@@ -83,8 +83,9 @@ def solver_parameters(overrides=None) -> list:
                 "for linear fields on any cell) or Green-Gauss."),
         _choice("time_scheme", "Time stepping", TIME_SCHEMES, TIME_SCHEMES[0], "SSP-RK3 (robust) or Jameson's "
                 "four-stage scheme (allows a larger CFL number for steady flow)."),
-        _number("max_iter", "Maximum iterations", "-", 20000, 1, 10_000_000, "The run stops here if it has not "
-                "converged.", "int"),
+        _number("max_iter", "Maximum iterations", "-", 20000, 1, 10_000_000, "The run stops at this iteration "
+                "number if it has not converged, counted over the whole run (a continued run carries on numbering: "
+                "raise it to go further).", "int"),
         _number("tol", "Residual tolerance", "-", 1e-6, 1e-15, 1.0, "Converged when the normalised residual is "
                 "below this (1e-6 = six orders of magnitude) AND the monitors have settled."),
         _number("monitor_tol", "Monitor tolerance", "-", 1e-4, 1e-12, 1.0, "The monitors (thrust, mass flow, "
@@ -171,6 +172,7 @@ class Problem:
     monitor_scales: dict = field(default_factory=dict)
     finish: object = None           # function(solver, W, out) -> key_numbers dict
     series: object = None           # function(solver, W) -> {name: array} (e.g. wall Cp)
+    continuation: object = None     # Continuation of the previous result this run carries on from, or None
 
 
 def mesh_wall_profile(mesh, wall_names):
@@ -194,6 +196,37 @@ def mesh_wall_profile(mesh, wall_names):
     r = np.zeros(len(x))
     np.maximum.at(r, inverse, xy[:, 1])
     return WallProfile(x, r)
+
+
+CONTINUED = "Continued from the previous result"   # Problem.initialisation of a continued run
+
+
+def _start(restart, mesh, fresh, init):
+    """(initial state W0, how it was made): the previous result when there is one (the run continues), else
+    the template's fresh start (initialisation input: uniform or quasi-1D)."""
+    if restart is not None:
+        return restart_state(restart, mesh), CONTINUED
+    if init == RESTART:                          # an old project that still asks for "Previous result"
+        raise ValueError("There is no previous result on this mesh to continue: run once first (the run starts from "
+                         "the Initial solution, uniform or quasi-1D).")
+    return fresh(), init
+
+
+def continuation_of(restart):
+    """The Continuation of a previous result (restart dict of aeroflowsim.result_io.continuation_data), or None
+    when there is none or it holds fields only (then only the flow is reused, numbering starts again)."""
+    if not isinstance(restart, dict) or "series" not in restart:
+        return None
+    series, info = restart["series"], restart.get("info") or {}
+    names = [f"residual_{e}" for e in info.get("equations", EQUATIONS)]
+    if not all(n in series for n in names):
+        return None
+    residuals = np.column_stack([np.asarray(series[n], dtype=float) for n in names])
+    monitors = {k[len("monitor_"):]: np.asarray(v, dtype=float) for k, v in series.items() if k.startswith("monitor_")}
+    norm = info.get("residual_norm")
+    return Continuation(iterations=len(residuals), residuals=residuals, monitors=monitors,
+                        norm=None if norm is None else np.asarray(norm, dtype=float),
+                        limiter=series.get("limiter_frozen"), limiter_frozen_at=info.get("limiter_frozen_at"))
 
 
 def _inlet_total_state(bcs, params):
@@ -221,16 +254,14 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
     r_t = float(profile.r.min())                                       # throat radius [m]
     A_t = math.pi * r_t**2 if mesh.axisymmetric else r_t * 1.0         # planar: half height x 1 m (half domain)
     init = params.get("initialisation", QUASI_1D)
-    if init == RESTART:
-        if restart is None:
-            raise ValueError("Initialisation 'Previous result' needs a previous result on this mesh: run once "
-                             "from the quasi-1D or uniform start first.")
-        W0 = restart_state(restart, mesh)
-    elif init == QUASI_1D:
-        W0 = quasi1d_state(mesh, profile, gas, p0, T0)
-    else:
+
+    def fresh():
+        if init == QUASI_1D:
+            return quasi1d_state(mesh, profile, gas, p0, T0)
         T = 0.95 * T0
-        W0 = uniform_state(mesh.n_cells, p0 / (gas.R * T) * 0.9, (0.1 * float(gas.sound_speed(T)), 0.0), 0.9 * p0)
+        return uniform_state(mesh.n_cells, p0 / (gas.R * T) * 0.9, (0.1 * float(gas.sound_speed(T)), 0.0), 0.9 * p0)
+
+    W0, init = _start(restart, mesh, fresh, init)
     rho0 = p0 / (gas.R * T0)
     c0 = float(gas.sound_speed(T0))
     g = float(gas.gamma(T0))
@@ -280,7 +311,7 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
 
     return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, p0), initialisation=init,
                    monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"),
-                   monitor_scales={}, finish=finish, series=series)
+                   monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart))
 
 
 def _ideal_isp(profile, axisymmetric, gas, p0, T0):
@@ -304,7 +335,8 @@ def _ideal_isp(profile, axisymmetric, gas, p0, T0):
 def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=None) -> Problem:
     """A body in a free stream: far field (or supersonic inlet/outlet) around slip walls.
 
-    params needs mach, p_inf, T_inf, alpha and initialisation (Uniform or Previous result).
+    params needs mach, p_inf, T_inf, alpha and initialisation (Uniform). With restart (a previous result on this mesh)
+    the run carries on from it.
     """
     bcs = conditions(params, mesh, defaults)
     walls = forces.patch_names_of(bcs, "slip_wall")
@@ -315,13 +347,8 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     rho, vel = state_from_mach(gas, M, p_inf, T_inf, direction)
     speed = float(np.linalg.norm(vel))
     q_inf = 0.5 * rho * speed**2                                        # dynamic pressure [Pa]
-    if params.get("initialisation", UNIFORM) == RESTART:
-        if restart is None:
-            raise ValueError("Initialisation 'Previous result' needs a previous result on this mesh: run once "
-                             "from the uniform start first.")
-        W0 = restart_state(restart, mesh)
-    else:
-        W0 = uniform_state(mesh.n_cells, rho, vel, p_inf)
+    W0, init = _start(restart, mesh, lambda: uniform_state(mesh.n_cells, rho, vel, p_inf),
+                      params.get("initialisation", UNIFORM))
     half = any(p.type == "symmetry" for p in mesh.patches) and not mesh.axisymmetric
     mirror = 2.0 if half else 1.0
     c = float(gas.sound_speed(T_inf))
@@ -347,12 +374,22 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
         return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_Cp": (p - p_inf) / q_inf}
 
     return Problem("external", gas, bcs, W0, L_ref=L_ref, scales=(rho, max(speed, c), max(speed, c), p_inf),
-                   initialisation=params.get("initialisation", UNIFORM), monitor=monitor, monitor_labels=labels,
+                   initialisation=init, monitor=monitor, monitor_labels=labels,
                    converge_on=("Cd", "Cl"), monitor_scales={"Cd": 0.01, "Cl": 0.01, "Cm": 0.01},
-                   finish=finish, series=series)
+                   finish=finish, series=series, continuation=continuation_of(restart))
 
 
 # ---- solve ----------------------------------------------------------------------------------------------
+
+def mesh_signature(mesh) -> str:
+    """A short fingerprint of the mesh's nodes and cells: a run may only carry on from a result of the SAME mesh
+    (a new mesh with the same number of cells is still a different mesh)."""
+    import hashlib
+    digest = hashlib.sha256()
+    for array in (mesh.nodes, mesh.cell_nodes):
+        digest.update(np.ascontiguousarray(array).tobytes())
+    return digest.hexdigest()[:16]
+
 
 def flow_fields(W, gas) -> dict:
     """The Result fields of a primitive state (all per cell, SI)."""
@@ -367,6 +404,11 @@ def flow_fields(W, gas) -> dict:
 
 def solve(problem, params, mesh, progress=None) -> Result:
     """Run the solver for a Problem and return the Result (fields, residuals, key numbers, history)."""
+    previous = problem.continuation
+    if previous is not None and previous.iterations >= params["max_iter"]:
+        raise ValueError(f"The run already has {previous.iterations:,} iterations and Maximum iterations is "
+                         f"{params['max_iter']:,} (counted over the whole run): raise Maximum iterations to continue "
+                         "it, or start from scratch.")
     solver = EulerSolver(mesh, problem.gas, problem.conditions, numerics(params), L_ref=problem.L_ref,
                          scales=problem.scales)
 
@@ -375,7 +417,8 @@ def solve(problem, params, mesh, progress=None) -> Result:
             return progress(it, res, info)      # True = the user pressed Stop (keep the flow as it is)
         return False
 
-    out = solver.solve(problem.W0, forward, problem.monitor, problem.monitor_scales, problem.converge_on)
+    out = solver.solve(problem.W0, forward, problem.monitor, problem.monitor_scales, problem.converge_on,
+                       problem.continuation)
     W = out.W
     # One more residual evaluation of the final state, so the boundary fluxes (forces, mass flows) belong to it
     solver.residual(primitive_to_conserved(W, problem.gas), params["order"] == SECOND_ORDER, W)
@@ -387,7 +430,11 @@ def solve(problem, params, mesh, progress=None) -> Result:
     series.update({f"monitor_{k}": v for k, v in out.monitors.items()})
     if problem.series:
         series.update(problem.series(solver, W))
-    info = {"status": out.status, "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
+    if out.limiter is not None:                  # a frozen limiter stays frozen when the run is continued
+        series["limiter_frozen"] = out.limiter
+    info = {"status": out.status, "first_iteration": out.first_iteration, "mesh_signature": mesh_signature(mesh),
+            "continued_from": None if previous is None else previous.iterations,
+            "residual_norm": None if out.norm is None else [float(v) for v in out.norm], "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
             "positivity_events": int(out.positivity_events), "positivity_last": int(out.positivity_last),
             "cfl_reductions": int(out.cfl_reductions), "cfl_final": float(out.cfl_final),
             "wall_time_s": float(out.wall_time_s), "limiter_frozen_at": out.limiter_frozen_at,

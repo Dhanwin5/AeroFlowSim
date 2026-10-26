@@ -125,7 +125,11 @@ def command_run_project(args):
             for check in run_mesh_checks(project.case, params, mesh):
                 print(f"  [{LEVEL_MARK[check.level]}] {check.name}: {check.message}")
             return 0
-        out = run_project(project, progress=print_progress_every(args.print_every))
+        if not args.fresh:
+            _path, done = project.continuation(project.load_mesh() if project.status("mesh") == "ok" else None)
+            if done:
+                print(f"Continuing the saved run from iteration {done + 1:,} (use --fresh to start from scratch).")
+        out = run_project(project, progress=print_progress_every(args.print_every), fresh=args.fresh)
     except ValueError as error:
         print(f"Error: {error}")
         return 1
@@ -173,6 +177,8 @@ def main(argv=None):
     run.add_argument("--out", default=None, help="output folder (default: results/<case_name>/)")
     run.add_argument("--print-every", type=int, default=1000, metavar="N",
                      help="print the residual every N iterations (default 1000)")
+    run.add_argument("--fresh", action="store_true",
+                     help="projects: start the run from scratch instead of carrying on from the saved result")
     gui = commands.add_parser("gui", help="start the desktop GUI")
     gui.add_argument("project", nargs="?", default=None, help="project folder to open (optional)")
     args = parser.parse_args(argv)

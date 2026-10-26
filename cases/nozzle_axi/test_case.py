@@ -98,12 +98,37 @@ def test_boundary_table_overrides_a_default_and_bad_tables_are_refused():
         aeroflowsim.run_case(case, {"boundaries": {"outlet": {"type": "vortex"}}})
 
 
-def test_restart_needs_a_previous_result_and_continues_it():
-    with pytest.raises(ValueError, match="needs a previous result"):
-        aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 5, "initialisation": "Previous result (restart)"})
-    first = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 30})
-    fields = {k: f.values for k, f in first.result.fields.items()}
-    again = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 1,
-                                        "initialisation": "Previous result (restart)"}, mesh=first.mesh, restart=fields)
-    # One more iteration changes the state only a little: it continued, it did not start again
-    assert abs(again.result.key_numbers["mdot"][0] / first.result.key_numbers["mdot"][0] - 1.0) < 0.01
+def test_a_run_carries_on_from_the_previous_result_with_its_numbering_and_histories():
+    """Stop at iteration 158, run again: the next iteration is 159 and the histories continue seamlessly."""
+    from aeroflowsim.result_io import continuation_data
+    first = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 100000},
+                                 progress=lambda it, res, info=None: it >= 158)
+    assert first.result.iterations == 158 and first.result.info["status"] == "stopped"
+    seen = []
+    again = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 200}, mesh=first.mesh,
+                                 restart=continuation_data(first.result),
+                                 progress=lambda it, res, info=None: seen.append(it))
+    r = again.result
+    assert seen[0] == 159 and r.iterations == 200 and r.info["first_iteration"] == 159
+    assert r.info["continued_from"] == 158 and r.info["initialisation"] == "Continued from the previous result"
+    assert len(r.residuals) == 200 and r.residuals[:158] == first.result.residuals          # one continuous history
+    assert len(r.series["monitor_thrust"]) == 200
+    # Stopping and continuing gives the same flow as one run straight through (same iterations, same numerics)
+    straight = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 200}, mesh=first.mesh).result
+    assert np.allclose(r.fields["p"].values, straight.fields["p"].values, rtol=1e-12, atol=0)
+    assert np.allclose(r.residuals, straight.residuals, rtol=1e-10, atol=0)
+    # Maximum iterations counts the whole run: a run already at the limit says how to go further
+    with pytest.raises(ValueError, match="raise Maximum iterations"):
+        aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 150}, mesh=first.mesh,
+                             restart=continuation_data(first.result))
+    # Without a previous result (start from scratch) the numbering starts at 1 again
+    fresh = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 3}, mesh=first.mesh)
+    assert fresh.result.info["first_iteration"] == 1 and fresh.result.info["continued_from"] is None
+
+
+def test_a_result_of_another_mesh_cannot_be_continued():
+    from aeroflowsim.result_io import can_continue
+    first = aeroflowsim.run_case(case, {"mesh_preset": "Coarse", "max_iter": 3})
+    assert can_continue(first.result, first.mesh)
+    other = case.build_mesh(params(mesh_preset="Coarse", clustering_strength="Strong"))   # same cell count
+    assert other.n_cells == first.mesh.n_cells and not can_continue(first.result, other)

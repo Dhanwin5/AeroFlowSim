@@ -59,7 +59,7 @@ class Job:
     params: dict              # validated inputs
     out_dir: str | None       # where the outputs are written (mesh files, or results)
     mesh: object = None       # run only: a Mesh / Mesh1D object, or the path of a saved mesh.npz
-    restart: str = None       # run only: path of a previous run.npz to continue from (its fields), or None
+    restart: str = None       # run only: path of a previous run.npz to carry on from, or None (fresh start)
     geometry: dict = None     # mesh only: the edited workspace geometry (GeometryDocument.to_dict()), or None
     folder: str = None        # mesh only: the project folder (files imported into the workspace are there)
 
@@ -136,9 +136,9 @@ def _run_job(job, send, stop_event):
         mesh = Mesh.load(mesh)
     restart = None
     if job.restart:
-        from aeroflowsim.result_io import load_run
+        from aeroflowsim.result_io import continuation_data
         send("stage", "Reading the previous result")
-        restart = {k: f.values for k, f in load_run(job.restart)["result"].fields.items()}
+        restart = continuation_data(job.restart)          # the run carries on from it
     batch_its, batch_res, batch_extra = [], [], []
     last_sent = [time.perf_counter()]
 

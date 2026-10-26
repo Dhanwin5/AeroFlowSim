@@ -145,6 +145,7 @@ class MainWindow(QMainWindow):
         self.auto_mesh_note = ""    # why an out-of-date mesh was not rebuilt automatically
         self.pending = None         # (kind, fingerprint) of the job that is running
         self.run_after_mesh = False
+        self.run_fresh = False      # the next run starts from scratch (Start from scratch), not from the result
         self.current_step = None
         self.panels = {}
         self.dark = self.settings.value("theme", "light") == "dark"
@@ -812,7 +813,29 @@ class MainWindow(QMainWindow):
         self.log(("Automatic re-mesh" if auto else "Meshing") + f" ({project.case.title})")
         self.refresh_all()
 
-    def run_case(self):
+    def continuation(self):
+        """(run.npz, iterations done) when Run carries on from the current result (same mesh), else (None, 0)."""
+        if (self.project is None or self.results is None or not is_face_mesh(self.mesh)
+                or self.project.status("mesh") != "ok"):
+            return None, 0
+        return self.project.continuation(self.mesh, self.results)
+
+    def run_from_scratch(self):
+        """Start the run again from iteration 1 (the Initial solution input), after asking."""
+        project = self.project
+        if project is None or self.runner.busy or not project.case.has_solver:
+            return
+        _path, done = self.continuation()
+        if done and QMessageBox.question(
+                self, "Start from scratch",
+                f"Start again from iteration 1 with the Initial solution ({project.values.get('initialisation', '')})?\n\n"
+                f"The current solution ({done:,} iterations) is replaced when the new run is saved; until then it "
+                "stays as it is.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        self.run_fresh = True
+        self.run_case()
+
+    def run_case(self, *_):
         project = self.project
         if project is None or self.runner.busy or not project.case.has_solver:
             return
@@ -822,6 +845,7 @@ class MainWindow(QMainWindow):
             text = "\n".join(f"- {labels[k][0]}: {msg}" for k, msg in problems.items())
             QMessageBox.warning(self, "Inputs to fix", f"Please fix these inputs first:\n{text}")
             self.go_to(labels[next(iter(problems))][1])
+            self.run_fresh = False
             return
         if self.mesh is None or project.status("mesh") != "ok":
             self.run_after_mesh = True
@@ -834,25 +858,39 @@ class MainWindow(QMainWindow):
         project = self.project
         params = project.params()
         errors = [c for c in self.setup_checks() if c.level == "error"]
+        fresh, self.run_fresh = self.run_fresh, False
         if errors:                               # e.g. an angle of attack on an axisymmetric mesh
             QMessageBox.warning(self, "Cannot run this setup", "\n\n".join(c.text(self.units) for c in errors))
             self.log(" ".join(f"{c.name}: {c.message}" for c in errors), "error")
             self.go_to("setup")
             self.refresh_all()
             return
+        restart, done = (None, 0) if fresh else self.continuation()
+        if done and done >= params.get("max_iter", done + 1):
+            QMessageBox.information(self, "Maximum iterations reached",
+                                    f"The run already has {done:,} iterations, and Maximum iterations is "
+                                    f"{params['max_iter']:,} (counted over the whole run). Raise Maximum iterations "
+                                    "(Setup step, Numerics) to continue it, or press Start from scratch.")
+            self.go_to("setup")
+            return
         mesh = str(project.mesh_dir / "mesh.npz") if is_face_mesh(self.mesh) else self.mesh
         self.pending = ("run", project.fingerprint("run"), params)
-        restart = project.restart_file(params)
         self.runner.submit(Job("run", str(project.case.folder), params, str(project.results_dir), mesh=mesh,
                                restart=None if restart is None else str(restart)))
+        self.pages["run"].start(self.results["result"] if restart is not None else None)
         self.strip.set_busy("run", 0.0, "starting")
-        self.log(f"Run started ({project.case.title})")
+        if restart is not None:
+            self.log(f"Run continued from iteration {done + 1:,} ({project.case.title})")
+        else:
+            reason = " (start from scratch)" if fresh else ""
+            self.log(f"Run started from the initial solution{reason} ({project.case.title})")
         self.go_to("run")
         self.refresh_all()
 
     def cancel_job(self):
         if self.runner.busy:
             self.run_after_mesh = False
+            self.run_fresh = False
             self.runner.cancel()
 
     def on_job_updated(self, task):
@@ -885,6 +923,7 @@ class MainWindow(QMainWindow):
             if self.run_after_mesh:
                 self.run_after_mesh = False
                 if errors:
+                    self.run_fresh = False
                     QMessageBox.warning(self, "Mesh check failed", "The mesh has an error-level check; the solver "
                                         "will not run. See Validity checks.")
                 else:

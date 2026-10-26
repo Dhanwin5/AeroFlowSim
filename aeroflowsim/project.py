@@ -168,7 +168,21 @@ class Project:
         values.update({k: v for k, v in saved.items() if k in values})
         project = cls(folder, case, values, data.get("steps"), data.get("created"), data.get("modified"), warnings)
         project._convert_old_gas_inputs(saved)
+        project._convert_old_restart_input()
         return project
+
+    def _convert_old_restart_input(self):
+        """Projects from before Run carried on by itself (Prompt 7) may have Initial solution = 'Previous result
+        (restart)'. That option is gone: Run now continues the current solution by default. It becomes the
+        template's default start (used only when starting from scratch)."""
+        from aeroflowsim.euler.initial import RESTART
+        for p in self.case.parameters():
+            if p.name == "initialisation" and self.values.get(p.name) == RESTART and RESTART not in p.options:
+                self.values[p.name] = p.default
+                self.warnings.append(f"Initial solution 'Previous result (restart)' is no longer needed: Run carries on "
+                                     f"from the current solution by itself. For a start from scratch it is now "
+                                     f"'{p.default}'.")
+                self.dirty = True
 
     def _convert_old_gas_inputs(self, saved):
         """Projects from before the gas library (6f) stored gamma and R as numbers. 1.4 and 296.8 (the old
@@ -476,12 +490,20 @@ class Project:
                 return Mesh1D(data["x"])
         return None
 
-    def restart_file(self, params):
-        """results/run.npz when the inputs ask to continue the previous result (initialisation =
-        'Previous result (restart)') and there is one; else None (the case then says what is missing)."""
-        from aeroflowsim.euler.initial import RESTART
+    def continuation(self, mesh, results=None):
+        """(results/run.npz, iterations done) when a run can carry on from the saved result on this mesh (a 2D
+        result with one value per cell of the mesh), else (None, 0): then the run starts from scratch.
+        results: the loaded payload if the caller has it (saves reading the file again)."""
+        from aeroflowsim.result_io import can_continue
         path = self.results_dir / RUN_FILE
-        return path if params.get("initialisation") == RESTART and path.is_file() else None
+        if not path.is_file() or mesh is None:
+            return None, 0
+        try:
+            payload = results if results is not None else load_run(path)
+        except (OSError, ValueError, KeyError):
+            return None, 0
+        result = payload["result"]
+        return (path, int(result.iterations)) if can_continue(result, mesh) else (None, 0)
 
     def load_results(self):
         """The saved run payload (result, reference, checks, ...), or None if there is none."""
@@ -530,10 +552,12 @@ def build_project_mesh(project):
     return mesh
 
 
-def run_project(project, progress=None):
+def run_project(project, progress=None, fresh=False):
     """Mesh (if needed) and solve a project with the one engine; store mesh and results in it.
 
-    Used by the command line; the GUI does the same steps in its background worker.
+    Like the GUI's Run, a 2D run carries on from the project's saved result on the same mesh (iteration 159 after
+    158); fresh=True starts from scratch (the Initial solution input). Used by the command line; the GUI does the
+    same steps in its background worker.
     """
     from aeroflowsim.engine import run_case
 
@@ -541,9 +565,11 @@ def run_project(project, progress=None):
     mesh = project.load_mesh() if project.status("mesh") == "ok" else None
     if mesh is None:
         mesh = build_project_mesh(project)
-    restart = project.restart_file(params)
-    if restart is not None:
-        restart = {k: f.values for k, f in load_run(restart)["result"].fields.items()}
+    restart = None
+    if not fresh:                                 # carry on from the saved result, as the GUI's Run does
+        from aeroflowsim.result_io import continuation_data
+        path, _done = project.continuation(mesh)
+        restart = None if path is None else continuation_data(path)
     output = run_case(project.case, params, mesh=mesh, progress=progress, out_dir=project.results_dir,
                       restart=restart)
     payload = {"result": output.result, "reference": output.reference, "reference_lines": output.reference_lines,

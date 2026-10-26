@@ -456,8 +456,8 @@ def run_status(case, params, mesh, result):
     if info["status"] == "stopped":
         return CheckResult("Run status", "warning",
                            f"You stopped the run after {result.iterations:,} iterations, before it converged: the "
-                           "results show the flow of that moment. Continue it with Initial solution = Previous "
-                           "result (restart).")
+                           f"results show the flow of that moment. Press Run (Continue) to carry on from iteration "
+                           f"{result.iterations + 1:,}.")
     return CheckResult("Run status", "info", f"The run ended normally ({info['status'].replace('_', ' ')}).")
 
 

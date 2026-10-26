@@ -32,6 +32,7 @@ Convergence (steady): the residual has dropped `residual_drop` orders AND every 
 (e.g. thrust, Cd) changed less than `monitor_tolerance` (relative) over the last `monitor_window` iterations.
 """
 
+import math
 import time
 from dataclasses import dataclass, field
 
@@ -49,6 +50,8 @@ TIME_SCHEMES = (SSP_RK3, JAMESON_RK4)
 MAX_CFL_REDUCTIONS = 4        # halve the CFL number at most this often before giving up
 CHECKPOINT_EVERY = 20         # iterations between saved "last good" states
 NORM_ITERATIONS = 5           # residuals are normalised by their largest value in the first 5 iterations
+STALL_ORDERS = 3.0            # the limiter may be frozen on a stall only after this residual drop [orders]
+STALL_ITERATIONS = 1000       # ... when the residual has made no new lowest value for this many iterations
 
 CONVERGED, MAX_ITERATIONS, DIVERGED, END_TIME, STOPPED = (
     "converged", "max_iterations", "diverged", "end_time", "stopped")
@@ -99,6 +102,21 @@ class SolveResult:
     limiter_frozen_at: int | None = None
     diverged_at: tuple | None = None  # centre (x, y) [m] of the first unphysical cell of the last failure
     message: str = ""
+    norm: np.ndarray | None = None    # residual normalisation (per equation), kept when a run is continued
+    limiter: np.ndarray | None = None # the frozen limiter (n_vars, C), or None if it was not frozen
+    first_iteration: int = 1          # number of the first iteration of THIS part of the run (159 when continued)
+
+
+@dataclass
+class Continuation:
+    """What a run needs from an earlier run to carry on from it (aeroflowsim/euler/setup.py builds it)."""
+
+    iterations: int                   # iterations done so far (the next one is iterations + 1)
+    residuals: np.ndarray             # (iterations, n_vars) normalised residual history
+    monitors: dict                    # name -> values per iteration
+    norm: np.ndarray | None = None    # the residual normalisation of the earlier run
+    limiter: np.ndarray | None = None # its frozen limiter (n_vars, C), or None
+    limiter_frozen_at: int | None = None
 
 
 class EulerSolver:
@@ -224,8 +242,13 @@ class EulerSolver:
 
     # ---- the loop ----------------------------------------------------------------------------------
 
-    def solve(self, W0, progress=None, monitor=None, monitor_scales=None, converge_on=()):
+    def solve(self, W0, progress=None, monitor=None, monitor_scales=None, converge_on=(), continuation=None):
         """March from the primitive state W0 (n_vars, C) and return a SolveResult.
+
+        continuation: a Continuation of an earlier run whose final state is W0. The iterations are then numbered
+            on from it (iteration 159 after 158), its residual and monitor histories are carried on (so the
+            convergence criteria see the whole run), the residuals keep its normalisation and a limiter it had
+            frozen stays frozen. Maximum iterations counts the whole run.
 
         progress(iteration, residual, info): called every iteration. If it returns True (the user pressed Stop),
             the run ends cleanly after this iteration with status "stopped" and the flow of that moment.
@@ -249,7 +272,22 @@ class EulerSolver:
         it = 0
         frozen_at = None
         failed_at = None
+        lowest, lowest_it = math.inf, 0          # lowest residual so far and its iteration (stall detection)
         self.psi_frozen = None
+        if continuation is not None and continuation.iterations > 0:
+            it = good_it = int(continuation.iterations)
+            res_hist = [np.asarray(r, dtype=float) for r in continuation.residuals][:it]
+            mon_hist = {k: [float(v) for v in values][:it] for k, values in continuation.monitors.items()}
+            if continuation.norm is not None:
+                norm = np.asarray(continuation.norm, dtype=float)
+            if res_hist:
+                levels = np.array([r.max() for r in res_hist])
+                lowest_it = int(np.argmin(levels)) + 1
+                lowest = float(levels[lowest_it - 1])
+            psi = continuation.limiter
+            if psi is not None and np.shape(psi) == (n_vars, self.geom.n_cells):
+                self.psi_frozen = np.asarray(psi, dtype=float).copy()
+                frozen_at = continuation.limiter_frozen_at
         steady = num.end_time is None
         if not steady:
             num.local_time_stepping = False
@@ -298,8 +336,15 @@ class EulerSolver:
                 for k, v in values.items():
                     mon_hist.setdefault(k, []).append(float(v))
                 level = float(res.max())
+                if level < lowest:
+                    lowest, lowest_it = level, it
+                # Freeze the limiter when the residual has dropped the set number of orders, or - after at least
+                # STALL_ORDERS - when it has made no new lowest value for STALL_ITERATIONS (limiter "chatter": tiny
+                # changes of psi in a few cells keep an oscillation alive). A run that keeps converging never meets
+                # the second condition, so its result is exactly what the first one alone gives.
                 if (num.freeze_limiter_orders > 0.0 and self.psi_frozen is None and second
-                        and level <= 10.0 ** (-num.freeze_limiter_orders)):
+                        and (level <= 10.0 ** (-num.freeze_limiter_orders)
+                             or (lowest <= 10.0 ** (-STALL_ORDERS) and it - lowest_it >= STALL_ITERATIONS))):
                     self.psi_frozen = self.last_psi.copy()
                     frozen_at = it
                 if progress is not None and progress(it, level, {"residuals": res, "monitors": values,
@@ -324,7 +369,8 @@ class EulerSolver:
                            positivity_events=positivity_total, positivity_last=self.last_positivity,
                            cfl_reductions=cfl_reductions, cfl_final=cfl,
                            wall_time_s=time.perf_counter() - t_start, time=t_phys, limiter_frozen_at=frozen_at,
-                           diverged_at=failed_at, message=message)
+                           diverged_at=failed_at, message=message, norm=norm, limiter=self.psi_frozen,
+                           first_iteration=(continuation.iterations if continuation is not None else 0) + 1)
 
     def _step(self, U, W, dt, second):
         """One multistage step; returns (new U, residual dU/dt of the first stage)."""
@@ -363,5 +409,5 @@ def boundary_mass_flow(solver, patch_name):
     raise KeyError(patch_name)
 
 
-__all__ = ["Numerics", "EulerSolver", "SolveResult", "boundary_mass_flow", "normal_velocity",
+__all__ = ["Numerics", "EulerSolver", "SolveResult", "Continuation", "boundary_mass_flow", "normal_velocity",
            "SSP_RK3", "JAMESON_RK4", "TIME_SCHEMES"]

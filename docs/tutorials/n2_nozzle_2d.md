@@ -54,9 +54,11 @@ throat. About 20 minutes, most of it waiting for the run.
 - **Triangles (Gmsh)** mesh type: the same Isp to 0.1 %, but the residual stalls near 1e-4 at the sharp throat
   (see the gap register); the run stops at the iteration limit and the Convergence check says so.
 - **Stop and look:** press **Stop** at any time: the Results step shows the flow of that moment (marked
-  *stopped*, not converged).
-- **Restart:** set *Initial solution: Previous result (restart)* and *Maximum iterations* to a few thousand
-  more: the run continues from the saved (or stopped) result.
+  *stopped*, not converged). The Run button then reads **Continue (from iteration N + 1)**: it carries on, with
+  the residual and monitor curves continuing. **Start from scratch** begins again from the Initial solution.
+- **Change an input and continue:** after a run, change for example the back pressure and press Continue: the run
+  carries on from the current flow with the new value, much faster than from scratch. A new mesh always starts
+  from scratch (the old flow does not fit it).
 - **Save .vtu…** in the Results step writes every field and the velocity vector for ParaView.
 
 The numbers of all six meshes (structured and triangles, three sizes each) are in `validation/report.md`

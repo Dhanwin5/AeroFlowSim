@@ -767,7 +767,10 @@ step produces a negative density or pressure (or NaN), the last good state (save
 restored and the CFL number halved, at most 4 times; then the run stops cleanly as *diverged*, keeps the last
 good state, reports where it failed and the smart rule suggests what to change (12.10). **Stop** (the user)
 ends the run after the current iteration with the flow of that moment (status *stopped*, not converged), which
-can be inspected and continued with the restart initialisation. A **setup check** refuses an angle of attack on
+can be inspected. **Run carries on** from the current solution on the same mesh: the iterations are numbered on
+(159 after 158), the residuals keep their normalisation and the residual and monitor histories continue, so the
+convergence criteria see the whole run, and a frozen limiter stays frozen; *Maximum iterations* counts the whole
+run. Only *Start from scratch* (or a new mesh) begins again from the initial solution. A **setup check** refuses an angle of attack on
 an axisymmetric mesh before the run: an axisymmetric flow is the same all round the axis.
 
 ### 12.8 Residuals, monitors and convergence

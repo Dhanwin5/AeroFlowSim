@@ -15,8 +15,10 @@ p0 = 5 bar, T0 = 293.15 K and a back pressure of 1 kPa.
 - **Boundary conditions** (table in the Setup step; each boundary starts from the default for its kind):
   inlet = total-pressure inlet (p0, T0 of the Operating conditions), outlet = pressure outlet (the back
   pressure acts only where the exit flow is subsonic), wall = slip wall, axis = axis.
-- **Initial solution:** the isentropic quasi-1D flow of this nozzle (default), a slow uniform state, or
-  the previous result of the project (restart, same mesh).
+- **Continue or start from scratch:** Run carries on from the current solution when the project has one on
+  this mesh (after a Stop at iteration 158 the next is 159; the histories continue). *Start from scratch* (Run
+  step) begins again from the **Initial solution**: the isentropic quasi-1D flow of this nozzle (default) or a
+  slow uniform state. A new mesh always starts from scratch.
 - **Convergence:** the residual has dropped below the tolerance (default 6 orders) AND the thrust and the
   exit mass flow changed less than 1e-4 (relative) over the last 500 iterations.
 - **Results:** mass flow (in, out, and the ideal quasi-1D choked mass flow), discharge coefficient,

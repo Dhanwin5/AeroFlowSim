@@ -13,7 +13,8 @@ so one mesh serves every angle of attack (full domain only: a half domain needs 
 - **Boundary conditions** (table; each boundary starts from the default for its kind): far field =
   characteristic far field with the free stream (Riemann invariants: waves leave without reflection),
   wall = slip wall, symmetry / axis. Any boundary can be changed, e.g. a supersonic inlet upstream.
-- **Solver:** `aeroflowsim/euler/` (theory manual, section 12), uniform free-stream start or restart.
+- **Solver:** `aeroflowsim/euler/` (theory manual, section 12), uniform free-stream start; Run carries
+  on from the current solution when there is one on this mesh (Start from scratch begins again).
   For strong shocks (Mach 3 and above) the Run step's *Suggested numerics* proposes CFL 0.5 and 500
   first-order iterations; the carbuncle fix (HLLE blend at strong shocks) is on by default.
 - **Results:** Cl, Cd, Cm (about the quarter-length point, nose-up positive) with the shape's reference

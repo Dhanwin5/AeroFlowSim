@@ -113,3 +113,28 @@ def load_run(path) -> dict:
         if "mesh1d/x" in data:
             payload["mesh1d"] = Mesh1D(data["mesh1d/x"])
     return payload
+
+
+def continuation_data(result) -> dict:
+    """What a run needs to carry on from a finished (or stopped) 2D result: its fields, its histories (residual
+    per equation, monitors, frozen limiter) and its run facts (residual normalisation, iterations).
+    result: a Result, or the path of a run.npz. Used as run_case(..., restart=continuation_data(...))."""
+    if not isinstance(result, Result):
+        result = load_run(result)["result"]
+    return {"fields": {k: f.values for k, f in result.fields.items()}, "series": dict(result.series),
+            "info": dict(result.info), "iterations": int(result.iterations)}
+
+
+def can_continue(result, mesh) -> bool:
+    """True if a run can carry on from this result on this mesh: a 2D result (with its run facts) computed on this
+    same mesh (same mesh fingerprint; one value per cell)."""
+    if result is None or mesh is None or not getattr(result, "info", None) or "status" not in result.info:
+        return False
+    n = len(next(iter(result.fields.values())).values) if result.fields else -1
+    if n != getattr(mesh, "n_cells", -2) or "rho" not in result.fields:
+        return False
+    signature = result.info.get("mesh_signature")      # results of a different mesh of the same size: no
+    if signature is not None:
+        from aeroflowsim.euler.setup import mesh_signature
+        return signature == mesh_signature(mesh)
+    return True

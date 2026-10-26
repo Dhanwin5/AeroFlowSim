@@ -114,10 +114,11 @@ def test_a_stopped_run_returns_the_flow_of_that_moment_and_can_be_continued():
     r = out.result
     assert r.info["status"] == "stopped" and r.iterations == 25 and not r.converged
     check = next(c for c in out.checks if c.name == "Run status")
-    assert check.level == "warning" and "Previous result (restart)" in check.message
-    fields = {k: f.values for k, f in r.fields.items()}
-    again = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 1,
-                                          "initialisation": "Previous result (restart)"}, mesh=out.mesh, restart=fields)
+    assert check.level == "warning" and "carry on from iteration 26" in check.message
+    from aeroflowsim.result_io import continuation_data
+    again = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 26}, mesh=out.mesh,
+                                 restart=continuation_data(r))
+    assert again.result.iterations == 26              # one more iteration, numbered on
     assert abs(again.result.key_numbers["mdot"][0] / r.key_numbers["mdot"][0] - 1.0) < 0.01
 
 

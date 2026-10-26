@@ -176,6 +176,24 @@ def test_command_line_meshes_and_runs_a_2d_project(tmp_path, capsys):
     assert "Results saved" in capsys.readouterr().out
     reopened = Project.open(project.folder)
     assert reopened.status("mesh") == "ok" and reopened.load_results()["result"].iterations == 20
+    # Running the project again carries on (to 30 iterations in total); --fresh starts from scratch
+    assert main(["run", str(project.folder), "--set", "max_iter=30"]) == 2
+    assert "Continuing the saved run from iteration 21" in capsys.readouterr().out
+    result = Project.open(project.folder).load_results()["result"]
+    assert result.iterations == 30 and result.info["continued_from"] == 20
+    assert main(["run", str(project.folder), "--fresh"]) == 2
+    result = Project.open(project.folder).load_results()["result"]
+    assert result.iterations == 30 and result.info["continued_from"] is None
+
+
+def test_old_restart_choice_is_converted_when_the_project_is_opened(tmp_path):
+    project = Project.create("nozzle_axi", tmp_path / "Old.afsproj")
+    data = yaml.safe_load((project.folder / "project.yaml").read_text(encoding="utf-8"))
+    data["inputs"]["initialisation"] = "Previous result (restart)"
+    (project.folder / "project.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    reopened = Project.open(project.folder)
+    assert reopened.values["initialisation"] == "Quasi-1D solution"
+    assert any("no longer needed" in w for w in reopened.warnings) and reopened.params()
 
 
 def test_old_settings_file_becomes_a_project(tmp_path):

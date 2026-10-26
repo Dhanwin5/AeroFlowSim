@@ -85,7 +85,7 @@ def test_boundary_logic_keeps_shared_values_when_the_type_changes():
     assert without(table, row) == {}
 
 
-def test_nozzle_run_shows_monitors_2d_field_wall_pressure_and_restarts(qtbot, window, tmp_path):
+def test_nozzle_run_shows_monitors_2d_field_wall_pressure_and_continues(qtbot, window, tmp_path, monkeypatch):
     project = _mesh(qtbot, window, tmp_path, max_iter=60)
     window.run_case()
     _wait_job(qtbot, window)
@@ -101,14 +101,27 @@ def test_nozzle_run_shows_monitors_2d_field_wall_pressure_and_restarts(qtbot, wi
     page.cell_picked(0)
     labels = [window.properties.item(r, 0).text() for r in range(window.properties.rowCount())]
     assert "Mach number" in labels and "Pressure" in labels
-    first_mdot = window.results["result"].key_numbers["mdot"][0]
-    # Restart: continue the previous result for a few more iterations
-    window.apply_values({"initialisation": "Previous result (restart)", "max_iter": 5})
+    window_first_residuals = list(window.results["result"].residuals)
+    # Run again: it carries on from iteration 61. At Maximum iterations (60, the whole run) it says so first.
+    window.go_to("run")
+    assert run.run_button.text() == "Continue (from iteration 61)" and run.fresh_button.isVisible()
     window.run_case()
+    assert not window.runner.busy and window.current_step == "setup"        # told to raise Maximum iterations
+    window.apply_values({"max_iter": 70})
+    window.run_case()
+    qtbot.waitUntil(lambda: bool(window.runner.task.iterations), timeout=60_000)
+    assert window.runner.task.iterations[0] == 61
     _wait_job(qtbot, window)
     result = window.results["result"]
-    assert result.info["initialisation"] == "Previous result (restart)" and result.iterations == 5
-    assert abs(result.key_numbers["mdot"][0] / first_mdot - 1.0) < 0.02
+    assert result.iterations == 70 and result.info["continued_from"] == 60 and len(result.residuals) == 70
+    assert result.residuals[:60] == window_first_residuals
+    assert run._history[0][0] == 1 and len(run._history[0]) == 70           # the plot shows the whole run
+    # Start from scratch (after a confirmation) begins again at iteration 1
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
+    window.run_from_scratch()
+    _wait_job(qtbot, window)
+    result = window.results["result"]
+    assert result.info["continued_from"] is None and result.info["first_iteration"] == 1 and result.iterations == 70
 
 
 def test_results_of_an_older_mesh_are_not_painted_on_a_new_mesh(qtbot, window, tmp_path):
@@ -152,6 +165,18 @@ def test_stop_keeps_the_flow_of_that_moment(qtbot, window, tmp_path):
     assert "Stopped by you" in window.pages["run"].banner.text()
     window.go_to("results")
     assert window.pages["results"].flow_view.mesh_actor is not None   # the field is drawn
+    # Run again: it carries on from the next iteration (not from 1), and the plot keeps the earlier part
+    stopped_at = result.iterations
+    window.go_to("run")
+    assert window.pages["run"].run_button.text() == f"Continue (from iteration {stopped_at + 1})"
+    window.run_case()
+    qtbot.waitUntil(lambda: len(window.runner.task.iterations) >= 5, timeout=60_000)
+    assert window.runner.task.iterations[0] == stopped_at + 1
+    window.cancel_job()
+    _wait_job(qtbot, window)
+    again = window.results["result"]
+    assert again.info["continued_from"] == stopped_at and again.iterations > stopped_at
+    assert len(again.residuals) == again.iterations and again.residuals[:stopped_at] == result.residuals
 
 
 def test_angle_of_attack_on_an_axisymmetric_body_is_refused_before_the_run(qtbot, window, tmp_path, monkeypatch):
