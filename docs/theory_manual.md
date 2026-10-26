@@ -849,14 +849,14 @@ ghost state and the boundary value of the gradients both equal W_m at the face c
 
 Each mesh is solved from the exact solution to a residual drop of 8 orders; the error e = W_h - W_m(x_c) is measured
 in L1, L2 and Linf (area weighted) and the observed order between levels with ratio 2 is
-p = ln(e_coarse / e_fine) / ln 2. Results (full set, finest pair 64 -> 128 cells per side; `validation/report.md`):
+p = ln(e_coarse / e_fine) / ln 2. Results (full validation set of 26 October 2026; `validation/report.md`):
 
-| Mesh | planar, 2nd order, no limiter | axisymmetric | first order | Venkatakrishnan (32 -> 64) |
+| Mesh | planar, 2nd order, no limiter (64 -> 128) | axisymmetric (64 -> 128) | first order (32 -> 64) | Venkatakrishnan (32 -> 64) |
 |---|---|---|---|---|
-| quads | 1.98 - 2.17 | 2.02 - 2.07 | 0.89 - 0.97 | 1.17 - 1.58 |
-| smoothly distorted quads | 1.98 - 2.0 | 2.02 - 2.08 | 0.78 - 0.93 | 1.23 - 1.70 |
-| triangles | 2.00 - 2.09 | 2.02 - 2.08 | 0.92 - 0.99 | 0.71 - 1.01 |
-| mixed | 1.99 - 2.04 | 2.00 - 2.04 | 0.94 - 0.99 | 0.84 - 0.95 |
+| quads | 1.98 - 2.01 | 2.02 - 2.07 | 0.84 - 0.95 | 1.01 - 1.67 |
+| distorted quads | 1.98 - 1.99 | 2.02 - 2.08 | 0.66 - 0.89 | 1.24 - 1.84 |
+| triangles | 2.00 - 2.12 | 2.02 - 2.08 | 0.91 - 0.98 | 1.08 - 1.34 |
+| mixed | 1.99 - 2.02 | 2.00 - 2.04 | 0.94 - 0.98 | 1.07 - 1.29 |
 
 (ranges over rho, u, v, p in L2). The scheme is second-order accurate on every cell type and in axisymmetric form
 (including the well-balanced pressure source). With Venkatakrishnan's limiter the order stays near 1-1.6 and does

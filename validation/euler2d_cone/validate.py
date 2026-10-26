@@ -5,12 +5,9 @@
 """15 deg half-angle cone at Mach 2 (axisymmetric) with the external_2d template, against the Taylor-Maccoll
 solution (aeroflowsim.gasdynamics.taylor_maccoll, checked against the tables of Sims 1964, NASA SP-3004).
 
-Rectangle domain around the cone (axis = symmetry line), Gmsh triangles. The shock angle is fitted through the
-shock position on six lines parallel to the axis, a straight line through the tip. The shock position on a line is
-where the density gradient along it is largest (parabola through the largest sample and its neighbours). The
-half-level crossing used for the wedge is NOT used here: behind a conical shock the pressure keeps rising towards
-the cone (isentropic compression), so the level half-way between p_inf and the value just behind the shock is not
-the middle of the smeared shock (found in Prompt 7b: it gave 35.05 deg on the coarse mesh while Cp agreed to 0.1 %); the surface Cp is the mean over the wall cells between 30 %
+Rectangle domain around the cone (axis = symmetry line), Gmsh triangles. The shock angle is fitted, as for the
+wedge, through the positions where the pressure crosses half-way between p_inf and the Taylor-Maccoll value just
+behind the shock, on six lines parallel to the axis; the surface Cp is the mean over the wall cells between 30 %
 and 80 % of the cone length (away from the tip, where the conical flow needs a few cells to establish, and from
 the base corner).
 """
@@ -21,7 +18,7 @@ import numpy as np
 from scipy.interpolate import LinearNDInterpolator
 
 import aeroflowsim
-from aeroflowsim.gasdynamics import taylor_maccoll
+from aeroflowsim.gasdynamics import normal_shock, taylor_maccoll
 from validation.common import is_quick
 
 CASE = "cases/external_2d"
@@ -40,22 +37,20 @@ def _measure(out):
     mesh, r = out.mesh, out.result
     tm = taylor_maccoll(2.0, math.radians(HALF_ANGLE), 1.4)
     p_inf = out.params["p_inf"]
+    p_behind = normal_shock(2.0 * math.sin(tm["beta"]), 1.4)["p2_p1"] * p_inf
+    level = 0.5 * (p_inf + p_behind)
     xc, yc = mesh.cell_centres[:, 0], mesh.cell_centres[:, 1]
-    interp = LinearNDInterpolator(np.column_stack([xc, yc]), r.fields["rho"].values)
+    interp = LinearNDInterpolator(np.column_stack([xc, yc]), r.fields["p"].values)
     xs, ys = [], []
     L = 1.0
     t = math.tan(math.radians(HALF_ANGLE))
     for yk in np.linspace(0.15, 0.45, 6) * L:      # away from the tip, where the shock is only a few cells long
-        x = np.linspace(-0.2, yk / math.tan(math.radians(25.0)), 3000)   # between the free stream and the cone, before the base
-        rk = interp(x, np.full_like(x, yk))
-        ok = np.isfinite(rk)
-        x, rk = x[ok], rk[ok]
-        g = np.gradient(rk, x)
-        k = int(np.argmax(g))
-        if 0 < k < len(x) - 1:
-            a, b, c = g[k - 1], g[k], g[k + 1]
-            shift = 0.5 * (a - c) / (a - 2 * b + c) if (a - 2 * b + c) != 0 else 0.0
-            xs.append(x[k] + shift * (x[1] - x[0]))
+        x = np.linspace(-0.2, yk / t, 3000)
+        pk = interp(x, np.full_like(x, yk))
+        i = np.flatnonzero((pk[:-1] < level) & (pk[1:] >= level))
+        if len(i):
+            k = i[0]
+            xs.append(x[k] + (level - pk[k]) * (x[k + 1] - x[k]) / (pk[k + 1] - pk[k]))
             ys.append(yk)
     xs, ys = np.array(xs), np.array(ys)
     beta = math.degrees(math.atan(float(np.sum(xs * ys) / np.sum(xs * xs))))

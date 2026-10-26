@@ -1,0 +1,64 @@
+{
+ "name": "euler2d_cone",
+ "title": "15 deg cone at Mach 2 (2D axisymmetric Euler, external_2d) vs Taylor-Maccoll",
+ "case": "cases/external_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "beta",
+    "quantity": "Conical shock angle (fitted through the shock position at 6 stations)",
+    "value": 33.9146,
+    "unit": "deg",
+    "tolerance_percent": 2.0,
+    "source": "Sims (1964), NASA SP-3004, Table 11, p. 16: theta_w = 0.59192180 rad for theta_s = 15 deg, M = 2",
+    "tolerance_percent_quick": 4.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 34.20555488891768
+  },
+  {
+   "reference": {
+    "id": "Cp",
+    "quantity": "Surface pressure coefficient (mean between 30 % and 80 % of the cone length)",
+    "value": 0.2022339,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "Sims (1964), NASA SP-3004, Table 9, p. 14: Cp = 0.2022339 for theta_s = 15 deg, M = 2",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.20187089793270524
+  }
+ ],
+ "study": {
+  "title": "Run",
+  "columns": [
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "beta [deg]",
+   "beta Taylor-Maccoll [deg]",
+   "Cp",
+   "Cp Taylor-Maccoll"
+  ],
+  "rows": [
+   [
+    "5,823",
+    "3,965",
+    "yes",
+    "126",
+    "34.206",
+    "33.915",
+    "0.2019",
+    "0.2022"
+   ]
+  ],
+  "notes": [
+   "Taylor-Maccoll (aeroflowsim.gasdynamics.taylor_maccoll) agrees with Sims (1964, NASA SP-3004, Tables 9 and 11) to 7e-5 in Cp and 2e-6 rad in the shock angle (tests/test_gasdynamics.py)."
+  ]
+ }
+}

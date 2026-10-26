@@ -1,0 +1,92 @@
+{
+ "name": "euler2d_wedge",
+ "title": "Oblique shock on a 10 deg wedge at Mach 2 (2D Euler, external_2d)",
+ "case": "cases/external_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "beta",
+    "quantity": "Shock angle beta (fitted through the shock position at 6 stations)",
+    "value": 39.314,
+    "unit": "deg",
+    "tolerance_percent": 2.0,
+    "source": "theta-beta-M relation, weak shock, M1 = 2, theta = 10 deg, gamma = 1.4 (Anderson 2003, sec. 4.4)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 39.3509
+  },
+  {
+   "reference": {
+    "id": "p_ratio",
+    "quantity": "Wedge surface pressure / free-stream pressure p2/p1",
+    "value": 1.7066,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Oblique-shock relation p2/p1 = 1 + 2 gamma/(gamma + 1)(M1\u00b2 sin\u00b2 beta - 1) with beta = 39.314 deg (Anderson 2003, eq. 4.9)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.70719
+  },
+  {
+   "reference": {
+    "id": "M2",
+    "quantity": "Mach number behind the shock (on the wedge surface cells)",
+    "value": 1.6405,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Oblique-shock relation M2 = Mn2 / sin(beta - theta) (Anderson 2003, eq. 4.12)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.63161
+  }
+ ],
+ "study": {
+  "title": "Two meshes",
+  "columns": [
+   "Mesh",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "beta [deg]",
+   "p2/p1",
+   "M2",
+   "Cd (incl. base)"
+  ],
+  "rows": [
+   [
+    "wall 0.02 L",
+    "3,553",
+    "1,935",
+    "yes",
+    "22",
+    "39.351",
+    "1.7072",
+    "1.6316",
+    "0.1965"
+   ],
+   [
+    "wall 0.01 L",
+    "11,958",
+    "4,478",
+    "yes",
+    "215",
+    "39.244",
+    "1.7067",
+    "1.6328",
+    "0.1978"
+   ]
+  ],
+  "notes": [
+   "Theory: beta = 39.314 deg, p2/p1 = 1.7066, M2 = 1.6405.",
+   "Cd includes the base drag of the flat base (the base pressure is not part of the oblique-shock theory)."
+  ]
+ }
+}

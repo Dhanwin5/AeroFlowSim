@@ -1,0 +1,60 @@
+{
+ "name": "euler2d_prandtl_meyer",
+ "title": "Prandtl-Meyer expansion round a 10 deg corner at Mach 2 (2D Euler, geometry_2d)",
+ "case": "cases/geometry_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "M2",
+    "quantity": "Mach number downstream of the corner (wall cells, x = 0.4-0.9 m)",
+    "value": 2.38489,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Prandtl-Meyer function nu(M2) = nu(2) + 10 deg (Anderson 2003, eq. 4.44), aeroflowsim.gasdynamics.expansion",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 2.36616
+  },
+  {
+   "reference": {
+    "id": "p2_p1",
+    "quantity": "Pressure ratio p2/p1 downstream of the corner",
+    "value": 0.547969,
+    "unit": "-",
+    "tolerance_percent": 1.5,
+    "source": "Isentropic relation p2/p1 = (p0/p)(M1) / (p0/p)(M2) with M2 from the Prandtl-Meyer function (Anderson 2003, sec. 4.14)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.54803
+  }
+ ],
+ "study": {
+  "title": "Run",
+  "columns": [
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "M2",
+   "p2/p1"
+  ],
+  "rows": [
+   [
+    "5,267",
+    "1,092",
+    "yes",
+    "17",
+    "2.3662",
+    "0.5480"
+   ]
+  ],
+  "notes": [
+   "Wall cells next to a centred expansion: the first-cell values lag the exact fan slightly on coarse meshes (the fan is smeared over a few cells at the corner)."
+  ]
+ }
+}

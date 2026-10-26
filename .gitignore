@@ -31,3 +31,5 @@ docs/screenshots/
 # Example projects ship their results
 !examples/**/results/
 validation/mms_euler2d/last_study_quick.json
+!validation/results/
+validation/results_quick/

@@ -151,7 +151,39 @@ def validate_folder(folder: Path) -> CaseValidation:
         raise ValueError(f"{folder.name}/validate.py did not measure: {', '.join(missing)}")
     comparisons = [Comparison(r, float(measured[r.id])) for r in references]
     study = module.study() if hasattr(module, "study") else None
-    return CaseValidation(folder.name, header["title"], header["case"], comparisons, study)
+    v = CaseValidation(folder.name, header["title"], header["case"], comparisons, study)
+    save_result(v)
+    return v
+
+
+def _results_dir():
+    return VALIDATION_DIR / ("results_quick" if is_quick() else "results")
+
+
+def save_result(v):
+    """Keep one case's outcome (JSON) so the report can be rebuilt after re-running only some cases."""
+    import json
+    folder = _results_dir()
+    folder.mkdir(exist_ok=True)
+    data = {"name": v.name, "title": v.title, "case": v.case, "date": datetime.date.today().isoformat(),
+            "comparisons": [{"reference": c.reference.__dict__, "measured": c.measured} for c in v.comparisons],
+            "study": v.study}
+    (folder / f"{v.name}.json").write_text(json.dumps(data, indent=1, default=lambda o: float(o)
+                                                      if hasattr(o, "__float__") else str(o)), encoding="utf-8")
+
+
+def load_results(folders):
+    """CaseValidation of every folder from the saved JSON files (None if one is missing)."""
+    import json
+    out = []
+    for f in folders:
+        path = _results_dir() / f"{f.name}.json"
+        if not path.is_file():
+            return None
+        d = json.loads(path.read_text(encoding="utf-8"))
+        comps = [Comparison(Reference(**c["reference"]), c["measured"]) for c in d["comparisons"]]
+        out.append(CaseValidation(d["name"], d["title"], d["case"], comps, d["study"]))
+    return out
 
 
 def error_text(error_percent) -> str:
@@ -177,7 +209,9 @@ def write_report(validations: list[CaseValidation], path: Path | None = None) ->
            if is_quick() else "(all meshes of every case; run weekly and on version tags)."),
         "",
         f"**Overall: {'PASS' if overall else 'FAIL'}** "
-        f"({sum(v.passed for v in validations)} of {len(validations)} cases pass)",
+        f"({sum(v.passed for v in validations)} of {len(validations)} cases pass"
+        + (f"; {n_short} explained shortfall(s), see the cases marked SHORTFALL)" if (n_short := sum(
+            c.status == "SHORTFALL" for v in validations for c in v.comparisons)) else ")"),
         "",
     ]
     for v in validations:

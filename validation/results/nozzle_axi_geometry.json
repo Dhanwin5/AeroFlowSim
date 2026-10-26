@@ -1,0 +1,135 @@
+{
+ "name": "nozzle_axi_geometry",
+ "title": "Axisymmetric nozzle mesh geometry (default conical nozzle)",
+ "case": "cases/nozzle_axi",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "area_coarse",
+    "quantity": "Planar area of the half-nozzle profile, Coarse mesh",
+    "value": 2.529640625,
+    "unit": "mm\u00b2",
+    "tolerance_percent": 0.5,
+    "source": "Exact: r_in L_in + (r_in + r_t) L_c / 2 + (r_t + r_e) L_d / 2 (rectangle + two trapezoids)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 2.52934
+  },
+  {
+   "reference": {
+    "id": "volume_coarse",
+    "quantity": "Volume of revolution (2 pi x sum of axisymmetric cell volumes), Coarse mesh",
+    "value": 6.345769169,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.5,
+    "source": "Exact: pi r_in\u00b2 L_in + pi L/3 (r1\u00b2 + r1 r2 + r2\u00b2) for each cone frustum",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.3439
+  },
+  {
+   "reference": {
+    "id": "wall_coarse",
+    "quantity": "Wall patch length, Coarse mesh",
+    "value": 4.268998393,
+    "unit": "mm",
+    "tolerance_percent": 0.5,
+    "source": "Exact: L_in + L_c / cos 30 deg + L_d / cos 15 deg",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 4.2667
+  },
+  {
+   "reference": {
+    "id": "area_medium",
+    "quantity": "Planar area of the half-nozzle profile, Medium mesh",
+    "value": 2.529640625,
+    "unit": "mm\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: r_in L_in + (r_in + r_t) L_c / 2 + (r_t + r_e) L_d / 2 (rectangle + two trapezoids)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 2.52956
+  },
+  {
+   "reference": {
+    "id": "volume_medium",
+    "quantity": "Volume of revolution (2 pi x sum of axisymmetric cell volumes), Medium mesh",
+    "value": 6.345769169,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi r_in\u00b2 L_in + pi L/3 (r1\u00b2 + r1 r2 + r2\u00b2) for each cone frustum",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.3453
+  },
+  {
+   "reference": {
+    "id": "wall_medium",
+    "quantity": "Wall patch length, Medium mesh",
+    "value": 4.268998393,
+    "unit": "mm",
+    "tolerance_percent": 0.1,
+    "source": "Exact: L_in + L_c / cos 30 deg + L_d / cos 15 deg",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 4.26782
+  },
+  {
+   "reference": {
+    "id": "area_fine",
+    "quantity": "Planar area of the half-nozzle profile, Fine mesh",
+    "value": 2.529640625,
+    "unit": "mm\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: r_in L_in + (r_in + r_t) L_c / 2 + (r_t + r_e) L_d / 2 (rectangle + two trapezoids)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 2.52963
+  },
+  {
+   "reference": {
+    "id": "volume_fine",
+    "quantity": "Volume of revolution (2 pi x sum of axisymmetric cell volumes), Fine mesh",
+    "value": 6.345769169,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi r_in\u00b2 L_in + pi L/3 (r1\u00b2 + r1 r2 + r2\u00b2) for each cone frustum",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.3457
+  },
+  {
+   "reference": {
+    "id": "wall_fine",
+    "quantity": "Wall patch length, Fine mesh",
+    "value": 4.268998393,
+    "unit": "mm",
+    "tolerance_percent": 0.1,
+    "source": "Exact: L_in + L_c / cos 30 deg + L_d / cos 15 deg",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 4.26866
+  }
+ ],
+ "study": null
+}

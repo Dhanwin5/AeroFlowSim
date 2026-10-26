@@ -1,0 +1,303 @@
+{
+ "name": "external_geometry",
+ "title": "Gmsh mesh geometry: external domains and rounded-throat nozzle",
+ "case": "cases/external_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "cylinder_wall_default",
+    "quantity": "Cylinder D = 1 m: wall patch length, default mesh",
+    "value": 3.141592653589793,
+    "unit": "m",
+    "tolerance_percent": 0.1,
+    "source": "Exact: circumference pi D",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.14158
+  },
+  {
+   "reference": {
+    "id": "cylinder_wall_fine",
+    "quantity": "Cylinder D = 1 m: wall patch length, fine mesh (sizes / 2)",
+    "value": 3.141592653589793,
+    "unit": "m",
+    "tolerance_percent": 0.1,
+    "source": "Exact: circumference pi D",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.14159
+  },
+  {
+   "reference": {
+    "id": "cylinder_wall_finer",
+    "quantity": "Cylinder D = 1 m: wall patch length, finer mesh (sizes / 4)",
+    "value": 3.141592653589793,
+    "unit": "m",
+    "tolerance_percent": 0.1,
+    "source": "Exact: circumference pi D",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.14159
+  },
+  {
+   "reference": {
+    "id": "cylinder_area_default",
+    "quantity": "Cylinder: domain area, default mesh",
+    "value": 1255.8516632725198,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi (R\u00b2 - (D/2)\u00b2), R = 20 m far-field circle",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.28
+  },
+  {
+   "reference": {
+    "id": "cylinder_area_fine",
+    "quantity": "Cylinder: domain area, fine mesh (sizes / 2)",
+    "value": 1255.8516632725198,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi (R\u00b2 - (D/2)\u00b2), R = 20 m far-field circle",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.35
+  },
+  {
+   "reference": {
+    "id": "cylinder_area_finer",
+    "quantity": "Cylinder: domain area, finer mesh (sizes / 4)",
+    "value": 1255.8516632725198,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi (R\u00b2 - (D/2)\u00b2), R = 20 m far-field circle",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.72
+  },
+  {
+   "reference": {
+    "id": "diamond_area_default",
+    "quantity": "Diamond airfoil t/c = 0.1: domain area, default mesh",
+    "value": 1256.5870614359173,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2 - c t / 2 (circle minus rhombus)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1256.01
+  },
+  {
+   "reference": {
+    "id": "diamond_area_fine",
+    "quantity": "Diamond airfoil t/c = 0.1: domain area, fine mesh (sizes / 2)",
+    "value": 1256.5870614359173,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2 - c t / 2 (circle minus rhombus)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1256.08
+  },
+  {
+   "reference": {
+    "id": "diamond_area_finer",
+    "quantity": "Diamond airfoil t/c = 0.1: domain area, finer mesh (sizes / 4)",
+    "value": 1256.5870614359173,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2 - c t / 2 (circle minus rhombus)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1256.46
+  },
+  {
+   "reference": {
+    "id": "wedge_area_default",
+    "quantity": "Wedge 10 deg: domain area, default mesh",
+    "value": 1256.460734455209,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2 - L\u00b2 tan 10 deg (circle minus triangle)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.89
+  },
+  {
+   "reference": {
+    "id": "wedge_area_fine",
+    "quantity": "Wedge 10 deg: domain area, fine mesh (sizes / 2)",
+    "value": 1256.460734455209,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2 - L\u00b2 tan 10 deg (circle minus triangle)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.96
+  },
+  {
+   "reference": {
+    "id": "wedge_area_finer",
+    "quantity": "Wedge 10 deg: domain area, finer mesh (sizes / 4)",
+    "value": 1256.460734455209,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2 - L\u00b2 tan 10 deg (circle minus triangle)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1256.33
+  },
+  {
+   "reference": {
+    "id": "cone_volume_default",
+    "quantity": "Cone 15 deg: volume of revolution of the half domain, default mesh",
+    "value": 33510.24645288969,
+    "unit": "m\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: 4/3 pi R\u00b3 - pi R_b\u00b2 L / 3 (sphere minus cone), R_b = L tan 15 deg",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 33487.3
+  },
+  {
+   "reference": {
+    "id": "cone_volume_fine",
+    "quantity": "Cone 15 deg: volume of revolution of the half domain, fine mesh (sizes / 2)",
+    "value": 33510.24645288969,
+    "unit": "m\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: 4/3 pi R\u00b3 - pi R_b\u00b2 L / 3 (sphere minus cone), R_b = L tan 15 deg",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 33490.1
+  },
+  {
+   "reference": {
+    "id": "cone_volume_finer",
+    "quantity": "Cone 15 deg: volume of revolution of the half domain, finer mesh (sizes / 4)",
+    "value": 33510.24645288969,
+    "unit": "m\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: 4/3 pi R\u00b3 - pi R_b\u00b2 L / 3 (sphere minus cone), R_b = L tan 15 deg",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 33505.0
+  },
+  {
+   "reference": {
+    "id": "nozzle_structured_coarse",
+    "quantity": "Rounded-throat nozzle volume, structured Coarse",
+    "value": 6.349938281323374,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi [r_in\u00b2 L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c\u00b2 - u\u00b2))\u00b2 du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.34977
+  },
+  {
+   "reference": {
+    "id": "nozzle_structured_medium",
+    "quantity": "Rounded-throat nozzle volume, structured Medium",
+    "value": 6.349938281323374,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi [r_in\u00b2 L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c\u00b2 - u\u00b2))\u00b2 du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.34985
+  },
+  {
+   "reference": {
+    "id": "nozzle_structured_fine",
+    "quantity": "Rounded-throat nozzle volume, structured Fine",
+    "value": 6.349938281323374,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi [r_in\u00b2 L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c\u00b2 - u\u00b2))\u00b2 du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.34987
+  },
+  {
+   "reference": {
+    "id": "nozzle_triangles_default",
+    "quantity": "Rounded-throat nozzle volume, triangles, default mesh",
+    "value": 6.349938281323374,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi [r_in\u00b2 L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c\u00b2 - u\u00b2))\u00b2 du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.34994
+  },
+  {
+   "reference": {
+    "id": "nozzle_triangles_fine",
+    "quantity": "Rounded-throat nozzle volume, triangles, fine mesh (sizes / 2)",
+    "value": 6.349938281323374,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi [r_in\u00b2 L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c\u00b2 - u\u00b2))\u00b2 du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.34994
+  },
+  {
+   "reference": {
+    "id": "nozzle_triangles_finer",
+    "quantity": "Rounded-throat nozzle volume, triangles, finer mesh (sizes / 4)",
+    "value": 6.349938281323374,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi [r_in\u00b2 L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c\u00b2 - u\u00b2))\u00b2 du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 6.34994
+  }
+ ],
+ "study": null
+}

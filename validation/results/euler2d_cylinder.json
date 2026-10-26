@@ -1,0 +1,96 @@
+{
+ "name": "euler2d_cylinder",
+ "title": "Mach 6 cylinder: bow-shock stand-off and the carbuncle test (2D Euler, external_2d)",
+ "case": "cases/external_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "standoff",
+    "quantity": "Bow-shock stand-off distance / diameter (polar grid, carbuncle fix on)",
+    "value": 0.2197,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.22486
+  },
+  {
+   "reference": {
+    "id": "standoff_gmsh",
+    "quantity": "Bow-shock stand-off distance / diameter (Gmsh quad-dominant mesh, full front)",
+    "value": 0.2197,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.229327
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Final residual",
+   "Time [s]",
+   "Stand-off / D",
+   "Shock roughness",
+   "Carbuncle metric",
+   "Positivity events"
+  ],
+  "rows": [
+   [
+    "polar grid, carbuncle fix on",
+    "4,800",
+    "6,184",
+    "yes",
+    "1.0e-06",
+    "124",
+    "0.2249",
+    "0.77",
+    "1.05e-05",
+    "0"
+   ],
+   [
+    "polar grid, carbuncle fix OFF",
+    "4,800",
+    "12,000",
+    "NO",
+    "3.2e-01",
+    "266",
+    "0.2246",
+    "0.84",
+    "4.82e-04",
+    "0"
+   ],
+   [
+    "Gmsh quad-dominant, fix on",
+    "1,329",
+    "2,423",
+    "yes",
+    "9.9e-07",
+    "15",
+    "0.2293",
+    "-",
+    "1.23e-04",
+    "0"
+   ]
+  ],
+  "notes": [
+   "Billig correlation: stand-off / D = 0.2197.",
+   "Shock roughness: largest second difference of the shock radius between neighbouring grid rays, divided by the radial cell size (below 1: the front never jumps a whole cell between rays; it is similar with and without the fix here, so convergence is the clearer sign).",
+   "Carbuncle metric: peak-to-peak change of the volume-weighted pressure in the shock layer (box x = -0.45 to 0 D, y = 0 to 0.35 D) over the last 1,000 iterations, divided by its mean. It separates the runs clearly; the shock roughness above does not.",
+   "Without the fix (pure HLLC) the bow shock never settles on the shock-aligned grid: the residual stalls high; with the HLLE blend near the shock the run converges.",
+   "Inviscid, calorically perfect air (gamma = 1.4): a numerics test, not real Mach 6 air."
+  ]
+ }
+}

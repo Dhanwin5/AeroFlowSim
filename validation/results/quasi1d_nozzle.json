@@ -1,0 +1,133 @@
+{
+ "name": "quasi1d_nozzle",
+ "title": "Quasi-1D nozzle (N2 thruster, p0 = 5 bar, T0 = 293.15 K)",
+ "case": "cases/quasi1d_nozzle",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "M_exit",
+    "quantity": "Exit Mach number (p_back = 1 kPa)",
+    "value": 3.99,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "Isentropic area-Mach relation at A_exit/A_throat = 10.59 (supersonic branch)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.98019
+  },
+  {
+   "reference": {
+    "id": "p_exit",
+    "quantity": "Exit pressure (p_back = 1 kPa)",
+    "value": 3.36,
+    "unit": "kPa",
+    "tolerance_percent": 5.0,
+    "source": "Isentropic relation p0/p at the exit Mach number",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.36988
+  },
+  {
+   "reference": {
+    "id": "mdot",
+    "quantity": "Mass flow (p_back = 1 kPa)",
+    "value": 71.5,
+    "unit": "mg/s",
+    "tolerance_percent": 2.0,
+    "source": "Choked mass flow through the throat area",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 71.6005
+  },
+  {
+   "reference": {
+    "id": "F_vacuum",
+    "quantity": "Vacuum thrust (p_back = 1 kPa)",
+    "value": 50.8,
+    "unit": "mN",
+    "tolerance_percent": 2.0,
+    "source": "F_vac = mdot u_exit + p_exit A_exit from the isentropic exit state",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 50.9131
+  },
+  {
+   "reference": {
+    "id": "x_shock",
+    "quantity": "Normal-shock position past the throat (p_back = 2.5 bar)",
+    "value": 0.3208,
+    "unit": "mm",
+    "tolerance_percent": 2.0,
+    "source": "Normal shock in the divergent part: area-Mach + normal-shock relations matched to p_back = 2.5 bar",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.323142
+  }
+ ],
+ "study": {
+  "title": "Mesh-refinement study (cells doubled each time)",
+  "columns": [
+   "Cells",
+   "Iterations",
+   "Exit Mach",
+   "Change",
+   "Error vs theory %",
+   "Shock past throat [mm]",
+   "Shock error %"
+  ],
+  "rows": [
+   [
+    "150",
+    "9700",
+    "3.96866",
+    "",
+    "0.436",
+    "0.3253",
+    "1.41"
+   ],
+   [
+    "300",
+    "17935",
+    "3.98019",
+    "+0.01153",
+    "0.146",
+    "0.3231",
+    "0.73"
+   ],
+   [
+    "600",
+    "33459",
+    "3.98391",
+    "+0.00372",
+    "0.053",
+    "0.3232",
+    "0.76"
+   ],
+   [
+    "1200",
+    "74287",
+    "3.98517",
+    "+0.00126",
+    "0.021",
+    "0.3223",
+    "0.47"
+   ]
+  ],
+  "notes": [
+   "Exit Mach number: observed order of convergence p = 1.56 from the last three meshes; Richardson extrapolation 3.98582; isentropic theory 3.98602.",
+   "Shock position: the captured shock is one or two cells wide, so its interpolated position can move by up to a cell width between meshes; its error falls from 1.41 % (150 cells) to 0.47 % (1200 cells).",
+   "Supersonic runs converged to a residual drop of 1e-06; shock runs use 30 000 iterations per 300 cells (their residual stalls near 1e-3, see the case README)."
+  ]
+ }
+}

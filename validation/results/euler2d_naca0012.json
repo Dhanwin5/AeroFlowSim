@@ -1,0 +1,141 @@
+{
+ "name": "euler2d_naca0012",
+ "title": "NACA 0012, inviscid, Mach 0.8 and 0.5 at alpha 1.25 deg (2D Euler, C-domain, GCI)",
+ "case": "cases/external_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "Cl_transonic",
+    "quantity": "Lift coefficient, Mach 0.8, alpha 1.25 deg (GCI-extrapolated)",
+    "value": 0.352033,
+    "unit": "-",
+    "tolerance_percent": 3.0,
+    "source": "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 11, p. 1165: mean of FLO82 0.356209, OVERFLOW 0.351663, CFL3D 0.348226",
+    "tolerance_percent_quick": 12.0,
+    "pending": "",
+    "shortfall": "Study design, not the solver (found in Prompt 7b): halving only the WALL cell size refined the mesh very little (7,326 / 9,400 / 13,251 cells), because the far-field size (2 c) and the growth rate stayed fixed, so the shock region is barely refined; the GCI observed order of 10 shows the sequence is not a proper refinement, and the comparison falls back to the finest mesh (Cl 0.338, still rising: 0.311, 0.331, 0.338). The coarsest mesh also stopped at 40,000 iterations without converging. A systematic study (all sizes scaled together, up to about 100k cells) needs Prompt 8 speed; Cd (2.4 %) and the Mach 0.5 lift (2.9 %) are within their tolerances."
+   },
+   "measured": 0.338006
+  },
+  {
+   "reference": {
+    "id": "Cd_transonic",
+    "quantity": "Drag coefficient, Mach 0.8, alpha 1.25 deg (GCI-extrapolated)",
+    "value": 0.022547,
+    "unit": "-",
+    "tolerance_percent": 8.0,
+    "source": "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 11, p. 1165: mean of FLO82 0.022685, OVERFLOW 0.022453, CFL3D 0.022501",
+    "tolerance_percent_quick": 30.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.0220074
+  },
+  {
+   "reference": {
+    "id": "Cl_subcritical",
+    "quantity": "Lift coefficient, Mach 0.5, alpha 1.25 deg (GCI-extrapolated)",
+    "value": 0.179969,
+    "unit": "-",
+    "tolerance_percent": 3.0,
+    "source": "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 10, p. 1165: mean of FLO82 0.180346, OVERFLOW 0.179777, CFL3D 0.179784",
+    "tolerance_percent_quick": 8.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.174711
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Condition",
+   "Mesh",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "Cl",
+   "Cd",
+   "Cm"
+  ],
+  "rows": [
+   [
+    "Mach 0.8",
+    "wall 0.02 c",
+    "7,326",
+    "40,000",
+    "NO",
+    "1367",
+    "0.31123",
+    "0.021267",
+    "-0.02815"
+   ],
+   [
+    "Mach 0.8",
+    "wall 0.01 c",
+    "9,400",
+    "12,771",
+    "yes",
+    "581",
+    "0.33136",
+    "0.021797",
+    "-0.03324"
+   ],
+   [
+    "Mach 0.8",
+    "wall 0.005 c",
+    "13,251",
+    "26,749",
+    "yes",
+    "1432",
+    "0.33801",
+    "0.022007",
+    "-0.03527"
+   ],
+   [
+    "Mach 0.5",
+    "wall 0.02 c",
+    "7,326",
+    "37,080",
+    "yes",
+    "1240",
+    "0.17394",
+    "0.000966",
+    "-0.00156"
+   ],
+   [
+    "Mach 0.5",
+    "wall 0.01 c",
+    "9,400",
+    "28,388",
+    "yes",
+    "1433",
+    "0.17213",
+    "0.000460",
+    "-0.00097"
+   ],
+   [
+    "Mach 0.5",
+    "wall 0.005 c",
+    "13,251",
+    "40,000",
+    "NO",
+    "2874",
+    "0.17471",
+    "0.000294",
+    "-0.00151"
+   ]
+  ],
+  "notes": [
+   "Reference (Vassberg & Jameson 2010, Table 11, p. 1165): Mach 0.8, alpha 1.25 deg: continuum Cl 0.3482 (CFL3D) to 0.3562 (FLO82), Cd 0.02245 to 0.02268; Table 10: Mach 0.5, alpha 1.25 deg: Cl 0.17978 to 0.18035, Cd -> 0 (FLO82 4.5e-8).",
+   "Cm here is about the quarter chord (template convention); the reference's Cm is about the quarter chord as well.",
+   "Mach 0.8, Cl: GCI observed order 10.01, extrapolated value 0.339457, GCI fine 0.537 %, GCI coarse 3.06 %, asymptotic ratio 1.020.",
+   "Mach 0.8, Cd: GCI observed order 8.68, extrapolated value 0.0220685, GCI fine 0.347 %, GCI coarse 1.56 %, asymptotic ratio 1.010.",
+   "Mach 0.5, Cl: GCI observed order 1.78, extrapolated value 0.181928, GCI fine 5.16 %, GCI coarse 5.3 %, asymptotic ratio 0.756 (oscillatory convergence).",
+   "Mach 0.5, Cd: GCI observed order 10.04, extrapolated value 0.000257395, GCI fine 15.4 %, GCI coarse 55.1 %, asymptotic ratio 0.638.",
+   "Mach 0.5 drag on the three meshes: 0.000966, 0.000460, 0.000294 (inviscid subcritical flow has zero drag; it must fall with refinement)."
+  ]
+ }
+}

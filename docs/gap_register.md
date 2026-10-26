@@ -138,7 +138,7 @@ Last updated: Prompt 7b (2026-10-26).
 | 2D/3D field contours in the VTK view | done | P1 | Prompt 7: field, colour map, range, mesh edges, click a cell for all its values (smooth contour lines and isolines: 7b) |
 | Streamlines, line probes, surface plots (Cp vs x) | done | P1 | 7b |
 | Image / CSV / VTK export of solution fields | done | P1 | 7b: CSV (cells / nodes), VTU with node data, Tecplot ASCII, surface CSV, report-definition CSV; GUI and `export` command |
-| Order-preserving limiter | later | P2 | 7b MMS finding: Venkatakrishnan with a constant K loses order under refinement on smooth flows (triangles 0.7-1.0 at 32->64); e.g. Michalak and Ollivier-Gooch (2008) or a K that scales with h |
+| Order-preserving limiter | later | P2 | 7b MMS finding: Venkatakrishnan with a constant K loses order under refinement on smooth flows (triangles 0.7-1.0 at 64->128, 1.1-1.3 at 32->64); e.g. Michalak and Ollivier-Gooch (2008) or a K that scales with h |
 
 ## 7. Verification, validation, trust
 
@@ -149,7 +149,7 @@ Last updated: Prompt 7b (2026-10-26).
 | 2D Euler verification and first validation (free stream, well-balanced, gradients, BCs, 2D Sod along x and diagonal, Mach 2 wedge, Mach 6 cylinder + carbuncle test, N2 nozzle on 6 meshes) | done | P1 | Prompt 7: `tests/test_euler_*.py`, `validation/euler2d_*` |
 | Run the validation suite from the GUI (Tools menu) | done | P2 | |
 | MMS order-of-accuracy verification (structured and triangle meshes) | done | P1 | 7b: aeroflowsim/mms.py, validation/mms_euler2d: L2 order 1.98-2.02 on quads, distorted quads, triangles, mixed, planar and axisymmetric |
-| 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012, Prandtl-Meyer) | done | P1 | 7b: all added; BMG point z = 2.24 in is a documented SHORTFALL (0.80 vs 0.87, mesh-converged; cause not settled: steep gradient, position and tap-size uncertainty); NACA 0012 study on three coarse meshes only (finer ones need Prompt 8 speed) |
+| 2D validation cases (wedge, diamond, cone, cylinder stand-off, BMG nozzle, NACA 0012, Prandtl-Meyer) | done | P1 | 7b: all added; BMG point z = 2.24 in is a documented SHORTFALL (0.80 vs 0.87, mesh-converged; cause not settled: steep gradient, position and tap-size uncertainty); NACA 0012: the three meshes were not refined systematically (only the wall size was halved: 7k / 9k / 13k cells), Cl 0.338 vs 0.352 is a documented SHORTFALL; a proper study needs Prompt 8 speed |
 | BMG nozzle: tabulated measurements and a position-uncertainty band | later | P2 | the data are digitized from the report's Fig. 4; a z-uncertainty band (slope x dz) would judge the steep throat region fairly |
 | Diamond-airfoil residual stall | partial | P2 | 7b: ~4e-3 in a few cells at the lower leading-edge shock foot (limiter limit cycle, found with the per-cell residual field); Cl, Cd steady to 1e-6. Prompt 8 (implicit) |
 | Quick validation set on every push, full set weekly / on tags | done | P1 | 7b: AEROFLOWSIM_VALIDATION_SET=quick, run_all.py --quick, workflows tests.yml / validation.yml |

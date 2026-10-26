@@ -1,0 +1,93 @@
+{
+ "name": "sod",
+ "title": "Sod shock tube (Toro test 1, t = 0.2 s, 400 cells)",
+ "case": "cases/sod_shock_tube",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "p_star",
+    "quantity": "Star-region pressure p* (at x = 0.75 m)",
+    "value": 0.30313,
+    "unit": "Pa",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.303136
+  },
+  {
+   "reference": {
+    "id": "u_star",
+    "quantity": "Star-region velocity u* (at x = 0.75 m)",
+    "value": 0.92745,
+    "unit": "m/s",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: u* = 0.92745",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.927469
+  },
+  {
+   "reference": {
+    "id": "rho_star_L",
+    "quantity": "Density left of the contact rho*L (at x = 0.6 m)",
+    "value": 0.42632,
+    "unit": "kg/m\u00b3",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: rho*L = 0.42632",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.426235
+  },
+  {
+   "reference": {
+    "id": "rho_star_R",
+    "quantity": "Density right of the contact rho*R (at x = 0.75 m)",
+    "value": 0.26557,
+    "unit": "kg/m\u00b3",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.265558
+  },
+  {
+   "reference": {
+    "id": "shock_travel",
+    "quantity": "Shock distance from the diaphragm",
+    "value": 0.350432,
+    "unit": "m",
+    "tolerance_percent": 2.0,
+    "source": "Exact shock speed 1.75216 m/s x 0.2 s (Toro 2009, test 1)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.351345
+  },
+  {
+   "reference": {
+    "id": "contact_travel",
+    "quantity": "Contact distance from the diaphragm",
+    "value": 0.18549,
+    "unit": "m",
+    "tolerance_percent": 2.0,
+    "source": "Contact speed u* = 0.92745 m/s x 0.2 s (Toro 2009, test 1)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.184991
+  }
+ ],
+ "study": null
+}

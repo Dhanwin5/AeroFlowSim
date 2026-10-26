@@ -29,7 +29,7 @@ Order of work (addendum A): Part 6 → Parts 1-2 → Part 7 → Part 3 → Parts
 - Quick set writes `validation/report_quick.md`, full set `validation/report.md`; references may have `tolerance_percent_quick` and `shortfall` (status SHORTFALL: shown with its explanation, not counted as failure).
 - Mass-weighted average uses rho |V.n| (Fluent). Boundary fluxes in post-processing are the solver's stored final fluxes.
 - Cone reference: Sims 1964 (NASA SP-3004, tabulated) instead of the charts of NACA 1135.
-- Cone shock located by the maximum density gradient (the half-level method is biased behind a conical shock).
+- Cone shock angle: half-level crossing (tested against the maximum density gradient, the 5 % foot and M_n = 1 on the fine mesh: only the half-level crossing converges to the exact angle: 35.05 deg coarse, 34.21 deg fine, exact 33.91 deg); quick-set tolerance 4 % for the coarse mesh.
 - .afsproj association: every project folder gets a small file `project.afsproj`; double-clicking it opens the folder.
 - `run_all.py` runs cases sequentially by default (`--jobs N` parallel).
 
@@ -39,4 +39,7 @@ Order of work (addendum A): Part 6 → Parts 1-2 → Part 7 → Part 3 → Parts
 - Venkatakrishnan limiter loses order under refinement on smooth flows (MMS, triangles ~0.7-1.0). Gap register.
 - BMG z = 2.24 in: 0.80 vs 0.87 measured, mesh-converged; cause not settled (steep gradient + position uncertainty, tap size). Gap register.
 - Interpolated start only ~8 % fewer iterations (residual normalisation by the first iterations). Gap register.
+- NACA 0012 Cl: SHORTFALL (study design: meshes not refined systematically; Prompt 8).
+- Quick set: passes but takes about 32 min (target 10 min; NACA 9.5, quasi-1D 5.6, nozzle 5, diamond 4.5 min): Prompt 8 speed.
+- Full validation 26 Oct: 15 of 15 cases pass with 2 explained shortfalls (BMG z = 2.24 in, NACA 0012 Cl); all 72 earlier validated numbers unchanged (rule 4). Validation results are now kept per case (validation/results/*.json) so single cases can be re-run and the report rebuilt.
 - Two idle Python processes of an earlier parallel validation run could not be stopped (permission); they finished by themselves.

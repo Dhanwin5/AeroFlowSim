@@ -1,0 +1,171 @@
+{
+ "name": "euler2d_sod",
+ "title": "Sod shock tube with the 2D Euler solver (along x, and along a diagonal of a triangle mesh)",
+ "case": "cases/sod_shock_tube",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "p_star_x",
+    "quantity": "Along x: star-region pressure p*",
+    "value": 0.30313,
+    "unit": "Pa",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.303131
+  },
+  {
+   "reference": {
+    "id": "u_star_x",
+    "quantity": "Along x: star-region velocity u*",
+    "value": 0.92745,
+    "unit": "m/s",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.927483
+  },
+  {
+   "reference": {
+    "id": "rho_star_L_x",
+    "quantity": "Along x: density left of the contact rho*L",
+    "value": 0.42632,
+    "unit": "kg/m\u00b3",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.426291
+  },
+  {
+   "reference": {
+    "id": "rho_star_R_x",
+    "quantity": "Along x: density right of the contact rho*R",
+    "value": 0.26557,
+    "unit": "kg/m\u00b3",
+    "tolerance_percent": 1.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.26559
+  },
+  {
+   "reference": {
+    "id": "shock_travel_x",
+    "quantity": "Along x: shock distance from the diaphragm",
+    "value": 0.350432,
+    "unit": "m",
+    "tolerance_percent": 2.0,
+    "source": "Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.350815
+  },
+  {
+   "reference": {
+    "id": "contact_travel_x",
+    "quantity": "Along x: contact distance from the diaphragm",
+    "value": 0.18549,
+    "unit": "m",
+    "tolerance_percent": 2.0,
+    "source": "Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.185673
+  },
+  {
+   "reference": {
+    "id": "p_star_diag",
+    "quantity": "Diagonal, triangles: star-region pressure p*",
+    "value": 0.30313,
+    "unit": "Pa",
+    "tolerance_percent": 2.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.300762
+  },
+  {
+   "reference": {
+    "id": "u_star_diag",
+    "quantity": "Diagonal, triangles: star-region speed along the diagonal u*",
+    "value": 0.92745,
+    "unit": "m/s",
+    "tolerance_percent": 2.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.917851
+  },
+  {
+   "reference": {
+    "id": "rho_star_L_diag",
+    "quantity": "Diagonal, triangles: density left of the contact rho*L",
+    "value": 0.42632,
+    "unit": "kg/m\u00b3",
+    "tolerance_percent": 2.0,
+    "source": "Exact Riemann solution, Toro (2009) ch. 4, test 1: p* = 0.30313, u* = 0.92745, rho*L = 0.42632, rho*R = 0.26557",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.424467
+  },
+  {
+   "reference": {
+    "id": "shock_travel_diag",
+    "quantity": "Diagonal, triangles: shock distance from the diaphragm",
+    "value": 0.350432,
+    "unit": "m",
+    "tolerance_percent": 3.0,
+    "source": "Exact shock speed 1.75216 m/s and contact speed u* = 0.92745 m/s, x 0.2 s (Toro 2009, test 1)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.35129
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Wall-clock time [s]"
+  ],
+  "rows": [
+   [
+    "along x, quads",
+    "800",
+    "1.7"
+   ],
+   [
+    "diagonal, triangles",
+    "20,000",
+    "16.8"
+   ]
+  ],
+  "notes": [
+   "Second order (least-squares gradients, Venkatakrishnan limiter), SSP-RK3, CFL 0.8, one global time step; time-accurate to t = 0.2 s."
+  ]
+ }
+}

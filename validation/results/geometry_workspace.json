@@ -1,0 +1,177 @@
+{
+ "name": "geometry_workspace",
+ "title": "Geometry workspace: sketched, enclosed and plume geometries",
+ "case": "cases/geometry_2d",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "cylinder_area_default",
+    "quantity": "Circle R = 20 m minus cylinder D = 1 m: domain area, default mesh",
+    "value": 1255.8516632725198,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi (R\u00b2 - (D/2)\u00b2)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.29
+  },
+  {
+   "reference": {
+    "id": "cylinder_area_fine",
+    "quantity": "Circle R = 20 m minus cylinder D = 1 m: domain area, fine mesh (sizes / 2)",
+    "value": 1255.8516632725198,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi (R\u00b2 - (D/2)\u00b2)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.33
+  },
+  {
+   "reference": {
+    "id": "cylinder_area_finer",
+    "quantity": "Circle R = 20 m minus cylinder D = 1 m: domain area, finer mesh (sizes / 4)",
+    "value": 1255.8516632725198,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi (R\u00b2 - (D/2)\u00b2)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1255.72
+  },
+  {
+   "reference": {
+    "id": "cylinder_wall_default",
+    "quantity": "Circle minus cylinder: wall patch length, default mesh",
+    "value": 3.141592653589793,
+    "unit": "m",
+    "tolerance_percent": 0.1,
+    "source": "Exact: circumference pi D",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.14158
+  },
+  {
+   "reference": {
+    "id": "cylinder_wall_fine",
+    "quantity": "Circle minus cylinder: wall patch length, fine mesh (sizes / 2)",
+    "value": 3.141592653589793,
+    "unit": "m",
+    "tolerance_percent": 0.1,
+    "source": "Exact: circumference pi D",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.14159
+  },
+  {
+   "reference": {
+    "id": "cylinder_wall_finer",
+    "quantity": "Circle minus cylinder: wall patch length, finer mesh (sizes / 4)",
+    "value": 3.141592653589793,
+    "unit": "m",
+    "tolerance_percent": 0.1,
+    "source": "Exact: circumference pi D",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.14159
+  },
+  {
+   "reference": {
+    "id": "naca_area_default",
+    "quantity": "C-domain minus NACA 0012: domain area, default mesh",
+    "value": 466.9979266794897,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c\u00b2",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 466.928
+  },
+  {
+   "reference": {
+    "id": "naca_area_fine",
+    "quantity": "C-domain minus NACA 0012: domain area, fine mesh (sizes / 2)",
+    "value": 466.9979266794897,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c\u00b2",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 466.928
+  },
+  {
+   "reference": {
+    "id": "naca_area_finer",
+    "quantity": "C-domain minus NACA 0012: domain area, finer mesh (sizes / 4)",
+    "value": 466.9979266794897,
+    "unit": "m\u00b2",
+    "tolerance_percent": 0.1,
+    "source": "Exact: pi R\u00b2/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c\u00b2",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 466.935
+  },
+  {
+   "reference": {
+    "id": "plume_volume_default",
+    "quantity": "Nozzle + plume region: volume of revolution, default mesh",
+    "value": 600.1523581383,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: nozzle volume 6.345769169 mm\u00b3 + pi (5 D_e)\u00b2 (10 D_e)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 600.152
+  },
+  {
+   "reference": {
+    "id": "plume_volume_fine",
+    "quantity": "Nozzle + plume region: volume of revolution, fine mesh (sizes / 2)",
+    "value": 600.1523581383,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: nozzle volume 6.345769169 mm\u00b3 + pi (5 D_e)\u00b2 (10 D_e)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 600.152
+  },
+  {
+   "reference": {
+    "id": "plume_volume_finer",
+    "quantity": "Nozzle + plume region: volume of revolution, finer mesh (sizes / 4)",
+    "value": 600.1523581383,
+    "unit": "mm\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: nozzle volume 6.345769169 mm\u00b3 + pi (5 D_e)\u00b2 (10 D_e)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 600.152
+  }
+ ],
+ "study": null
+}

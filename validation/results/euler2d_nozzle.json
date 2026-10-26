@@ -1,0 +1,206 @@
+{
+ "name": "euler2d_nozzle",
+ "title": "N2 nozzle, 2D axisymmetric Euler (default nozzle_axi; structured and triangle meshes, three sizes)",
+ "case": "cases/nozzle_axi",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "mass_balance",
+    "quantity": "Exit / inlet mass flow (converged: mass is conserved)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.1,
+    "source": "Conservation of mass: a converged finite-volume solution has equal inlet and exit mass flow",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "thrust_two_ways",
+    "quantity": "Thrust from wall pressure + inlet momentum / thrust from the exit plane",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.2,
+    "source": "Conservation of momentum: the x-momentum balance of the nozzle gas (inlet + wall + exit = 0)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.999999
+  },
+  {
+   "reference": {
+    "id": "Isp_vacuum",
+    "quantity": "Vacuum specific impulse (structured 200 x 40)",
+    "value": 71.29,
+    "unit": "s",
+    "tolerance_percent": 1.0,
+    "source": "Ideal quasi-1D vacuum Isp of this wall, 72.53 s, x conical divergence factor (1 + cos 15 deg)/2 = 0.98296 (Malina 1940; Sutton & Biblarz 2017, eq. 3-34)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 71.4748
+  },
+  {
+   "reference": {
+    "id": "Isp_vacuum_triangles",
+    "quantity": "Vacuum specific impulse (Gmsh triangles, 5,505 cells)",
+    "value": 71.29,
+    "unit": "s",
+    "tolerance_percent": 1.0,
+    "source": "Ideal quasi-1D vacuum Isp of this wall, 72.53 s, x conical divergence factor (1 + cos 15 deg)/2 = 0.98296 (Malina 1940; Sutton & Biblarz 2017, eq. 3-34)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 71.4732
+  }
+ ],
+ "study": {
+  "title": "Mesh study",
+  "columns": [
+   "Mesh",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "Mass flow [mg/s]",
+   "Cd",
+   "F exit [mN]",
+   "F wall [mN]",
+   "Isp [s]",
+   "Isp / Isp 1D",
+   "p0 loss [%]"
+  ],
+  "rows": [
+   [
+    "structured 50 x 10",
+    "500",
+    "4,672",
+    "yes",
+    "13",
+    "68.4750",
+    "0.9581",
+    "47.9973",
+    "47.9975",
+    "71.477",
+    "0.9855",
+    "2.609"
+   ],
+   [
+    "structured 100 x 20",
+    "2,000",
+    "8,095",
+    "yes",
+    "68",
+    "67.6312",
+    "0.9463",
+    "47.3907",
+    "47.3913",
+    "71.454",
+    "0.9852",
+    "2.902"
+   ],
+   [
+    "structured 200 x 40",
+    "8,000",
+    "24,688",
+    "yes",
+    "1300",
+    "67.2131",
+    "0.9404",
+    "47.1116",
+    "47.1115",
+    "71.475",
+    "0.9855",
+    "2.541"
+   ],
+   [
+    "triangles, wall 0.16 D_t",
+    "1,098",
+    "30,000",
+    "NO",
+    "212",
+    "67.5969",
+    "0.9458",
+    "47.3525",
+    "47.3324",
+    "71.432",
+    "0.9849",
+    "4.715"
+   ],
+   [
+    "triangles, wall 0.08 D_t",
+    "2,350",
+    "30,000",
+    "NO",
+    "290",
+    "67.2139",
+    "0.9405",
+    "47.0977",
+    "47.1522",
+    "71.453",
+    "0.9852",
+    "4.053"
+   ],
+   [
+    "triangles, wall 0.04 D_t",
+    "5,505",
+    "30,000",
+    "NO",
+    "639",
+    "67.0710",
+    "0.9385",
+    "47.0109",
+    "46.9250",
+    "71.473",
+    "0.9855",
+    "3.501"
+   ],
+   [
+    "rounded throat, structured 100 x 20",
+    "2,000",
+    "12,198",
+    "yes",
+    "123",
+    "71.0768",
+    "0.9945",
+    "49.7479",
+    "49.7478",
+    "71.372",
+    "0.9841",
+    "0.046"
+   ],
+   [
+    "rounded throat, structured 200 x 40",
+    "8,000",
+    "28,239",
+    "yes",
+    "1207",
+    "71.0594",
+    "0.9943",
+    "49.7270",
+    "49.7271",
+    "71.359",
+    "0.9839",
+    "0.100"
+   ]
+  ],
+  "notes": [
+   "Quasi-1D template (cases/quasi1d_nozzle, defaults): vacuum Isp 72.509 s, mass flow 71.6005 mg/s; ideal quasi-1D theory of the same wall 72.526 s.",
+   "Conical divergence estimate: 72.53 s x (1 + cos 15 deg)/2 = 71.29 s (point-source flow).",
+   "Cd = mass flow / ideal quasi-1D choked mass flow of the same throat; the throat is sharp (Rcu = Rcd = 0), so the sonic line is curved and the 2D nozzle passes less than 1D theory.",
+   "p0 loss: drop of the mass-flux-weighted exit total pressure below the inlet p0 = 5 bar (numerical entropy; an isentropic nozzle loses nothing). Most of it is made at the SHARP throat corner, a singular expansion point of the inviscid flow; it does not fall clearly on these meshes. With a rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4) the coarsest triangle mesh already gives about 1 %.",
+   "Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Prompt 8) is the planned cure (gap register).",
+   "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in Prompt 8).",
+   "Structured meshes, Isp (GCI tool, aeroflowsim/gci.py): observed order 0.13, extrapolated value 71.6962 s, GCI fine 0.387 %, GCI coarse 0.424 %, asymptotic ratio 1.000 (oscillatory convergence).",
+   "Sharp vs rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4), structured 100 x 20 and 200 x 40: p0 loss 2.902 / 2.541 % (sharp) and 0.046 / 0.100 % (rounded); Cd 0.9463 / 0.9404 (sharp) and 0.9945 / 0.9943 (rounded).",
+   "Finding: rounded-throat loss smaller than the sharp one and NOT falling with refinement (see the gap register)."
+  ]
+ }
+}

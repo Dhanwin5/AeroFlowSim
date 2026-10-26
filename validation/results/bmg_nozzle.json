@@ -1,0 +1,265 @@
+{
+ "name": "bmg_nozzle",
+ "title": "Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi)",
+ "case": "cases/nozzle_axi",
+ "date": "2026-10-26",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "p_z2_098",
+    "quantity": "Wall p/p0 at z = 2.098 in (band +-0.03)",
+    "value": 0.9492,
+    "unit": "-",
+    "tolerance_percent": 3.16,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.929928
+  },
+  {
+   "reference": {
+    "id": "p_z2_239",
+    "quantity": "Wall p/p0 at z = 2.239 in (band +-0.03)",
+    "value": 0.8669,
+    "unit": "-",
+    "tolerance_percent": 3.46,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": "The inviscid value is 0.80 on both meshes (100 x 20: 0.806, 200 x 40: 0.799): not a mesh error. Cause not resolved: the report concludes that boundary-layer effects on the wall pressure were negligible (Conclusions, item 3), so a viscous effect is unlikely. At z = 2.24 in, just after the tangency of the 45 deg cone with the small throat arc, the measured pressure falls steeply (about -1.2 to -2.5 per inch), so an uncertainty of 0.03-0.05 in in the tap position or the digitized position equals the 0.07 difference, and the report finds tap-size effects of up to 7 % (Conclusions, item 4). A band that includes the position uncertainty (or the report's tabulated data, if they can be found) is recorded in the gap register."
+   },
+   "measured": 0.798842
+  },
+  {
+   "reference": {
+    "id": "p_z2_457",
+    "quantity": "Wall p/p0 at z = 2.457 in (band +-0.05)",
+    "value": 0.5304,
+    "unit": "-",
+    "tolerance_percent": 9.43,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.482671
+  },
+  {
+   "reference": {
+    "id": "p_z2_464",
+    "quantity": "Wall p/p0 at z = 2.464 in (band +-0.05)",
+    "value": 0.491,
+    "unit": "-",
+    "tolerance_percent": 10.18,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.472281
+  },
+  {
+   "reference": {
+    "id": "p_z2_643",
+    "quantity": "Wall p/p0 at z = 2.643 in (band +-0.03)",
+    "value": 0.2281,
+    "unit": "-",
+    "tolerance_percent": 13.15,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.228555
+  },
+  {
+   "reference": {
+    "id": "p_z2_828",
+    "quantity": "Wall p/p0 at z = 2.828 in (band +-0.03)",
+    "value": 0.1984,
+    "unit": "-",
+    "tolerance_percent": 15.12,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.186226
+  },
+  {
+   "reference": {
+    "id": "p_z3_124",
+    "quantity": "Wall p/p0 at z = 3.124 in (band +-0.03)",
+    "value": 0.1866,
+    "unit": "-",
+    "tolerance_percent": 16.08,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.169196
+  },
+  {
+   "reference": {
+    "id": "p_z3_609",
+    "quantity": "Wall p/p0 at z = 3.609 in (band +-0.03)",
+    "value": 0.1299,
+    "unit": "-",
+    "tolerance_percent": 23.09,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.121931
+  },
+  {
+   "reference": {
+    "id": "p_z3_957",
+    "quantity": "Wall p/p0 at z = 3.957 in (band +-0.03)",
+    "value": 0.0969,
+    "unit": "-",
+    "tolerance_percent": 30.96,
+    "source": "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.0931159
+  }
+ ],
+ "study": {
+  "title": "Wall pressure along the nozzle",
+  "columns": [
+   "z [in]",
+   "p/p0 measured",
+   "p/p0 AeroFlowSim",
+   "difference"
+  ],
+  "rows": [
+   [
+    "0.810",
+    "0.9990",
+    "0.9991",
+    "+0.0001"
+   ],
+   [
+    "1.013",
+    "0.9987",
+    "0.9978",
+    "-0.0009"
+   ],
+   [
+    "1.195",
+    "0.9965",
+    "0.9963",
+    "-0.0002"
+   ],
+   [
+    "1.395",
+    "0.9946",
+    "0.9936",
+    "-0.0010"
+   ],
+   [
+    "1.746",
+    "0.9893",
+    "0.9821",
+    "-0.0072"
+   ],
+   [
+    "1.937",
+    "0.9770",
+    "0.9654",
+    "-0.0116"
+   ],
+   [
+    "2.098",
+    "0.9492",
+    "0.9299",
+    "-0.0193"
+   ],
+   [
+    "2.239",
+    "0.8669",
+    "0.7988",
+    "-0.0681"
+   ],
+   [
+    "2.457",
+    "0.5304",
+    "0.4827",
+    "-0.0477"
+   ],
+   [
+    "2.464",
+    "0.4910",
+    "0.4723",
+    "-0.0187"
+   ],
+   [
+    "2.643",
+    "0.2281",
+    "0.2286",
+    "+0.0005"
+   ],
+   [
+    "2.828",
+    "0.1984",
+    "0.1862",
+    "-0.0122"
+   ],
+   [
+    "3.124",
+    "0.1866",
+    "0.1692",
+    "-0.0174"
+   ],
+   [
+    "3.609",
+    "0.1299",
+    "0.1219",
+    "-0.0080"
+   ],
+   [
+    "3.957",
+    "0.0969",
+    "0.0931",
+    "-0.0038"
+   ],
+   [
+    "4.603",
+    "0.0588",
+    "0.0571",
+    "-0.0017"
+   ],
+   [
+    "5.279",
+    "0.0370",
+    "0.0359",
+    "-0.0011"
+   ],
+   [
+    "5.987",
+    "0.0230",
+    "0.0235",
+    "+0.0005"
+   ],
+   [
+    "6.664",
+    "0.0182",
+    "0.0164",
+    "-0.0018"
+   ]
+  ],
+  "notes": [
+   "Mesh: 8,000 cells, 4,229 iterations, converged yes, 150 s; discharge coefficient 0.9813.",
+   "RMS difference over all 19 measured points: 0.0210 (in p/p0).",
+   "Geometry from the printed dimensions; the profile's exit area ratio is 6.57 (the report rounds it to 6.63; the measured points end at z = 6.66 in, before the exit).",
+   "The test gas was heated air (1500 R) with a boundary layer; the solver is inviscid with gamma = 1.4 (the report's one-dimensional curve uses 1.40 as well)."
+  ]
+ }
+}

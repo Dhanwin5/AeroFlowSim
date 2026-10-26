@@ -6,7 +6,8 @@
 
     python validation/run_all.py                 full set (all meshes; about 3 hours)
     python validation/run_all.py --quick         quick set (coarse meshes; under 10 minutes)
-    python validation/run_all.py wedge cone      only the folders whose names contain these words
+    python validation/run_all.py wedge cone      only the folders whose names contain these words (the report is
+                                                 rebuilt from the saved results of the other cases, validation/results/)
     python validation/run_all.py --jobs 6        run up to 6 cases at the same time (each in its own process;
                                                  the default uses about a third of the processor cores)
 
@@ -21,7 +22,8 @@ from pathlib import Path
 # "import validation" works (aeroflowsim itself is installed with pip install -e .).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from validation.common import SET_VARIABLE, validate_folder, validation_folders, write_report  # noqa: E402
+from validation.common import (SET_VARIABLE, load_results, validate_folder, validation_folders,  # noqa: E402
+                               write_report)
 
 
 def _validate(folder):
@@ -64,7 +66,12 @@ def main(argv=None):
         validations.append(v)
     passed = all(v.passed for v in validations)
     if argv:
-        print("Only some cases were run: the report file is not rewritten.")
+        every = load_results(validation_folders())          # the other cases from their last run of this set
+        if every is None:
+            print("Only some cases were run and not every case has a saved result: the report is not rewritten.")
+        else:
+            passed = all(v.passed for v in every)
+            print(f"Report rebuilt from the saved results of every case: {write_report(every)}")
     else:
         print(f"Report written to {write_report(validations)}")
     print("ALL VALIDATION CASES PASS" if passed else "SOME VALIDATION CASES FAIL")

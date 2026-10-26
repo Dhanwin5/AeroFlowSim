@@ -53,7 +53,7 @@ session.** I will not send follow-up prompts, so:
 - 7b findings for this prompt: an interpolated start on a new mesh saves only ~8 % of the iterations (4,712 vs
   5,087 on the N2 nozzle 60 x 12) because the residual is normalised by its first iterations, which are already
   small for a good start; Venkatakrishnan with constant K loses order on smooth flows under refinement (MMS triangles
-  0.7-1.0 at 32 -> 64) - an order-preserving limiter option belongs here or in a later prompt (decide and record).
+  0.7-1.0 at 64 -> 128 in a first full study) - an order-preserving limiter option belongs here or in a later prompt (decide and record).
 
 Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch runs (8d), unsteady dual time stepping
 (8e), viscous flow, 3D. Do not start them; note dependencies.
@@ -90,7 +90,11 @@ Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch run
 4. **Multi-core** and determinism (two runs give identical histories); speed-up table versus threads.
 5. **Stalls**: triangle nozzle, diamond, quasi-1D fine meshes: each converges to 1e-6 (or the remaining cause is
    found and recorded); interpolated-start normalisation; NACA 0012 study extended to 0.0025 c (and 0.00125 c if it
-   fits), GCI updated against Vassberg & Jameson 2010 Table 11.
+   fits), GCI updated against Vassberg & Jameson 2010 Table 11. 7b finding: the 7b study halved only the WALL size
+   (far field 2 c and growth fixed), so the meshes grew only 7,326 / 9,400 / 13,251 cells, the GCI order came out as 10
+   (meaningless) and Cl (0.311 / 0.331 / 0.338, still rising) is a documented SHORTFALL against 0.352. Redesign the
+   study so every size (wall, far field, growth or a refinement factor) scales together, aiming for about 4x cells per
+   level, then remove the shortfall entry from `validation/euler2d_naca0012/reference.toml` if it passes.
 6. **Wall-clock targets** (must hold, measured on this machine, recorded in `validation/timing.md` and the Results
    step): default N2 nozzle (Medium, 8k cells) converged in under 60 s; MMS 128 x 128 quads under 120 s; full
    validation suite under 60 min; quick set under 5 min. If a target is missed, report by how much and why.
