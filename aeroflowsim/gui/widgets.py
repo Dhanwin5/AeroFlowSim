@@ -127,6 +127,7 @@ class SummaryCard(QFrame):
                           f"<span style='font-size:10pt; font-weight:normal'>&nbsp;{unit}</span></div>"
                           f"<div style='color:{muted}'>{title}</div>")
             tile.setObjectName("tile")
+            tile.setWordWrap(True)                # long captions wrap at large display scaling
             tile.setTextInteractionFlags(Qt.TextSelectableByMouse)
             self.grid.addWidget(tile, i // self.COLUMNS, i % self.COLUMNS)
             self.tiles.append(tile)

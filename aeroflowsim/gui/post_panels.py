@@ -1192,9 +1192,9 @@ class XYPanel(_Base):
         form.addRow("Reference data", ref)
         form.addRow("Its legend", self.reference_label)
         form.addRow("Overlay snapshots", self.overlay)
-        buttons = QHBoxLayout()
-        for b in (plot, save, csv, keep):
-            buttons.addWidget(b)
+        buttons = QGridLayout()
+        for i, b in enumerate((plot, save, csv, keep)):
+            buttons.addWidget(b, i // 2, i % 2)
         inner = QWidget()
         lay = QVBoxLayout(inner)
         lay.addLayout(form)
