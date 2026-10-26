@@ -163,3 +163,48 @@ class MonitorEvaluator:
             except (ValueError, KeyError):
                 values["user_" + d.name] = float("nan")
         return values
+
+
+def report_file_name(name) -> str:
+    """results/report_<name>.csv with a file-system-safe name."""
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name).strip("_") or "report"
+    return f"report_{safe}.csv"
+
+
+class ReportFileWriter:
+    """Writes the monitor report definitions to results/report_<name>.csv WHILE the run goes on (flushed every
+    FLUSH_EVERY iterations), one row per iteration. A continued run (restart with its histories) first writes the
+    earlier iterations, so the file always holds the whole run; a start from scratch begins a new file."""
+
+    FLUSH_EVERY = 50
+
+    def __init__(self, folder, names, restart=None):
+        from pathlib import Path
+        folder = Path(folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        self.names = list(names)
+        self.files = {}
+        series = (restart or {}).get("series") if isinstance(restart, dict) else None
+        for name in self.names:
+            f = open(folder / report_file_name(name), "w", encoding="utf-8", newline="\n")
+            f.write(f"iteration,{name} (SI)\n")
+            old = None if series is None else series.get("monitor_user_" + name)
+            if old is not None:
+                for i, v in enumerate(np.asarray(old, dtype=float), start=1):
+                    f.write(f"{i},{v:.10g}\n")
+            self.files[name] = f
+        self.count = 0
+
+    def add(self, iteration, monitors):
+        for name, f in self.files.items():
+            v = monitors.get("user_" + name)
+            if v is not None:
+                f.write(f"{iteration},{float(v):.10g}\n")
+        self.count += 1
+        if self.count % self.FLUSH_EVERY == 0:
+            for f in self.files.values():
+                f.flush()
+
+    def close(self):
+        for f in self.files.values():
+            f.close()

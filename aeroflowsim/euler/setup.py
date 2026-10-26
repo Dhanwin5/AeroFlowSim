@@ -15,6 +15,7 @@ and calls solve(problem, params, mesh, progress, restart). The boundary conditio
 case's default for its kind (inlet, outlet, wall, ...) unless the user changed it in the Setup table.
 """
 
+import contextvars
 import math
 from dataclasses import dataclass, field
 
@@ -200,17 +201,75 @@ def mesh_wall_profile(mesh, wall_names):
 
 
 CONTINUED = "Continued from the previous result"   # Problem.initialisation of a continued run
+INTERPOLATED = "Interpolated from the result on the previous mesh"
+
+# Extras of a project run that are not template inputs (set by aeroflowsim.engine.run_case for the duration of one
+# run): {"report_definitions": [dicts], "surfaces": [dicts], "init_patches": [dicts],
+#        "interpolate": {"centres": (C_old, 2) array, "W": (4, C_old) array} or None}
+RUN_EXTRAS = contextvars.ContextVar("aeroflowsim_run_extras", default=None)
 
 
-def _start(restart, mesh, fresh, init):
-    """(initial state W0, how it was made): the previous result when there is one (the run continues), else
-    the template's fresh start (initialisation input: uniform or quasi-1D)."""
+def _extras() -> dict:
+    return RUN_EXTRAS.get() or {}
+
+
+def apply_patches(W, mesh, gas, patches):
+    """Patch (initialisation) regions on top of a fresh initial state (Fluent's "Patch"), in the given order.
+
+    patches: [{"region": {box / circle / polygon, as aeroflowsim.post.integrals.region_cells}, "values": {"p": Pa,
+    "T": K, "u": m/s, "v": m/s}}]; cells whose centroid is inside get the given values (missing ones keep theirs;
+    density follows from p and T with the gas constant). Returns (W, number of cells patched)."""
+    from matplotlib.path import Path as MplPath
+    W = W.copy()
+    c = mesh.cell_centres[:, :2]
+    total = 0
+    for patch in patches or []:
+        region = patch.get("region") or {}
+        kind = region.get("type")
+        if kind == "box":
+            lo, hi = np.asarray(region["min"], float), np.asarray(region["max"], float)
+            inside = np.all((c >= np.minimum(lo, hi)) & (c <= np.maximum(lo, hi)), axis=1)
+        elif kind == "circle":
+            inside = np.linalg.norm(c - np.asarray(region["centre"], float), axis=1) <= float(region["radius"])
+        elif kind == "polygon":
+            inside = MplPath(np.asarray(region["points"], float)).contains_points(c)
+        else:
+            raise ValueError(f"Patch region type '{kind}' is not known; use box, circle or polygon.")
+        values = patch.get("values") or {}
+        T_old = temperature(W, gas)
+        if "p" in values:
+            W[-1, inside] = float(values["p"])
+        if "u" in values:
+            W[1, inside] = float(values["u"])
+        if "v" in values:
+            W[2, inside] = float(values["v"])
+        T = np.where(inside, float(values["T"]) if "T" in values else T_old, T_old)
+        W[0, inside] = W[-1, inside] / (gas.R * T[inside])
+        total += int(np.count_nonzero(inside))
+    return W, total
+
+
+def _start(restart, mesh, fresh, init, gas=None):
+    """(initial state W0, how it was made): the previous result when there is one (the run continues); else the
+    previous solution interpolated onto this new mesh when the project asks for it; else the template's fresh start
+    (initialisation input: uniform or quasi-1D) with the project's patch regions on top."""
     if restart is not None:
         return restart_state(restart, mesh), CONTINUED
+    extras = _extras()
+    old = extras.get("interpolate")
+    if old is not None:
+        from aeroflowsim.post.sampling import interpolate_cells
+        return interpolate_cells(old["centres"], old["W"], mesh.cell_centres[:, :2]), INTERPOLATED
     if init == RESTART:                          # an old project that still asks for "Previous result"
         raise ValueError("There is no previous result on this mesh to continue: run once first (the run starts from "
                          "the Initial solution, uniform or quasi-1D).")
-    return fresh(), init
+    W0 = fresh()
+    patches = extras.get("init_patches")
+    if patches and gas is not None:
+        W0, n = apply_patches(W0, mesh, gas, patches)
+        if n:
+            init = f"{init} + {len(patches)} patch region(s) ({n:,} cells)"
+    return W0, init
 
 
 def continuation_of(restart):
@@ -262,7 +321,7 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
         T = 0.95 * T0
         return uniform_state(mesh.n_cells, p0 / (gas.R * T) * 0.9, (0.1 * float(gas.sound_speed(T)), 0.0), 0.9 * p0)
 
-    W0, init = _start(restart, mesh, fresh, init)
+    W0, init = _start(restart, mesh, fresh, init, gas)
     rho0 = p0 / (gas.R * T0)
     c0 = float(gas.sound_speed(T0))
     g = float(gas.gamma(T0))
@@ -349,7 +408,7 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     speed = float(np.linalg.norm(vel))
     q_inf = 0.5 * rho * speed**2                                        # dynamic pressure [Pa]
     W0, init = _start(restart, mesh, lambda: uniform_state(mesh.n_cells, rho, vel, p_inf),
-                      params.get("initialisation", UNIFORM))
+                      params.get("initialisation", UNIFORM), gas)
     half = any(p.type == "symmetry" for p in mesh.patches) and not mesh.axisymmetric
     mirror = 2.0 if half else 1.0
     c = float(gas.sound_speed(T_inf))
@@ -418,8 +477,28 @@ def solve(problem, params, mesh, progress=None) -> Result:
             return progress(it, res, info)      # True = the user pressed Stop (keep the flow as it is)
         return False
 
-    out = solver.solve(problem.W0, forward, problem.monitor, problem.monitor_scales, problem.converge_on,
-                       problem.continuation)
+    monitor, converge_on, rules = problem.monitor, tuple(problem.converge_on), {}
+    labels = dict(problem.monitor_labels)
+    user = [d for d in (_extras().get("report_definitions") or []) if d.get("monitor")]
+    if user:                                     # the project's report definitions marked "monitor"
+        from aeroflowsim.post.definitions import MonitorEvaluator, definitions_from
+        from aeroflowsim.post.surfaces import surfaces_from
+        defs = definitions_from(user)
+        evaluator = MonitorEvaluator(mesh, problem.gas, problem.conditions, params, defs,
+                                     surfaces_from(_extras().get("surfaces")))
+        evaluator.sol.info["kind"] = problem.kind
+
+        def monitor(solver_, W_, base=problem.monitor):
+            values = base(solver_, W_) if base is not None else {}
+            values.update(evaluator(solver_, W_))
+            return values
+        for d in defs:
+            labels["user_" + d.name] = (d.name, "")
+            if d.converge:
+                converge_on += ("user_" + d.name,)
+                rules["user_" + d.name] = (float(d.tolerance), int(d.window))
+    out = solver.solve(problem.W0, forward, monitor, problem.monitor_scales, converge_on,
+                       problem.continuation, monitor_rules=rules)
     W = out.W
     # One more residual evaluation of the final state, so the boundary fluxes (forces, mass flows) belong to it
     solver.residual(primitive_to_conserved(W, problem.gas), params["order"] == SECOND_ORDER, W)
@@ -434,6 +513,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
     if out.limiter is not None:                  # a frozen limiter stays frozen when the run is continued
         series["limiter_frozen"] = out.limiter
     series["boundary_flux"] = solver.boundary_flux.copy()   # flux x area of every boundary face (post-processing)
+    series["cell_centres"] = mesh.cell_centres[:, :2].copy()  # [m]: lets a later run interpolate onto a new mesh
     info = {"status": out.status, "first_iteration": out.first_iteration, "mesh_signature": mesh_signature(mesh),
             "continued_from": None if previous is None else previous.iterations,
             "residual_norm": None if out.norm is None else [float(v) for v in out.norm], "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
@@ -443,8 +523,8 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "diverged_at": None if out.diverged_at is None else list(out.diverged_at),
             "L_ref": float(problem.L_ref), "scales": [float(v) for v in problem.scales],
             "initialisation": problem.initialisation, "equations": list(EQUATIONS[:W.shape[0]]),
-            "monitor_labels": {k: list(v) for k, v in problem.monitor_labels.items()},
-            "converge_on": list(problem.converge_on), "monitor_tol": params["monitor_tol"],
+            "monitor_labels": {k: list(v) for k, v in labels.items()},
+            "converge_on": list(converge_on), "monitor_rules": {k: list(v) for k, v in rules.items()}, "monitor_tol": params["monitor_tol"],
             "monitor_window": params["monitor_window"], "tol": params["tol"], "cfl": params["cfl"],
             "boundaries": {name: bc.to_dict() for name, bc in problem.conditions.items()},
             "gamma": float(problem.gas.gamma(float(np.median(temperature(W, problem.gas)))))}

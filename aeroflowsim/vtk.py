@@ -73,9 +73,16 @@ def _data_array(out, name, values, n_components=1):
     out.write("        </DataArray>\n")
 
 
-def vtu_text(mesh, cell_data=None) -> str:
-    """The .vtu file content as text. cell_data: {name: (C,) or (C, 3) array}."""
+def vtu_text(mesh, cell_data=None, point_data=None) -> str:
+    """The .vtu file content as text. cell_data: {name: (C,) or (C, 3) array}; point_data: {name: (N,) or (N, 3)}
+    (node values, e.g. the smooth node averages of aeroflowsim/post/fields.py)."""
     cell_data = dict(cell_data or {})
+    point_data = dict(point_data or {})
+    for name, values in point_data.items():
+        values = np.asarray(values)
+        if values.shape[0] != mesh.n_nodes or values.ndim > 2 or " " in name or '"' in name:
+            raise ValueError(f"Point data '{name}' must have one value (or vector) per node ({mesh.n_nodes}) and a "
+                             "name without spaces or quotes.")
     for name, values in cell_data.items():
         values = np.asarray(values)
         if values.shape[0] != mesh.n_cells or values.ndim > 2:
@@ -102,6 +109,12 @@ def vtu_text(mesh, cell_data=None) -> str:
     _data_array(out, "offsets", offsets)
     _data_array(out, "types", mesh.cell_types.astype(np.uint8))
     out.write("      </Cells>\n")
+    if point_data:
+        out.write("      <PointData>\n")
+        for name, values in point_data.items():
+            values = np.asarray(values)
+            _data_array(out, name, values, 1 if values.ndim == 1 else values.shape[1])
+        out.write("      </PointData>\n")
     if cell_data:
         out.write("      <CellData>\n")
         for name, values in cell_data.items():
@@ -112,11 +125,11 @@ def vtu_text(mesh, cell_data=None) -> str:
     return out.getvalue()
 
 
-def write_vtu(path, mesh, cell_data=None) -> Path:
-    """Write the mesh and its cell data to a .vtu file; returns the path."""
+def write_vtu(path, mesh, cell_data=None, point_data=None) -> Path:
+    """Write the mesh and its cell (and node) data to a .vtu file; returns the path."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(vtu_text(mesh, cell_data), encoding="utf-8", newline="\n")
+    path.write_text(vtu_text(mesh, cell_data, point_data), encoding="utf-8", newline="\n")
     return path
 
 

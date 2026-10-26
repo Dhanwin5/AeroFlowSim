@@ -52,11 +52,25 @@ class RunOutput:
     out_dir: Path | None = None  # folder the files were saved to (None = not saved)
 
 
+def _report_values(case, values, mesh, result, extras):
+    """{name: [value, unit]} of the project's report definitions on the final result (NaN + reason if one fails)."""
+    from aeroflowsim.post.definitions import definitions_from, evaluate_definitions
+    from aeroflowsim.post.solution import Solution
+    from aeroflowsim.post.surfaces import surfaces_from
+    try:
+        sol = Solution.from_result(mesh, result, values, case=case,
+                                   custom_fields=extras.get("custom_fields") or {})
+    except ValueError:
+        return {}
+    out = evaluate_definitions(sol, definitions_from(extras["report_definitions"]), surfaces_from(extras.get("surfaces")))
+    return {k: [float(v), u] for k, (v, u) in out.items()}
+
+
 def _no_progress(iteration, residual, info=None):
     """Default progress callback: do nothing."""
 
 
-def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, restart=None) -> RunOutput:
+def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, restart=None, extras=None) -> RunOutput:
     """Run one case and return a RunOutput.
 
     case      a case folder ("cases/quasi1d_nozzle"), a case name ("quasi1d_nozzle"),
@@ -68,6 +82,10 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, resta
     out_dir   folder to save fields.csv, summary.yaml, plots ... into; None = save nothing
     restart   fields {key: array} of a previous result on the same mesh, for cases that can continue a
               run (case.run(..., restart=...)); None = start from the case's own initial solution
+    extras    project post-processing settings of 2D runs (not template inputs): {"report_definitions",
+              "surfaces", "init_patches", "interpolate"} (see aeroflowsim/euler/setup.py, RUN_EXTRAS). Report
+              definitions are evaluated after the run (result.info["report_values"]); those marked "monitor"
+              are evaluated every iteration and written to <out_dir>/report_<name>.csv while the run goes on.
     """
     if isinstance(case, (str, Path)):
         case = load_case(case)
@@ -86,10 +104,37 @@ def run_case(case, params=None, *, mesh=None, progress=None, out_dir=None, resta
     if setup_errors:  # e.g. an angle of attack on an axisymmetric mesh: the run would not mean anything
         raise SetupError(" ".join(f"{c.name}: {c.message}" for c in setup_errors))
 
-    if restart is not None:
-        result = case.run(values, mesh, progress or _no_progress, restart=restart)
-    else:
-        result = case.run(values, mesh, progress or _no_progress)
+    extras = dict(extras or {})
+    writer = None
+    monitor_defs = [d for d in extras.get("report_definitions") or [] if d.get("monitor")]
+    if out_dir is not None and monitor_defs:
+        from aeroflowsim.post.definitions import ReportFileWriter
+        writer = ReportFileWriter(out_dir, [d["name"] for d in monitor_defs], restart)
+    user_progress = progress or _no_progress
+
+    def tracked(iteration, residual, info=None):
+        if writer is not None and info is not None:
+            writer.add(iteration, info.get("monitors", {}))
+        return user_progress(iteration, residual, info) if info is not None else user_progress(iteration, residual)
+
+    token = None
+    if extras:
+        from aeroflowsim.euler.setup import RUN_EXTRAS
+        token = RUN_EXTRAS.set(extras)
+    try:
+        run_progress = tracked if writer is not None else (progress or _no_progress)
+        if restart is not None:
+            result = case.run(values, mesh, run_progress, restart=restart)
+        else:
+            result = case.run(values, mesh, run_progress)
+    finally:
+        if token is not None:
+            from aeroflowsim.euler.setup import RUN_EXTRAS
+            RUN_EXTRAS.reset(token)
+        if writer is not None:
+            writer.close()
+    if extras.get("report_definitions") and getattr(result, "info", None) is not None and "rho" in result.fields:
+        result.info["report_values"] = _report_values(case, values, mesh, result, extras)
     output = RunOutput(case=case, params=values, mesh=mesh, result=result,
                        reference=get_reference(case, values, mesh),
                        reference_lines=get_reference_lines(case, values, mesh),

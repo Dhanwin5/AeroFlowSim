@@ -250,7 +250,8 @@ class EulerSolver:
 
     # ---- the loop ----------------------------------------------------------------------------------
 
-    def solve(self, W0, progress=None, monitor=None, monitor_scales=None, converge_on=(), continuation=None):
+    def solve(self, W0, progress=None, monitor=None, monitor_scales=None, converge_on=(), continuation=None,
+              monitor_rules=None):
         """March from the primitive state W0 (n_vars, C) and return a SolveResult.
 
         continuation: a Continuation of an earlier run whose final state is W0. The iterations are then numbered
@@ -265,6 +266,8 @@ class EulerSolver:
         converge_on: names of the monitors that must settle for steady convergence;
         monitor_scales: {name: scale} so a monitor near zero (e.g. Cl at zero incidence) is judged against
         a sensible size instead of its own tiny value.
+        monitor_rules: {name: (tolerance, window)} for monitors with their own rule (the project's report
+        definitions used as convergence criteria); the others use the Numerics' monitor tolerance and window.
         """
         num = self.numerics
         t_start = time.perf_counter()
@@ -367,7 +370,7 @@ class EulerSolver:
                         status = END_TIME
                         break
                 elif (it > NORM_ITERATIONS and level <= 10.0 ** (-num.residual_drop)
-                      and _settled(mon_hist, converge_on, monitor_scales or {}, num)):
+                      and _settled(mon_hist, converge_on, monitor_scales or {}, num, monitor_rules or {})):
                     status = CONVERGED
                     break
         W = conserved_to_primitive(U, self.gas)
@@ -394,17 +397,20 @@ class EulerSolver:
         return Uk, R0
 
 
-def _settled(history, names, scales, num) -> bool:
-    """True if every named monitor changed less than the tolerance over the last window."""
+def _settled(history, names, scales, num, rules=None) -> bool:
+    """True if every named monitor changed less than the tolerance over the last window (its own rule if given)."""
     for name in names:
         values = history.get(name)
         if values is None:
             continue
-        if len(values) < num.monitor_window:
+        tol, n = (rules or {}).get(name, (num.monitor_tolerance, num.monitor_window))
+        if len(values) < n:
             return False
-        window = np.asarray(values[-num.monitor_window:])
+        window = np.asarray(values[-n:])
+        if not np.all(np.isfinite(window)):
+            return False
         size = max(abs(float(window.mean())), scales.get(name, 0.0), 1e-300)
-        if (window.max() - window.min()) > num.monitor_tolerance * size:
+        if (window.max() - window.min()) > tol * size:
             return False
     return True
 

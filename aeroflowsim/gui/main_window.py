@@ -874,16 +874,22 @@ class MainWindow(QMainWindow):
             self.go_to("setup")
             return
         mesh = str(project.mesh_dir / "mesh.npz") if is_face_mesh(self.mesh) else self.mesh
+        extras = project.run_extras(self.mesh, fresh=fresh or restart is not None) if is_face_mesh(self.mesh) else None
         self.pending = ("run", project.fingerprint("run"), params)
         self.runner.submit(Job("run", str(project.case.folder), params, str(project.results_dir), mesh=mesh,
-                               restart=None if restart is None else str(restart)))
+                               restart=None if restart is None else str(restart), extras=extras))
         self.pages["run"].start(self.results["result"] if restart is not None else None)
         self.strip.set_busy("run", 0.0, "starting")
         if restart is not None:
             self.log(f"Run continued from iteration {done + 1:,} ({project.case.title})")
+        elif extras and extras.get("interpolate") is not None:
+            self.log(f"Run started from the previous solution interpolated onto the new mesh ({project.case.title}); "
+                     "press Start from scratch to begin from the Initial solution instead")
         else:
             reason = " (start from scratch)" if fresh else ""
-            self.log(f"Run started from the initial solution{reason} ({project.case.title})")
+            patches = len((extras or {}).get("init_patches") or [])
+            extra = f" with {patches} patch region(s)" if patches else ""
+            self.log(f"Run started from the initial solution{extra}{reason} ({project.case.title})")
         self.go_to("run")
         self.refresh_all()
 

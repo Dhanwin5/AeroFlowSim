@@ -62,6 +62,7 @@ class Job:
     restart: str = None       # run only: path of a previous run.npz to carry on from, or None (fresh start)
     geometry: dict = None     # mesh only: the edited workspace geometry (GeometryDocument.to_dict()), or None
     folder: str = None        # mesh only: the project folder (files imported into the workspace are there)
+    extras: dict = None       # run only: project post-processing settings (report definitions, patches, ...)
 
 
 @dataclass
@@ -174,7 +175,8 @@ def _run_job(job, send, stop_event):
     send("stage", "Solving")
     t0 = time.perf_counter()
     try:
-        output = run_case(case, job.params, mesh=mesh, progress=progress, out_dir=job.out_dir, restart=restart)
+        output = run_case(case, job.params, mesh=mesh, progress=progress, out_dir=job.out_dir, restart=restart,
+                          extras=job.extras)
     finally:
         if batch_its:
             flush()

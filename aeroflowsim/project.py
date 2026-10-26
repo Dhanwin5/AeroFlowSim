@@ -64,6 +64,23 @@ MESH_1D_FILE = "mesh1d.npz"
 DEPENDS_ON = {"geometry": ("geometry",), "mesh": ("geometry", "mesh"), "run": INPUT_STEPS}
 
 
+POST_DEFAULTS = {
+    "surfaces": [],              # named surfaces (aeroflowsim/post/surfaces.py), geometric: survive re-meshing
+    "report_definitions": [],    # aeroflowsim/post/definitions.py
+    "custom_fields": {},         # {name: {"formula": text, "label": text}}
+    "scenes": {},                # {name: view settings of the Results step}
+    "xy_plots": {},              # {name: XY plot settings}
+    "init_patches": [],          # patch regions for a fresh start (aeroflowsim/euler/setup.py apply_patches)
+    "interpolate_new_mesh": True,   # a run on a new mesh starts from the old solution interpolated onto it
+}
+
+
+def default_post() -> dict:
+    """A fresh copy of the post-processing settings of a new project."""
+    import copy
+    return copy.deepcopy(POST_DEFAULTS)
+
+
 def default_projects_dir() -> Path:
     """Where new projects go by default: Documents/AeroFlowSim Projects (never the code folder)."""
     return Path.home() / "Documents" / "AeroFlowSim Projects"
@@ -114,6 +131,7 @@ class Project:
         self.warnings = list(warnings or [])   # shown to the user after opening
         self.dirty = False                  # inputs changed since the last save
         self._history, self._history_loaded = None, False   # workspace history (see edited_geometry)
+        self.post = default_post()          # post-processing settings (surfaces, report definitions, ...)
 
     # ---- creating, opening, saving -------------------------------------------------------------
 
@@ -167,6 +185,10 @@ class Project:
             warnings.append(f"New inputs got their default values: {', '.join(missing)}.")
         values.update({k: v for k, v in saved.items() if k in values})
         project = cls(folder, case, values, data.get("steps"), data.get("created"), data.get("modified"), warnings)
+        for key, default in default_post().items():     # older projects have none of these: the defaults
+            value = data.get(key)
+            if isinstance(value, type(default)):
+                project.post[key] = value
         project._convert_old_gas_inputs(saved)
         project._convert_old_restart_input()
         return project
@@ -223,6 +245,7 @@ class Project:
             "modified": self.modified,
             "inputs": self.values,
             "steps": self.steps,
+            **self.post,
         }
 
     def save(self):
@@ -247,6 +270,7 @@ class Project:
             raise ValueError(f"{new_folder} already exists; choose another name.")
         shutil.copytree(self.folder, new_folder, ignore=shutil.ignore_patterns("*.tmp"))
         copy = Project(new_folder, self.case, self.values, json.loads(json.dumps(self.steps)), _now())
+        copy.post = json.loads(json.dumps(self.post))
         copy.set_geometry_document(self.edited_geometry)      # unsaved geometry edits go with the copy
         copy.save()
         return copy
@@ -510,6 +534,52 @@ class Project:
         path = self.results_dir / RUN_FILE
         return load_run(path) if path.is_file() else None
 
+    # ---- post-processing settings ----------------------------------------------------------------
+
+    @property
+    def custom_fields(self) -> dict:
+        return self.post["custom_fields"]
+
+    def set_post(self, key, value):
+        """Change one post-processing setting (surfaces, report_definitions, custom_fields, scenes, xy_plots,
+        init_patches, interpolate_new_mesh); marks the project as changed."""
+        if key not in POST_DEFAULTS:
+            raise KeyError(f"'{key}' is not a post-processing setting.")
+        self.post[key] = value
+        self.dirty = True
+
+    def interpolation_source(self, mesh):
+        """{"centres", "W"} of the saved result when it belongs to a DIFFERENT mesh than `mesh` and the project allows
+        starting from it ("interpolate_new_mesh", default on); else None (the run starts from the Initial solution)."""
+        if not self.post.get("interpolate_new_mesh", True) or mesh is None:
+            return None
+        try:
+            payload = self.load_results()
+        except (OSError, ValueError, KeyError):
+            return None
+        if payload is None:
+            return None
+        from aeroflowsim.result_io import can_continue
+        result = payload["result"]
+        centres = (result.series or {}).get("cell_centres")
+        if centres is None or can_continue(result, mesh) or not {"rho", "u", "v", "p"} <= set(result.fields):
+            return None
+        W = np.array([np.asarray(result.fields[k].values, dtype=float) for k in ("rho", "u", "v", "p")])
+        if W.shape[1] != len(centres):
+            return None
+        return {"centres": np.asarray(centres, dtype=float), "W": W}
+
+    def run_extras(self, mesh=None, fresh=False) -> dict:
+        """The post-processing settings a run needs (aeroflowsim.engine.run_case(extras=...)): report definitions and
+        surfaces (monitors), custom fields, patch regions, and the previous solution to interpolate when the mesh has
+        changed (only for a start that does not continue the current result; never with "Start from scratch")."""
+        extras = {k: self.post[k] for k in ("report_definitions", "surfaces", "custom_fields", "init_patches")}
+        if not fresh:
+            source = self.interpolation_source(mesh)
+            if source is not None:
+                extras["interpolate"] = source
+        return extras
+
     # ---- old settings files ----------------------------------------------------------------------
 
     @classmethod
@@ -570,8 +640,9 @@ def run_project(project, progress=None, fresh=False):
         from aeroflowsim.result_io import continuation_data
         path, _done = project.continuation(mesh)
         restart = None if path is None else continuation_data(path)
+    extras = project.run_extras(mesh, fresh=fresh or restart is not None)
     output = run_case(project.case, params, mesh=mesh, progress=progress, out_dir=project.results_dir,
-                      restart=restart)
+                      restart=restart, extras=extras)
     payload = {"result": output.result, "reference": output.reference, "reference_lines": output.reference_lines,
                "checks": output.checks, "params": output.params}
     project.record_run(payload, mesh)
