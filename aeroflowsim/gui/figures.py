@@ -110,19 +110,29 @@ def residual_figure(iterations, residuals, tol=None, figure=None, equation_resid
 
 
 def _monitor_groups(monitors):
-    """{SI unit: [monitor names]} of the monitors that have data, in a fixed order."""
+    """{SI unit: [monitor names]} of the monitors that have data, in a fixed order. The project's report definitions
+    (monitors named "user_<name>") each get their own small plot (their units differ), at most four of them."""
     from aeroflowsim.euler.setup import MONITOR_LABELS
     groups = {}
+    users = 0
     for name, values in monitors.items():
-        if len(values):
-            unit = MONITOR_LABELS.get(name, (name, "-"))[1]
-            groups.setdefault(unit, []).append(name)
+        if not len(values):
+            continue
+        if name.startswith("user_"):
+            if users < 4:
+                groups[f"user:{name}"] = [name]
+                users += 1
+            continue
+        unit = MONITOR_LABELS.get(name, (name, "-"))[1]
+        groups.setdefault(unit, []).append(name)
     return groups
 
 
 def _monitor_axes(ax, unit, names, monitors, prefs):
     """One small plot of the monitors that share a unit (last value in the legend)."""
     from aeroflowsim.euler.setup import MONITOR_LABELS
+    if unit.startswith("user:"):
+        unit = "SI"
     for j, name in enumerate(names):
         values = np.asarray(monitors[name], dtype=float)
         shown_unit = unit
@@ -130,7 +140,7 @@ def _monitor_axes(ax, unit, names, monitors, prefs):
             values, shown_unit = prefs.display(values, unit)
             values = np.asarray(values)
         keep = _thin(len(values))
-        label = MONITOR_LABELS.get(name, (name, unit))[0]
+        label = name[len("user_"):] if name.startswith("user_") else MONITOR_LABELS.get(name, (name, unit))[0]
         ax.plot(np.arange(1, len(values) + 1)[keep], values[keep], lw=1.2,
                 color=EQUATION_COLOURS[j % len(EQUATION_COLOURS)], label=f"{label}: {values[-1]:.5g}")
         ax.set_ylabel(f"[{shown_unit}]")

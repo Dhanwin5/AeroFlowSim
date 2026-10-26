@@ -14,6 +14,13 @@
                                                           run a project (made in the GUI): its inputs
                                                           are used, mesh and results are saved in it
     python -m aeroflowsim gui                             start the desktop GUI
+    python -m aeroflowsim report "My Nozzle.afsproj"      write the HTML and PDF report of a project
+    python -m aeroflowsim export "My Nozzle.afsproj" --format tecplot --fields p,M,p0
+                                                          export fields (csv, vtu, tecplot), --surface NAME for
+                                                          the data along a surface, --definitions for the
+                                                          report definitions table
+    python -m aeroflowsim snapshot "My Nozzle.afsproj" save baseline
+                                                          snapshots: save, list, rename, restore, delete
 
 Results of a case are saved to results/<case_name>/ unless --out is given; results of a project
 go into its own results/ folder (and --set changes are saved in the project). The run itself is done by
@@ -156,6 +163,11 @@ def print_report(out):
         print(f"  {key:<20} = {value:.6g} {unit}")
     for key, (value, unit) in max_errors(result, out.reference).items():
         print(f"  max |{key} - {key}_exact| = {value:.3e} {unit}")
+    report_values = (getattr(result, "info", None) or {}).get("report_values") or {}
+    if report_values:
+        print("Report definitions:")
+        for key, (value, unit) in report_values.items():
+            print(f"  {key:<20} = {value:.6g} {unit}")
     print("Validity checks:")
     for check in out.checks:
         print(f"  [{LEVEL_MARK[check.level]}] {check.name}: {check.message}")
@@ -181,12 +193,131 @@ def main(argv=None):
                      help="projects: start the run from scratch instead of carrying on from the saved result")
     gui = commands.add_parser("gui", help="start the desktop GUI")
     gui.add_argument("project", nargs="?", default=None, help="project folder to open (optional)")
+    report = commands.add_parser("report", help="write the automatic HTML / PDF report of a project")
+    report.add_argument("project", help="project folder (*.afsproj)")
+    report.add_argument("--out", default=None, help="output folder (default: the project's results/report/)")
+    report.add_argument("--format", choices=("html", "pdf", "both"), default="both")
+    export = commands.add_parser("export", help="export fields, surface data or report definitions of a project")
+    export.add_argument("project", help="project folder (*.afsproj)")
+    export.add_argument("--format", choices=("csv", "vtu", "tecplot"), default="csv")
+    export.add_argument("--fields", default="rho,u,v,p,T,M,p0,T0,s", help="comma-separated field names")
+    export.add_argument("--nodes", action="store_true", help="CSV: node values instead of cell-centre values")
+    export.add_argument("--surface", default=None, help="data along this named surface (CSV)")
+    export.add_argument("--definitions", action="store_true", help="the report definitions table (CSV)")
+    export.add_argument("--snapshot", default=None, help="export a snapshot instead of the current result")
+    export.add_argument("--out", default=None, help="output file (default: in the project's results/exports/)")
+    snap = commands.add_parser("snapshot", help="save, list, rename, restore or delete solution snapshots")
+    snap.add_argument("project", help="project folder (*.afsproj)")
+    snap.add_argument("action", choices=("save", "list", "rename", "restore", "delete"))
+    snap.add_argument("name", nargs="?", default=None)
+    snap.add_argument("new_name", nargs="?", default=None, help="rename: the new name")
     args = parser.parse_args(argv)
     if args.command == "list":
         return command_list()
     if args.command == "gui":
         return command_gui(args.project)
+    if args.command == "report":
+        return command_report(args)
+    if args.command == "export":
+        return command_export(args)
+    if args.command == "snapshot":
+        return command_snapshot(args)
     return command_run(args)
+
+
+def _open_project(path):
+    if not is_project(path):
+        raise ValueError(f"{path} is not an AeroFlowSim project folder (*.afsproj with a project.yaml).")
+    return Project.open(path)
+
+
+def command_report(args):
+    """Write the report (no Qt; SI units, stated on every page)."""
+    from aeroflowsim.post.report import write_report
+    try:
+        project = _open_project(args.project)
+        paths = write_report(project, args.out, formats=("html", "pdf") if args.format == "both" else (args.format,))
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    for p in paths:
+        print(f"Report written: {p}")
+    return 0
+
+
+def command_export(args):
+    from pathlib import Path
+
+    from aeroflowsim.post import export
+    from aeroflowsim.post.definitions import definitions_from, evaluate_definitions
+    from aeroflowsim.post.solution import Solution
+    from aeroflowsim.post.surfaces import default_surfaces, surfaces_from
+    try:
+        project = _open_project(args.project)
+        sol = Solution.from_project(project, snapshot=args.snapshot)
+        fields = tuple(f.strip() for f in args.fields.split(",") if f.strip())
+        folder = project.results_dir / "exports"
+        name = (args.snapshot or "current").replace(" ", "_")
+        if args.definitions:
+            defs = definitions_from(project.post["report_definitions"])
+            if not defs:
+                raise ValueError("The project has no report definitions.")
+            path = export.definitions_csv(evaluate_definitions(sol, defs, surfaces_from(project.post["surfaces"])),
+                                          Path(args.out or folder / f"report_definitions_{name}.csv"), defs)
+        elif args.surface:
+            surfaces = {s.name: s for s in surfaces_from(project.post["surfaces"]) + default_surfaces(sol)}
+            if args.surface not in surfaces:
+                raise ValueError(f"There is no surface '{args.surface}'; surfaces: {', '.join(surfaces)}.")
+            path = export.surface_csv(sol, surfaces[args.surface], Path(args.out or folder / f"surface_{args.surface}_{name}.csv"),
+                                      fields)
+        elif args.format == "vtu":
+            path = export.fields_vtu(sol, Path(args.out or folder / f"fields_{name}.vtu"), fields)
+        elif args.format == "tecplot":
+            path = export.fields_tecplot(sol, Path(args.out or folder / f"fields_{name}.dat"), fields)
+        else:
+            location = "node" if args.nodes else "cell"
+            path = export.fields_csv(sol, Path(args.out or folder / f"fields_{location}_{name}.csv"), fields, location)
+    except (ValueError, KeyError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"Exported: {path}")
+    return 0
+
+
+def command_snapshot(args):
+    from aeroflowsim.post import snapshots
+    try:
+        project = _open_project(args.project)
+        if args.action == "list":
+            items = snapshots.list_snapshots(project)
+            if not items:
+                print("No snapshots.")
+            for s in items:
+                print(f"  {s['name']:<24} saved {s['saved']}  iterations {s['iterations']}  {snapshots.size_text(s['size'])}")
+            return 0
+        if not args.name:
+            raise ValueError(f"snapshot {args.action} needs a NAME.")
+        if args.action == "save":
+            snapshots.save_snapshot(project, args.name)
+            print(f"Snapshot '{args.name}' saved.")
+        elif args.action == "rename":
+            if not args.new_name:
+                raise ValueError("snapshot rename needs the old and the new name.")
+            snapshots.rename_snapshot(project, args.name, args.new_name)
+            print(f"Snapshot '{args.name}' renamed to '{args.new_name}'.")
+        elif args.action == "restore":
+            snapshots.restore_snapshot(project, args.name)
+            print(f"Snapshot '{args.name}' is the current result again.")
+        else:
+            snapshots.delete_snapshot(project, args.name)
+            print(f"Snapshot '{args.name}' deleted.")
+        warning = snapshots.size_warning(project)
+        if warning:
+            print(f"Note: {warning}")
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

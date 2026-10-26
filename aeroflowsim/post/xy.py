@@ -15,7 +15,8 @@ draw the same thing.
 """
 
 import csv
-from dataclasses import dataclass, field
+import dataclasses
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -64,8 +65,8 @@ class XYPlot:
     """Settings of one XY plot (stored in the project, key xy_plots)."""
 
     name: str = "XY plot"
-    fields: list = field(default_factory=lambda: ["p"])
-    surfaces: list = field(default_factory=list)        # surface names
+    fields: list = dataclasses.field(default_factory=lambda: ["p"])
+    surfaces: list = dataclasses.field(default_factory=list)        # surface names
     x_axis: str = "x"                                    # x, y, s, or a field name
     log_x: bool = False
     log_y: bool = False

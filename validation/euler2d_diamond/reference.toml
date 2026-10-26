@@ -1,0 +1,61 @@
+# Diamond (double-wedge) airfoil, t/c = 0.1, Mach 2, alpha 0 and 2 deg, air (gamma = 1.4), with external_2d.
+# Inviscid exact solution on the faces: shock-expansion theory (attached oblique shocks, Prandtl-Meyer fans).
+
+title = "Diamond airfoil t/c = 0.1 at Mach 2, alpha 0 and 2 deg (2D Euler, external_2d)"
+case = "cases/external_2d"
+
+[[reference]]
+id = "Cd_alpha0"
+quantity = "Drag coefficient, alpha = 0"
+value = 0.0231957
+unit = "-"
+tolerance_percent = 3.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"
+
+[[reference]]
+id = "Cl_alpha2"
+quantity = "Lift coefficient, alpha = 2 deg"
+value = 0.0820936
+unit = "-"
+tolerance_percent = 3.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"
+
+[[reference]]
+id = "Cd_alpha2"
+quantity = "Drag coefficient, alpha = 2 deg"
+value = 0.0261435
+unit = "-"
+tolerance_percent = 3.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"
+
+[[reference]]
+id = "p_upper_front"
+quantity = "p/p_inf on the upper front face (middle 60 %), alpha = 2 deg"
+value = 1.22741
+unit = "-"
+tolerance_percent = 1.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"
+
+[[reference]]
+id = "p_upper_rear"
+quantity = "p/p_inf on the upper rear face (middle 60 %), alpha = 2 deg"
+value = 0.633413
+unit = "-"
+tolerance_percent = 1.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"
+
+[[reference]]
+id = "p_lower_front"
+quantity = "p/p_inf on the lower front face (middle 60 %), alpha = 2 deg"
+value = 1.51704
+unit = "-"
+tolerance_percent = 1.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"
+
+[[reference]]
+id = "p_lower_rear"
+quantity = "p/p_inf on the lower rear face (middle 60 %), alpha = 2 deg"
+value = 0.808336
+unit = "-"
+tolerance_percent = 1.0
+source = "Shock-expansion theory (Anderson 2003, Modern Compressible Flow, sec. 4.15), computed by aeroflowsim.gasdynamics.diamond_airfoil (oblique-shock and Prandtl-Meyer relations, gamma = 1.4)"

@@ -11,7 +11,8 @@ and pyvistaqt puts a VTK render window inside a Qt widget (QtInteractor). This v
   - a geometry preview: the named boundary curves of aeroflowsim/geometry_preview.py.
 Mouse: left drag pans, wheel zooms (2D style; 3D rotation comes with 3D meshes). A click (press
 and release without moving) picks a cell, or the boundary edge nearest to the cursor; the view
-then emits cell_picked(cell) or edge_picked(patch index, face index).
+then emits cell_picked(cell) or edge_picked(patch index, face index). A right click (without dragging)
+opens a menu: zoom to fit, reset view, save picture (subclasses add their own entries).
 
 Our Mesh already stores VTK cell types and VTK node order, so mesh_to_grid only re-packs arrays.
 """
@@ -20,7 +21,8 @@ import numpy as np
 import pyvista as pv
 from pyvistaqt import QtInteractor
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QMenu, QToolButton, QVBoxLayout, QWidget
 from vtkmodules.vtkRenderingCore import vtkCellPicker, vtkCoordinate
 
 from aeroflowsim.gui.theme import PATCH_COLOURS, view_colours
@@ -71,6 +73,9 @@ class MeshView(QWidget):
         self.plotter = QtInteractor(self)
         self.plotter.iren.add_observer("LeftButtonPressEvent", self._on_press)
         self.plotter.iren.add_observer("LeftButtonReleaseEvent", self._on_release)
+        self.plotter.iren.add_observer("RightButtonPressEvent", self._on_right_press)
+        self.plotter.iren.add_observer("RightButtonReleaseEvent", self._on_right_release)
+        self._right = None
         bar = QHBoxLayout()
         bar.setContentsMargins(4, 2, 4, 2)
         self.fit_button = QToolButton(text="Fit", toolTip="Show everything (F)", autoRaise=True)
@@ -237,6 +242,38 @@ class MeshView(QWidget):
         if abs(x - self._press[0]) + abs(y - self._press[1]) > CLICK_PIXELS:
             return                            # it was a pan
         self.pick(x, y)
+
+    def _on_right_press(self, interactor, _event):
+        self._right = interactor.GetEventPosition()
+
+    def _on_right_release(self, interactor, _event):
+        x, y = interactor.GetEventPosition()
+        if self._right is None or abs(x - self._right[0]) + abs(y - self._right[1]) > CLICK_PIXELS:
+            return                            # it was a right-drag zoom
+        self._right = None
+        menu = QMenu(self)
+        self.context_actions(menu, self.world_point(x, y))
+        self.last_menu = menu                 # kept for tests
+        menu.popup(QCursor.pos())
+
+    def context_actions(self, menu, xy):
+        """The entries of the right-click menu (world point xy); subclasses add their own first."""
+        menu.addAction("Zoom to fit", self.fit)
+        if self.body_bounds is not None:
+            menu.addAction("Zoom to body", self.zoom_to_body)
+        menu.addAction("Reset view", self.reset_view)
+        menu.addAction("Save picture...", self.ask_save_picture)
+
+    def reset_view(self):
+        """Back to the 2D view from +z with everything visible (after rotating a 3D view)."""
+        self.plotter.enable_parallel_projection()
+        self.plotter.enable_2d_style()
+        self.fit()
+
+    def ask_save_picture(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Save picture", "picture.png", "PNG pictures (*.png)")
+        if path:
+            self.save_picture(path)
 
     def pick(self, x, y):
         """Pick at screen pixel (x, y) (VTK display coordinates: origin bottom left)."""

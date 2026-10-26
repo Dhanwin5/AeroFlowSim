@@ -249,6 +249,8 @@ class MainWindow(QMainWindow):
             "run": a("&Run", self.run_case, "F5", "Mesh if needed, then solve"),
             "stop": a("&Stop", self.cancel_job, "Shift+F5", "Stop the running job"),
             "validation": a("Run &validation suite...", self.run_validation, None, "Run all validation cases"),
+            "project_report": a("Project &report (HTML / PDF)...", self.make_report, None,
+                                "Write the automatic report of this project"),
             "gases": a("&Gas library...", self.show_gas_library, None, "Every gas with its values and sources; custom gases"),
             "about": a("&About AeroFlowSim", self.about, None, "Version, licence, how to cite"),
             "manual": a("&Theory manual", lambda: self.open_local(app_info.THEORY_MANUAL), None, "Equations and methods"),
@@ -286,6 +288,7 @@ class MainWindow(QMainWindow):
         tools_menu = menu.addMenu("&Tools")
         tools_menu.addActions([self.act[k] for k in ("generate", "run", "stop")])
         tools_menu.addSeparator()
+        tools_menu.addAction(self.act["project_report"])
         tools_menu.addAction(self.act["validation"])
         tools_menu.addAction(self.act["gases"])
         help_menu = menu.addMenu("&Help")
@@ -446,6 +449,9 @@ class MainWindow(QMainWindow):
         for page in self.pages.values():
             if hasattr(page, "update_icons"):
                 page.update_icons()
+            if hasattr(page, "set_dark"):        # pages with several views (Results) handle their own
+                page.set_dark(dark)
+                continue
             for view in (getattr(page, "view", None), getattr(page, "flow_view", None)):
                 if hasattr(view, "set_dark"):
                     view.set_dark(dark)
@@ -571,6 +577,20 @@ class MainWindow(QMainWindow):
         self.go_to("geometry")
         self.refresh_all()
         self.pages["geometry"].refresh()
+
+    def reload_project_results(self):
+        """Read the project's mesh and result again (after a snapshot was restored) and refresh every page."""
+        project = self.project
+        try:
+            self.mesh = project.load_mesh()
+            self.results = project.load_results()
+        except (ValueError, OSError, KeyError) as error:
+            self.log(f"The restored result could not be read: {error}", "warning")
+            return
+        if self.results is not None:
+            self.results["run_s"] = (project.steps.get("run") or {}).get("run_s")
+            self.pages["run"].show_history(self.results["result"], self.results["params"].get("tol"))
+        self.refresh_all()
 
     def build_panels(self):
         """The input panels of the open project (one per input step), in the chosen display units."""
@@ -972,6 +992,34 @@ class MainWindow(QMainWindow):
         for panel in self.panels.values():          # a new custom gas appears in the dropdowns at once
             panel.set_values({})
 
+    def make_report(self):
+        """Write the HTML and PDF report of the project (in the user's display units) and offer to open it."""
+        from aeroflowsim.post.report import write_report
+        if self.project is None:
+            return
+        if self.results is None:
+            QMessageBox.information(self, "Project report", "Run the project first: the report describes its result.")
+            return
+        if self.maybe_unsaved_report():
+            self.save()
+        from PySide6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            paths = write_report(self.project, prefs=self.units)
+        except (ValueError, OSError) as error:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "Project report", f"The report could not be written: {error}")
+            return
+        QApplication.restoreOverrideCursor()
+        self.log("Report written: " + ", ".join(str(p) for p in paths))
+        text = "The report was written to\n" + "\n".join(map(str, paths)) + "\n\nOpen the HTML report?"
+        if QMessageBox.question(self, "Project report", text) == QMessageBox.Yes:
+            self.open_local(paths[0])
+
+    def maybe_unsaved_report(self) -> bool:
+        """True if the project has unsaved post-processing settings (the report reads the saved project)."""
+        return bool(self.project is not None and self.project.dirty)
+
     def run_validation(self):
         if not app_info.VALIDATION_SCRIPT.is_file():
             QMessageBox.information(self, "Validation", "The validation suite is only in a full source checkout.")
@@ -1018,7 +1066,9 @@ class MainWindow(QMainWindow):
         self.auto_mesh_timer.stop()
         self.runner.shutdown()
         for page in self.pages.values():
-            for view in (getattr(page, "view", None), getattr(page, "flow_view", None)):
+            for view in (getattr(page, "view", None), getattr(page, "flow_view", None), getattr(page, "grid", None)):
                 if hasattr(view, "close_view"):
                     view.close_view()
+                elif hasattr(view, "close_views"):
+                    view.close_views()
         super().closeEvent(event)

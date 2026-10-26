@@ -58,3 +58,47 @@ def test_nozzle_regimes_for_default_thruster():
     assert shock["area_shock"] == pytest.approx(2.61, rel=5e-3)
     M1 = gd.mach_from_area_ratio(shock["area_shock"], G, supersonic=True)
     assert M1 == pytest.approx(2.49, rel=5e-3)
+
+
+# ---- oblique shocks, Prandtl-Meyer, shock-expansion, Taylor-Maccoll (Prompt 7b) ----------------------------
+
+def test_oblique_shock_matches_the_wedge_reference():
+    s = gd.oblique_shock(2.0, math.radians(10.0), 1.4)
+    assert math.degrees(s["beta"]) == pytest.approx(39.314, abs=1e-3)
+    assert s["p2_p1"] == pytest.approx(1.7066, abs=1e-4) and s["M2"] == pytest.approx(1.6405, abs=1e-4)
+    with pytest.raises(ValueError, match="detaches"):
+        gd.oblique_shock_angle(2.0, math.radians(30.0), 1.4)
+
+
+def test_prandtl_meyer_function_and_expansion():
+    # nu(2) = 26.38 deg (Anderson 2003, Table A.5); nu(1) = 0; the inverse is exact
+    assert math.degrees(gd.prandtl_meyer(2.0, 1.4)) == pytest.approx(26.3798, abs=1e-3)
+    assert gd.prandtl_meyer(1.0, 1.4) == 0.0
+    assert gd.mach_from_prandtl_meyer(gd.prandtl_meyer(3.1, 1.4), 1.4) == pytest.approx(3.1, rel=1e-12)
+    e = gd.expansion(2.0, math.radians(10.0), 1.4)
+    assert e["p2_p1"] == pytest.approx(gd.p0_over_p(2.0, 1.4) / gd.p0_over_p(e["M2"], 1.4))
+
+
+def test_diamond_airfoil_symmetry_and_linear_theory_limit():
+    d0 = gd.diamond_airfoil(2.0, 0.1, 0.0, 1.4)
+    assert d0["Cl"] == pytest.approx(0.0, abs=1e-14)
+    assert d0["p"]["upper_front"] == d0["p"]["lower_front"]
+    # thin airfoil: Ackeret theory Cl = 4 alpha / sqrt(M² - 1), Cd = 4 (alpha² + (t/c)²) / sqrt(M² - 1)
+    thin = gd.diamond_airfoil(3.0, 0.01, 1.0, 1.4)
+    a, b = math.radians(1.0), math.sqrt(8.0)
+    assert thin["Cl"] == pytest.approx(4 * a / b, rel=0.03)
+    assert thin["Cd"] == pytest.approx(4 * (a * a + 0.01**2) / b, rel=0.05)
+
+
+@pytest.mark.parametrize("theta_s,mach,cp,theta_w", [
+    # Sims (1964), NASA SP-3004: Table 9 (surface Cp) and Table 11 (shock angle [rad])
+    (15.0, 2.0, 0.2022339, 0.59192180),
+    (10.0, 2.0, 0.1044583, 0.54464827),
+    (20.0, 2.0, 0.3255312, 0.65966167),
+    (15.0, 3.0, 0.17310135, 0.44085123),
+    (15.0, 1.5, 0.2400313, 0.78592365),
+])
+def test_taylor_maccoll_against_the_tables_of_sims(theta_s, mach, cp, theta_w):
+    r = gd.taylor_maccoll(mach, math.radians(theta_s), 1.4)
+    assert r["Cp"] == pytest.approx(cp, rel=1e-3)
+    assert r["beta"] == pytest.approx(theta_w, abs=2e-5)

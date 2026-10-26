@@ -67,7 +67,9 @@ def _measure(out):
 
 def measure():
     RUNS["wall 0.02 L"] = _measure(aeroflowsim.run_case(CASE, INPUTS))
-    RUNS["wall 0.01 L"] = _measure(aeroflowsim.run_case(CASE, {**INPUTS, **FINER}))
+    from validation.common import is_quick
+    if not is_quick():                       # the quick set runs the default mesh only
+        RUNS["wall 0.01 L"] = _measure(aeroflowsim.run_case(CASE, {**INPUTS, **FINER}))
     return {k: RUNS["wall 0.02 L"][k] for k in ("beta", "p_ratio", "M2")}
 
 

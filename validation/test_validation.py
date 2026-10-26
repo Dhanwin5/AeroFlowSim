@@ -12,7 +12,8 @@ import pytest
 from validation.common import read_references, validate_folder, validation_folders
 
 FOLDERS = validation_folders()
-NEEDS_GMSH = {"external_geometry", "euler2d_wedge", "euler2d_cylinder", "euler2d_nozzle"}   # use Gmsh meshes
+NEEDS_GMSH = {"external_geometry", "euler2d_wedge", "euler2d_cylinder", "euler2d_nozzle", "euler2d_diamond",
+              "euler2d_cone", "euler2d_prandtl_meyer", "euler2d_naca0012"}   # use Gmsh meshes
 
 
 def test_every_validation_folder_has_sources_and_tolerances():
@@ -35,6 +36,13 @@ def test_validation_case_passes(folder):
               f"{c.reference.unit}, error {c.error_percent:.3f} % (tolerance {c.reference.tolerance:g} %)")
     failed = [c.reference.quantity for c in v.comparisons if not c.passed]
     assert not failed, f"{v.title}: outside tolerance: {failed}"
+    if folder.name == "euler2d_cylinder":    # the carbuncle metric separates the fix on / off runs
+        runs = v.study["runs"]
+        on, off = runs["polar grid, carbuncle fix on"]["carbuncle"], runs["polar grid, carbuncle fix OFF"]["carbuncle"]
+        assert off > 100.0 * on, (on, off)
+    if folder.name == "euler2d_naca0012" and len(v.study["subsonic_cd"]) == 3:   # subcritical drag falls to zero
+        cd = [abs(c) for c in v.study["subsonic_cd"]]
+        assert cd[0] > cd[1] > cd[2], cd
     if folder.name == "quasi1d_nozzle":       # mesh-refinement study: the exit Mach number converges
         M = v.study["M_exit"]
         changes = [abs(b - a) for a, b in zip(M, M[1:])]

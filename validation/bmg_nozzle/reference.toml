@@ -1,0 +1,78 @@
+# Wall pressure of the 45-15 deg conical nozzle of Back, Massier and Gier, measured (JPL TR 32-654, 1964, Fig. 4)
+# and digitized (bmg_wall_pressure.csv). Pointwise band +-0.03 in p/p0 as a percentage of the measured value
+# (+-0.05 at z = 2.46 in where the runs differ); points with p/p0 below 0.09 or above 0.97 are only listed.
+
+title = "Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi)"
+case = "cases/nozzle_axi"
+
+[[reference]]
+id = "p_z2_098"
+quantity = "Wall p/p0 at z = 2.098 in (band +-0.03)"
+value = 0.9492
+unit = "-"
+tolerance_percent = 3.16
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z2_239"
+quantity = "Wall p/p0 at z = 2.239 in (band +-0.03)"
+value = 0.8669
+unit = "-"
+tolerance_percent = 3.46
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z2_457"
+quantity = "Wall p/p0 at z = 2.457 in (band +-0.05)"
+value = 0.5304
+unit = "-"
+tolerance_percent = 9.43
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z2_464"
+quantity = "Wall p/p0 at z = 2.464 in (band +-0.05)"
+value = 0.491
+unit = "-"
+tolerance_percent = 10.18
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z2_643"
+quantity = "Wall p/p0 at z = 2.643 in (band +-0.03)"
+value = 0.2281
+unit = "-"
+tolerance_percent = 13.15
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z2_828"
+quantity = "Wall p/p0 at z = 2.828 in (band +-0.03)"
+value = 0.1984
+unit = "-"
+tolerance_percent = 15.12
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z3_124"
+quantity = "Wall p/p0 at z = 3.124 in (band +-0.03)"
+value = 0.1866
+unit = "-"
+tolerance_percent = 16.08
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z3_609"
+quantity = "Wall p/p0 at z = 3.609 in (band +-0.03)"
+value = 0.1299
+unit = "-"
+tolerance_percent = 23.09
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"
+
+[[reference]]
+id = "p_z3_957"
+quantity = "Wall p/p0 at z = 3.957 in (band +-0.03)"
+value = 0.0969
+unit = "-"
+tolerance_percent = 30.96
+source = "Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (tests 347, 348, 351), NASA NTRS 19650001801; digitized"

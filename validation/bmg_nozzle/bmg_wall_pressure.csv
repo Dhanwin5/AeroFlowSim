@@ -1,0 +1,28 @@
+# Back, Massier and Gier (1964), JPL Technical Report 32-654, Fig. 4 (page 5): measured wall static-to-stagnation
+# pressure ratio along the 45-15 deg conical nozzle (r_th = 0.800 in, r_c/r_th = 0.625, area ratio 6.63), air at
+# T_t = 1500 R with cooled walls, stagnation pressures 45-250 psia. NASA NTRS 19650001801.
+# Digitized by AeroFlowSim (validation/bmg_nozzle/README.md) from the scanned figure: axes calibrated on the grid
+# lines (z: 272 px/in, p/p_t: 1085 px per unit at 300 dpi), each value the centroid of the overlapping symbols of the
+# unseparated runs (tests 347, 348, 351; the low-pressure runs separate downstream of z = 3.5 in and are left out).
+# Digitizing uncertainty about +-0.005 in p/p_t and +-0.01 in z; where symbols of different runs differ (z = 2.46 in)
+# both values are listed.
+z_in,p_over_pt
+0.810,0.9990
+1.013,0.9987
+1.195,0.9965
+1.395,0.9946
+1.746,0.9893
+1.937,0.9770
+2.098,0.9492
+2.239,0.8669
+2.457,0.5304
+2.464,0.4910
+2.643,0.2281
+2.828,0.1984
+3.124,0.1866
+3.609,0.1299
+3.957,0.0969
+4.603,0.0588
+5.279,0.0370
+5.987,0.0230
+6.664,0.0182

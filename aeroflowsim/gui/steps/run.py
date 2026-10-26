@@ -51,9 +51,13 @@ class RunPage(QWidget):
         self.diagnose_button = QPushButton("What to try...")
         self.diagnose_button.setToolTip("After a run that diverged or needed CFL reductions: what to change, and why.")
         self.diagnose_button.clicked.connect(self.show_diagnosis)
+        self.start_button = QPushButton("Start options...")
+        self.start_button.setToolTip("Patch regions on top of the Initial solution (for a start from scratch), and "
+                                     "whether a run on a new mesh starts from the old solution interpolated onto it.")
+        self.start_button.clicked.connect(self.show_start_options)
         bar = QHBoxLayout()
         for w in (self.run_button, self.fresh_button, self.stop_button, self.progress, self.numerics_button,
-                  self.diagnose_button):
+                  self.start_button, self.diagnose_button):
             bar.addWidget(w)
         self.banner = Banner()
         self.plot = PlotCanvas()
@@ -86,6 +90,11 @@ class RunPage(QWidget):
         flow_solver = project.case.schema.euler_solver
         self.numerics_button.setVisible(flow_solver)
         self.diagnose_button.setVisible(flow_solver)
+        self.start_button.setVisible(flow_solver)
+        self.start_button.setEnabled(not w.runner.busy)
+        patches = len(project.post.get("init_patches") or [])
+        self.start_button.setText(f"Start options ({patches} patch region{'s' if patches != 1 else ''})..."
+                                  if patches else "Start options...")
         self.diagnose_button.setEnabled(bool(self._diagnosis()))
         record = project.steps.get("run") or {}
         status = project.status("run")
@@ -108,6 +117,11 @@ class RunPage(QWidget):
             self.banner.show_message("The inputs changed since the last run. Continue carries on from the current "
                                      "flow with the new inputs (usually much faster); Start from scratch begins again "
                                      "from the Initial solution.", "warning")
+        elif status == "outdated" and w.results is not None and flow_solver and \
+                project.interpolation_source(w.mesh) is not None:
+            self.banner.show_message("The mesh has changed since the last run. Press Run to update the results: it starts "
+                                     "from the previous solution interpolated onto the new mesh (usually much faster); "
+                                     "Start options turns this off.", "warning")
         elif status == "outdated" and w.results is not None:
             self.banner.show_message("The last results come from older inputs (or another mesh). Press Run to update "
                                      "them: it starts from the Initial solution, because the old flow does not fit "
@@ -116,6 +130,17 @@ class RunPage(QWidget):
             self.banner.show_message("The last results come from older inputs. Press Run to update them.", "warning")
         else:
             self.banner.show_message("Not run yet. Press Run (the mesh is made first if needed).", "info")
+
+    def show_start_options(self):
+        from aeroflowsim.gui.post_panels import InitialisationDialog
+        project = self.window.project
+        if project is None:
+            return
+        dialog = InitialisationDialog(self, project, self.window.units)
+        if dialog.exec():
+            dialog.apply()
+            self.window.update_title()
+            self.refresh()
 
     def _diagnosis(self):
         """The smart rule's suggestions for the last result (empty if it ran well)."""

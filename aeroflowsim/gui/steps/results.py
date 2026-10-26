@@ -4,14 +4,18 @@
 
 """Results step: field plots against the reference, key numbers, colour pictures (shape view, x-t
 diagram, 2D contour) and export. Out-of-date results carry an amber banner and are never shown as
-current. Validity checks are in the Validity checks panel."""
+current. Validity checks are in the Validity checks panel.
+
+2D results get the post-processing workspace instead (Prompt 7b): panels on the left (Display, Surfaces, Reports,
+XY plot, Snapshots, Fields; gui/post_panels.py), one, two or four linked views of the flow (gui/flow_view.py) and
+the plots and key numbers below them. Every number comes from aeroflowsim/post/."""
 
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit, QPushButton, QSplitter, QStackedWidget, QVBoxLayout, QWidget)
+                               QLineEdit, QPushButton, QSplitter, QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
 
 from aeroflowsim.gui.figures import PlotCanvas, field_figure, message_figure, residual_figure, wall_figure
 from aeroflowsim.gui.theme import paper_style
@@ -167,12 +171,344 @@ class ResultsPage(QWidget):
         splitter.addWidget(flow_box)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
+        self._build_post()
         layout = QVBoxLayout(self)
         layout.addWidget(self.banner)
         layout.addWidget(self.card)
         layout.addWidget(splitter, 1)
+        layout.addWidget(self.post_area, 1)
         self.splitter = splitter
         self._shown = None
+
+    # ---- the 2D post-processing workspace ----------------------------------------------------
+
+    def _build_post(self):
+        from aeroflowsim.gui.flow_view import ViewGrid
+        from aeroflowsim.gui.post_panels import (DisplayPanel, FieldsPanel, ReportsPanel, SnapshotsPanel,
+                                                 SurfacesPanel, XYPanel)
+        self._solution = None
+        self._snapshot_cache = {}
+        self.awaiting = None                 # "point", "line_1", "line_2" while a surface is made by clicking
+        self._line_start = None
+        self.grid = ViewGrid()
+        for v in self.grid.views:
+            self._connect_view(v)
+        self.display = DisplayPanel(self)
+        self.surfaces_panel = SurfacesPanel(self)
+        self.reports = ReportsPanel(self)
+        self.xy = XYPanel(self)
+        self.snapshots_panel = SnapshotsPanel(self)
+        self.fields_panel = FieldsPanel(self)
+        self.surfaces_panel.changed.connect(self._surfaces_changed)
+        self.post_tabs = QTabWidget()
+        for panel, name in ((self.display, "Display"), (self.surfaces_panel, "Surfaces"), (self.reports, "Reports"),
+                            (self.xy, "XY plot"), (self.snapshots_panel, "Snapshots"), (self.fields_panel, "Fields")):
+            self.post_tabs.addTab(panel, name)
+        self.post_tabs.setMinimumWidth(340)
+        self.plots2d_choice = QComboBox()
+        self.plots2d_choice.currentIndexChanged.connect(lambda _: self.draw_plot2d())
+        self.plots2d = PlotCanvas()
+        plots = QWidget()
+        pl = QVBoxLayout(plots)
+        pl.setContentsMargins(0, 0, 0, 0)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Plot"))
+        row.addWidget(self.plots2d_choice)
+        row.addStretch(1)
+        for text, slot in (("Save .vtu...", self.save_vtu), ("Export...", self.export_fields),
+                           ("Report...", self.make_report)):
+            b = QPushButton(text)
+            b.clicked.connect(slot)
+            row.addWidget(b)
+        pl.addLayout(row)
+        pl.addWidget(self.plots2d, 1)
+        self.numbers2d = ValueTable(["Quantity", "Value", "Unit"])
+        lower = QTabWidget()
+        lower.addTab(plots, "Plots")
+        lower.addTab(self.numbers2d, "Key numbers")
+        right = QSplitter(Qt.Vertical)
+        right.addWidget(self.grid)
+        right.addWidget(lower)
+        right.setStretchFactor(0, 3)
+        right.setStretchFactor(1, 2)
+        area = QSplitter()
+        area.addWidget(self.post_tabs)
+        area.addWidget(right)
+        area.setStretchFactor(0, 0)
+        area.setStretchFactor(1, 1)
+        area.setSizes([360, 1000])
+        self.post_area = area
+        self.post_area.setVisible(False)
+
+    def _connect_view(self, v):
+        v.probe_requested.connect(self.probe)
+        v.point_surface_requested.connect(lambda x, y: self.surfaces_panel.add(self._point_surface(x, y)))
+        v.line_surface_requested.connect(lambda x0, y0, x1, y1: self.surfaces_panel.add(
+            self._line_surface(x0, y0, x1, y1)))
+        v.seed_requested.connect(lambda x, y: self.display.add_seed(x, y))
+        v.clicked.connect(self._view_clicked)
+        v.cell_picked.connect(self.cell_picked)
+
+    def _point_surface(self, x, y):
+        from aeroflowsim.post.surfaces import Surface
+        return Surface.point((x, y), name="probe")
+
+    def _line_surface(self, x0, y0, x1, y1):
+        from aeroflowsim.post.surfaces import Surface
+        return Surface.line((x0, y0), (x1, y1), name="line")
+
+    def _view_clicked(self, x, y):
+        if self.awaiting == "point":
+            self.awaiting = None
+            self.surfaces_panel.add(self._point_surface(x, y))
+        elif self.awaiting == "line_1":
+            self._line_start = (x, y)
+            self.awaiting = "line_2"
+            self.window.log("Now click the end point of the line")
+        elif self.awaiting == "line_2":
+            self.awaiting = None
+            self.surfaces_panel.add(self._line_surface(*self._line_start, x, y))
+
+    def solution(self):
+        """The current result as a post.Solution (None for 1D results or results of an older mesh)."""
+        w = self.window
+        if w.results is None or not is_face_mesh(w.mesh) or results_mesh_mismatch(w.results["result"], w.mesh):
+            return None
+        if self._solution is None or self._solution_key != id(w.results):
+            from aeroflowsim.post.solution import Solution
+            try:
+                self._solution = Solution.from_payload(w.mesh, w.results, case=w.project.case, base=w.project.folder,
+                                                       custom_fields=dict(w.project.custom_fields))
+            except ValueError as exc:
+                self.window.log(f"Post-processing not available: {exc}", "warning")
+                self._solution = None
+            self._solution_key = id(w.results)
+            self._snapshot_cache = {}
+        return self._solution
+
+    def snapshot_solution(self, name):
+        if name not in self._snapshot_cache:
+            from aeroflowsim.post.snapshots import snapshot_mesh
+            from aeroflowsim.post.solution import Solution
+            from aeroflowsim.result_io import load_run
+            from aeroflowsim.post.snapshots import snapshot_path
+            project = self.window.project
+            sol = self.solution()
+            payload = load_run(snapshot_path(project, name))
+            mesh = sol.mesh if sol is not None and len(payload["result"].fields["rho"].values) == sol.mesh.n_cells                 else snapshot_mesh(project, name)
+            self._snapshot_cache[name] = Solution.from_payload(mesh, payload, case=project.case, base=project.folder,
+                                                               name=name, custom_fields=dict(project.custom_fields))
+        return self._snapshot_cache[name]
+
+    def view_solution(self, k):
+        """The Solution view k shows: the current result, a snapshot, or a difference A - B (as a solution whose
+        shown field is the difference)."""
+        from aeroflowsim.gui.post_panels import SOURCE_CURRENT
+        source = self.display.sources[k] if k < len(self.display.sources) else SOURCE_CURRENT
+        sol = self.solution()
+        if sol is None:
+            return None
+        if source == SOURCE_CURRENT:
+            return sol
+        if source.startswith("Difference: "):
+            other = source.split(" - ", 1)[1]
+            return self._difference_solution(sol, self.snapshot_solution(other), self.display.scenes[k].field)
+        return self.snapshot_solution(source)
+
+    def _difference_solution(self, a, b, name):
+        from aeroflowsim.post.compare import difference
+        d = difference(a, b, name)
+        key = f"diff_{name}"
+        fields = dict(a.fields)
+        out = a.with_fields(fields, name=f"{a.name} - {b.name}")
+        out.fields[key] = d.values
+        out.units[key] = d.unit
+        out.labels[key] = f"Difference of {d.label}" + (" (interpolated)" if d.interpolated else "")
+        out._difference_of = (name, key)
+        return out
+
+    def surfaces(self, project_only=False):
+        from aeroflowsim.post.surfaces import default_surfaces, surfaces_from
+        project = self.window.project
+        own = surfaces_from(project.post["surfaces"]) if project else []
+        if project_only:
+            return own
+        sol = self.solution()
+        names = {s.name for s in own}
+        return own + [s for s in (default_surfaces(sol) if sol is not None else []) if s.name not in names]
+
+    def surface_by_name(self, name):
+        return next((s for s in self.surfaces() if s.name == name), None)
+
+    def set_view_count(self, n):
+        self.grid.set_count(n)
+        for v in self.grid.views:
+            if not getattr(v, "_connected", False):
+                self._connect_view(v)
+                v._connected = True
+        self.draw_all()
+
+    def draw_all(self, keep_camera=True):
+        for k in range(self.grid.count):
+            self.draw_view(k, keep_camera)
+
+    def draw_view(self, k, keep_camera=True):
+        from aeroflowsim.gui.results_logic import hover_text, prepare, scene_problem
+        from aeroflowsim.post.surfaces import evaluate_surface
+        if k >= self.grid.count:
+            return
+        view = self.grid.views[k]
+        sol = self.view_solution(k)
+        if sol is None:
+            mismatch = results_mesh_mismatch(self.window.results["result"], self.window.mesh)                 if self.window.results else None
+            view.clear(mismatch or "No 2D result")
+            return
+        scene = self.display.scenes[k]
+        diff = getattr(sol, "_difference_of", None)
+        if diff is not None:                     # a difference view: show A - B with a diverging map
+            from aeroflowsim.gui.results_logic import Scene
+            scene = Scene.from_dict({**scene.to_dict(), "field": diff[1], "cmap": "RdBu_r", "log_scale": False})
+        problem = scene_problem(sol, scene)
+        if k == self.display.view_index:
+            self.display.set_problem(problem)
+        if problem:
+            if scene.log_scale:
+                scene.log_scale = False
+            if scene.revolve and not sol.axisymmetric:
+                scene.revolve = False
+        snaps = []
+        if scene.range_mode == "Over all snapshots":
+            from aeroflowsim.post.snapshots import list_snapshots
+            snaps = [self.snapshot_solution(s["name"]) for s in list_snapshots(self.window.project)]
+            snaps = [s for s in snaps if s.mesh.n_cells == sol.mesh.n_cells]
+        try:
+            data = prepare(sol, scene, self.window.units, snaps, {s.name: s for s in self.surfaces()})
+        except Exception as exc:                 # noqa: BLE001 - show the problem, never crash the page
+            view.clear(f"Cannot draw this scene: {exc}")
+            return
+        overlays = []
+        for s in self.surfaces(project_only=True):
+            if s.visible and not s.problem(sol):
+                try:
+                    overlays.append(evaluate_surface(sol, s))
+                except ValueError:
+                    pass
+        view.hover = lambda x, y, sol=sol, scene=scene: hover_text(sol, scene, (x, y), self.window.units)
+        first = not getattr(view, "_drawn_once", False)
+        view.draw(sol, scene, data, overlays, keep_camera=keep_camera and not first)
+        view._drawn_once = True
+
+    def save_view_picture(self, k, path, scale=2, transparent=False, paper=True):
+        from aeroflowsim.post.surfaces import evaluate_surface
+        sol = self.view_solution(k)
+        overlays = [evaluate_surface(sol, s) for s in self.surfaces(project_only=True) if s.visible and not s.problem(sol)]             if sol is not None else []
+        self.grid.views[k].picture(path, scale, transparent, paper, overlays)
+        self.window.log(f"Picture saved to {path}")
+
+    def probe(self, x, y):
+        from aeroflowsim.gui.results_logic import probe_rows
+        sol = self.solution()
+        if sol is None:
+            return
+        unit, k = self.surfaces_panel.length()
+        self.window.show_properties(f"Probe at ({x * k:.4g}, {y * k:.4g}) {unit}", probe_rows(sol, (x, y), self.window.units))
+
+    def compare_with(self, name):
+        """Two views side by side (current and snapshot) and a difference in a third: 4-view layout."""
+        from aeroflowsim.gui.post_panels import SOURCE_CURRENT
+        d = self.display
+        d.layout_choice.blockSignals(True)
+        d.layout_choice.setCurrentText("Four views")
+        d.layout_choice.blockSignals(False)
+        d._update_views_list()
+        field = d.scenes[0].field
+        from aeroflowsim.gui.results_logic import Scene
+        d.sources[:4] = [SOURCE_CURRENT, name, f"Difference: {SOURCE_CURRENT} - {name}", SOURCE_CURRENT]
+        for k in range(1, 4):
+            d.scenes[k] = Scene.from_dict(d.scenes[0].to_dict())
+        d.scenes[3] = Scene.from_dict({**d.scenes[0].to_dict(), "field": field, "contour_lines": True})
+        d.fill_sources()
+        self.set_view_count(4)
+        d._load(d.view_index)
+
+    def snapshots_changed(self):
+        self._snapshot_cache = {}
+        self.snapshots_panel.fill()
+        self.display.fill_sources()
+        self.xy.fill()
+
+    def custom_fields_changed(self):
+        sol = self.solution()
+        if sol is not None:
+            sol.custom_fields = dict(self.window.project.custom_fields)
+            sol._cache.pop("fields", None)
+        self._snapshot_cache = {}
+        self.fields_panel.fill()
+        self.display.fill()
+        self.reports.fill()
+        self.xy.fill()
+
+    def _surfaces_changed(self):
+        self.display.fill_seed_surfaces()
+        self.reports.fill()
+        self.xy.fill()
+        self.draw_all()
+
+    def _fill_post(self):
+        result = self.window.results["result"]
+        self.numbers2d.set_rows(key_number_rows(result, self.window.results.get("reference"),
+                                                self.window.results.get("run_s"), self.window.units))
+        plots = flow_plots(result)
+        self.plots2d_choice.blockSignals(True)
+        self.plots2d_choice.clear()
+        self.plots2d_choice.addItems(plots)
+        self.plots2d_choice.blockSignals(False)
+        self.draw_plot2d()
+        for panel in (self.display, self.surfaces_panel, self.reports, self.xy, self.snapshots_panel,
+                      self.fields_panel):
+            panel.fill()
+        self.draw_all(keep_camera=False)
+
+    def draw_plot2d(self):
+        payload = self.window.results
+        which = self.plots2d_choice.currentText()
+        if payload is None or not which:
+            return
+        result = payload["result"]
+        if which == "Convergence history":
+            fig = residual_figure(list(range(1, len(result.residuals) + 1)), result.residuals,
+                                  payload["params"].get("tol"), prefs=self.window.units, **history_extras(result))
+        else:
+            fig = wall_figure(result, which, self.window.units)
+        self.plots2d.set_figure(fig)
+
+    def export_fields(self):
+        from aeroflowsim.gui.post_panels import _number  # noqa: F401  (keeps the import list short)
+        from aeroflowsim.post import export
+        sol = self.solution()
+        if sol is None:
+            return
+        path, kind = QFileDialog.getSaveFileName(self, "Export fields", str(Path(self.window.project.results_dir) /
+                                                                            f"{self.window.project.name}_fields.csv"),
+                                                 "CSV, cell centres (*.csv);;CSV, nodes (*.csv);;"
+                                                 "VTU with node data (*.vtu);;Tecplot ASCII (*.dat)")
+        if not path:
+            return
+        fields = tuple(dict.fromkeys(["rho", "u", "v", "p", "T", "M", "p0", "T0", "s", *sol.custom_fields]))
+        if kind.startswith("VTU"):
+            export.fields_vtu(sol, path, fields)
+        elif kind.startswith("Tecplot"):
+            export.fields_tecplot(sol, path, fields)
+        else:
+            from aeroflowsim.gui.results_logic import display_values
+
+            def convert(values, unit):
+                return display_values(values, unit, self.window.units)
+            export.fields_csv(sol, path, fields, "node" if "nodes" in kind else "cell", convert=convert)
+        self.window.log(f"Fields exported to {path}")
+
+    def make_report(self):
+        self.window.make_report()
 
     # ---- what to show -----------------------------------------------------------------------
 
@@ -191,9 +527,12 @@ class ResultsPage(QWidget):
         if w.results is None:
             self.banner.show_message("No results yet. Run the case in the Run step.", "info")
             self.splitter.setVisible(False)
+            self.post_area.setVisible(False)
             self.card.setVisible(False)
             return
-        self.splitter.setVisible(True)
+        two_d = is_face_mesh(w.mesh)
+        self.splitter.setVisible(not two_d)
+        self.post_area.setVisible(two_d)
         self.card.setVisible(True)
         self.card.set_outdated(status in ("outdated", "error"))
         if status == "outdated":
@@ -207,6 +546,8 @@ class ResultsPage(QWidget):
         if self._shown is not w.results:
             self._shown = w.results
             self._fill()
+            if two_d:
+                self._fill_post()
 
     def _fill(self):
         payload = self.window.results
@@ -295,6 +636,12 @@ class ResultsPage(QWidget):
         else:
             fig = wall_figure(result, which, self.window.units)
         self.flow_plot.set_figure(fig)
+
+    def set_dark(self, dark):
+        self.flow_view.set_dark(dark)
+        self.grid.set_dark(dark)
+        if self.post_area.isVisible():
+            self.draw_all()
 
     def cell_picked(self, cell):
         payload = self.window.results

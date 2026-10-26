@@ -1,0 +1,39 @@
+# NACA 0012 (sharp trailing edge, Vassberg & Jameson's geometry), inviscid, air (gamma = 1.4), with external_2d in a
+# workspace C-domain, three meshes and the GCI tool (aeroflowsim/gci.py).
+# Reference: Vassberg, J. C. and Jameson, A. (2010), "In pursuit of grid convergence for two-dimensional Euler
+# solutions", Journal of Aircraft 47(4), 1152-1166, doi:10.2514/1.46737. Continuum estimates of three codes on
+# O-meshes up to 4096 x 4096 cells: Table 11 (Mach 0.8) and Table 10 (Mach 0.5), page 1165.
+# The reference value is the mean of the three codes (FLO82, OVERFLOW, CFL3D without vortex); their spread is
+# 2.3 % in Cl and 1 % in Cd at Mach 0.8, so the tolerance must include it. The full-set meshes are coarse (Prompt 8
+# speed is needed for finer ones): tolerance 3 % on Cl, 8 % on Cd (stated in the report). Quick set: the coarsest
+# mesh only, with wider tolerances.
+
+title = "NACA 0012, inviscid, Mach 0.8 and 0.5 at alpha 1.25 deg (2D Euler, C-domain, GCI)"
+case = "cases/external_2d"
+
+[[reference]]
+id = "Cl_transonic"
+quantity = "Lift coefficient, Mach 0.8, alpha 1.25 deg (GCI-extrapolated)"
+value = 0.352033
+unit = "-"
+tolerance_percent = 3.0
+tolerance_percent_quick = 12.0
+source = "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 11, p. 1165: mean of FLO82 0.356209, OVERFLOW 0.351663, CFL3D 0.348226"
+
+[[reference]]
+id = "Cd_transonic"
+quantity = "Drag coefficient, Mach 0.8, alpha 1.25 deg (GCI-extrapolated)"
+value = 0.022547
+unit = "-"
+tolerance_percent = 8.0
+tolerance_percent_quick = 30.0
+source = "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 11, p. 1165: mean of FLO82 0.022685, OVERFLOW 0.022453, CFL3D 0.022501"
+
+[[reference]]
+id = "Cl_subcritical"
+quantity = "Lift coefficient, Mach 0.5, alpha 1.25 deg (GCI-extrapolated)"
+value = 0.179969
+unit = "-"
+tolerance_percent = 3.0
+tolerance_percent_quick = 8.0
+source = "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 10, p. 1165: mean of FLO82 0.180346, OVERFLOW 0.179777, CFL3D 0.179784"
