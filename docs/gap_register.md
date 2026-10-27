@@ -79,7 +79,13 @@ Last updated: Prompt 7b (2026-10-26).
 | Enclosure tool (circle, rectangle, C-domain, full/half; nozzle plume region and inlet plenum), drag handles | done | P1 | 6d |
 | Booleans (OpenCASCADE), name boundaries by clicking (suggestions, rename, types, inflation), refinement regions (box, circle, wake) | done | P1 | 6d; boundary types in one table, extended in Prompt 7 |
 | Geometry validity checks, export STEP / DXF / CSV | done | P1 | 6d |
-| Remaining shapes (bell nozzle, intakes, biconvex, NACA 5, ogive, von Karman, power-law, sphere, ...) | planned 6e | P2 | |
+| Remaining shapes: bell nozzle (Rao), planar MOC nozzle, ramp intake (1-3 ramps), spike intake, biconvex, NACA 5-digit (standard + reflex), nose cones (tangent/secant ogive, von Karman, LV-Haack, power, parabolic, ellipse, blunt nose, afterbody), sphere, hemisphere-cylinder, sphere-cone capsule, blunted cone | done | P2 | 6e part 1: `aeroflowsim/shapes/`, `nozzle_contours.py`, `intake_theory.py`; each tested against its equation (`tests/test_shapes_new.py`); theory manual section 14 |
+| Smart rule "shock on lip" (cowl lip on the ramp / cone shocks) | done | P2 | 6e: `smart_rules.shock_on_lip`, shown with reason and Apply, never automatic |
+| Rao bell angles are chart readings (digitised Huzel-Huang plot 4-16, about +-0.5 deg), range eps 5.2-50.3, Lf 60-100 % | partial | P2 | primary chart/paper not reachable; outside the range the user types theta_n and theta_e. Replace by a sourced table when the book is at hand |
+| Axisymmetric (and bell-contour) Method-of-Characteristics nozzle | later | P3 | 6e implemented the planar minimum-length nozzle only (stretch goal not done) |
+| Shapes with two bodies (intake centre body + separate cowl, open through-duct) | later | P2 | `ShapeProfile` is one closed outline: the intake shapes join cowl and centre body with a rear block, so the duct is a dead-end pocket (shock system and capture only) |
+| NACA 5-digit constants: tabulated for L = 2 only (x10-x51); other L scale k1 linearly; 210 line is 2.8 % off its design lift (3-digit r) | partial | P3 | constants from Wikipedia (NASA TM X-3284 not reachable) |
+| Unsourced default dimensions (capsule, intake angles, MOC characteristics count) | partial | P3 | illustrative inputs, labelled as such in the help text |
 | 3D geometry (STEP) | later | P2 | Phase 3, prompt 9; the workspace data model is ready for a z column and 3D faces |
 
 ## 4. Meshing
@@ -91,7 +97,10 @@ Last updated: Prompt 7b (2026-10-26).
 | Mesh quality fields and validity checks, click a cell to see its values | done | P1 | |
 | **Bug: quasi-1D mesh fails for n_cells ≥ about 450** (`OverflowError` in throat grading) | done | P1 | fixed in 6f: the growth-factor search had an upper end of 10, and 10^450 overflows; tested from 300 to 20 000 cells, runs at 300 / 450 / 1 000 / 5 000 cells |
 | Quasi-1D residual stalls on fine meshes (minmod limit cycle in the smallest throat cells: near 1e-7 from 450 cells, near 1e-2 at 5 000 cells) | partial | P2 | the solution is steady (mass balance 0.001 %, exit Mach to 1e-5); use tol 1e-6 or CFL 0.1; a smoother limiter (van Albada) or implicit time stepping (Prompt 8) should fix it |
-| Structured C-grid / O-grid (Gmsh transfinite) | planned 6e | P2 | |
+| Structured C-grid (airfoils, sharp trailing edge, wake cut) and O-grid (cylinder, sphere, smooth closed bodies), exact first-layer height, Coarse / Medium / Fine presets, same patch names as the Gmsh mesh | done | P2 | 6e part 2: `aeroflowsim/structured_mesh.py` (NumPy, not Gmsh transfinite: exact first layer, tested), input *Mesh type* in `external_2d`; `tests/test_structured_mesh.py`; theory manual section 14 |
+| C-grid for blunt trailing edges, and for outlines with interior corners (diamond, wedge, flat-base bodies) | later | P2 | refused with a message; needs a base block / multi-block grid (a block of cells behind the base, corners as block edges) |
+| Structured grid for edited workspace geometry | later | P3 | refused with a message; edited geometry is meshed with Gmsh |
+| Structured grid far-field cells in the wake are very flat (aspect ratio about 1,300-4,800 along the wake, first layer 1e-3 c) | partial | P3 | normal for a C-grid with a thin first layer; irrelevant for Euler flow, revisit for viscous flow (Phase 4) |
 | Mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh) | planned 6e | P2 | |
 | Mesh of an edited geometry with named boundaries as patches (`workspace_mesh.py`), inflation on marked walls | done | P1 | 6d; layers must end on straight boundaries |
 | Structured mesh of an edited nozzle geometry | later | P3 | edited geometry uses Gmsh triangles / quads (clear message) |
@@ -153,7 +162,7 @@ Last updated: Prompt 7b (2026-10-26).
 | BMG nozzle: tabulated measurements and a position-uncertainty band | later | P2 | the data are digitized from the report's Fig. 4; a z-uncertainty band (slope x dz) would judge the steep throat region fairly |
 | Diamond-airfoil residual stall | partial | P2 | 7b: ~4e-3 in a few cells at the lower leading-edge shock foot (limiter limit cycle, found with the per-cell residual field); Cl, Cd steady to 1e-6. Prompt 8 (implicit) |
 | Quick validation set on every push, full set weekly / on tags | done | P1 | 7b: AEROFLOWSIM_VALIDATION_SET=quick, run_all.py --quick, workflows tests.yml / validation.yml |
-| Structured C-grid / O-grid for blunt bodies in the GUI | planned 6e | P2 | Prompt 7 has a polar blunt-body grid only in `simple_meshes.py` (carbuncle test) |
+| Structured O-grid for smooth blunt bodies in the GUI | done | P2 | 6e: sphere / cylinder O-grid in `external_2d`; the capsule, blunted cone and hemisphere-cylinder have a base corner, so they need the unstructured mesh (see the C-grid / flat-base gap) |
 | Cross-code comparison with SU2 / OpenFOAM | later | P2 | Phase 4 |
 | GCI mesh-independence tool | done | P2 | 7b: aeroflowsim/gci.py (Roache / Celik et al. 2008), used by the MMS, nozzle and NACA 0012 studies; a GUI dialog for it is later |
 

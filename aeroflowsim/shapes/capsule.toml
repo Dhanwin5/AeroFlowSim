@@ -1,0 +1,67 @@
+# Sphere-cone capsule: spherical forebody, rounded shoulder, conical afterbody, flat back.
+
+[shape]
+name = "Sphere-cone capsule"
+group = "Blunt bodies"
+symmetry = "axisymmetric"
+description = "Re-entry capsule: spherical heat shield, rounded shoulder, conical afterbody (illustrative default dimensions)."
+
+[[input]]
+key = "diameter"
+label = "Capsule diameter"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Largest diameter (at the shoulder). Reference length and area follow it: reference area = pi D² / 4."
+
+[[input]]
+key = "nose_radius"
+label = "Forebody sphere radius"
+unit = "m"
+type = "float"
+default = 1.2
+min = 1e-6
+max = 10000.0
+help = "Radius of the spherical heat shield. Must be larger than the capsule radius."
+
+[[input]]
+key = "shoulder_radius"
+label = "Shoulder radius"
+unit = "m"
+type = "float"
+default = 0.05
+min = 1e-6
+max = 1000.0
+help = "Radius of the rounded corner between the heat shield and the afterbody."
+
+[[input]]
+key = "afterbody_angle"
+label = "Afterbody half-angle"
+unit = "deg"
+type = "float"
+default = 30.0
+min = 0.0
+max = 80.0
+help = "Half-angle of the conical afterbody (how fast it narrows behind the shoulder)."
+
+[[input]]
+key = "afterbody_length"
+label = "Afterbody length"
+unit = "m"
+type = "float"
+default = 0.4
+min = 0.0
+max = 1000.0
+help = "Axial length of the cone behind the shoulder, ending in a flat back."
+
+[[input]]
+key = "points"
+label = "Points on the forebody"
+unit = "-"
+type = "int"
+default = 90
+min = 12
+max = 2000
+help = "Points on the spherical forebody (the shoulder gets a third of this)."

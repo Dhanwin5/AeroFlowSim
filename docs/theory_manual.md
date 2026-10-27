@@ -928,9 +928,125 @@ stagnation region that contains the bow shock. The metric is its peak-to-peak ch
 divided by its mean: a settled shock gives a tiny value, a carbuncle (a shock that keeps moving) a large one. It
 separates the HLLE-blend on / off runs by orders of magnitude, unlike the earlier spatial shock-roughness measure.
 
-## 14. References
+## 14. New shapes, nozzle contours and intakes (Prompt 6e, part 1)
+
+Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,
+`aeroflowsim/intake_theory.py`. Tests: `tests/test_shapes_new.py` (each shape against its defining equation).
+
+**Nose cones of revolution** (`nose_cone.py`; x from the tip, L length, R base radius, y radius):
+
+- Haack series: θ = arccos(1 − 2x/L), y = R √[(θ − sin 2θ / 2 + C sin³θ) / π]. C = 0 is the von Kármán
+  (LD-Haack) nose, C = 1/3 the LV-Haack nose (Crowell 1996). At mid-length θ = π/2, so the von Kármán radius is
+  exactly R/√2 (tested).
+- Ogives: the profile is a circular arc through the tip (0,0) and the base edge (L,R). Tangent ogive: radius
+  ρ_t = (R² + L²)/(2R), y = √(ρ_t² − (L − x)²) + R − ρ_t, tangent to the cylinder at the base. Secant ogive: a
+  larger radius ρ = k ρ_t (k > 1), the arc cuts the cylinder at an angle (the circle's radius is recovered by a
+  least-squares circle fit in the test).
+- Power series y = R (x/L)ⁿ; parabolic series y = R (2x/L − K (x/L)²)/(2 − K); ellipse y = R √(1 − ((L − x)/L)²).
+- **Spherical blunting.** A sphere of radius r_n with its centre on the axis touches the profile at x_t where the
+  normal to the profile passes through the centre. With slope y′ the normal meets the axis at x_t + y y′, and the
+  radius is y √(1 + y′²). So x_t solves y(x_t) √(1 + y′(x_t)²) = r_n (a root find); the profile in front of x_t is
+  replaced by the sphere. The blunt body is shorter than the sharp profile.
+
+**Blunt bodies.** Sphere; hemisphere-cylinder; spherically blunted cone (sphere tangent to a cone of half-angle θ:
+centre x_c = r_n / sin θ, tangent point (x_c − r_n sin θ, r_n cos θ)); sphere-cone capsule: a spherical forebody
+(radius R_n), a shoulder arc (radius r_s) tangent to it from inside, and a conical afterbody (half-angle θ_c)
+tangent to the shoulder. Tangency from inside needs the shoulder centre at distance R_n − r_s from the sphere
+centre and at height R_b − r_s, which gives sin α = (R_b − r_s)/(R_n − r_s) for the polar angle α of the tangent point.
+
+**Biconvex airfoil.** Two circular arcs through the edges, sagitta s = tc/2, half-chord a = c/2, radius
+R = (a² + s²)/(2s); area = 2 R² (Θ − sin Θ cos Θ) with sin Θ = a/R (tested to 1e-6).
+
+**NACA 5-digit airfoils** (`naca5.py`): digits LPSTT, design lift coefficient 0.15 L, standard (S = 0) or reflex
+(S = 1) camber line with the constants r, k₁ (and k₂/k₁) of the table (Abbott and von Doenhoff 1959; values as
+printed on Wikipedia, "NACA airfoil", for c_li = 0.3). Standard: y_c = k₁/6 (x³ − 3r x² + r²(3 − r) x) for x < r,
+y_c = k₁ r³/6 (1 − x) after. Reflex: y_c = k₁/6 [(x − r)³ − (k₂/k₁)(1 − r)³ x − r³ x + r³] for x < r and
+k₁/6 [(k₂/k₁)(x − r)³ − …] after. For another L the camber is linear in k₁, so k₁ is scaled by L/2. The thickness is
+the 4-digit distribution put on perpendicular to the camber line. **Independent check** (thin-airfoil theory): the
+ideal lift of a camber line is c_li = 2 ∫₀^π (dy_c/dx) cos θ dθ with x = (1 − cos θ)/2; the tabulated lines give
+0.3000 to 0.3001 (230, 240, 250), 0.302 (220), 0.308 (210: the printed r = 0.0580 has only three digits and the
+line is very sensitive to it), 0.301-0.305 (reflex), and 0.4501 for L = 3. The peak of the standard camber line is at
+x = 0.05 P to 2e-4.
+
+**Rao bell nozzle** (`nozzle_contours.bell_nozzle`). Throat radius R_t, two throat arcs (upstream radius
+1.5 R_t, downstream radius 0.382 R_t), then a parabola from point N (wall angle θ_n at the end of the downstream arc)
+to the exit E (angle θ_e). The parabola is written as a quadratic Bézier curve with P₀ = N, P₂ = E and control point
+P₁ at the crossing of the tangent at N and the tangent at E; it leaves N with slope tan θ_n and arrives at E with
+slope tan θ_e. The length is L = L_f R_t (√ε − 1)/tan 15° (L_f: fraction of a 15° cone, typically 0.75-0.85).
+θ_n and θ_e come from Huzel and Huang's chart (plot 4-16); the chart was digitised by D. Sd (pygasflow, plot-4-16-data) and
+every second point is stored in `RAO_THETA_N` / `RAO_THETA_E` (L_f 0.6 to 1.0, ε 5.2 to 50.3). **These are chart
+readings, good to about ±0.5°**; outside the range the user types the angles. The throat-arc radii are from the
+Georgia Tech AE 6450 lecture notes (Seitzman), the chart reference length from Huzel and Huang.
+
+**Minimum-length nozzle by the Method of Characteristics** (`nozzle_contours.moc_min_length_nozzle`; Anderson,
+*Modern Compressible Flow*, ch. 11). A sharp-corner sonic throat turns the flow by θ_max = ν(M_e)/2 in a centred
+expansion fan; the wall then straightens it. Along a left-running characteristic C⁻ (slope θ − μ) the quantity
+K⁻ = θ + ν is constant, along a right-running one C⁺ (slope θ + μ) K⁺ = θ − ν. With the fan split into n
+characteristics θ_k = kθ_max/n, characteristic number m reflected off the axis has K⁺ = −2θ_m, and C⁻ number k has
+K⁻ = 2θ_k, so node (k, m) has θ = θ_k − θ_m and ν = θ_k + θ_m; positions follow from intersecting two straight
+characteristic segments with the slopes averaged between their ends. The wall point m is where C⁺ number m, continued
+past the last C⁻, reaches the wall, with the wall angle equal to the flow angle there. **Check:** the exit height
+ratio y_e/h must equal the isentropic A/A* for the design Mach number; with n = 100 it agrees to 0.2 % (M = 2.4, 3,
+γ = 1.4; M = 4, γ = 1.3) and the error falls by a factor of about 2.4 for each doubling of n. Axisymmetric MOC is not
+implemented (gap register).
+
+**External-compression intakes** (`intake_theory.py`). Ramp i turns the flow from the angle of ramp i − 1 to δ_i; the
+shock angle β from the flow in front comes from the θ-β-M relation tan θ = 2 cot β (M² sin²β − 1) /
+(M² (γ + cos 2β) + 2) (Anderson 2003, eq. 4.17); the shock leaves the ramp corner at the absolute angle δ_{i−1} + β.
+*Shock on lip*: with one ramp the lip is on the shock line y = x tan ε₁; with two or more it is at the crossing of
+shocks 1 and 2, and the miss distance of every other shock from the lip is reported. For a spike (cone) intake the lip
+radius is x tan β with the conical-shock angle β from the Taylor-Maccoll solution (`gasdynamics.taylor_maccoll`, the
+same code validated against Sims' tables). The rule is a smart rule: shown with its reason and an Apply button, never
+automatic. **Limitation:** a ShapeProfile is one closed outline, so the cowl is joined to the centre body by a solid
+rear block and the duct is a dead-end pocket; the outlines are for the shock system and the capture, not the duct flow.
+
+### Structured O-grids and C-grids (Prompt 6e, part 2)
+
+Code: `aeroflowsim/structured_mesh.py`; tests: `tests/test_structured_mesh.py`; selected in the Mesh step of
+`external_2d` (input *Mesh type*). The grids are made in NumPy (not Gmsh transfinite blocks, see the ledger for why):
+one block of (i, j) points, quadrilateral cells, patches named `wall`, `farfield`, `symmetry` / `axis` exactly as in
+the unstructured mesh.
+
+**One grid line.** For every i there is a wall point **P** (with unit wall normal **n**, fluid on the left of the
+direction of travel, n = (−t_y, t_x)) and a far-field point **Q**. With D = |**Q** − **P**| and **e** = (**Q** − **P**)/D
+the point j of the line is
+
+  X_ij = P_i + D s_j u_ij,    u = (1 − w) n + w e, normalised,    w = s^0.7,
+
+with s_j a geometric series: s_1 D = h₀ is the first layer height *exactly*, and the ratio r makes n layers end exactly on
+**Q**, h₀ (rⁿ − 1)/(r − 1) = D (solved per line by bisection). The line leaves the wall at a right angle (w ≈ 0) and bends
+towards **Q** (w → 1). The ratio is a result, checked against the largest growth rate the user accepts. Tested: first
+layer height exact; halving it halves the first cell; halving or doubling the cells around the body, normal to the wall or
+in the wake changes the cell count by exactly that factor.
+
+**O-grid** (cylinder, sphere, smooth closed bodies): **P** are the outline points resampled by arc length, **Q** the radial
+projection of **P** onto a circle of radius R about the body centre. Half domain: the lines at the two axis points lie on y = 0.
+Orthogonality at the wall is exact (below 1e-3 degrees in the tests) on the cylinder.
+
+**C-grid** (airfoils with a sharp trailing edge and a smooth outline): the inner line is the lower wake (outflow to the
+trailing edge), the lower surface, the upper surface and the upper wake. The surface points are placed by arc length with
+80 % cosine and 20 % uniform spacing (dense at both edges, not extreme); the wake points are a geometric series that starts
+with the last surface cell. The far field is a semicircle of radius R about the trailing edge, closed by two horizontal lines
+at ±R and the outflow side at x_TE + R. The matching far-field points are placed by the same fractions, partly evened out
+("fan" 0.5), so the lines in the wake spread out. The wake line is a cut: its two copies are the same nodes, so the cells above
+and below share the faces. Near the trailing edge the surface normals of a wedge point backwards and the lines would cross the
+vertical wake lines; the normals are turned to the wake direction over the last half chord (linear weight). Tested on
+NACA 0012, 4412, 23012 and a biconvex airfoil at three sizes: no negative cell, skewness 0.38 to 0.49 (0.87 at the sharp
+leading edge of the biconvex section).
+
+**Not covered:** blunt trailing edges (a base block is needed), surfaces with interior corners (the resampling would cut
+them), edited workspace geometry. The message says why. See the gap register.
+
+## 15. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.
+- Crowell, G. A. (1996). *The Descriptive Geometry of Nose Cones*. (Source of the nose-cone equations as given on
+  Wikipedia, "Nose cone design", and in the AeroSandbox implementation; the Haack form was confirmed in both, 27 Oct 2026.)
+- Huzel, D. K., Huang, D. H. (1992). *Modern Engineering for Design of Liquid-Propellant Rocket Engines*. AIAA
+  (plot 4-16, Rao nozzle angles; digitised by D. Sd in pygasflow).
+- Rao, G. V. R. (1960). Approximation of optimum thrust nozzle contour. *ARS Journal* (the parabola approximation;
+  the paper itself was not reachable, the method is taken from the Georgia Tech notes below).
+- Seitzman, J. M. *Nozzle geometries*. Georgia Tech AE 6450 lecture notes (throat arc radii 1.5 and 0.382 R_t).
 - Anderson, J. D. (2003). *Modern Compressible Flow*, 3rd ed. McGraw-Hill.
 - Cengel, Y. A., Boles, M. A. *Thermodynamics: An Engineering Approach*. McGraw-Hill (Table A-1: gas constants).
 - Barth, T. J., Jespersen, D. C. (1989). The design and application of upwind schemes on unstructured meshes.

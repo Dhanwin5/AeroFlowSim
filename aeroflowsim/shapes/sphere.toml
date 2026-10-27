@@ -1,0 +1,17 @@
+# Sphere (axisymmetric blunt body).
+
+[shape]
+name = "Sphere"
+group = "Blunt bodies"
+symmetry = "axisymmetric"
+description = "Sphere in the free stream (the classic bow-shock stand-off and drag test)."
+
+[[input]]
+key = "diameter"
+label = "Diameter"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Sphere diameter. Also the reference length; the reference area is the frontal area pi D² / 4."

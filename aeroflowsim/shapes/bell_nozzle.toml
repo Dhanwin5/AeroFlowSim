@@ -1,0 +1,95 @@
+# Rao bell nozzle: two throat arcs and a parabola (Rao 1960; angles from Huzel and Huang, plot 4-16).
+
+[shape]
+name = "Bell nozzle (Rao)"
+group = "Nozzles"
+symmetry = "either"
+description = "Thrust-optimised parabolic bell nozzle: throat arcs plus a parabola from the wall angle theta_n to the exit angle theta_e. Drawn as the nozzle flow path."
+
+[[input]]
+key = "body_type"
+label = "Nozzle type"
+type = "choice"
+default = "Axisymmetric"
+options = ["Axisymmetric", "Planar"]
+help = "Axisymmetric: round nozzle (area ratio = exit area / throat area). Planar: two-dimensional nozzle (area ratio = exit height / throat height)."
+
+[[input]]
+key = "throat_diameter"
+label = "Throat diameter (height for planar)"
+unit = "m"
+type = "float"
+default = 0.1
+min = 1e-6
+max = 1000.0
+help = "Throat diameter (axisymmetric) or throat height (planar)."
+
+[[input]]
+key = "area_ratio"
+label = "Area ratio"
+unit = "-"
+type = "float"
+default = 25.0
+min = 1.01
+max = 500.0
+help = "Exit area divided by throat area. The chart angles cover 5.2 to 50.3; outside that range give theta_n and theta_e yourself."
+
+[[input]]
+key = "length_percent"
+label = "Length (% of a 15 degree cone)"
+unit = "%"
+type = "float"
+default = 80.0
+min = 50.0
+max = 120.0
+help = "Length of the diverging part as a percentage of a 15 degree half-angle cone with the same throat and exit. 75 to 85 % is typical for Rao nozzles. The chart angles cover 60 to 100 %."
+
+[[input]]
+key = "theta_n"
+label = "Initial angle theta_n (0 = chart)"
+unit = "deg"
+type = "float"
+default = 0.0
+min = 0.0
+max = 60.0
+help = "Wall angle where the downstream throat arc meets the parabola. 0: read from the digitised Huzel-Huang chart for this area ratio and length (accurate to about 0.5 deg: it is a chart reading)."
+
+[[input]]
+key = "theta_e"
+label = "Exit angle theta_e (0 = chart)"
+unit = "deg"
+type = "float"
+default = 0.0
+min = 0.0
+max = 40.0
+help = "Wall angle at the exit. 0: read from the chart. Must be smaller than theta_n."
+
+[[input]]
+key = "upstream_ratio"
+label = "Upstream throat arc radius / throat radius"
+unit = "-"
+type = "float"
+default = 1.5
+min = 0.1
+max = 10.0
+help = "Radius of the arc in front of the throat, as a multiple of the throat radius (1.5: Rao / Huzel-Huang practice)."
+
+[[input]]
+key = "downstream_ratio"
+label = "Downstream throat arc radius / throat radius"
+unit = "-"
+type = "float"
+default = 0.382
+min = 0.05
+max = 10.0
+help = "Radius of the arc behind the throat, as a multiple of the throat radius (0.382: Rao / Huzel-Huang practice)."
+
+[[input]]
+key = "inlet_arc_angle"
+label = "Upstream arc angle"
+unit = "deg"
+type = "float"
+default = 30.0
+min = 5.0
+max = 80.0
+help = "How far the upstream throat arc is drawn before the inlet plane (a drawing choice, not part of Rao's method)."

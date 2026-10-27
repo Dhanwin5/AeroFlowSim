@@ -1,0 +1,47 @@
+# Planar minimum-length nozzle by the Method of Characteristics (Anderson, Modern Compressible Flow, ch. 11).
+
+[shape]
+name = "Minimum-length nozzle (MOC, planar)"
+group = "Nozzles"
+symmetry = "planar"
+description = "Planar minimum-length supersonic nozzle with a sharp-corner throat, designed by the Method of Characteristics for a given exit Mach number and gamma. Drawn as the nozzle flow path."
+
+[[input]]
+key = "mach_exit"
+label = "Design exit Mach number"
+unit = "-"
+type = "float"
+default = 2.4
+min = 1.05
+max = 12.0
+help = "Mach number the nozzle produces on its centre line at the exit (uniform, parallel flow for the design gas)."
+
+[[input]]
+key = "gamma"
+label = "Ratio of specific heats"
+unit = "-"
+type = "float"
+default = 1.4
+min = 1.01
+max = 1.7
+help = "gamma of the design gas. The contour depends on it."
+
+[[input]]
+key = "throat_height"
+label = "Throat height"
+unit = "m"
+type = "float"
+default = 0.02
+min = 1e-6
+max = 1000.0
+help = "Full height of the throat (twice the half-height used inside)."
+
+[[input]]
+key = "n_characteristics"
+label = "Characteristics in the fan"
+unit = "-"
+type = "int"
+default = 60
+min = 5
+max = 500
+help = "Number of characteristics of the expansion fan: more is more exact (the exit area ratio converges to the isentropic value roughly as 1 / n)."

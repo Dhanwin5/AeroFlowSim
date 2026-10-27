@@ -161,7 +161,47 @@ def enclosure_size(built, context):
     return [Suggestion("Enclosure", text, reason, "operation", operation=op)]
 
 
-RULES = [surface_size, largest_size, corner_refinement, enclosure_size]   # first_layer is added below
+def shock_on_lip(built, context):
+    """Intake shapes: put the cowl lip on the shocks of the ramps (planar) or of the spike cone (axisymmetric).
+
+    Needs the free-stream Mach number (context.mach). Ramps: the lip is where shock 1 and shock 2 cross (one ramp: on
+    shock 1 at the lip's x); the later shocks miss it by the distances in the reason. Spike: the lip radius on the
+    Taylor-Maccoll conical shock at the lip's x. See aeroflowsim/intake_theory.py."""
+    from aeroflowsim import intake_theory
+    from aeroflowsim.shapes import SHAPE_KEY
+    p, mach = context.params, context.mach
+    shape = p.get(SHAPE_KEY)
+    if mach is None or mach <= 1.0 or shape not in ("Ramp intake (planar)", "Spike intake (axisymmetric)"):
+        return []
+    gamma = 1.4
+    try:
+        from aeroflowsim.gases import gas_model
+        gamma = float(gas_model(p["gas"]).gamma)
+    except Exception:
+        pass                                                   # no gas input: air-like gamma
+    if shape == "Spike intake (axisymmetric)":
+        out = intake_theory.spike_lip(mach, gamma, p["spike_intake.cone_half_angle"], p["spike_intake.lip_x"])
+        r = float(f"{out['lip'][1]:.4g}")
+        return [Suggestion("Cowl lip on the spike shock", f"{length_text(out['lip'][1])}  (spike_intake.lip_r = {r:g})",
+                           f"At Mach {mach:g} the conical shock of the {p['spike_intake.cone_half_angle']:g} deg spike "
+                           f"leaves the tip at {out['beta']:.2f} deg, so at x = {length_text(out['lip'][0])} it is at this radius.",
+                           "input", {"spike_intake.lip_r": r})]
+    n = int(p["ramp_intake.n_ramps"])
+    angles = [p[f"ramp_intake.angle{i}"] for i in range(1, n + 1)]
+    lengths = [p[f"ramp_intake.length{i}"] for i in range(1, n + 1)]
+    out = intake_theory.ramp_lip(mach, gamma, angles, lengths, lip_x=p["ramp_intake.lip_x"])
+    x, y = (float(f"{v:.4g}") for v in out["lip"])
+    angles_text = ", ".join(f"{s['angle']:.2f}" for s in out["shocks"])
+    misses = ", ".join(length_text(m) for m in out["miss"])
+    reason = (f"At Mach {mach:g} the {n} ramp shock(s) leave at {angles_text} deg from the free stream. "
+              + ("The lip sits on shock 1 at your lip x." if n == 1 else "Shocks 1 and 2 meet here.")
+              + f" Distance of the lip from each shock: {misses}.")
+    inputs = {"ramp_intake.lip_y": y} if n == 1 else {"ramp_intake.lip_x": x, "ramp_intake.lip_y": y}
+    text = f"lip at x = {length_text(x)}, height {length_text(y)}" if n > 1 else f"lip height {length_text(y)}"
+    return [Suggestion("Cowl lip on the ramp shocks", text, reason, "input", inputs)]
+
+
+RULES = [surface_size, largest_size, corner_refinement, enclosure_size, shock_on_lip]   # first_layer is added below
 
 
 def suggestions(built, context) -> list[Suggestion]:

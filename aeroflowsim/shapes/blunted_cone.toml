@@ -1,0 +1,57 @@
+# Spherically blunted cone (axisymmetric).
+
+[shape]
+name = "Spherically blunted cone"
+group = "Blunt bodies"
+symmetry = "axisymmetric"
+description = "Cone with a spherical nose tangent to it (a re-entry or hypersonic test body)."
+
+[[input]]
+key = "half_angle"
+label = "Cone half-angle"
+unit = "deg"
+type = "float"
+default = 10.0
+min = 1.0
+max = 60.0
+help = "Angle between the cone surface and the axis."
+
+[[input]]
+key = "base_diameter"
+label = "Base diameter"
+unit = "m"
+type = "float"
+default = 0.2
+min = 1e-6
+max = 1000.0
+help = "Diameter where the cone ends."
+
+[[input]]
+key = "nose_diameter"
+label = "Nose diameter"
+unit = "m"
+type = "float"
+default = 0.04
+min = 1e-6
+max = 1000.0
+help = "Diameter of the spherical nose. The sphere touches the cone tangentially."
+
+[[input]]
+key = "afterbody_length"
+label = "Cylindrical afterbody length"
+unit = "m"
+type = "float"
+default = 0.0
+min = 0.0
+max = 1000.0
+help = "Cylinder of the base diameter behind the cone. 0: flat base right behind the cone."
+
+[[input]]
+key = "points"
+label = "Points on the nose"
+unit = "-"
+type = "int"
+default = 60
+min = 10
+max = 2000
+help = "Points on the spherical cap."

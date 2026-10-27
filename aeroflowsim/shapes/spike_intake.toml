@@ -1,0 +1,87 @@
+# Axisymmetric spike intake (external compression by a cone).
+
+[shape]
+name = "Spike intake (axisymmetric)"
+group = "Intakes"
+symmetry = "axisymmetric"
+description = "Supersonic spike intake: conical centre body, annular duct and cowl. The duct is closed at the back (shock system and capture only)."
+
+[[input]]
+key = "cone_half_angle"
+label = "Spike cone half-angle"
+unit = "deg"
+type = "float"
+default = 15.0
+min = 1.0
+max = 50.0
+help = "Half-angle of the conical spike."
+
+[[input]]
+key = "spike_length"
+label = "Spike length"
+unit = "m"
+type = "float"
+default = 0.5
+min = 1e-6
+max = 1000.0
+help = "Axial length of the cone, tip to the start of the cylindrical centre body."
+
+[[input]]
+key = "lip_x"
+label = "Cowl lip x"
+unit = "m"
+type = "float"
+default = 0.6
+min = 1e-6
+max = 1000.0
+help = "Axial position of the cowl lip, measured from the spike tip."
+
+[[input]]
+key = "lip_r"
+label = "Cowl lip radius"
+unit = "m"
+type = "float"
+default = 0.283
+min = 1e-6
+max = 1000.0
+help = "Radius of the cowl lip (the capture radius). The smart rule 'shock on lip' suggests the radius where the conical shock meets the lip."
+
+[[input]]
+key = "cowl_angle"
+label = "Cowl inner angle"
+unit = "deg"
+type = "float"
+default = 5.0
+min = 0.0
+max = 40.0
+help = "Angle at which the inner surface of the cowl descends into the duct, behind the lip."
+
+[[input]]
+key = "cowl_outer_angle"
+label = "Cowl outer angle"
+unit = "deg"
+type = "float"
+default = 10.0
+min = 0.0
+max = 40.0
+help = "Angle at which the outer surface of the cowl rises behind the lip."
+
+[[input]]
+key = "duct_length"
+label = "Duct length"
+unit = "m"
+type = "float"
+default = 0.3
+min = 1e-6
+max = 1000.0
+help = "Length of the straight annular duct behind the spike cone."
+
+[[input]]
+key = "rear_wall"
+label = "Rear wall thickness"
+unit = "m"
+type = "float"
+default = 0.05
+min = 1e-6
+max = 1000.0
+help = "Thickness of the solid block that closes the duct at the back."

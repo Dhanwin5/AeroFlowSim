@@ -1,0 +1,42 @@
+# NACA 5-digit airfoil, standard and reflex (Abbott and von Doenhoff 1959; constants as on Wikipedia "NACA airfoil").
+
+[shape]
+name = "NACA 5-digit airfoil"
+group = "Subsonic airfoils"
+symmetry = "planar"
+description = "NACA 5-digit airfoil, e.g. 23012 (standard camber line) or 23112 (reflex)."
+
+[[input]]
+key = "digits"
+label = "NACA digits"
+type = "text"
+default = "23012"
+pattern = "[0-9][0-9][0-9][0-9][0-9]"
+help = "Five digits LPSTT: L x 0.15 = design lift coefficient, P x 0.05 = position of maximum camber (standard line), S = 0 standard or 1 reflex, TT = thickness in % of the chord. Tabulated camber lines: P = 1 to 5 with S = 0, P = 2 to 5 with S = 1."
+
+[[input]]
+key = "chord"
+label = "Chord (reference length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Leading edge to trailing edge. Also the reference length (reference area = chord x 1 m depth)."
+
+[[input]]
+key = "closed_te"
+label = "Closed (sharp) trailing edge"
+type = "bool"
+default = true
+help = "On: modified last thickness coefficient (-0.1036) so the trailing edge closes to a point. Off: the original equation (-0.1015) with a thin blunt trailing edge."
+
+[[input]]
+key = "points_per_side"
+label = "Points per side"
+unit = "-"
+type = "int"
+default = 200
+min = 20
+max = 2000
+help = "Points on the upper and on the lower surface, with cosine spacing."

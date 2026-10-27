@@ -1,0 +1,37 @@
+# Hemisphere-cylinder (axisymmetric blunt body).
+
+[shape]
+name = "Hemisphere-cylinder"
+group = "Blunt bodies"
+symmetry = "axisymmetric"
+description = "Hemispherical nose on a cylinder with a flat base."
+
+[[input]]
+key = "diameter"
+label = "Diameter"
+unit = "m"
+type = "float"
+default = 0.1
+min = 1e-6
+max = 1000.0
+help = "Diameter of the cylinder and the hemisphere."
+
+[[input]]
+key = "cylinder_length"
+label = "Cylinder length"
+unit = "m"
+type = "float"
+default = 0.2
+min = 0.0
+max = 1000.0
+help = "Length of the cylinder behind the hemisphere. 0: a plain hemisphere with a flat base."
+
+[[input]]
+key = "points"
+label = "Points on the nose"
+unit = "-"
+type = "int"
+default = 90
+min = 10
+max = 2000
+help = "Points on the hemisphere."

@@ -69,6 +69,9 @@ def mesh_for(case, params, document=None, folder=None):
         return case.build_mesh(params)
     if not hasattr(case, "workspace_settings"):
         raise ValueError(f"The template '{case.title}' cannot mesh a workspace geometry.")
+    if "grid_preset" in params and str(params.get("mesh_type", "")).startswith("Structured"):
+        raise ValueError("A structured C/O-grid follows the template's own shape, so it cannot mesh geometry edited in the "
+                         "workspace. Set the mesh type to Unstructured (Gmsh), or remove the workspace edits.")
     return workspace_mesh(document, ReplayContext(case, params, folder),
                           lambda built: case.workspace_settings(params, built))
 

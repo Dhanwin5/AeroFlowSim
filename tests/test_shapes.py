@@ -26,10 +26,13 @@ def profile(shape, **changes):
     return make_profile({**DEFAULTS, SHAPE_KEY: shape, **{f"{key}.{k}": v for k, v in changes.items()}})
 
 
-def test_registry_finds_the_first_six_shapes_in_group_order():
-    assert len(SHAPES) == 6
-    assert set(SHAPES) == {"Wedge", "Diamond airfoil", "NACA 4-digit airfoil", "Circular cylinder",
-                           "Conical nose cone", "Custom coordinates file"}
+NOT_SYMMETRIC = {"Custom coordinates file", "NACA 5-digit airfoil", "Ramp intake (planar)"}
+
+
+def test_registry_finds_every_shape_in_group_order():
+    assert len(SHAPES) == 17
+    assert {"Wedge", "Diamond airfoil", "NACA 4-digit airfoil", "Circular cylinder", "Conical nose cone",
+            "Custom coordinates file"} <= set(SHAPES)       # the first six (Prompts 6c-6d)
     assert SHAPES[-1] == "Custom coordinates file"        # group "Custom" comes last
 
 
@@ -42,7 +45,7 @@ def test_every_shape_is_closed_counter_clockwise_and_does_not_cross_itself(shape
     assert p.self_intersections() == 0
     assert p.reference_length > 0.0 and p.reference_area > 0.0
     assert p.corners.shape == p.refine.shape == (p.n_points,)
-    assert p.is_symmetric() == (shape != "Custom coordinates file")   # the example file is NACA 2412
+    assert p.is_symmetric() == (shape not in NOT_SYMMETRIC)   # the example file is NACA 2412, the NACA 5-digit one 23012
 
 
 def test_reference_values():

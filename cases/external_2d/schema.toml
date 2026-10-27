@@ -87,6 +87,105 @@ help = "For bodies symmetric about y = 0 at zero angle: mesh only the upper half
 # ---- mesh ---------------------------------------------------------------------------------------
 
 [[input]]
+key = "mesh_type"
+label = "Mesh type"
+type = "choice"
+default = "Unstructured (Gmsh)"
+options = ["Unstructured (Gmsh)", "Structured C/O-grid"]
+group = "Mesh"
+step = "mesh"
+help = "Unstructured: triangles or quad-dominant cells from Gmsh, for any body. Structured C/O-grid: one block of quadrilaterals that follows the body, with exact first-layer height, wall clustering and a wake; a C-grid for airfoils with a sharp trailing edge and smooth outlines, an O-grid for smooth closed bodies (cylinder, sphere). A body that does not fit says why."
+
+[[input]]
+key = "grid_preset"
+label = "Grid size"
+type = "choice"
+default = "Medium"
+options = ["Coarse", "Medium", "Fine", "Custom"]
+group = "Mesh"
+step = "mesh"
+help = "Coarse 80 x 40 cells around x normal to the wall (25 along the wake), Medium 160 x 60 (50), Fine 320 x 90 (100). Custom: type the numbers."
+show_if = { mesh_type = "Structured C/O-grid" }
+
+[[input]]
+key = "grid_n_body"
+label = "Cells around the body"
+unit = "-"
+type = "int"
+default = 160
+min = 8
+max = 4000
+group = "Mesh"
+step = "mesh"
+help = "All cells along the body surface (upper and lower surface together for a C-grid; the whole way round for an O-grid; the half-way round with a half domain). Even number."
+show_if = { grid_preset = "Custom" }
+
+[[input]]
+key = "grid_n_normal"
+label = "Cells normal to the wall"
+unit = "-"
+type = "int"
+default = 60
+min = 2
+max = 1000
+group = "Mesh"
+step = "mesh"
+help = "Layers from the wall to the far field."
+show_if = { grid_preset = "Custom" }
+
+[[input]]
+key = "grid_n_wake"
+label = "Cells along the wake"
+unit = "-"
+type = "int"
+default = 50
+min = 2
+max = 2000
+group = "Mesh"
+step = "mesh"
+help = "Cells along each wake line behind the trailing edge (C-grid only)."
+show_if = { grid_preset = "Custom" }
+
+[[input]]
+key = "grid_first_height"
+label = "First layer height / reference length"
+unit = "-"
+type = "float"
+default = 0.001
+min = 1e-09
+max = 0.05
+group = "Mesh"
+step = "mesh"
+help = "Height of the cell layer touching the body, in reference lengths. Exact: the first cell is this high (the layers then grow to reach the far field)."
+show_if = { mesh_type = "Structured C/O-grid" }
+
+[[input]]
+key = "grid_growth"
+label = "Largest growth rate between layers"
+unit = "-"
+type = "float"
+default = 1.35
+min = 1.01
+max = 3.0
+group = "Mesh"
+step = "mesh"
+help = "The layers grow by a constant ratio that fills the distance to the far field with the chosen number of layers. This is the largest ratio you accept: if more is needed the mesh stops and says how many layers to use."
+show_if = { mesh_type = "Structured C/O-grid" }
+
+[[input]]
+key = "grid_far_distance"
+label = "Far-field distance / reference length"
+unit = "-"
+type = "float"
+default = 20.0
+min = 2.0
+max = 1000.0
+group = "Mesh"
+step = "mesh"
+help = "Radius of the circular far field, in reference lengths: from the middle of the body (O-grid) or from the trailing edge (C-grid, which also puts the outflow this far behind it)."
+show_if = { mesh_type = "Structured C/O-grid" }
+
+[[input]]
 key = "cell_type"
 label = "Cell type"
 type = "choice"
@@ -95,6 +194,7 @@ options = ["Triangles", "Quad-dominant (recombined)"]
 group = "Mesh"
 step = "mesh"
 help = "Triangles only, or triangles combined into quadrilaterals where possible (Gmsh recombination); a few triangles remain."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 [[input]]
 key = "surface_size"
@@ -107,6 +207,7 @@ max = 0.5
 group = "Mesh"
 step = "mesh"
 help = "Cell size on the body, in reference lengths (0.005 = 1/200: 200 cells along a 1 m chord)."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 [[input]]
 key = "farfield_size"
@@ -119,6 +220,7 @@ max = 100.0
 group = "Mesh"
 step = "mesh"
 help = "Largest cell size, reached far from the body, in reference lengths. A far-field circle always gets at least 120 faces so that it stays round."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 [[input]]
 key = "size_growth"
@@ -131,6 +233,7 @@ max = 2.0
 group = "Mesh"
 step = "mesh"
 help = "How fast cells grow away from the body: each cell is about this many times larger than its neighbour nearer the body."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 [[input]]
 key = "edge_refinement"
@@ -140,6 +243,7 @@ default = true
 group = "Mesh"
 step = "mesh"
 help = "Four times smaller cells at sharp corners and at the leading and trailing edges."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 [[input]]
 key = "save_msh"
@@ -149,6 +253,7 @@ default = false
 group = "Mesh"
 step = "mesh"
 help = "Save Gmsh's own mesh file as cases/external_2d/mesh/mesh.msh (not for meshes with inflation layers; the .vtu file is always saved)."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 # ---- inflation layers ---------------------------------------------------------------------------
 
@@ -160,6 +265,7 @@ default = false
 group = "Inflation layers"
 step = "mesh"
 help = "Thin quad layers along the body, for boundary layers in laminar/turbulent flow (Phase 4). Not needed for inviscid (Euler) flow."
+show_if = { mesh_type = "Unstructured (Gmsh)" }
 
 [[input]]
 key = "first_layer_height"

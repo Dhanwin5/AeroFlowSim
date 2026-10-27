@@ -20,6 +20,8 @@ from aeroflowsim.gases import gas_model
 from aeroflowsim.gmsh_mesh import Domain, GmshSettings, estimate_external_cells, external_mesh
 from aeroflowsim.nozzle_mesh import Inflation
 from aeroflowsim.shapes import make_profile
+from aeroflowsim.structured_mesh import (PRESETS, StructuredSettings, estimate_structured_cells, grid_kind,
+                                         structured_mesh)
 
 CASE_DIR = Path(__file__).resolve().parent
 
@@ -61,22 +63,63 @@ def size_inputs(params, built=None):
             "first_layer": ("first_layer_height", L)}
 
 
+def structured(params) -> bool:
+    """True if the user chose the structured C/O-grid (aeroflowsim/structured_mesh.py)."""
+    return params["mesh_type"].startswith("Structured")
+
+
+def structured_settings(params, profile):
+    """StructuredSettings of the grid inputs, in metres (cell counts from the Coarse / Medium / Fine preset or typed)."""
+    L = profile.reference_length    # [m]
+    if params["grid_preset"] == "Custom":
+        n_body, n_normal, n_wake = params["grid_n_body"], params["grid_n_normal"], params["grid_n_wake"]
+    else:
+        n_body, n_normal, n_wake = PRESETS[params["grid_preset"]]
+    return StructuredSettings(n_body, n_normal, n_wake, params["grid_first_height"] * L, params["grid_growth"],
+                              params["grid_far_distance"] * L, half=params["half_domain"])
+
+
 def build_mesh(params):
-    """Gmsh mesh of the fluid around the body (patches wall, farfield, and symmetry or axis)."""
+    """Mesh of the fluid around the body: Gmsh triangles / quads, or the structured C/O-grid.
+
+    Patches: wall, farfield, and symmetry or axis for a half domain (the same names for both mesh types)."""
     profile = geometry(params)
+    if structured(params):
+        return structured_mesh(profile, structured_settings(params, profile))
     return external_mesh(profile, domain(params, profile), settings(params, profile))
 
 
 def estimated_cells(params):
-    """Quick estimate of the number of cells (no Gmsh run)."""
+    """Quick estimate of the number of cells (no meshing)."""
     profile = geometry(params)
+    if structured(params):
+        return estimate_structured_cells(profile, structured_settings(params, profile))
     return estimate_external_cells(profile, domain(params, profile), settings(params, profile))
+
+
+def structured_note(params) -> str:
+    """Which structured grid fits the body, or why none does (shown under the inputs)."""
+    profile = geometry(params)
+    try:
+        kind = grid_kind(profile, params["half_domain"])
+    except ValueError as error:
+        return f"not available: {error}"
+    return "C-grid (airfoil, with a wake)" if kind == "C" else "O-grid (round the body)"
 
 
 def derived(params):
     """Read-only numbers shown under the inputs."""
     profile = geometry(params)
     s = settings(params, profile)
+    if structured(params):
+        numbers = {"Structured grid": (structured_note(params), "")}
+        try:
+            numbers["Cells"] = (f"{estimated_cells(params):,}", "")
+        except ValueError:
+            pass
+        numbers.update({"Reference length": (profile.reference_length, "m"), "Reference area": (profile.reference_area, "m²"),
+                        "First layer height": (params["grid_first_height"] * profile.reference_length, "m")})
+        return numbers
     numbers = {
         "Estimated cells": (f"about {estimated_cells(params):,}", ""),
         "Reference length": (profile.reference_length, "m"),

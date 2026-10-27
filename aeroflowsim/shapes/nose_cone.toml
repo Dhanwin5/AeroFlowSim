@@ -1,0 +1,107 @@
+# Nose cones of revolution: ogives, Haack series, power series, parabolic series, ellipse
+# (Crowell, "The Descriptive Geometry of Nose Cones", 1996; equations in the module docstring).
+
+[shape]
+name = "Nose cone (ogive, Haack, power series)"
+group = "Nose cones"
+symmetry = "axisymmetric"
+description = "Axisymmetric nose with tangent or secant ogive, von Karman, LV-Haack, power series, parabolic series or elliptical profile; optional spherical blunt nose and cylindrical afterbody."
+
+[[input]]
+key = "kind"
+label = "Nose profile"
+type = "choice"
+default = "Von Karman (LD-Haack)"
+options = ["Tangent ogive", "Secant ogive", "Von Karman (LD-Haack)", "LV-Haack", "Power series", "Parabolic series", "Ellipse"]
+help = "Von Karman: least wave drag for a given length and base diameter. LV-Haack: least wave drag for a given length and volume. Tangent ogive: a circular arc tangent to the body cylinder. Secant ogive: a larger arc radius (set below)."
+
+[[input]]
+key = "length"
+label = "Nose length"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Tip to base of the SHARP profile. A blunt nose is shorter (the sphere replaces the tip)."
+
+[[input]]
+key = "base_diameter"
+label = "Base diameter"
+unit = "m"
+type = "float"
+default = 0.3
+min = 1e-6
+max = 1000.0
+help = "Diameter of the nose at its base (and of the afterbody cylinder)."
+
+[[input]]
+key = "ogive_ratio"
+label = "Secant ogive: radius / tangent-ogive radius"
+unit = "-"
+type = "float"
+default = 2.0
+min = 1.0001
+max = 100.0
+help = "Radius of the profile arc divided by the radius of the tangent ogive (R² + L²) / (2 R) of the same length and diameter. Large values approach a cone."
+show_if = { kind = "Secant ogive" }
+
+[[input]]
+key = "power"
+label = "Power n"
+unit = "-"
+type = "float"
+default = 0.75
+min = 0.05
+max = 1.0
+help = "Radius = R (x / L)^n. n = 1 is a cone, 0.5 a parabola, 0.75 the 3/4 power nose."
+show_if = { kind = "Power series" }
+
+[[input]]
+key = "parabola_k"
+label = "Parabola factor K"
+unit = "-"
+type = "float"
+default = 1.0
+min = 0.0
+max = 1.0
+help = "Radius = R (2 x / L - K (x / L)²) / (2 - K). K = 0 is a cone, K = 1 a full parabola."
+show_if = { kind = "Parabolic series" }
+
+[[input]]
+key = "blunt"
+label = "Spherical blunt nose"
+type = "bool"
+default = false
+help = "Replace the tip by a sphere tangent to the profile."
+
+[[input]]
+key = "nose_diameter"
+label = "Nose diameter"
+unit = "m"
+type = "float"
+default = 0.03
+min = 1e-6
+max = 1000.0
+help = "Diameter of the spherical nose. It must be smaller than the base diameter (for a tangent ogive) so that the sphere can touch the profile."
+show_if = { blunt = true }
+
+[[input]]
+key = "afterbody_length"
+label = "Cylindrical afterbody length"
+unit = "m"
+type = "float"
+default = 0.0
+min = 0.0
+max = 1000.0
+help = "Cylinder of the base diameter behind the nose. 0: flat base right behind the nose."
+
+[[input]]
+key = "points"
+label = "Points on the nose"
+unit = "-"
+type = "int"
+default = 120
+min = 20
+max = 2000
+help = "Points along the nose (cosine spacing: dense at the tip)."

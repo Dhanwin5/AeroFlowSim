@@ -1,0 +1,37 @@
+# Biconvex (circular-arc) airfoil.
+
+[shape]
+name = "Double-circular-arc (biconvex) airfoil"
+group = "Supersonic airfoils"
+symmetry = "planar"
+description = "Circular-arc airfoil with sharp leading and trailing edges (symmetric)."
+
+[[input]]
+key = "chord"
+label = "Chord (reference length)"
+unit = "m"
+type = "float"
+default = 1.0
+min = 1e-6
+max = 1000.0
+help = "Leading edge to trailing edge. Also the reference length (reference area = chord x 1 m depth)."
+
+[[input]]
+key = "thickness_ratio"
+label = "Thickness ratio t/c"
+unit = "-"
+type = "float"
+default = 0.1
+min = 0.005
+max = 0.5
+help = "Maximum thickness divided by the chord (at mid-chord)."
+
+[[input]]
+key = "points_per_side"
+label = "Points per side"
+unit = "-"
+type = "int"
+default = 100
+min = 10
+max = 2000
+help = "Points on the upper and on the lower arc, with cosine spacing."

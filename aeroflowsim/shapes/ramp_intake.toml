@@ -1,0 +1,137 @@
+# Planar ramp intake (external compression), 1 to 3 ramps.
+
+[shape]
+name = "Ramp intake (planar)"
+group = "Intakes"
+symmetry = "planar"
+description = "Supersonic intake: one to three compression ramps, a duct and a cowl. The duct is closed at the back (shock system and capture only)."
+
+[[input]]
+key = "n_ramps"
+label = "Number of ramps"
+type = "choice"
+default = "2"
+options = ["1", "2", "3"]
+help = "Compression ramps in front of the duct."
+
+[[input]]
+key = "angle1"
+label = "Ramp 1 angle"
+unit = "deg"
+type = "float"
+default = 8.0
+min = 1.0
+max = 40.0
+help = "Angle of ramp 1 to the free stream."
+
+[[input]]
+key = "length1"
+label = "Ramp 1 length"
+unit = "m"
+type = "float"
+default = 0.4
+min = 1e-6
+max = 1000.0
+help = "Length of ramp 1 along its surface."
+
+[[input]]
+key = "angle2"
+label = "Ramp 2 angle"
+unit = "deg"
+type = "float"
+default = 16.0
+min = 2.0
+max = 60.0
+help = "Angle of ramp 2 to the free stream (it turns the flow by this minus the angle of ramp 1). Used with 2 or 3 ramps."
+
+[[input]]
+key = "length2"
+label = "Ramp 2 length"
+unit = "m"
+type = "float"
+default = 0.3
+min = 1e-6
+max = 1000.0
+help = "Length of ramp 2 along its surface. Used with 2 or 3 ramps."
+
+[[input]]
+key = "angle3"
+label = "Ramp 3 angle"
+unit = "deg"
+type = "float"
+default = 24.0
+min = 3.0
+max = 70.0
+help = "Angle of ramp 3 to the free stream."
+show_if = { n_ramps = "3" }
+
+[[input]]
+key = "length3"
+label = "Ramp 3 length"
+unit = "m"
+type = "float"
+default = 0.2
+min = 1e-6
+max = 1000.0
+help = "Length of ramp 3 along its surface."
+show_if = { n_ramps = "3" }
+
+[[input]]
+key = "lip_x"
+label = "Cowl lip x"
+unit = "m"
+type = "float"
+default = 0.8887
+min = 1e-6
+max = 1000.0
+help = "Axial position of the cowl lip, measured from the leading edge of ramp 1. The defaults put both ramp shocks on the lip at Mach 3 (gamma 1.4)."
+
+[[input]]
+key = "lip_y"
+label = "Cowl lip height"
+unit = "m"
+type = "float"
+default = 0.426
+min = 1e-6
+max = 1000.0
+help = "Height of the cowl lip above the line of the leading edge (the capture height). The smart rule 'shock on lip' suggests the position where the ramp shocks meet the lip."
+
+[[input]]
+key = "cowl_angle"
+label = "Cowl inner angle"
+unit = "deg"
+type = "float"
+default = 5.0
+min = 0.0
+max = 40.0
+help = "Angle at which the inner surface of the cowl descends into the duct, behind the lip."
+
+[[input]]
+key = "cowl_outer_angle"
+label = "Cowl outer angle"
+unit = "deg"
+type = "float"
+default = 10.0
+min = 0.0
+max = 40.0
+help = "Angle at which the outer surface of the cowl rises behind the lip (the cowl lip is a wedge of cowl inner angle + this)."
+
+[[input]]
+key = "duct_length"
+label = "Duct length"
+unit = "m"
+type = "float"
+default = 0.3
+min = 1e-6
+max = 1000.0
+help = "Length of the straight duct behind the last ramp."
+
+[[input]]
+key = "rear_wall"
+label = "Rear wall thickness"
+unit = "m"
+type = "float"
+default = 0.05
+min = 1e-6
+max = 1000.0
+help = "Thickness of the solid block that closes the duct at the back."
