@@ -9,7 +9,8 @@ Scope agreed with the user (27 Oct 2026): THIS session = Parts 1 and 2; Part 3 a
 
 | Part | What | Commit | Verified by |
 |---|---|---|---|
-| 1 | 11 new shape pairs (bell nozzle, MOC nozzle, ramp intake, spike intake, biconvex, NACA 5-digit, nose cone family, sphere, hemisphere-cylinder, capsule, blunted cone) + `nozzle_contours.py` (Rao bell, planar MOC) + `intake_theory.py` + smart rule `shock_on_lip` + theory manual section 14 + gap register | (see git log) | `tests/test_shapes.py` + `tests/test_shapes_new.py` (111 pass): von Karman R/sqrt2, tangent ogive eq., circle fit of the secant ogive, half-ellipsoid volume, capsule tangent sphere, biconvex segment area, NACA5 design Cl by thin-airfoil integral (0.3000-0.3001), MOC exit area ratio vs isentropic (0.2 % at n = 100, converging), Rao arcs/end slopes, theta-beta-M relation, lip on shocks |
+| 1 | 11 new shape pairs (bell nozzle, MOC nozzle, ramp intake, spike intake, biconvex, NACA 5-digit, nose cone family, sphere, hemisphere-cylinder, capsule, blunted cone) + `nozzle_contours.py` (Rao bell, planar MOC) + `intake_theory.py` + smart rule `shock_on_lip` + theory manual section 14 + gap register | 29388e9 | `tests/test_shapes.py` + `tests/test_shapes_new.py` (111 pass): von Karman R/sqrt2, tangent ogive eq., circle fit of the secant ogive, half-ellipsoid volume, capsule tangent sphere, biconvex segment area, NACA5 design Cl by thin-airfoil integral (0.3000-0.3001), MOC exit area ratio vs isentropic (0.2 % at n = 100, converging), Rao arcs/end slopes, theta-beta-M relation, lip on shocks |
+| 2 | `structured_mesh.py` (C-grid sharp TE + wake cut, O-grid, half domains), `external_2d` inputs (mesh type, preset, first height, growth cap, far distance), `tools/structured_flow_checks.py` | 29388e9 | `tests/test_structured_mesh.py` (20 pass: exact areas, patch names = Gmsh, first layer exact, size inputs change counts as expected, uniform flow stays uniform to 1e-11 on all 4 grids); full fast suite 803 pass; Mach 6 cylinder O-grid: stand-off 0.2210 D vs Billig 0.2197, carbuncle metric 5e-6, converged in 6,239 it. |
 
 ## Decisions
 
@@ -27,9 +28,9 @@ Scope agreed with the user (27 Oct 2026): THIS session = Parts 1 and 2; Part 3 a
 
 ## Next
 
-1. Commit Part 1 (after the full fast suite passes).
-2. Part 2: C-grid / O-grid (Gmsh transfinite): new module (e.g. `aeroflowsim/structured_mesh.py`), inputs in `external_2d` schema (mesh type choice), patches named wall/farfield/symmetry/axis, wall-size inputs tested by halving, quick free-stream-preservation flow run, NACA 0012 C-grid vs triangles, cylinder O-grid at Mach 6.
-3. Parts 3-4 next session.
+1. NACA 0012 C-grid vs triangles check (`python tools/structured_flow_checks.py naca`) was still running at the end of the session: run it and record Cl/Cd here.
+2. (done) Part 2: C-grid / O-grid (Gmsh transfinite): new module (e.g. `aeroflowsim/structured_mesh.py`), inputs in `external_2d` schema (mesh type choice), patches named wall/farfield/symmetry/axis, wall-size inputs tested by halving, quick free-stream-preservation flow run, NACA 0012 C-grid vs triangles, cylinder O-grid at Mach 6.
+3. Parts 3-4 next session: mesh import/export (meshio), `shapes_and_grids` validation, bell/MOC nozzle flow runs, quick validation set, NACA 0012 C-grid tutorial, GUI screenshots (light/dark) of the new Mesh-step inputs, blunt-TE C-grid (base block), push.
 
 ## Anomalies
 
