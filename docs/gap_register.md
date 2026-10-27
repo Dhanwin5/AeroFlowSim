@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 7b (2026-10-26).
+Last updated: Prompt 6e (2026-10-27).
 
 ## 1. Platform and GUI
 
@@ -101,7 +101,13 @@ Last updated: Prompt 7b (2026-10-26).
 | C-grid for blunt trailing edges, and for outlines with interior corners (diamond, wedge, flat-base bodies) | later | P2 | refused with a message; needs a base block / multi-block grid (a block of cells behind the base, corners as block edges) |
 | Structured grid for edited workspace geometry | later | P3 | refused with a message; edited geometry is meshed with Gmsh |
 | Structured grid far-field cells in the wake are very flat (aspect ratio about 1,300-4,800 along the wake, first layer 1e-3 c) | partial | P3 | normal for a C-grid with a thin first layer; irrelevant for Euler flow, revisit for viscous flow (Phase 4) |
-| Mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh) | planned 6e | P2 | |
+| Mesh import (Gmsh .msh v2/v4, SU2, CGNS unstructured 2D, Fluent ASCII 2D) with unit, planar / axisymmetric choice and boundary-type map; export to Gmsh 2.2 / 4.1, SU2, CGNS; template "Start from an existing mesh"; `mesh-info` / `mesh-convert` | done | P2 | 6e part 3: `aeroflowsim/mesh_io.py`, `cases/imported_mesh`; round trips exact for all four writers (`tests/test_mesh_io.py`) |
+| Import dialog with a boundary-type TABLE (one row per tag, drop-down) in the GUI | later | P2 | now the map is a text input (`name: type, ...`) with the list of found names and their types shown under the inputs; a Qt table dialog and Tools > Convert mesh are not built |
+| Mesh import: 3D meshes, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | later | P2 | refused with a message (3D: Phase 3) |
+| CGNS export checked with an external CGNS reader | later | P2 | only our own reader was available; open an exported file in SU2 / ParaView once |
+| Planar nozzle template (for the MOC nozzle) | later | P2 | `tools/nozzle_flow_checks.py moc` solves the planar nozzle directly; no template runs planar internal flow of a wall profile |
+| MOC nozzle flow check: exit Mach 2.23 mean / 2.28 centre line vs design 2.4 on a 2,560-cell mesh (wall cell 1.88) | partial | P2 | contour verified exactly by the area ratio; the CFD deficit comes from the coarse mesh, the throat-corner limit cycle (residual stalls near 1e-3, Prompt 8) and the sonic line that is not straight; needs a finer mesh and the implicit solver |
+| NACA 0012 C-grid vs triangles (Mach 0.5, alpha 1.25): Cl 0.1751 vs 0.1681 (reference 0.1800), neither converged in 8,000 iterations (C-grid 945 s, triangles 348 s) | partial | P2 | C-grid 2.7 % below the reference, triangles 6.6 %; a converged comparison needs Prompt 8 speed |
 | Mesh of an edited geometry with named boundaries as patches (`workspace_mesh.py`), inflation on marked walls | done | P1 | 6d; layers must end on straight boundaries |
 | Structured mesh of an edited nozzle geometry | later | P3 | edited geometry uses Gmsh triangles / quads (clear message) |
 | Gmsh .msh export of workspace meshes | later | P3 | the .vtu is written |

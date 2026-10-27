@@ -1037,6 +1037,28 @@ leading edge of the biconvex section).
 **Not covered:** blunt trailing edges (a base block is needed), surfaces with interior corners (the resampling would cut
 them), edited workspace geometry. The message says why. See the gap register.
 
+### Mesh import and export (Prompt 6e, part 3)
+
+Code: `aeroflowsim/mesh_io.py`; tests: `tests/test_mesh_io.py` (sample files in `tests/data/`); template `cases/imported_mesh`;
+command line `mesh-info` and `mesh-convert`.
+
+An imported mesh goes through a neutral `RawMesh` (points, cells, named groups of boundary edges) so that a GUI or script can look at the file
+before building anything. `mesh_from_raw` then (1) converts the unit to metres, (2) turns every cell counter-clockwise (shoelace sign),
+(3) finds the boundary edges as the cell edges that occur exactly once, (4) checks that every one of them carries a tag (tagged edges that are
+not on the boundary, such as an internal zone, are ignored; untagged boundary edges are an error that names the tags found), (5) gives each tag a
+boundary type (the user's map, else a guess from the name), (6) drops points no cell uses, and (7) builds the face-based Mesh. 3D files,
+elements other than triangles and quadrilaterals, and axisymmetric meshes with y < 0 are refused with a message.
+
+Formats: Gmsh `.msh` 2 and 4 (ASCII and binary) are read with meshio, which reads them correctly, including physical names. The other readers and all writers are our
+own because meshio 5.3.5 cannot write tagged 2D meshes: its Gmsh 4 writer needs entity data, its SU2 writer raises an error, and the CGNS file it
+writes cannot be read back. SU2: `NELEM`, `NPOIN`, `MARKER_TAG` / `MARKER_ELEMS` (line elements, type 3). Fluent ASCII 2D: sections 10 (nodes), 12 (cells),
+13 (faces with their two cells; zone type 2 is interior, 3 a wall: the only type numbers used, as a hint) and 45 (zone names); the corners of each cell
+are found by chaining its faces. CGNS: HDF5 nodes with `name`, `label` and `type` attributes and the data in a dataset ` data`; one unstructured
+zone, TRI_3 / QUAD_4 / MIXED sections, BAR_2 sections or ZoneBC `PointRange` / `PointList` groups as the boundary tags. Export: a boundary edge group per
+patch (Gmsh physical group, SU2 marker, CGNS BAR_2 section plus ZoneBC), written with `repr` of the floats, so importing the file again gives
+the same nodes to the last digit, the same cells and the same patches (tested for all four writers, planar, axisymmetric, structured and Gmsh triangle meshes).
+The CGNS writer was checked only by our own reader (no CGNS library was available): open an exported file in your other program once before relying on it.
+
 ## 15. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.

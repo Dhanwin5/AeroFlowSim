@@ -4,7 +4,7 @@ AeroFlowSim 0.2.0a1, generated 2026-10-27 by `python validation/run_all.py --qui
 
 **Validation set: quick** (coarse meshes of every case, run on every push; the full set runs weekly and on version tags).
 
-**Overall: PASS** (15 of 15 cases pass; 1 explained shortfall(s), see the cases marked SHORTFALL)
+**Overall: PASS** (16 of 16 cases pass; 1 explained shortfall(s), see the cases marked SHORTFALL)
 
 ## Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi): PASS
 
@@ -52,7 +52,7 @@ Sources:
 | 5.987 | 0.0230 | 0.0235 | +0.0005 |
 | 6.664 | 0.0182 | 0.0165 | -0.0017 |
 
-- Mesh: 2,000 cells, 1,883 iterations, converged yes, 21 s; discharge coefficient 0.9813.
+- Mesh: 2,000 cells, 1,883 iterations, converged yes, 24 s; discharge coefficient 0.9813.
 - RMS difference over all 19 measured points: 0.0198 (in p/p0).
 - Geometry from the printed dimensions; the profile's exit area ratio is 6.57 (the report rounds it to 6.63; the measured points end at z = 6.66 in, before the exit).
 - The test gas was heated air (1500 R) with a boundary layer; the solver is inviscid with gamma = 1.4 (the report's one-dimensional curve uses 1.40 as well).
@@ -75,7 +75,7 @@ Sources:
 
 | Cells | Iterations | Converged | Time [s] | beta [deg] | beta Taylor-Maccoll [deg] | Cp | Cp Taylor-Maccoll |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 2,177 | 5,557 | yes | 79 | 35.052 | 33.915 | 0.2020 | 0.2022 |
+| 2,177 | 5,557 | yes | 59 | 35.052 | 33.915 | 0.2020 | 0.2022 |
 
 - Taylor-Maccoll (aeroflowsim.gasdynamics.taylor_maccoll) agrees with Sims (1964, NASA SP-3004, Tables 9 and 11) to 7e-5 in Cp and 2e-6 rad in the shock angle (tests/test_gasdynamics.py).
 
@@ -96,9 +96,9 @@ Sources:
 
 | Run | Cells | Iterations | Converged | Final residual | Time [s] | Stand-off / D | Shock roughness | Carbuncle metric | Positivity events |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| polar grid, carbuncle fix on | 1,200 | 2,503 | yes | 9.7e-07 | 30 | 0.2172 | 0.79 | 3.61e-04 | 0 |
-| polar grid, carbuncle fix OFF | 1,200 | 5,000 | NO | 2.1e-06 | 51 | 0.2156 | 0.80 | 9.00e-07 | 0 |
-| Gmsh quad-dominant, fix on | 1,329 | 2,423 | yes | 9.9e-07 | 27 | 0.2293 | - | 1.23e-04 | 0 |
+| polar grid, carbuncle fix on | 1,200 | 2,503 | yes | 9.7e-07 | 14 | 0.2172 | 0.79 | 3.61e-04 | 0 |
+| polar grid, carbuncle fix OFF | 1,200 | 5,000 | NO | 2.1e-06 | 25 | 0.2156 | 0.80 | 9.00e-07 | 0 |
+| Gmsh quad-dominant, fix on | 1,329 | 2,423 | yes | 9.9e-07 | 15 | 0.2293 | - | 1.23e-04 | 0 |
 
 - Billig correlation: stand-off / D = 0.2197.
 - Shock roughness: largest second difference of the shock radius between neighbouring grid rays, divided by the radial cell size (below 1: the front never jumps a whole cell between rays; it is similar with and without the fix here, so convergence is the clearer sign).
@@ -128,8 +128,8 @@ Sources:
 
 | alpha [deg] | Cells | Iterations | Converged | Time [s] | Cl | Cd | p/p_inf upper front | upper rear | lower front | lower rear |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 0 | 4,750 | 2,755 | yes | 91 | -0.00010 (0.00000) | 0.02311 (0.02320) | 1.3663 (1.3660) | 0.7191 (0.7165) | 1.3659 (1.3660) | 0.7192 (0.7165) |
-| 2 | 4,750 | 5,000 | NO | 178 | 0.08208 (0.08209) | 0.02606 (0.02614) | 1.2275 (1.2274) | 0.6356 (0.6334) | 1.5169 (1.5170) | 0.8110 (0.8083) |
+| 0 | 4,750 | 2,755 | yes | 50 | -0.00010 (0.00000) | 0.02311 (0.02320) | 1.3663 (1.3660) | 0.7191 (0.7165) | 1.3659 (1.3660) | 0.7192 (0.7165) |
+| 2 | 4,750 | 5,000 | NO | 114 | 0.08208 (0.08209) | 0.02606 (0.02614) | 1.2275 (1.2274) | 0.6356 (0.6334) | 1.5169 (1.5170) | 0.8110 (0.8083) |
 
 - Shock-expansion theory is exact for the inviscid flow on the faces (attached shocks, simple waves); Cl = 0 at alpha = 0 is not compared as a percentage (|Cl| is listed).
 - Wall size 0.02 c in the quick set, 0.01 c in the full set.
@@ -154,8 +154,8 @@ Sources:
 
 | Condition | Mesh | Cells | Iterations | Converged | Time [s] | Cl | Cd | Cm |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Mach 0.8 | wall 0.02 c | 7,326 | 5,000 | NO | 281 | 0.34083 | 0.023456 | -0.03586 |
-| Mach 0.5 | wall 0.02 c | 7,326 | 5,000 | NO | 288 | 0.16645 | 0.003610 | -0.00183 |
+| Mach 0.8 | wall 0.02 c | 7,326 | 5,000 | NO | 189 | 0.34083 | 0.023456 | -0.03586 |
+| Mach 0.5 | wall 0.02 c | 7,326 | 5,000 | NO | 181 | 0.16645 | 0.003610 | -0.00183 |
 
 - Reference (Vassberg & Jameson 2010, Table 11, p. 1165): Mach 0.8, alpha 1.25 deg: continuum Cl 0.3482 (CFL3D) to 0.3562 (FLO82), Cd 0.02245 to 0.02268; Table 10: Mach 0.5, alpha 1.25 deg: Cl 0.17978 to 0.18035, Cd -> 0 (FLO82 4.5e-8).
 - Cm here is about the quarter chord (template convention); the reference's Cm is about the quarter chord as well.
@@ -182,9 +182,9 @@ Sources:
 
 | Mesh | Cells | Iterations | Converged | Time [s] | Mass flow [mg/s] | Cd | F exit [mN] | F wall [mN] | Isp [s] | Isp / Isp 1D | p0 loss [%] |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| structured 50 x 10 | 500 | 4,672 | yes | 28 | 68.4750 | 0.9581 | 47.9973 | 47.9975 | 71.477 | 0.9855 | 2.609 |
-| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 216 | 67.5969 | 0.9458 | 47.3525 | 47.3324 | 71.432 | 0.9849 | 4.715 |
-| rounded throat, structured 50 x 10 | 500 | 5,552 | yes | 28 | 71.1196 | 0.9951 | 49.8411 | 49.8411 | 71.462 | 0.9853 | -1.197 |
+| structured 50 x 10 | 500 | 4,672 | yes | 13 | 68.4750 | 0.9581 | 47.9973 | 47.9975 | 71.477 | 0.9855 | 2.609 |
+| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 128 | 67.5969 | 0.9458 | 47.3525 | 47.3324 | 71.432 | 0.9849 | 4.715 |
+| rounded throat, structured 50 x 10 | 500 | 5,552 | yes | 20 | 71.1196 | 0.9951 | 49.8411 | 49.8411 | 71.462 | 0.9853 | -1.197 |
 
 - Quick set: the coarsest structured and triangle meshes and the coarse rounded-throat mesh.
 
@@ -206,7 +206,7 @@ Sources:
 
 | Cells | Iterations | Converged | Time [s] | M2 | p2/p1 |
 |---:|---:|---:|---:|---:|---:|
-| 1,794 | 930 | yes | 11 | 2.3691 | 0.5482 |
+| 1,794 | 930 | yes | 6 | 2.3691 | 0.5482 |
 
 - Wall cells next to a centred expansion: the first-cell values lag the exact fan slightly on coarse meshes (the fan is smeared over a few cells at the corner).
 
@@ -236,8 +236,8 @@ Sources:
 
 | Run | Cells | Wall-clock time [s] |
 |---:|---:|---:|
-| along x, quads | 800 | 3.5 |
-| diagonal, triangles | 20,000 | 32.8 |
+| along x, quads | 800 | 1.6 |
+| diagonal, triangles | 20,000 | 18.7 |
 
 - Second order (least-squares gradients, Venkatakrishnan limiter), SSP-RK3, CFL 0.8, one global time step; time-accurate to t = 0.2 s.
 
@@ -261,7 +261,7 @@ Sources:
 
 | Mesh | Cells | Iterations | Converged | Time [s] | beta [deg] | p2/p1 | M2 | Cd (incl. base) |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| wall 0.02 L | 3,553 | 1,935 | yes | 32 | 39.351 | 1.7072 | 1.6316 | 0.1965 |
+| wall 0.02 L | 3,553 | 1,935 | yes | 34 | 39.351 | 1.7072 | 1.6316 | 0.1965 |
 
 - Theory: beta = 39.314 deg, p2/p1 = 1.7066, M2 = 1.6405.
 - Cd includes the base drag of the flat base (the base pressure is not part of the oblique-shock theory).
@@ -353,22 +353,22 @@ Sources:
 
 | Scheme | Mesh | L2 error finest (rho / u / v / p) | Order L1 | Order L2 | Order Linf | GCI p (L2 of p) | GCI asympt. ratio | Iterations | Time [s] |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| planar, order 2 (8-32) | quads | 3.42e-04 / 1.15e-01 / 1.17e-01 / 7.18e+01 | 2.01 / 2.20 / 2.08 / 2.05 | 2.02 / 2.07 / 2.08 / 2.01 | 2.16 / 1.90 / 2.06 / 1.67 | 1.97 | 0.25 | 4,887 | 13 |
-| planar, order 2 (8-32) | distorted quads | 6.00e-04 / 2.10e-01 / 1.49e-01 / 1.15e+02 | 1.88 / 2.01 / 2.03 / 1.95 | 1.78 / 1.81 / 1.96 / 1.86 | 1.83 / 1.75 / 1.22 / 1.81 | 1.56 | 0.27 | 4,549 | 12 |
-| planar, order 2 (8-32) | triangles | 1.06e-03 / 2.09e-01 / 2.11e-01 / 9.92e+01 | 2.10 / 2.03 / 2.03 / 2.01 | 2.10 / 2.05 / 2.04 / 2.01 | 2.02 / 2.16 / 1.80 / 1.79 | 2.11 | 0.25 | 7,457 | 27 |
-| planar, order 2 (8-32) | mixed | 6.11e-04 / 1.58e-01 / 1.39e-01 / 7.95e+01 | 2.05 / 2.10 / 2.11 / 2.07 | 2.01 / 2.05 / 2.09 / 2.04 | 1.13 / 1.67 / 1.48 / 1.92 | 2.02 | 0.24 | 5,603 | 17 |
+| planar, order 2 (8-32) | quads | 3.42e-04 / 1.15e-01 / 1.17e-01 / 7.18e+01 | 2.01 / 2.20 / 2.08 / 2.05 | 2.02 / 2.07 / 2.08 / 2.01 | 2.16 / 1.90 / 2.06 / 1.67 | 1.97 | 0.25 | 4,887 | 12 |
+| planar, order 2 (8-32) | distorted quads | 6.00e-04 / 2.10e-01 / 1.49e-01 / 1.15e+02 | 1.88 / 2.01 / 2.03 / 1.95 | 1.78 / 1.81 / 1.96 / 1.86 | 1.83 / 1.75 / 1.22 / 1.81 | 1.56 | 0.27 | 4,549 | 11 |
+| planar, order 2 (8-32) | triangles | 1.06e-03 / 2.09e-01 / 2.11e-01 / 9.92e+01 | 2.10 / 2.03 / 2.03 / 2.01 | 2.10 / 2.05 / 2.04 / 2.01 | 2.02 / 2.16 / 1.80 / 1.79 | 2.11 | 0.25 | 7,457 | 24 |
+| planar, order 2 (8-32) | mixed | 6.11e-04 / 1.58e-01 / 1.39e-01 / 7.95e+01 | 2.05 / 2.10 / 2.11 / 2.07 | 2.01 / 2.05 / 2.09 / 2.04 | 1.13 / 1.67 / 1.48 / 1.92 | 2.02 | 0.24 | 5,603 | 16 |
 | axisymmetric, order 2 (8-32) | quads | 4.41e-04 / 1.06e-01 / 9.47e-02 / 5.87e+01 | 2.07 / 2.07 / 2.12 / 2.09 | 2.11 / 2.12 / 2.09 / 2.09 | 1.94 / 1.72 / 1.89 / 1.93 | 2.19 | 0.24 | 2,834 | 7 |
 | axisymmetric, order 2 (8-32) | distorted quads | 5.64e-04 / 1.44e-01 / 1.17e-01 / 7.18e+01 | 2.06 / 2.06 / 2.12 / 2.02 | 2.07 / 2.07 / 2.09 / 2.03 | 1.87 / 2.02 / 1.86 / 1.74 | 2.06 | 0.24 | 2,468 | 6 |
-| axisymmetric, order 2 (8-32) | triangles | 9.95e-04 / 2.16e-01 / 2.23e-01 / 9.16e+01 | 2.05 / 2.12 / 2.03 / 2.05 | 2.04 / 2.12 / 2.04 / 2.06 | 1.65 / 1.99 / 1.78 / 1.82 | 1.94 | 0.24 | 4,865 | 18 |
-| axisymmetric, order 2 (8-32) | mixed | 7.78e-04 / 1.68e-01 / 1.57e-01 / 6.87e+01 | 2.06 / 2.01 / 1.98 / 2.07 | 2.04 / 2.00 / 2.01 / 2.06 | 1.81 / 1.65 / 1.98 / 1.96 | 2.01 | 0.24 | 4,664 | 15 |
-| planar, order 1 (8-32) | quads | 1.15e-02 / 2.63e+00 / 5.37e+00 / 1.49e+03 | 0.90 / 0.80 / 0.93 / 0.84 | 0.89 / 0.77 / 0.92 / 0.81 | 0.60 / 0.46 / 0.93 / 0.74 | 0.73 | 0.57 | 3,973 | 8 |
+| axisymmetric, order 2 (8-32) | triangles | 9.95e-04 / 2.16e-01 / 2.23e-01 / 9.16e+01 | 2.05 / 2.12 / 2.03 / 2.05 | 2.04 / 2.12 / 2.04 / 2.06 | 1.65 / 1.99 / 1.78 / 1.82 | 1.94 | 0.24 | 4,865 | 17 |
+| axisymmetric, order 2 (8-32) | mixed | 7.78e-04 / 1.68e-01 / 1.57e-01 / 6.87e+01 | 2.06 / 2.01 / 1.98 / 2.07 | 2.04 / 2.00 / 2.01 / 2.06 | 1.81 / 1.65 / 1.98 / 1.96 | 2.01 | 0.24 | 4,664 | 13 |
+| planar, order 1 (8-32) | quads | 1.15e-02 / 2.63e+00 / 5.37e+00 / 1.49e+03 | 0.90 / 0.80 / 0.93 / 0.84 | 0.89 / 0.77 / 0.92 / 0.81 | 0.60 / 0.46 / 0.93 / 0.74 | 0.73 | 0.57 | 3,973 | 7 |
 | planar, order 1 (8-32) | distorted quads | 1.49e-02 / 3.82e+00 / 5.94e+00 / 2.01e+03 | 0.76 / 0.62 / 0.84 / 0.67 | 0.74 / 0.55 / 0.85 / 0.62 | 0.42 / 0.30 / 0.77 / 0.32 | 0.59 | 0.65 | 4,078 | 8 |
-| planar, order 1 (8-32) | triangles | 9.60e-03 / 2.64e+00 / 3.01e+00 / 7.93e+02 | 0.93 / 0.93 / 0.99 / 0.92 | 0.95 / 0.92 / 0.98 / 0.91 | 0.96 / 0.85 / 0.86 / 0.93 | 0.96 | 0.53 | 5,936 | 15 |
+| planar, order 1 (8-32) | triangles | 9.60e-03 / 2.64e+00 / 3.01e+00 / 7.93e+02 | 0.93 / 0.93 / 0.99 / 0.92 | 0.95 / 0.92 / 0.98 / 0.91 | 0.96 / 0.85 / 0.86 / 0.93 | 0.96 | 0.53 | 5,936 | 13 |
 | planar, order 1 (8-32) | mixed | 8.91e-03 / 2.02e+00 / 3.70e+00 / 1.09e+03 | 0.99 / 0.92 / 1.00 / 0.95 | 0.98 / 0.94 / 0.98 / 0.95 | 0.96 / 0.96 / 0.96 / 0.90 | 0.90 | 0.52 | 4,210 | 9 |
-| planar, order 2, Venkatakrishnan (8-32) | quads | 4.68e-04 / 1.32e-01 / 1.78e-01 / 7.66e+01 | 1.56 / 1.96 / 1.79 / 1.93 | 1.36 / 1.86 / 1.59 / 1.89 | 0.47 / 1.51 / 1.05 / 1.36 | 2.04 | 0.27 | 4,712 | 19 |
-| planar, order 2, Venkatakrishnan (8-32) | distorted quads | 6.79e-04 / 2.00e-01 / 2.22e-01 / 1.11e+02 | 1.83 / 1.99 / 1.81 / 1.94 | 1.58 / 1.88 / 1.58 / 1.93 | 0.98 / 1.67 / 0.66 / 1.69 | 1.55 | 0.26 | 4,433 | 18 |
-| planar, order 2, Venkatakrishnan (8-32) | triangles | 1.81e-03 / 3.67e-01 / 3.12e-01 / 1.14e+02 | 1.72 / 1.60 / 1.70 / 1.79 | 1.61 / 1.52 / 1.64 / 1.78 | 1.19 / 1.47 / 1.08 / 1.26 | 2.22 | 0.29 | 6,745 | 47 |
-| planar, order 2, Venkatakrishnan (8-32) | mixed | 1.14e-03 / 2.57e-01 / 2.39e-01 / 1.05e+02 | 1.56 / 1.60 / 1.64 / 1.76 | 1.40 / 1.52 / 1.55 / 1.74 | 0.57 / 0.67 / 0.28 / 1.42 | 2.02 | 0.30 | 5,382 | 29 |
+| planar, order 2, Venkatakrishnan (8-32) | quads | 4.68e-04 / 1.32e-01 / 1.78e-01 / 7.66e+01 | 1.56 / 1.96 / 1.79 / 1.93 | 1.36 / 1.86 / 1.59 / 1.89 | 0.47 / 1.51 / 1.05 / 1.36 | 2.04 | 0.27 | 4,712 | 18 |
+| planar, order 2, Venkatakrishnan (8-32) | distorted quads | 6.79e-04 / 2.00e-01 / 2.22e-01 / 1.11e+02 | 1.83 / 1.99 / 1.81 / 1.94 | 1.58 / 1.88 / 1.58 / 1.93 | 0.98 / 1.67 / 0.66 / 1.69 | 1.55 | 0.26 | 4,433 | 17 |
+| planar, order 2, Venkatakrishnan (8-32) | triangles | 1.81e-03 / 3.67e-01 / 3.12e-01 / 1.14e+02 | 1.72 / 1.60 / 1.70 / 1.79 | 1.61 / 1.52 / 1.64 / 1.78 | 1.19 / 1.47 / 1.08 / 1.26 | 2.22 | 0.29 | 6,745 | 42 |
+| planar, order 2, Venkatakrishnan (8-32) | mixed | 1.14e-03 / 2.57e-01 / 2.39e-01 / 1.05e+02 | 1.56 / 1.60 / 1.64 / 1.76 | 1.40 / 1.52 / 1.55 / 1.74 | 0.57 / 0.67 / 0.28 / 1.42 | 2.02 | 0.30 | 5,382 | 26 |
 
 - Orders listed per variable rho / u / v / p. Errors in SI units (kg/m³, m/s, m/s, Pa).
 - The GCI columns apply the three-mesh GCI procedure (aeroflowsim/gci.py) to the L2 error of p: its observed order should match and the asymptotic ratio be near 1.
@@ -428,6 +428,56 @@ Sources:
 - Exit Mach number: observed order of convergence p = 1.56 from the last three meshes; Richardson extrapolation 3.98582; isentropic theory 3.98602.
 - Shock position: the captured shock is one or two cells wide, so its interpolated position can move by up to a cell width between meshes; its error falls from 1.41 % (150 cells) to 0.47 % (1200 cells).
 - Supersonic runs converged to a residual drop of 1e-06; shock runs use 30 000 iterations per 300 cells (their residual stalls near 1e-3, see the case README).
+
+## New shapes, nozzle contours and structured grids (geometry): PASS
+
+Case: `cases/external_2d`, references: `validation/shapes_and_grids/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| von Karman nose (L = 1.2 m, D = 0.3 m): volume of revolution / (pi R² L / 2) | 1 | 0.999999 | 8.5e-05 | 0.01 | PASS |
+| Sphere D = 2 m: volume of revolution / (4 pi / 3) | 1 | 0.999924 | 0.0076 | 0.02 | PASS |
+| Hemisphere-cylinder (D = 0.2 m, cylinder 0.3 m): volume / exact | 1 | 1 | 1.8e-05 | 0.01 | PASS |
+| Double-circular-arc airfoil (c = 2 m, t/c = 0.08): area / two circular segments | 1 | 0.999998 | 0.00016 | 0.01 | PASS |
+| MOC nozzle, Mach 2.4, gamma 1.4, 20 characteristics: exit height ratio / isentropic A/A* | 1 | 0.995522 | 0.448 | 0.6 | PASS |
+| MOC nozzle, 40 characteristics: exit height ratio / isentropic A/A* | 1 | 0.998168 | 0.183 | 0.25 | PASS |
+| MOC nozzle, 80 characteristics: exit height ratio / isentropic A/A* | 1 | 0.99926 | 0.074 | 0.1 | PASS |
+| Rao bell (eps = 25, 80 %): exit radius / (sqrt(eps) R_t) | 1 | 1 | 0.000 | 0.001 | PASS |
+| Rao bell (eps = 25, 80 %): length / (0.8 L_15deg cone) | 1 | 1 | 2.2e-14 | 0.001 | PASS |
+| Cylinder O-grid, coarse preset: domain area / pi (R² - r²) | 1 | 0.998972 | 0.103 | 0.2 | PASS |
+| Cylinder O-grid, coarse preset: wall length / pi D | 1 | 0.999724 | 0.028 | 0.05 | PASS |
+| Cylinder O-grid, coarse preset: first-layer cell height / input | 1 | 1.00023 | 0.023 | 0.15 | PASS |
+| Cylinder O-grid, medium preset: domain area / pi (R² - r²) | 1 | 0.999743 | 0.026 | 0.1 | PASS |
+| Cylinder O-grid, medium preset: wall length / pi D | 1 | 0.999912 | 0.0088 | 0.02 | PASS |
+| Cylinder O-grid, medium preset: first-layer cell height / input | 1 | 1.00081 | 0.081 | 0.15 | PASS |
+| Cylinder O-grid, fine preset: domain area / pi (R² - r²) | 1 | 0.999936 | 0.0064 | 0.05 | PASS |
+| Cylinder O-grid, fine preset: wall length / pi D | 1 | 0.999959 | 0.0041 | 0.01 | PASS |
+| Cylinder O-grid, fine preset: first-layer cell height / input | 1 | 1.00094 | 0.094 | 0.15 | PASS |
+| NACA 0012 C-grid, coarse preset: domain area / exact | 1 | 0.999875 | 0.013 | 0.03 | PASS |
+| NACA 0012 C-grid, coarse preset: cells / ((n_body + 2 n_wake) n_normal) | 1 | 1 | 0.000 | 1e-06 | PASS |
+| NACA 0012 C-grid, medium preset: domain area / exact | 1 | 0.999969 | 0.0031 | 0.01 | PASS |
+| NACA 0012 C-grid, medium preset: cells / ((n_body + 2 n_wake) n_normal) | 1 | 1 | 0.000 | 1e-06 | PASS |
+| NACA 0012 C-grid, fine preset: domain area / exact | 1 | 0.999992 | 0.00078 | 0.005 | PASS |
+| NACA 0012 C-grid, fine preset: cells / ((n_body + 2 n_wake) n_normal) | 1 | 1 | 0.000 | 1e-06 | PASS |
+| Cylinder, Gmsh triangles, default mesh: domain area / exact | 1 | 0.999543 | 0.046 | 0.1 | PASS |
+| Cylinder, Gmsh triangles, sizes / 2: domain area / exact | 1 | 0.999598 | 0.040 | 0.1 | PASS |
+
+Sources:
+
+- Exact: the Haack C = 0 profile has integral of y² dx = R² L / 2 (theory manual section 14)
+- Exact: 4/3 pi R³
+- Exact: 2/3 pi R³ + pi R² L
+- Exact: 2 R² (Theta - sin Theta cos Theta)
+- Anderson (2003) isentropic area ratio; the error falls as the fan is resolved
+- Anderson (2003) isentropic area ratio
+- By construction (Rao parabola ends at the exit radius)
+- By construction (length fraction of a 15 degree cone)
+- Exact: annulus area (R = 20 D)
+- Exact: circumference
+- The input first-layer height (1e-3 L)
+- Exact: half circle + wake rectangle - airfoil area
+- The input cell counts
+- Exact: annulus area (compare the O-grid)
 
 ## Sod shock tube (Toro test 1, t = 0.2 s, 400 cells): PASS
 

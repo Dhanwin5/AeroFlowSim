@@ -127,6 +127,26 @@ View > Units chooses the display units (default mm, kPa, mg/s, mN). Inputs, tabl
 exports follow it; everything stored in the project and computed stays SI, and so do the command line, the
 validation report and `summary.yaml`.
 
+## Structured grids and meshes from other programs
+
+**Structured C/O-grids.** In the template *Body in free stream*, Mesh step, *Mesh type* **Structured C/O-grid** makes one block of
+quadrilaterals that follows the body: a C-grid (wraps round the nose, runs back along the wake) for airfoils with a sharp trailing
+edge, an O-grid for smooth closed bodies (cylinder, sphere). Choose Coarse / Medium / Fine or type the cell counts; the first layer height
+you type is the exact height of the cell at the wall. A body that does not fit (blunt trailing edge, corners, a flat base) is refused with
+the reason. Tutorial: `docs/tutorials/naca0012_c_grid.md`.
+
+**A mesh from another program.** Template *Start from an existing mesh*: pick a Gmsh `.msh` (version 2 or 4), SU2 `.su2`, CGNS or Fluent ASCII
+`.msh` file (2D, triangles and quadrilaterals), the unit of its coordinates, *Planar* or *Axisymmetric*, and say what each boundary name is
+(`name: type`, types inlet, outlet, wall, axis, farfield, symmetry; names like "wall" or "farfield" need no entry). The numbers under the
+inputs list the names found and the type each gets. Every boundary of the mesh must have a name.
+
+**Convert or inspect from the command line:**
+
+    python -m aeroflowsim mesh-info mesh.msh
+    python -m aeroflowsim mesh-convert mesh.msh mesh.su2 --unit mm --map "outer: farfield, body: wall"
+
+Export writes Gmsh (2.2 or 4.1), SU2 and CGNS, with the patch names as the boundary names, to run the same mesh in SU2 or OpenFOAM.
+
 ## Keyboard shortcuts
 
 | Keys | Action |

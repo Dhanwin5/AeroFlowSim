@@ -12,7 +12,7 @@ import pytest
 from validation.common import read_references, validate_folder, validation_folders
 
 FOLDERS = validation_folders()
-NEEDS_GMSH = {"external_geometry", "euler2d_wedge", "euler2d_cylinder", "euler2d_nozzle", "euler2d_diamond",
+NEEDS_GMSH = {"external_geometry", "shapes_and_grids", "euler2d_wedge", "euler2d_cylinder", "euler2d_nozzle", "euler2d_diamond",
               "euler2d_cone", "euler2d_prandtl_meyer", "euler2d_naca0012"}   # use Gmsh meshes
 
 

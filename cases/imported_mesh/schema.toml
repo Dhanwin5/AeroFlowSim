@@ -1,0 +1,136 @@
+# Start from an existing mesh: the mesh comes from a file made elsewhere (Gmsh, SU2, CGNS, Fluent), not from AeroFlowSim's
+# geometry workspace. The Geometry step shows the file inputs; the Mesh step reads, checks and shows the mesh.
+
+[case]
+name = "Start from an existing mesh (2D Euler)"
+description = "Steady inviscid 2D or axisymmetric Euler flow on a mesh you made elsewhere: Gmsh .msh (v2, v4), SU2 .su2, CGNS or Fluent ASCII .msh. Its boundary names are mapped to boundary types, then the usual checks, boundary-condition table and solver apply."
+steady = true
+euler_solver = true
+
+# ---- the mesh file ---------------------------------------------------------------------------------
+
+[[input]]
+key = "mesh_file"
+label = "Mesh file"
+type = "file"
+default = "cases/imported_mesh/examples/rectangle_mm.msh"
+file_types = ["msh", "su2", "cgns"]
+group = "Mesh file"
+step = "geometry"
+help = "A 2D mesh of triangles and quadrilaterals: Gmsh .msh (version 2 or 4), SU2 .su2, CGNS (unstructured, HDF5) or Fluent .msh (ASCII). Every boundary must have a name (a physical group, marker, zone or section). The example is a 40 mm x 20 mm rectangle."
+
+[[input]]
+key = "length_unit"
+label = "Length unit of the file"
+type = "choice"
+default = "mm"
+options = ["m", "mm", "cm", "in", "ft"]
+group = "Mesh file"
+step = "geometry"
+help = "The unit of the coordinates in the file; they are converted to metres. The numbers under the inputs show the size of the mesh in the file's unit to help you choose."
+
+[[input]]
+key = "body_type"
+label = "Mesh type"
+type = "choice"
+default = "Planar"
+options = ["Planar", "Axisymmetric"]
+group = "Mesh file"
+step = "geometry"
+help = "Planar: 2D, 1 m deep. Axisymmetric: about the x axis (y is the radius, every y must be 0 or more)."
+
+[[input]]
+key = "boundary_map"
+label = "Boundary types"
+type = "text"
+default = "left: inlet, right: outlet, bottom: symmetry, top: wall"
+group = "Mesh file"
+step = "geometry"
+help = "Which type each boundary name of the file is, written as  name: type  and separated by commas. Types: inlet, outlet, wall, axis, farfield, symmetry. A name that says what it is (wall, farfield, inlet, outlet, symmetry, axis ...) needs no entry. The numbers under the inputs list every name found in the file and the type it gets."
+
+[[input]]
+key = "reference_length"
+label = "Reference length"
+unit = "m"
+type = "float"
+default = 0.04
+min = 1e-9
+max = 100000.0
+group = "Mesh file"
+step = "setup"
+help = "Length for the moment coefficient and the Reynolds number (chord, diameter, ...)."
+
+[[input]]
+key = "reference_area"
+label = "Reference area"
+unit = "m²"
+type = "float"
+default = 0.0008
+min = 1e-12
+max = 1000000.0
+group = "Mesh file"
+step = "setup"
+help = "Area for Cl, Cd, Cm (planar: reference length x depth, with the depth 1 m; axisymmetric: for example the frontal area)."
+
+# ---- free stream (Setup step) --------------------------------------------------------------------------
+
+[[input]]
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "air"
+group = "Free stream"
+help = "The gas, from the gas library (calorically perfect), or a custom gas of your own."
+
+[[input]]
+key = "mach"
+label = "Mach number"
+unit = "-"
+type = "float"
+default = 2.0
+min = 0.01
+max = 30.0
+group = "Free stream"
+help = "Free-stream Mach number: the default of far-field and inlet boundaries."
+
+[[input]]
+key = "p_inf"
+label = "Static pressure"
+unit = "Pa"
+type = "float"
+default = 101325.0
+min = 0.001
+max = 1000000000.0
+group = "Free stream"
+help = "Free-stream static pressure (the default of far-field and inlet boundaries)."
+
+[[input]]
+key = "T_inf"
+label = "Static temperature"
+unit = "K"
+type = "float"
+default = 288.15
+min = 1.0
+max = 10000.0
+group = "Free stream"
+help = "Free-stream static temperature."
+
+[[input]]
+key = "alpha"
+label = "Flow angle"
+unit = "deg"
+type = "float"
+default = 0.0
+min = -90.0
+max = 90.0
+group = "Free stream"
+help = "Angle of the free stream to the x axis."
+
+[[input]]
+key = "initialisation"
+label = "Initial solution"
+type = "choice"
+default = "Uniform (free stream)"
+options = ["Uniform (free stream)"]
+group = "Free stream"
+help = "How a run starts from scratch: the free stream everywhere."

@@ -12,3 +12,5 @@ pyvistaqt==0.13.1
 pytest-qt==4.5.0
 gmsh==4.15.2
 ezdxf==1.4.5
+meshio==5.3.5
+h5py==3.16.0

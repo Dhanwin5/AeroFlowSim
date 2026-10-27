@@ -1,0 +1,373 @@
+{
+ "name": "shapes_and_grids",
+ "title": "New shapes, nozzle contours and structured grids (geometry)",
+ "case": "cases/external_2d",
+ "date": "2026-10-27",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "von_karman_volume",
+    "quantity": "von Karman nose (L = 1.2 m, D = 0.3 m): volume of revolution / (pi R\u00b2 L / 2)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Exact: the Haack C = 0 profile has integral of y\u00b2 dx = R\u00b2 L / 2 (theory manual section 14)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999991506564112
+  },
+  {
+   "reference": {
+    "id": "sphere_volume",
+    "quantity": "Sphere D = 2 m: volume of revolution / (4 pi / 3)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.02,
+    "source": "Exact: 4/3 pi R\u00b3",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999238475781953
+  },
+  {
+   "reference": {
+    "id": "hemisphere_cylinder_volume",
+    "quantity": "Hemisphere-cylinder (D = 0.2 m, cylinder 0.3 m): volume / exact",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Exact: 2/3 pi R\u00b3 + pi R\u00b2 L",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999998243195748
+  },
+  {
+   "reference": {
+    "id": "biconvex_area",
+    "quantity": "Double-circular-arc airfoil (c = 2 m, t/c = 0.08): area / two circular segments",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Exact: 2 R\u00b2 (Theta - sin Theta cos Theta)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999983550679699
+  },
+  {
+   "reference": {
+    "id": "moc_area_ratio_20",
+    "quantity": "MOC nozzle, Mach 2.4, gamma 1.4, 20 characteristics: exit height ratio / isentropic A/A*",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.6,
+    "source": "Anderson (2003) isentropic area ratio; the error falls as the fan is resolved",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.995521540458058
+  },
+  {
+   "reference": {
+    "id": "moc_area_ratio_40",
+    "quantity": "MOC nozzle, 40 characteristics: exit height ratio / isentropic A/A*",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.25,
+    "source": "Anderson (2003) isentropic area ratio",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.998167726441282
+  },
+  {
+   "reference": {
+    "id": "moc_area_ratio_80",
+    "quantity": "MOC nozzle, 80 characteristics: exit height ratio / isentropic A/A*",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.1,
+    "source": "Anderson (2003) isentropic area ratio",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9992599571682939
+  },
+  {
+   "reference": {
+    "id": "bell_exit_radius",
+    "quantity": "Rao bell (eps = 25, 80 %): exit radius / (sqrt(eps) R_t)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.001,
+    "source": "By construction (Rao parabola ends at the exit radius)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "bell_length",
+    "quantity": "Rao bell (eps = 25, 80 %): length / (0.8 L_15deg cone)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.001,
+    "source": "By construction (length fraction of a 15 degree cone)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999999999999998
+  },
+  {
+   "reference": {
+    "id": "ogrid_area_coarse",
+    "quantity": "Cylinder O-grid, coarse preset: domain area / pi (R\u00b2 - r\u00b2)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.2,
+    "source": "Exact: annulus area (R = 20 D)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9989722570370323
+  },
+  {
+   "reference": {
+    "id": "ogrid_wall_coarse",
+    "quantity": "Cylinder O-grid, coarse preset: wall length / pi D",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.05,
+    "source": "Exact: circumference",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9997240826661656
+  },
+  {
+   "reference": {
+    "id": "ogrid_first_layer_coarse",
+    "quantity": "Cylinder O-grid, coarse preset: first-layer cell height / input",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.15,
+    "source": "The input first-layer height (1e-3 L)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0002281668700064
+  },
+  {
+   "reference": {
+    "id": "ogrid_area_medium",
+    "quantity": "Cylinder O-grid, medium preset: domain area / pi (R\u00b2 - r\u00b2)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.1,
+    "source": "Exact: annulus area (R = 20 D)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9997430286274146
+  },
+  {
+   "reference": {
+    "id": "ogrid_wall_medium",
+    "quantity": "Cylinder O-grid, medium preset: wall length / pi D",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.02,
+    "source": "Exact: circumference",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999120963490806
+  },
+  {
+   "reference": {
+    "id": "ogrid_first_layer_medium",
+    "quantity": "Cylinder O-grid, medium preset: first-layer cell height / input",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.15,
+    "source": "The input first-layer height (1e-3 L)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.000806983067339
+  },
+  {
+   "reference": {
+    "id": "ogrid_area_fine",
+    "quantity": "Cylinder O-grid, fine preset: domain area / pi (R\u00b2 - r\u00b2)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.05,
+    "source": "Exact: annulus area (R = 20 D)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999357772536095
+  },
+  {
+   "reference": {
+    "id": "ogrid_wall_fine",
+    "quantity": "Cylinder O-grid, fine preset: wall length / pi D",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Exact: circumference",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999591029782704
+  },
+  {
+   "reference": {
+    "id": "ogrid_first_layer_fine",
+    "quantity": "Cylinder O-grid, fine preset: first-layer cell height / input",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.15,
+    "source": "The input first-layer height (1e-3 L)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0009406454113923
+  },
+  {
+   "reference": {
+    "id": "cgrid_area_coarse",
+    "quantity": "NACA 0012 C-grid, coarse preset: domain area / exact",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.03,
+    "source": "Exact: half circle + wake rectangle - airfoil area",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9998747347119472
+  },
+  {
+   "reference": {
+    "id": "cgrid_cells_coarse",
+    "quantity": "NACA 0012 C-grid, coarse preset: cells / ((n_body + 2 n_wake) n_normal)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-06,
+    "source": "The input cell counts",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "cgrid_area_medium",
+    "quantity": "NACA 0012 C-grid, medium preset: domain area / exact",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Exact: half circle + wake rectangle - airfoil area",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999686788424567
+  },
+  {
+   "reference": {
+    "id": "cgrid_cells_medium",
+    "quantity": "NACA 0012 C-grid, medium preset: cells / ((n_body + 2 n_wake) n_normal)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-06,
+    "source": "The input cell counts",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "cgrid_area_fine",
+    "quantity": "NACA 0012 C-grid, fine preset: domain area / exact",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.005,
+    "source": "Exact: half circle + wake rectangle - airfoil area",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999921693824129
+  },
+  {
+   "reference": {
+    "id": "cgrid_cells_fine",
+    "quantity": "NACA 0012 C-grid, fine preset: cells / ((n_body + 2 n_wake) n_normal)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-06,
+    "source": "The input cell counts",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "triangle_area_default",
+    "quantity": "Cylinder, Gmsh triangles, default mesh: domain area / exact",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.1,
+    "source": "Exact: annulus area (compare the O-grid)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9995428615757598
+  },
+  {
+   "reference": {
+    "id": "triangle_area_fine",
+    "quantity": "Cylinder, Gmsh triangles, sizes / 2: domain area / exact",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.1,
+    "source": "Exact: annulus area (compare the O-grid)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.999598204938905
+  }
+ ],
+ "study": null
+}

@@ -109,7 +109,13 @@ aeroflowsim/               the Python package
     nozzle_mesh.py         structured axisymmetric nozzle mesh (throat clustering, inflation layers)
     gmsh_mesh.py           optional Gmsh meshes (triangles / quad-dominant): external domain, nozzle
     inflation_layers.py    inflation layers grown from a wall for unstructured meshes
-    shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape
+    shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape (6e: bell and MOC
+                           nozzles, ramp / spike intakes, biconvex, NACA 5-digit, nose cones, sphere, capsule, ...);
+                           revolution.py, intake_common.py: helpers (no .toml)
+    nozzle_contours.py     Rao bell (digitised Huzel-Huang angles) and planar minimum-length MOC nozzle -> WallProfile
+    intake_theory.py       ramp shocks, shock-on-lip cowl position (oblique shock, Taylor-Maccoll); rule in smart_rules.py
+    structured_mesh.py     structured O-grid / C-grid of quads (NumPy; exact first layer, wake cut), same patch names as Gmsh
+    mesh_io.py             mesh import (Gmsh v2/v4, SU2, CGNS, Fluent ASCII) and export (Gmsh, SU2, CGNS), boundary-tag map
     gases/                 gas library: model.py (GasModel, CaloricallyPerfectGas), data.py (TOML format,
                            saturation curves), library.py (built-in / user / project gases), real_gas.py
                            (Peng-Robinson Z), one <id>.toml per built-in gas
@@ -154,6 +160,7 @@ cases/_template/           copy-me skeleton for a new case (ignored by discovery
 cases/nozzle_axi/          axisymmetric nozzle (structured or Gmsh mesh), 2D Euler: thrust, Isp, Cf, Cd
 cases/external_2d/         body in a free stream (shape library + Gmsh), 2D Euler: Cl, Cd, Cm, Cp
 cases/geometry_2d/         custom 2D geometry from the workspace (import / sketch), 2D Euler (internal / external)
+cases/imported_mesh/       "start from an existing mesh": mesh file (Gmsh, SU2, CGNS, Fluent) + boundary-type map, 2D Euler
 docs/theory_manual.md      equations and methods, with references and where they are in the code
 docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK view, jobs, projects)
 docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)
@@ -162,6 +169,7 @@ docs/parity_checklist.md   Streamlit -> desktop GUI parity, for the user to tick
 docs/tutorials/            step-by-step tutorials (nozzle with plume region, airfoil in a C-domain)
 spikes/                    throwaway proofs of concept (not part of the package)
 tools/gas_data/            developer tool that writes aeroflowsim/gases/*.toml from NIST data (not packaged)
+tools/structured_flow_checks.py, tools/nozzle_flow_checks.py   quick flow runs on the new grids and nozzle contours (6e)
 tools/screenshots.py       screenshots of every GUI page (light/dark, scaling); tools/build_installer.py: Windows
                            installer (PyInstaller + Inno Setup, tools/installer/); tools/make_examples.py
 examples/                  example projects shipped with the installer (N2 nozzle with result, NACA 0012, wedge, Sod)

@@ -41,6 +41,8 @@ dependencies = [
     # Geometry workspace and unstructured meshes: Gmsh (with its OpenCASCADE CAD kernel) and DXF files
     "gmsh>=4.13,<5",
     "ezdxf>=1.4",
+    "meshio>=5.3,<6",   # reads Gmsh .msh files (aeroflowsim/mesh_io.py)
+    "h5py>=3.10",       # CGNS (HDF5) mesh files
 ]
 
 [project.optional-dependencies]

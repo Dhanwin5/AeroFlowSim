@@ -211,7 +211,21 @@ def main(argv=None):
     snap.add_argument("action", choices=("save", "list", "rename", "restore", "delete"))
     snap.add_argument("name", nargs="?", default=None)
     snap.add_argument("new_name", nargs="?", default=None, help="rename: the new name")
+    info = commands.add_parser("mesh-info", help="show what a mesh file holds (Gmsh, SU2, CGNS, Fluent): cells, size, boundary names")
+    info.add_argument("file", help="mesh file (.msh, .su2, .cgns)")
+    convert = commands.add_parser("mesh-convert", help="convert a mesh file to Gmsh (.msh, version 2.2 or 4.1), SU2 or CGNS")
+    convert.add_argument("source", help="mesh file to read (.msh, .su2, .cgns)")
+    convert.add_argument("target", help="file to write; the ending chooses the format (.msh, .su2, .cgns)")
+    convert.add_argument("--unit", default="m", choices=("m", "mm", "cm", "in", "ft"),
+                         help="length unit of the source file (written in metres; default m)")
+    convert.add_argument("--axisymmetric", action="store_true", help="the mesh is axisymmetric about y = 0")
+    convert.add_argument("--map", default="", metavar="NAME:TYPE,...", help="boundary types, e.g. 'outer: farfield, body: wall'")
+    convert.add_argument("--gmsh-version", choices=("2.2", "4.1"), default="2.2", help="version of a .msh target (default 2.2)")
     args = parser.parse_args(argv)
+    if args.command == "mesh-info":
+        return command_mesh_info(args)
+    if args.command == "mesh-convert":
+        return command_mesh_convert(args)
     if args.command == "list":
         return command_list()
     if args.command == "gui":
@@ -223,6 +237,40 @@ def main(argv=None):
     if args.command == "snapshot":
         return command_snapshot(args)
     return command_run(args)
+
+
+def command_mesh_info(args):
+    """Print what a mesh file holds: format, cells, size and every boundary name with the type it would get."""
+    from aeroflowsim import mesh_io
+    try:
+        raw = mesh_io.read_mesh_file(args.file)
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"{raw.source}: {raw.format}, {raw.n_cells} cells, {len(raw.points)} points")
+    print(f"  size in the file's unit: {mesh_io.size_text(raw)}")
+    for row in mesh_io.tag_table(raw):
+        print(f"  boundary '{row['name']}': {row['edges']} edges, type {row['guess'] or '(not guessed: give one)'}")
+    return 0
+
+
+def command_mesh_convert(args):
+    """Read a mesh file, check it, write it in another format (the boundary names stay)."""
+    from pathlib import Path
+    from aeroflowsim import mesh_io
+    target = Path(args.target)
+    writers = {".msh": lambda m, p: mesh_io.write_gmsh(m, p, args.gmsh_version), ".su2": mesh_io.write_su2,
+               ".cgns": mesh_io.write_cgns}
+    try:
+        if target.suffix.lower() not in writers:
+            raise ValueError(f"'{target.suffix}' is not a format AeroFlowSim writes. Use .msh, .su2 or .cgns.")
+        mesh = mesh_io.import_mesh(args.source, args.unit, args.axisymmetric, mesh_io.parse_tag_map(args.map))
+        writers[target.suffix.lower()](mesh, target)
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"{mesh.n_cells} cells, patches {', '.join(f'{p.name} ({p.type})' for p in mesh.patches)} written to {target}")
+    return 0
 
 
 def _open_project(path):

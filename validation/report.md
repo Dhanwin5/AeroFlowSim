@@ -1,10 +1,10 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.2.0a1, generated 2026-10-26 by `python validation/run_all.py`.
+AeroFlowSim 0.2.0a1, generated 2026-10-27 by `python validation/run_all.py`.
 
 **Validation set: full** (all meshes of every case; run weekly and on version tags).
 
-**Overall: PASS** (15 of 15 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
+**Overall: PASS** (16 of 16 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
 
 ## Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi): PASS
 
@@ -452,6 +452,56 @@ Sources:
 - Exit Mach number: observed order of convergence p = 1.56 from the last three meshes; Richardson extrapolation 3.98582; isentropic theory 3.98602.
 - Shock position: the captured shock is one or two cells wide, so its interpolated position can move by up to a cell width between meshes; its error falls from 1.41 % (150 cells) to 0.47 % (1200 cells).
 - Supersonic runs converged to a residual drop of 1e-06; shock runs use 30 000 iterations per 300 cells (their residual stalls near 1e-3, see the case README).
+
+## New shapes, nozzle contours and structured grids (geometry): PASS
+
+Case: `cases/external_2d`, references: `validation/shapes_and_grids/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| von Karman nose (L = 1.2 m, D = 0.3 m): volume of revolution / (pi R² L / 2) | 1 | 0.999999 | 8.5e-05 | 0.01 | PASS |
+| Sphere D = 2 m: volume of revolution / (4 pi / 3) | 1 | 0.999924 | 0.0076 | 0.02 | PASS |
+| Hemisphere-cylinder (D = 0.2 m, cylinder 0.3 m): volume / exact | 1 | 1 | 1.8e-05 | 0.01 | PASS |
+| Double-circular-arc airfoil (c = 2 m, t/c = 0.08): area / two circular segments | 1 | 0.999998 | 0.00016 | 0.01 | PASS |
+| MOC nozzle, Mach 2.4, gamma 1.4, 20 characteristics: exit height ratio / isentropic A/A* | 1 | 0.995522 | 0.448 | 0.6 | PASS |
+| MOC nozzle, 40 characteristics: exit height ratio / isentropic A/A* | 1 | 0.998168 | 0.183 | 0.25 | PASS |
+| MOC nozzle, 80 characteristics: exit height ratio / isentropic A/A* | 1 | 0.99926 | 0.074 | 0.1 | PASS |
+| Rao bell (eps = 25, 80 %): exit radius / (sqrt(eps) R_t) | 1 | 1 | 0.000 | 0.001 | PASS |
+| Rao bell (eps = 25, 80 %): length / (0.8 L_15deg cone) | 1 | 1 | 2.2e-14 | 0.001 | PASS |
+| Cylinder O-grid, coarse preset: domain area / pi (R² - r²) | 1 | 0.998972 | 0.103 | 0.2 | PASS |
+| Cylinder O-grid, coarse preset: wall length / pi D | 1 | 0.999724 | 0.028 | 0.05 | PASS |
+| Cylinder O-grid, coarse preset: first-layer cell height / input | 1 | 1.00023 | 0.023 | 0.15 | PASS |
+| Cylinder O-grid, medium preset: domain area / pi (R² - r²) | 1 | 0.999743 | 0.026 | 0.1 | PASS |
+| Cylinder O-grid, medium preset: wall length / pi D | 1 | 0.999912 | 0.0088 | 0.02 | PASS |
+| Cylinder O-grid, medium preset: first-layer cell height / input | 1 | 1.00081 | 0.081 | 0.15 | PASS |
+| Cylinder O-grid, fine preset: domain area / pi (R² - r²) | 1 | 0.999936 | 0.0064 | 0.05 | PASS |
+| Cylinder O-grid, fine preset: wall length / pi D | 1 | 0.999959 | 0.0041 | 0.01 | PASS |
+| Cylinder O-grid, fine preset: first-layer cell height / input | 1 | 1.00094 | 0.094 | 0.15 | PASS |
+| NACA 0012 C-grid, coarse preset: domain area / exact | 1 | 0.999875 | 0.013 | 0.03 | PASS |
+| NACA 0012 C-grid, coarse preset: cells / ((n_body + 2 n_wake) n_normal) | 1 | 1 | 0.000 | 1e-06 | PASS |
+| NACA 0012 C-grid, medium preset: domain area / exact | 1 | 0.999969 | 0.0031 | 0.01 | PASS |
+| NACA 0012 C-grid, medium preset: cells / ((n_body + 2 n_wake) n_normal) | 1 | 1 | 0.000 | 1e-06 | PASS |
+| NACA 0012 C-grid, fine preset: domain area / exact | 1 | 0.999992 | 0.00078 | 0.005 | PASS |
+| NACA 0012 C-grid, fine preset: cells / ((n_body + 2 n_wake) n_normal) | 1 | 1 | 0.000 | 1e-06 | PASS |
+| Cylinder, Gmsh triangles, default mesh: domain area / exact | 1 | 0.999543 | 0.046 | 0.1 | PASS |
+| Cylinder, Gmsh triangles, sizes / 2: domain area / exact | 1 | 0.999598 | 0.040 | 0.1 | PASS |
+
+Sources:
+
+- Exact: the Haack C = 0 profile has integral of y² dx = R² L / 2 (theory manual section 14)
+- Exact: 4/3 pi R³
+- Exact: 2/3 pi R³ + pi R² L
+- Exact: 2 R² (Theta - sin Theta cos Theta)
+- Anderson (2003) isentropic area ratio; the error falls as the fan is resolved
+- Anderson (2003) isentropic area ratio
+- By construction (Rao parabola ends at the exit radius)
+- By construction (length fraction of a 15 degree cone)
+- Exact: annulus area (R = 20 D)
+- Exact: circumference
+- The input first-layer height (1e-3 L)
+- Exact: half circle + wake rectangle - airfoil area
+- The input cell counts
+- Exact: annulus area (compare the O-grid)
 
 ## Sod shock tube (Toro test 1, t = 0.2 s, 400 cells): PASS
 

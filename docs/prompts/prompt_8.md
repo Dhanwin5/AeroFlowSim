@@ -113,3 +113,18 @@ Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch run
 5. The wall-clock targets of Part 6 hold (or the shortfall is reported with the measured numbers).
 6. Docs, gap register, CHANGELOG, `docs/prompts/8_progress.md`, and `docs/prompts/prompt_6e.md` written; tests and
    validation pass; everything pushed.
+
+## Addendum from Prompt 6e (27 Oct 2026): findings that belong to this prompt
+
+- **Convergence of the new meshes is limited by speed.** NACA 0012 at Mach 0.5, alpha 1.25: the C-grid Medium (15,600 cells) took
+  945 s for 8,000 iterations and was NOT converged (Cl 0.1751, Cd 0.0008; triangles 9,280 cells: Cl 0.1681, 348 s, not converged;
+  reference Cl 0.1800). After the implicit solver, re-run `python tools/structured_flow_checks.py naca` to convergence and on three
+  systematically refined C-grids (the presets Coarse, Medium, Fine are factor 2 in the counts: use them for the GCI study the NACA 0012
+  validation case could not do).
+- **Throat-corner limit cycle (residual stalls near 1e-3) also appears on the planar MOC nozzle** (`python tools/nozzle_flow_checks.py moc`:
+  2,560 cells, 20,000 iterations, mass flow constant to 0.1 % along the nozzle, +1.6 % above the choked flow; exit Mach 2.23 mean /
+  2.28 centre line against the design 2.4, wall cell 1.88). Re-run on a finer mesh once the solver is fast; the contour itself is verified
+  by the exact area ratio (validation/shapes_and_grids).
+- **C-grid wake cells are very flat** (aspect ratio 1,300-4,800 along the wake line at a first layer of 1e-3 c). Harmless for Euler flow;
+  an implicit solver is insensitive to it, an explicit one is limited by it (local time stepping handles it).
+- A planar nozzle template does not exist (the MOC check solves it directly): decide in Prompt 9/10 or earlier.
