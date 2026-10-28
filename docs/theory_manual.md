@@ -18,7 +18,10 @@ Contents
 10. [Reproducibility: projects, fingerprints and background runs](#10-reproducibility-projects-fingerprints-and-background-runs)
 11. [Gas models](#11-gas-models)
 12. [The 2D / axisymmetric Euler solver](#12-the-2d--axisymmetric-euler-solver)
-13. [References](#13-references)
+13. [Verification, post-processing and the new validation cases](#13-verification-post-processing-and-the-new-validation-cases-prompt-7b)
+14. [New shapes, nozzle contours and intakes](#14-new-shapes-nozzle-contours-and-intakes-prompt-6e-part-1)
+15. [The optional assistant: it assists, it never replaces physics](#15-the-optional-assistant-it-assists-it-never-replaces-physics)
+16. [References](#16-references)
 
 ---
 
@@ -1059,7 +1062,59 @@ patch (Gmsh physical group, SU2 marker, CGNS BAR_2 section plus ZoneBC), written
 the same nodes to the last digit, the same cells and the same patches (tested for all four writers, planar, axisymmetric, structured and Gmsh triangle meshes).
 The CGNS writer was checked only by our own reader (no CGNS library was available): open an exported file in your other program once before relying on it.
 
-## 15. References
+## 15. The optional assistant: it assists, it never replaces physics
+
+**What it is.** A way to fill the Setup inputs from a plain-English description ("Mach 2.4 nitrogen over a 10 degree
+wedge, 300 bar chamber pressure, 5 bar back pressure"). Code: `aeroflowsim/assistant/` (the Setup panel is
+`aeroflowsim/gui/assistant_panel.py`, the command is `python -m aeroflowsim assist`).
+
+**The principle (CLAUDE.md, "Intelligence").** Intelligence assists, never replaces physics. The assistant is a
+*typing aid*: it turns words into numbers in the boxes you could have typed into yourself. It never runs a solver, never
+touches results, files or settings, and never decides a physical value. Everything it proposes is then judged by the same
+things that judge a typed value: the range and unit in `schema.toml`, and after the run the validity checks.
+
+**The pipeline.** A description goes through five steps, and only the last one changes anything:
+
+1. *Provider* (`rules.py`, `local.py`, `online.py`) turns the text into a list of proposals
+   $(\text{field}, \text{value}, \text{unit}, \text{reason})$. A provider is **untrusted**: its answer must be strict JSON
+   (`proposal.py`); anything else is discarded as a whole.
+2. *Schema review* (`review.py`) checks each proposal like a typed value: the input exists and is one the assistant may
+   touch (never a file or the boundary table); the unit belongs to the input's quantity and is converted,
+   $x_{\text{input}} = u_{\text{to SI}}(x_{\text{typed}})$ with the same unit table as the GUI (`units.py`;
+   bar $\to$ Pa is $\times 10^5$, $^\circ$C $\to$ K is $+273.15$); the value lies in $[\min,\max]$; the input is shown
+   with the current choices (`show_if`), counting the other proposals.
+3. *Traceability*, for a language model only: the number must be one the user wrote, read in some unit of the input's
+   quantity ($|x - u(n)| \le 10^{-6}|x|$ for a number $n$ in the text). A model may therefore not supply a number "from
+   memory". Fields that are gas properties ($\gamma$, viscosity, $c_p$, ...) are refused for a model.
+4. *Review table*: field, current value, proposed value, unit, reason; one tick box per row.
+5. *Apply*: the ticked rows are checked once more against the current values and applied as **one** undo step.
+
+**How the rules provider reads a sentence.** Each number (with its unit, if it has one) is matched to the input whose
+*label words* stand next to it. For a number $i$ and an input $f$ with label tokens $T_f$ (from `label` and `key` in
+`schema.toml`), and the words $W_i$ within four words on either side (stopping at punctuation, "and" or "with"):
+
+$$
+s(i,f) = \sum_{t \in T_f \cap W_i} w_t \;-\; 0.05 \sum_{t \in T_f \setminus W_i} w_t ,\qquad
+w_t = \begin{cases} 0.4 & t \in \{\text{pressure, temperature, diameter, angle, number, ...}\}\\ 1 & \text{otherwise.}\end{cases}
+$$
+
+A pair needs $s \ge 0.8$ and a unit of the input's quantity (a pressure never goes into a temperature). Pairs are taken
+greedily from the highest score, each number and each input once. A pressure or a temperature with *no* label words is
+placed on the total pressure / temperature (or the static one when the template has no total), and the reason says it
+was assumed. A gas name or formula selects the library gas (never typed properties); a choice option named in full
+("wedge") selects that option. A number that cannot be placed is reported, never guessed. Because the labels come from
+`schema.toml`, a new input or shape is understood without code.
+
+**What it cannot do (on purpose).** It does not choose numerics, meshes or boundary conditions for you, does not
+convert a radius to a diameter, does not read "two" as 2, and does not understand a shape named only by a part of
+its name. These limits are the price of a rule you can read in one sitting.
+
+**Privacy.** See the table in the user guide: the rules provider never leaves the program, the local provider only talks
+to this computer, the online provider sends the description (and the field definitions, never the current values, project
+files, geometry or results) over the internet, only after an explicit opt-in. The only network code is `net.py`; the
+desktop GUI files contain none (`tests/test_gui_privacy.py`, `tests/test_assistant.py`).
+
+## 16. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.
 - Crowell, G. A. (1996). *The Descriptive Geometry of Nose Cones*. (Source of the nose-cone equations as given on

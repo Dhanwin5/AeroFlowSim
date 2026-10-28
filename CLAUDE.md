@@ -119,6 +119,11 @@ aeroflowsim/               the Python package
     gases/                 gas library: model.py (GasModel, CaloricallyPerfectGas), data.py (TOML format,
                            saturation curves), library.py (built-in / user / project gases), real_gas.py
                            (Peng-Robinson Z), one <id>.toml per built-in gas
+    assistant/             optional assistant (7c, off by default; nothing in it is imported until the user turns it on):
+                           proposal.py (Proposal, strict JSON), context.py (schema context + prompt), review.py (checks every
+                           proposal against schema.toml), units_map.py, rules.py (provider "Rules (no AI)"), local.py
+                           (localhost model server), online.py (opt-in, own key), net.py (the ONLY network code),
+                           keystore.py (OS keyring), config.py (settings, make_provider), command.py (CLI assist)
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
     units.py               display units of the GUI (conversions, presets, preferences); SI inside
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
@@ -143,6 +148,8 @@ aeroflowsim/               the Python package
         steps/                   one page per step (geometry = the workspace, mesh, setup, run, results) + welcome
         geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt), view, dialogs
         sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
+        assistant_panel.py, assistant_settings.py   optional Assistant panel of the Setup step + Tools > Assistant settings
+                                 (no network code; imports aeroflowsim.assistant only when the assistant is on)
         gas_logic.py, gas_dialog.py  gas dropdown / Details / custom-gas form: logic (no Qt) + dialogs
         boundary_logic.py        boundary-condition table of the Setup step (no Qt; drawn by panel.py)
         vtk_view.py, figures.py  VTK view (meshes, picking, right-click menu), embedded matplotlib plots
@@ -170,6 +177,7 @@ docs/tutorials/            step-by-step tutorials (nozzle with plume region, air
 spikes/                    throwaway proofs of concept (not part of the package)
 tools/gas_data/            developer tool that writes aeroflowsim/gases/*.toml from NIST data (not packaged)
 tools/structured_flow_checks.py, tools/nozzle_flow_checks.py   quick flow runs on the new grids and nozzle contours (6e)
+tools/assistant_screenshots.py   screenshots of the Assistant panel (off / review / online, light and dark)
 tools/screenshots.py       screenshots of every GUI page (light/dark, scaling); tools/build_installer.py: Windows
                            installer (PyInstaller + Inno Setup, tools/installer/); tools/make_examples.py
 examples/                  example projects shipped with the installer (N2 nozzle with result, NACA 0012, wedge, Sod)
@@ -227,8 +235,11 @@ Commands (from the project folder):
 11. Ask before deleting files or making changes that were not requested.
 12. **Privacy:** the desktop GUI makes no network connections, contains no web addresses, opens only
     local files and collects no usage statistics (`tests/test_gui_privacy.py`); the old Streamlit GUI
-    listens on localhost only without statistics (`.streamlit/config.toml`, tested). Never change
-    this without asking. User data (results/,
+    listens on localhost only without statistics (`.streamlit/config.toml`, tested). The one exception is
+    the optional assistant (7c): off by default; only its "Local model" provider (localhost only) and its
+    "Online (your own key)" provider (own explicit opt-in, the user's key in the OS keyring) open a connection, and
+    only `aeroflowsim/assistant/net.py` contains network code (`tests/test_assistant.py`); the GUI files stay free of
+    it. Never change this without asking. User data (results/,
     uploads/, cases/*/settings/, cases/*/mesh/) is git-ignored and must never be committed.
 13. **Verification and validation:** every new numerical method gets a Method of Manufactured
     Solutions (MMS) order-of-accuracy test where possible, plus validation against theory or
@@ -262,7 +273,7 @@ Commands (from the project folder):
   suggested enclosure, CFL) from **Prompt 6d**; failure diagnosis with suggested fixes and result sanity
   checks against theory from **Prompt 7**. Each rule is one small function, like a check.
 - **Adaptive mesh refinement:** **Prompt 8c**.
-- **Optional AI assistant plugin:** **Prompt 7c** (natural-language setup and result explanation). It
+- **Optional AI assistant plugin:** **Prompt 7c, done (v1: natural-language setup)**; result explanation is later. It
   works only through the schema inputs (fills them, never runs its own code), so every new feature
   becomes available to it automatically; opt-in, with a local-model option for confidential designs.
 - **Surrogate models and shape optimisation** (nozzle contour for maximum thrust/Isp, nose cone for

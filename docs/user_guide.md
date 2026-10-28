@@ -196,6 +196,47 @@ print(post.surface_integral(sol, post.Surface.x_line(0.003), "mass_weighted", "p
 print(post.flux_balance(sol)["net"])
 ```
 
+## The optional assistant (off by default)
+
+The assistant turns a description in plain words into proposed values for the boxes of the **Setup** step. It is an
+optional typing aid: AeroFlowSim works fully, and identically, with it off or not installed.
+
+**Turn it on:** Tools > Assistant settings > *Turn the assistant on*. Then open the **Assistant** panel in the Setup step,
+type for example `Mach 2.4 nitrogen over a 10 degree wedge, 300 bar chamber pressure, 5 bar back pressure`, and press
+*Propose*. A table lists every proposed input with its current value, the new value, the unit and the reason. Tick the
+rows you want and press *Apply ticked*: all ticked rows change as **one** step, and Ctrl+Z takes them all back. Nothing
+changes before you press Apply.
+
+**What it does:** fills inputs that exist in the template (it reads their names, units and ranges from the template, so a new
+input is understood at once); checks every value (type, unit, range) before showing it and says why it refused a
+proposal; picks a gas from the gas library when you name one ("nitrogen", "helium", "air", "CO2").
+
+**What it never does:** change anything without your tick; touch files, results, settings or the boundary table; run the
+solver; type gas properties (the gas comes from the library); put a pressure into a temperature box; invent a number
+(a model's numbers must appear in your text); send anything anywhere unless you chose a local or online provider.
+
+The first provider, **Rules (no AI)**, reads phrases such as `Mach 2.4`, `300 bar chamber pressure`, `5 bar back pressure`,
+`10 degree wedge`, `angle of attack 4 degrees`, `throat diameter 2 mm`, `500 cells`, `nitrogen`. A pressure or temperature
+with no label ("300 bar", "300 K") goes to the total (chamber) value, and the reason says so. Name a shape in full
+(for example `wedge`). What it cannot place is listed under the table.
+
+| Provider | Where your text goes | Needs |
+|---|---|---|
+| **Rules (no AI)** | Nowhere. It is parsed inside AeroFlowSim. | Nothing |
+| **Local model** | To a server on THIS computer (for example Ollama on `localhost`). Other addresses are refused. | A model server you already run; its host, port and model name in the settings |
+| **Online (your own key)** | Over the internet to the service address you type. Shown as "Online - text leaves this computer". | Its own opt-in tick in the settings, the secure (https) address and model of a service you use, your key (kept in the operating system's keyring, never in a project or a settings file), `pip install keyring` |
+
+What is sent to a model: your description and the *definitions* of the template's inputs (names, units, ranges, help texts).
+Never your project files, geometry, results or current input values. No usage statistics, no automatic upload.
+
+**Command line:** `python -m aeroflowsim assist "300 bar chamber pressure, helium" --case "My Nozzle.afsproj" --dry-run`
+prints the review table; `--apply` writes the values into the project (a template is read-only: the command then prints the
+equivalent `--set` options for `run`). `--provider local --model NAME` and
+`--provider online --allow-online --url ... --model ...` choose the other providers;
+`python -m aeroflowsim assist-key set` stores the online key in the keyring.
+
+Physics note: see the theory manual, section 15 ("it assists, it never replaces physics").
+
 ## Troubleshooting
 
 - **The run does not converge / the residual stalls.** Look at the *Residual of the last iteration* field in the

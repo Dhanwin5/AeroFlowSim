@@ -251,6 +251,8 @@ class MainWindow(QMainWindow):
             "validation": a("Run &validation suite...", self.run_validation, None, "Run all validation cases"),
             "project_report": a("Project &report (HTML / PDF)...", self.make_report, None,
                                 "Write the automatic report of this project"),
+            "assistant": a("&Assistant settings...", self.show_assistant_settings, None,
+                           "Optional assistant (off by default): provider, local model, online opt-in"),
             "gases": a("&Gas library...", self.show_gas_library, None, "Every gas with its values and sources; custom gases"),
             "about": a("&About AeroFlowSim", self.about, None, "Version, licence, how to cite"),
             "guide": a("&User guide", lambda: self.open_local(app_info.USER_GUIDE), "F1", "How to use AeroFlowSim"),
@@ -296,6 +298,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.act["project_report"])
         tools_menu.addAction(self.act["validation"])
         tools_menu.addAction(self.act["gases"])
+        tools_menu.addAction(self.act["assistant"])
         help_menu = menu.addMenu("&Help")
         help_menu.addActions([self.act[k] for k in ("guide", "manual", "devguide", "report")])
         help_menu.addSeparator()
@@ -706,6 +709,13 @@ class MainWindow(QMainWindow):
         self.log(f"Duplicated to {folder}")
         if QMessageBox.question(self, "Duplicate", f"Open the copy {copy.name} now?") == QMessageBox.Yes:
             self.open_project(str(folder))
+
+    def show_assistant_settings(self):
+        """Tools > Assistant settings: turn the optional assistant on or off (the Setup panel follows)."""
+        from aeroflowsim.gui.assistant_settings import AssistantSettingsDialog
+        dialog = AssistantSettingsDialog(self.settings, self)
+        if dialog.exec():
+            self.pages["setup"].assistant.refresh()
 
     def show_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.project.folder)))

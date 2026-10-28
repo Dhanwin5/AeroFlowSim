@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 6e (2026-10-27).
+Last updated: Prompt 7c (2026-10-28).
 
 ## 1. Platform and GUI
 
@@ -179,7 +179,11 @@ Last updated: Prompt 6e (2026-10-27).
 | Smart rules: setup suggestions (mesh size, first layer from Re and y+, CFL) | done | P2 | 6d: sizes and enclosure; Prompt 7: first layer for y+ = 1 from the flow's Reynolds number (inflation on), CFL / first-order start / quasi-1D start from the flow inputs |
 | Smart rules: failure diagnosis with suggested fixes | done | P2 | Prompt 7: after a diverged run or CFL reductions: lower CFL, first-order start, quasi-1D start, boundary values, throat refinement, where it failed |
 | Smart rules: result sanity checks against theory (e.g. Isp vs quasi-1D, Cd vs Newtonian) | partial | P2 | Prompt 7: total-pressure loss and thrust-two-ways checks; Isp shown next to the ideal quasi-1D Isp |
-| AI assistant plugin v1 (opt-in, fills schema inputs only, local-model option) | planned 7c | P3 | |
+| AI assistant plugin v1 (opt-in, fills schema inputs only, local-model option) | done | P3 | 7c: `aeroflowsim/assistant/`, Setup-step panel, Tools > Assistant settings, `assist` command. Off by default; providers Rules (no AI), Local model (localhost only), Online (own key, own opt-in); every proposal checked against schema.toml; Apply = one undo step; a model's numbers must appear in the user's text. Tests use a fake provider (no network, no model) |
+| Assistant tried against a real local model server and a real online service | later | P2 | 7c had no model server, no `keyring` package and no key at hand: the Local and Online providers are tested only with a fake server answer (request and answer format, localhost check, https check, strict JSON). Try Ollama once (`--provider local --model NAME`) and one online service before relying on them |
+| Assistant: online provider speaks only the common "chat completions" JSON format; no built-in provider address | later | P3 | a native provider for another API format would be a new small class in `assistant/` |
+| Assistant: explaining results, filling the boundary-condition table, files, mesh and numerics choices | later | P3 | v1 fills schema inputs only (numbers, choices, gas); it does not read results |
+| Assistant (rules): shapes must be named in full ("conical nose cone"), no number words ("two"), no radius to diameter, English only | partial | P3 | listed in the user guide; a model provider covers more phrasings (its numbers must still be in the text) |
 | Surrogate models + shape optimisation | later | P2 | Phase 5 headline feature |
 
 ## 9. Documentation, community, release

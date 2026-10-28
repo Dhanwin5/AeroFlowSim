@@ -12,6 +12,7 @@ carried between chats by hand.
 |---|---|---|---|
 | 7b | `prompt_7b.md` | Post-processing at Fluent level, MMS verification, wider validation, report, installer, 2D alpha release | done (ledger `7b_progress.md`) |
 | 6e | `6e_progress.md` (ledger; the prompt text was pasted) | Remaining shapes, structured C/O-grids, mesh import / export | done (parts 1-4; see the ledger and the gap register) |
+| 7c | `prompt_7c_progress.md` (ledger; the prompt text was pasted) | Optional AI assistant: provider interface (Rules, Local model, Online), schema context, Setup panel, `assist` command, tests, docs | done |
 | 8 | `prompt_8.md` | Speed: Numba, implicit LU-SGS, multi-core; residual stalls; wall-clock targets | ready |
 
 Where 6e and 7c fit after the alpha: `next_steps.md` (priority: the path to 3D, 8 -> 9 -> 10).

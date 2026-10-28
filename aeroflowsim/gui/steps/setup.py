@@ -9,6 +9,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSplitter, QTextBrowser, QVBoxLayout, QWidget
 
 from aeroflowsim.case import get_derived
+from aeroflowsim.gui.assistant_panel import AssistantPanel
 from aeroflowsim.gui.logic import readable
 from aeroflowsim.gui.widgets import Banner, ValueTable
 
@@ -20,6 +21,7 @@ class SetupPage(QWidget):
         self.title = QLabel()
         self.title.setWordWrap(True)
         self.banner = Banner()
+        self.assistant = AssistantPanel(window)      # optional, off by default; collapsed
         self.derived = ValueTable(["Derived quantity", "Value", "Unit"])
         reset = QPushButton("Reset all inputs to defaults")
         reset.setToolTip("Every input of every step back to the template's default (Ctrl+Z undoes it).")
@@ -39,9 +41,11 @@ class SetupPage(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.title)
         layout.addWidget(self.banner)
+        layout.addWidget(self.assistant)
         layout.addWidget(splitter, 1)
 
     def refresh(self):
+        self.assistant.refresh()
         project = self.window.project
         if project is None:
             return

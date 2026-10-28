@@ -21,6 +21,9 @@
                                                           report definitions table
     python -m aeroflowsim snapshot "My Nozzle.afsproj" save baseline
                                                           snapshots: save, list, rename, restore, delete
+    python -m aeroflowsim assist "Mach 2.4 nitrogen over a 10 degree wedge" --case "My Wedge.afsproj" --dry-run
+                                                          optional assistant: proposes input values from a plain-English
+                                                          description (review table; --apply writes them into the project)
 
 Results of a case are saved to results/<case_name>/ unless --out is given; results of a project
 go into its own results/ folder (and --set changes are saved in the project). The run itself is done by
@@ -221,7 +224,28 @@ def main(argv=None):
     convert.add_argument("--axisymmetric", action="store_true", help="the mesh is axisymmetric about y = 0")
     convert.add_argument("--map", default="", metavar="NAME:TYPE,...", help="boundary types, e.g. 'outer: farfield, body: wall'")
     convert.add_argument("--gmsh-version", choices=("2.2", "4.1"), default="2.2", help="version of a .msh target (default 2.2)")
+    assist = commands.add_parser("assist", help="optional assistant: propose input values from a plain-English description")
+    assist.add_argument("description", help="the case in plain English, e.g. 'nitrogen, 300 bar chamber, 5 bar back pressure'")
+    assist.add_argument("--case", required=True, help="a project folder (*.afsproj), or a case template")
+    assist.add_argument("--dry-run", action="store_true", help="only print the review table (the default)")
+    assist.add_argument("--apply", action="store_true", help="write the proposed values into the project")
+    assist.add_argument("--provider", choices=("rules", "local", "online"), default="rules",
+                        help="rules: keyword parser, no model (default); local: a model server on this computer; "
+                             "online: your own key, the text leaves this computer")
+    assist.add_argument("--model", default=None, help="model name (local and online)")
+    assist.add_argument("--host", default="localhost", help="local model server: host (localhost only)")
+    assist.add_argument("--port", type=int, default=11434, help="local model server: port")
+    assist.add_argument("--url", default=None, help="online: https address of the chat-completions service")
+    assist.add_argument("--allow-online", action="store_true", help="online: confirm that the text may leave this computer")
+    assist_key = commands.add_parser("assist-key", help="store or remove the online provider's key in the OS keyring")
+    assist_key.add_argument("action", choices=("set", "delete"))
     args = parser.parse_args(argv)
+    if args.command == "assist":
+        from aeroflowsim.assistant.command import command_assist
+        return command_assist(args)
+    if args.command == "assist-key":
+        from aeroflowsim.assistant.command import command_assist_key
+        return command_assist_key(args)
     if args.command == "mesh-info":
         return command_mesh_info(args)
     if args.command == "mesh-convert":
