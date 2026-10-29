@@ -31,7 +31,7 @@ session.** I will not send follow-up prompts, so:
 7. **Keep a ledger** `docs/prompts/8_progress.md` (done with commits, verified how, next, anomalies, decisions),
    updated after every part; if the conversation is summarised, re-read it and CLAUDE.md first.
 8. **At the end:** full fast tests, full validation, report every result line, docs and gap register updated, push,
-   and write the next prompt file (`docs/prompts/prompt_6e.md`, see `docs/prompts/next_steps.md`) in the same style.
+   and write the next prompt file (`docs/prompts/prompt_9.md`: 3D geometry workspace and 3D meshes; 6e and 7c are done, see `docs/prompts/next_steps.md`) in the same style.
 
 ## Context (state after Prompt 7b, release v0.2.0a1)
 
@@ -111,7 +111,7 @@ Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch run
 3. Runs are deterministic with several threads; speed-up table written.
 4. The triangle-nozzle, diamond and quasi-1D stalls are gone (or their cause is documented with evidence).
 5. The wall-clock targets of Part 6 hold (or the shortfall is reported with the measured numbers).
-6. Docs, gap register, CHANGELOG, `docs/prompts/8_progress.md`, and `docs/prompts/prompt_6e.md` written; tests and
+6. Docs, gap register, CHANGELOG, `docs/prompts/8_progress.md`, and `docs/prompts/prompt_9.md` written; tests and
    validation pass; everything pushed.
 
 ## Addendum from Prompt 6e (27 Oct 2026): findings that belong to this prompt
