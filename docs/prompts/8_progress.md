@@ -12,7 +12,7 @@ Continue with: "continue Prompt 8-2 from docs/prompts/8_progress.md".
 - Speed: 1 thread 8.8-17 x, 16 threads 31-70 x (MMS 128 quads 70 -> 2.2 ms/iteration).
 - Full validation (explicit, 8-1 state): first attempts died of memory (see anomalies); rerun alone in progress.
 
-## 8-2 - in progress
+## 8-2 - done (parts 2, 7, 8 partly / not reached: see 'Not done')
 - 0b50402 + 780dfb9 part 1: LU-SGS (Rusanov operator, omega 1.5, axisymmetric source on the diagonal, SER CFL ramp
   0.8 -> 100 following the residual, halved after an unphysical step, ramp state kept on Continue, fixed-order
   sweeps = deterministic). Option "Implicit LU-SGS" in Numerics; NOT yet the default. tests/test_lusgs.py (8 tests).
@@ -35,6 +35,14 @@ Continue with: "continue Prompt 8-2 from docs/prompts/8_progress.md".
   2010 Tables 10-11, p. 1165), NOT re-fetched in this session (paywalled): "pending reference re-check".
 - Not done (time): part 2 triangle-nozzle stall (still ~1e-4 with both schemes, per-cell investigation next), part 7
   (BMG z = 2.24 in), part 8 (planar MOC nozzle on a finer mesh), quasi-1D fine-mesh stall, `structured_flow_checks.py naca`.
+
+- 87a0660 full validation (LU-SGS): ALL PASS, 39 min; 7 of 129 values changed vs 8-1, all explained (LU-SGS limiter
+  freeze state: BMG z=2.24 in 0.798842 -> 0.798844, cylinder stand-off +0.13 % max, triangle-nozzle Isp +0.007 %;
+  NACA study redesign: Cl M0.8 0.338 -> 0.335, Cd 0.02201 -> 0.02174, Cl M0.5 0.1747 -> 0.1829).
+- Full fast + GUI tests: 994 passed, 1 skipped.
+- fb5d050 + tag v0.2.0a2: installer built (205 MB), smoke test passed; frozen program runs the 2D solver with Numba
+  (first run compiles 8.7 s, second run 0.6 s from the cache). GitHub pre-release v0.2.0a2 on the PRIVATE repository.
+  Repository visibility unchanged (owner's decision; see docs/launch_checklist.md).
 
 ## Decisions
 - Ghost states stay NumPy (boundary faces only). Kernels for the calorically perfect gas; other models run NumPy.
