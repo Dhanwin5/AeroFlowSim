@@ -56,6 +56,7 @@ from aeroflowsim.parameters import defaults, install_hint, module_available
 from aeroflowsim.project import (SUFFIX, WORKFLOW, Project, default_projects_dir, folder_for, is_project,
                                  old_settings_files)
 from aeroflowsim.tasks import Job
+from aeroflowsim.gui.preferences_dialog import threads_setting
 from aeroflowsim.units import QUANTITIES, UnitPreferences
 
 MAX_RECENT = 8
@@ -253,6 +254,8 @@ class MainWindow(QMainWindow):
                                 "Write the automatic report of this project"),
             "assistant": a("&Assistant settings...", self.show_assistant_settings, None,
                            "Optional assistant (off by default): provider, local model, online opt-in"),
+            "preferences": a("&Preferences...", self.show_preferences, None,
+                             "Settings of this computer: CPU threads of the solver"),
             "gases": a("&Gas library...", self.show_gas_library, None, "Every gas with its values and sources; custom gases"),
             "about": a("&About AeroFlowSim", self.about, None, "Version, licence, how to cite"),
             "guide": a("&User guide", lambda: self.open_local(app_info.USER_GUIDE), "F1", "How to use AeroFlowSim"),
@@ -299,6 +302,8 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.act["validation"])
         tools_menu.addAction(self.act["gases"])
         tools_menu.addAction(self.act["assistant"])
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.act["preferences"])
         help_menu = menu.addMenu("&Help")
         help_menu.addActions([self.act[k] for k in ("guide", "manual", "devguide", "report")])
         help_menu.addSeparator()
@@ -710,6 +715,15 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "Duplicate", f"Open the copy {copy.name} now?") == QMessageBox.Yes:
             self.open_project(str(folder))
 
+    def show_preferences(self):
+        """Tools > Preferences: solver CPU threads (a setting of this computer; applies from the next run)."""
+        from aeroflowsim.gui.preferences_dialog import THREADS_KEY, PreferencesDialog
+        dialog = PreferencesDialog(threads_setting(self.settings), self)
+        if dialog.exec():
+            n = dialog.threads()
+            self.settings.setValue(THREADS_KEY, n)
+            self.log(f"Preferences: solver threads {n if n else 'default'} (from the next run).")
+
     def show_assistant_settings(self):
         """Tools > Assistant settings: turn the optional assistant on or off (the Setup panel follows)."""
         from aeroflowsim.gui.assistant_settings import AssistantSettingsDialog
@@ -914,7 +928,8 @@ class MainWindow(QMainWindow):
         extras = project.run_extras(self.mesh, fresh=fresh or restart is not None) if is_face_mesh(self.mesh) else None
         self.pending = ("run", project.fingerprint("run"), params)
         self.runner.submit(Job("run", str(project.case.folder), params, str(project.results_dir), mesh=mesh,
-                               restart=None if restart is None else str(restart), extras=extras))
+                               restart=None if restart is None else str(restart), extras=extras,
+                               threads=threads_setting(self.settings) or None))
         self.pages["run"].start(self.results["result"] if restart is not None else None)
         self.strip.set_busy("run", 0.0, "starting")
         if restart is not None:

@@ -38,11 +38,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from aeroflowsim import compute
 from aeroflowsim.euler.boundary import PatchInfo, ghost_state
 from aeroflowsim.euler.flux import blend_weight, hybrid_flux, normal_velocity
 from aeroflowsim.euler.geometry import FVGeometry
 from aeroflowsim.euler.gradients import LEAST_SQUARES, Gradients
-from aeroflowsim.euler.limiters import VENKATAKRISHNAN, limiter_factors
+from aeroflowsim.euler.limiters import BARTH_JESPERSEN, VENKATAKRISHNAN, limiter_factors
 from aeroflowsim.euler.state import conserved_to_primitive, is_physical, primitive_to_conserved, sound_speed
 
 SSP_RK3, JAMESON_RK4 = "SSP-RK3", "Jameson 4-stage"
@@ -105,6 +106,8 @@ class SolveResult:
     norm: np.ndarray | None = None    # residual normalisation (per equation), kept when a run is continued
     limiter: np.ndarray | None = None # the frozen limiter (n_vars, C), or None if it was not frozen
     first_iteration: int = 1          # number of the first iteration of THIS part of the run (159 when continued)
+    backend: str = "numpy"            # "numba" (compiled kernels) or "numpy" (reference implementation)
+    threads: int = 1                  # CPU threads of the Numba kernels
 
 
 @dataclass
@@ -149,6 +152,35 @@ class EulerSolver:
         self.last_positivity = 0
         self.boundary_flux = None       # (n_vars, B) flux x flux area of the last residual evaluation
         self.source = None              # optional (n_vars, C) source integrated over each cell (MMS); None = none
+        self.kernels, self.backend, self.backend_note = None, compute.NUMPY, ""
+        self._choose_backend()
+
+    # ---- Numba kernels or NumPy (aeroflowsim/compute.py) -------------------------------------------
+
+    def _choose_backend(self):
+        """Use the Numba kernels (euler/kernels.py) unless the NumPy reference path is asked for or must run."""
+        if compute.backend() == compute.NUMPY:
+            return
+        from aeroflowsim.euler import kernels           # imports Numba (first solver only)
+        if kernels.numba is None:
+            self.backend_note = (f"Numba could not be loaded ({kernels.NUMBA_ERROR}), so the plain NumPy solver runs "
+                                 "(10-30 x slower, same results).")
+            return
+        self.kernels = kernels.prepare(self)
+        if self.kernels is None:
+            self.backend_note = (f"The gas model {type(self.gas).__name__} has no Numba kernels yet, so the plain "
+                                 "NumPy solver runs (slower, same results).")
+            return
+        self.backend = compute.NUMBA
+
+    def _primitive(self, U):
+        """conserved_to_primitive, with the Numba kernel when it is in use."""
+        if self.kernels is None:
+            return conserved_to_primitive(U, self.gas)
+        from aeroflowsim.euler.kernels import primitive
+        W = np.empty_like(U)
+        primitive(U, self.kernels.R, self.kernels.cv, W)
+        return W
 
     # ---- boundary ghost states ---------------------------------------------------------------------
 
@@ -163,6 +195,8 @@ class EulerSolver:
 
     def residual(self, U, second_order=True, W=None):
         """dU/dt (n_vars, C) and the primitive state W used."""
+        if self.kernels is not None:
+            return self._residual_numba(U, second_order, W)
         g, nI = self.geom, self.geom.n_interior
         if W is None:
             W = conserved_to_primitive(U, self.gas)
@@ -207,6 +241,56 @@ class EulerSolver:
             R -= self.source                                 # extra cell sources (MMS verification)
         return -R / g.volumes, W
 
+    def _residual_numba(self, U, second_order, W):
+        """The same residual as residual(), with the Numba kernels (euler/kernels.py). The ghost states stay
+        NumPy: they touch the boundary faces only (a few percent of all faces)."""
+        from aeroflowsim.euler import kernels as kn
+        g, nI, K = self.geom, self.geom.n_interior, self.kernels
+        if W is None:
+            W = self._primitive(U)
+        Wb_in = W[:, g.boundary_owner]
+        ghost_c = np.ascontiguousarray(self.ghosts(Wb_in))                  # first-order ghosts
+        Wb_face = np.ascontiguousarray(self.boundary_face_values(Wb_in, ghost_c))
+        psi = K.psi
+        if second_order:
+            K.X[:, :g.n_cells] = W
+            K.X[:, g.n_cells:] = Wb_face
+            kn.gradients(K.X, K.slot_other, K.coef_other, K.coef_self, K.grad)
+            if self.psi_frozen is not None:
+                psi = self.psi_frozen
+            else:
+                code = {VENKATAKRISHNAN: kn.VENKAT_CODE, BARTH_JESPERSEN: kn.BARTH_CODE}.get(self.numerics.limiter,
+                                                                                         kn.NONE_CODE)
+                if code == kn.VENKAT_CODE:
+                    self._limiter_size(W, K.size)
+                kn.limiter(code, W, K.X, K.grad, K.slot_other, K.slot_used, K.slot_offset, g.cell_size,
+                           float(self.numerics.venkat_k), float(self.L_ref), K.size, psi)
+            self.last_psi = psi
+        kn.reconstruct(W, K.grad, psi, g.owner, g.neighbour, g.owner_slot, g.neighbour_slot, K.slot_offset,
+                       bool(second_order), K.WL, K.WR)
+        K.WR[:, nI:] = self.ghosts(K.WL[:, nI:]) if second_order else ghost_c
+        use_weight = bool(self.numerics.carbuncle_fix)
+        if use_weight:
+            kn.shock_weight(W, ghost_c, g.owner, g.neighbour, K.normals, K.slot_face, K.s_face, K.s_cell, K.weight)
+        kn.fluxes(K.WL, K.WR, W, ghost_c, g.owner, g.neighbour, K.normals, g.flux_areas, K.weight, use_weight,
+                  bool(second_order), K.R, K.cv, K.gamma, K.FA, K.bad)
+        self.last_positivity = int(np.count_nonzero(K.bad))
+        self.boundary_flux = K.FA[:, nI:].copy()          # a copy: the buffer is reused by the next stage
+        source = self.source if self.source is not None else K.no_source
+        dUdt = np.empty_like(W)
+        kn.face_sums(K.FA, W, K.slot_face, K.slot_sign, K.geometric_source, source, self.source is not None,
+                     g.volumes, dUdt)
+        return dUdt, W
+
+    def _limiter_size(self, W, size):
+        """The scale of each variable in each cell for Venkatakrishnan's eps (as limiters.limiter_factors)."""
+        if self.scales is None:
+            size[:] = np.maximum(np.abs(W).max(axis=1), 1e-30)[:, None]
+        else:
+            size[:] = self.scales[:, None]
+        if W.shape[0] > 2:
+            size[0], size[-1] = np.abs(W[0]), np.abs(W[-1])
+
     def boundary_face_values(self, Wb_in, ghost_c):
         """Value at each boundary face centre for the gradients: the mean of inside and ghost state.
         (The MMS verification overrides this with the exact solution.)"""
@@ -240,6 +324,12 @@ class EulerSolver:
     def time_steps(self, W, cfl):
         """Stable time step of every cell [s] (local time stepping; take the minimum for a global step)."""
         g = self.geom
+        if self.kernels is not None:
+            from aeroflowsim.euler.kernels import time_steps
+            dt = np.empty(g.n_cells)
+            time_steps(W, g.slot_normal_by_axis, g.slot_planar_area, g.planar_volumes, float(cfl), self.kernels.R,
+                       self.kernels.gamma, dt)
+            return dt
         c = sound_speed(W, self.gas)                                     # [m/s]
         un = W[1][:, None] * g.slot_normal_by_axis[0]
         for k in range(1, g.dim):
@@ -270,6 +360,11 @@ class EulerSolver:
         definitions used as convergence criteria); the others use the Numerics' monitor tolerance and window.
         """
         num = self.numerics
+        n_threads = 1
+        if self.kernels is not None:
+            from aeroflowsim.euler import kernels as kn
+            kn.set_threads(compute.threads())
+            n_threads = kn.get_threads()
         t_start = time.perf_counter()
         n_vars = W0.shape[0]
         U = primitive_to_conserved(W0, self.gas)
@@ -305,7 +400,7 @@ class EulerSolver:
         with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
             while it < num.max_iterations:
                 second = num.order == 2 and it >= num.first_order_iterations
-                W = conserved_to_primitive(U, self.gas)
+                W = self._primitive(U)
                 dt = self.time_steps(W, cfl)
                 if not num.local_time_stepping:
                     dt_glob = float(np.min(dt))
@@ -313,7 +408,7 @@ class EulerSolver:
                         dt_glob = min(dt_glob, num.end_time - t_phys)
                     dt = np.full_like(dt, dt_glob)
                 U_new, R0 = self._step(U, W, dt, second)
-                W_new = conserved_to_primitive(U_new, self.gas)
+                W_new = self._primitive(U_new)
                 if not (np.all(np.isfinite(R0)) and np.all(is_physical(W_new))):
                     bad = np.flatnonzero(~is_physical(W_new) | ~np.isfinite(R0).all(axis=0))
                     if len(bad):
@@ -381,7 +476,8 @@ class EulerSolver:
                            cfl_reductions=cfl_reductions, cfl_final=cfl,
                            wall_time_s=time.perf_counter() - t_start, time=t_phys, limiter_frozen_at=frozen_at,
                            diverged_at=failed_at, message=message, norm=norm, limiter=self.psi_frozen,
-                           first_iteration=(continuation.iterations if continuation is not None else 0) + 1)
+                           first_iteration=(continuation.iterations if continuation is not None else 0) + 1,
+                           backend=self.backend, threads=n_threads)
 
     def _step(self, U, W, dt, second):
         """One multistage step; returns (new U, residual dU/dt of the first stage)."""

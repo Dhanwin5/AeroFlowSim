@@ -19,7 +19,7 @@ from pathlib import Path
 
 from aeroflowsim import __version__
 
-PACKAGES = ("numpy", "scipy", "matplotlib", "PySide6-Essentials", "vtk", "pyvista", "pyvistaqt", "gmsh", "ezdxf",
+PACKAGES = ("numpy", "numba", "scipy", "matplotlib", "PySide6-Essentials", "vtk", "pyvista", "pyvistaqt", "gmsh", "ezdxf",
             "pyyaml")
 
 
@@ -59,6 +59,9 @@ def diagnostic_text(scaling=None, log_lines=40) -> str:
     lines = [f"AeroFlowSim {__version__}",
              f"Operating system: {platform.system()} {platform.release()} ({platform.version()}), {platform.machine()}",
              f"Python {sys.version.split()[0]} ({'installed program' if getattr(sys, 'frozen', False) else 'source'})"]
+    from aeroflowsim import compute
+    lines.append(f"CPU: {compute.physical_cores()} physical cores, {compute.max_threads()} logical; solver threads "
+                 f"{compute.threads()} (default {compute.default_threads()})")
     if scaling is not None:
         lines.append(f"Display scaling: {100 * scaling:.0f} %")
     for name in PACKAGES:

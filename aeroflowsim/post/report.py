@@ -30,6 +30,16 @@ SECTIONS = ("Project", "Geometry and mesh", "Boundary conditions", "Gas", "Numer
             "Comparison with the reference", "Snapshots", "How to reproduce")
 
 
+
+def _compute_text(info) -> str:
+    """', Numba kernels on 15 threads' (or the NumPy solver) for the convergence text; '' for old results."""
+    if "backend" not in info:
+        return ""
+    if info["backend"] == "numba":
+        n = int(info.get("threads", 1))
+        return f", Numba kernels on {n} thread{'s' if n != 1 else ''}"
+    return ", plain NumPy solver (one core)"
+
 def _value(v, unit, prefs):
     if not isinstance(v, (int, float)) or isinstance(v, bool) or not np.isfinite(v):
         return str(v), unit
@@ -144,7 +154,8 @@ def build(project, prefs=None, snapshots=True):
     d.section("Convergence")
     d.figure(_convergence_figure(result))
     d.text(f"Status: {result.info.get('status', 'converged' if result.converged else 'not converged')} after "
-           f"{result.iterations:,} iterations; wall-clock time {result.info.get('wall_time_s', 0):.0f} s.")
+           f"{result.iterations:,} iterations; wall-clock time {result.info.get('wall_time_s', 0):.0f} s"
+           f"{_compute_text(result.info)}.")
 
     d.section("Key numbers")
     d.table(["Quantity", "Value", "Unit"], [(k, *_value(v, u, prefs)) for k, (v, u) in result.key_numbers.items()])

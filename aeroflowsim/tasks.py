@@ -63,6 +63,7 @@ class Job:
     geometry: dict = None     # mesh only: the edited workspace geometry (GeometryDocument.to_dict()), or None
     folder: str = None        # mesh only: the project folder (files imported into the workspace are there)
     extras: dict = None       # run only: project post-processing settings (report definitions, patches, ...)
+    threads: int = None       # run only: CPU threads of the 2D solver (Tools > Preferences); None = the default
 
 
 @dataclass
@@ -130,6 +131,8 @@ def _run_job(job, send, stop_event):
     from aeroflowsim.engine import run_case
     from aeroflowsim.mesh import Mesh
 
+    from aeroflowsim import compute
+    compute.set_threads(job.threads)                     # the Preferences setting of the GUI (None = default)
     case = load_case(job.case_folder)
     mesh = job.mesh
     if isinstance(mesh, (str, Path)):

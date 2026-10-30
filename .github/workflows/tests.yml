@@ -1,13 +1,17 @@
-# Automatic testing on GitHub: every push and pull request runs the fast tests (including the
-# desktop-GUI tests) and then the QUICK validation set (coarse meshes of every case, under 10 minutes;
-# the full set runs weekly and on version tags: validation.yml), on Windows and on Ubuntu Linux, with Python 3.13,
-# with the optional Gmsh mesher installed (the fast tests also pass without it; tests that need it
-# are then skipped).
+# Automatic testing on GitHub, on Windows and Ubuntu Linux with Python 3.13 (Prompt 8-1):
+#   every push:                     the LIGHT set (a few minutes): Numba = NumPy residual equality, free-stream and
+#                                   well-balanced tests, 2D Sod and wedge (quick meshes), MMS-lite (tests/test_smoke.py);
+#   pull requests, weekly, manual:  all fast tests (including the desktop-GUI tests) and the QUICK validation set;
+#   weekly and on version tags:     the FULL validation suite (validation.yml).
+# Numba compiles its kernels on the first run (about a minute); the compiled code is cached in __pycache__.
 name: tests
 
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -45,10 +49,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[mesh]"
 
+      - name: Light set (every push)
+        run: python -m pytest -m "smoke or not validation" tests/test_smoke.py tests/test_kernels.py tests/test_euler_core.py
+
       - name: Fast tests
+        if: github.event_name != 'push'
         run: python -m pytest
 
       - name: Quick validation set
+        if: github.event_name != 'push'
         env:
           AEROFLOWSIM_VALIDATION_SET: quick
         run: python -m pytest -m validation

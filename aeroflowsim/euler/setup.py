@@ -520,6 +520,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "positivity_events": int(out.positivity_events), "positivity_last": int(out.positivity_last),
             "cfl_reductions": int(out.cfl_reductions), "cfl_final": float(out.cfl_final),
             "wall_time_s": float(out.wall_time_s), "limiter_frozen_at": out.limiter_frozen_at,
+            "backend": out.backend, "threads": int(out.threads), "backend_note": solver.backend_note,
             "diverged_at": None if out.diverged_at is None else list(out.diverged_at),
             "L_ref": float(problem.L_ref), "scales": [float(v) for v in problem.scales],
             "initialisation": problem.initialisation, "equations": list(EQUATIONS[:W.shape[0]]),

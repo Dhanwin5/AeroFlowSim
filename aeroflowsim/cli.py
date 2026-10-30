@@ -162,6 +162,12 @@ def print_report(out):
     status = "converged" if result.converged else "NOT converged"
     print(f"Mesh: {out.mesh.n_nodes} nodes. Finished: {status} after {result.iterations} iterations, "
           f"final residual {result.residuals[-1]:.3e}")
+    info = getattr(result, "info", None) or {}
+    if "backend" in info:
+        print(f"Solver: {'Numba kernels' if info['backend'] == 'numba' else 'NumPy'}, {info.get('threads', 1)} "
+              f"thread(s), wall-clock time {info.get('wall_time_s', 0):.1f} s")
+        if info.get("backend_note"):
+            print(f"Note: {info['backend_note']}")
     for key, (value, unit) in result.key_numbers.items():
         print(f"  {key:<20} = {value:.6g} {unit}")
     for key, (value, unit) in max_errors(result, out.reference).items():
@@ -192,6 +198,10 @@ def main(argv=None):
     run.add_argument("--out", default=None, help="output folder (default: results/<case_name>/)")
     run.add_argument("--print-every", type=int, default=1000, metavar="N",
                      help="print the residual every N iterations (default 1000)")
+    run.add_argument("--threads", type=int, default=None, metavar="N",
+                     help="CPU threads of the 2D solver (default: physical cores minus one, at most 16)")
+    run.add_argument("--backend", choices=("auto", "numba", "numpy"), default=None,
+                     help="2D solver kernels: auto (Numba if installed, default), numba, or numpy (reference)")
     run.add_argument("--fresh", action="store_true",
                      help="projects: start the run from scratch instead of carrying on from the saved result")
     gui = commands.add_parser("gui", help="start the desktop GUI")
@@ -240,6 +250,12 @@ def main(argv=None):
     assist_key = commands.add_parser("assist-key", help="store or remove the online provider's key in the OS keyring")
     assist_key.add_argument("action", choices=("set", "delete"))
     args = parser.parse_args(argv)
+    if args.command == "run":
+        from aeroflowsim import compute
+        if args.backend:
+            compute.set_backend(args.backend)
+        if args.threads:
+            compute.set_threads(args.threads)
     if args.command == "assist":
         from aeroflowsim.assistant.command import command_assist
         return command_assist(args)

@@ -26,6 +26,16 @@ from aeroflowsim.gui.widgets import Banner
 REDRAW_S = 0.3   # [s] shortest time between two redraws of the live residual plot
 
 
+
+def _solver_text(window) -> str:
+    """', Numba, 15 threads' from the run's info (Run diagnostics); '' for old results or 1D templates."""
+    info = getattr((window.results or {}).get("result"), "info", None) or {}
+    if "backend" not in info:
+        return ""
+    if info["backend"] == "numba":
+        return f", Numba, {info.get('threads', 1)} threads"
+    return ", NumPy"
+
 class RunPage(QWidget):
     def __init__(self, window):
         super().__init__()
@@ -112,7 +122,7 @@ class RunPage(QWidget):
         elif status == "ok":
             done = "converged" if record.get("converged") else "finished but NOT converged"
             self.banner.show_message(f"Up to date: {done} after {record.get('iterations', 0):,} iterations "
-                                     f"({record.get('run_s') or 0:.3g} s). See Results.", "info")
+                                     f"({record.get('run_s') or 0:.3g} s{_solver_text(w)}). See Results.", "info")
         elif status == "outdated" and done:
             self.banner.show_message("The inputs changed since the last run. Continue carries on from the current "
                                      "flow with the new inputs (usually much faster); Start from scratch begins again "

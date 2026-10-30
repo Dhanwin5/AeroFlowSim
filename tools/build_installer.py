@@ -78,7 +78,8 @@ def pyinstaller():
     args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed", "--name", "AeroFlowSim",
             "--distpath", str(DIST), "--workpath", str(BUILD), "--specpath", str(BUILD),
             "--collect-all", "aeroflowsim", "--collect-all", "gmsh", "--collect-all", "pyvista",
-            "--collect-all", "pyvistaqt", "--collect-submodules", "vtkmodules", "--collect-data", "matplotlib",
+            "--collect-all", "pyvistaqt", "--collect-all", "numba", "--collect-all", "llvmlite",
+            "--collect-submodules", "vtkmodules", "--collect-data", "matplotlib",
             "--exclude-module", "streamlit", "--exclude-module", "plotly", "--exclude-module", "pytest",
             "--exclude-module", "tkinter"]
     if icon.is_file():
