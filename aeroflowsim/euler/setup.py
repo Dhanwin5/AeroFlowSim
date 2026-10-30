@@ -279,6 +279,20 @@ def _start(restart, mesh, fresh, init, gas=None):
     return W0, init
 
 
+def interpolated_norm(mesh):
+    """A Continuation holding only the residual normalisation for a start interpolated from another mesh, or None.
+
+    The residual is dU/dt per unit volume; for the same flow error it grows like 1/h, so the old run's normalisation
+    is scaled by h_old / h_new = sqrt(C_new / C_old) (same domain). Without this, a good interpolated start would
+    be normalised by its own (already small) first residuals and have to drop the full number of orders again."""
+    old = _extras().get("interpolate")
+    if not old or old.get("norm") is None:
+        return None
+    scale = math.sqrt(mesh.n_cells / max(len(old["centres"]), 1))
+    return Continuation(iterations=0, residuals=np.zeros((0, len(old["norm"]))), monitors={},
+                        norm=np.asarray(old["norm"], dtype=float) * scale)
+
+
 def continuation_of(restart):
     """The Continuation of a previous result (restart dict of aeroflowsim.result_io.continuation_data), or None
     when there is none or it holds fields only (then only the flow is reused, numbering starts again)."""
@@ -379,7 +393,7 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
 
     return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, p0), initialisation=init,
                    monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"),
-                   monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart))
+                   monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
 
 
 def _ideal_isp(profile, axisymmetric, gas, p0, T0):
@@ -444,7 +458,7 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     return Problem("external", gas, bcs, W0, L_ref=L_ref, scales=(rho, max(speed, c), max(speed, c), p_inf),
                    initialisation=init, monitor=monitor, monitor_labels=labels,
                    converge_on=("Cd", "Cl"), monitor_scales={"Cd": 0.01, "Cl": 0.01, "Cm": 0.01},
-                   finish=finish, series=series, continuation=continuation_of(restart))
+                   finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
 
 
 # ---- solve ----------------------------------------------------------------------------------------------

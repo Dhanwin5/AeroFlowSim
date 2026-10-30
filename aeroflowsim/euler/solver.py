@@ -48,9 +48,9 @@ from aeroflowsim.euler.state import conserved_to_primitive, is_physical, primiti
 
 SSP_RK3, JAMESON_RK4, LUSGS = "SSP-RK3", "Jameson 4-stage", "Implicit LU-SGS"
 TIME_SCHEMES = (SSP_RK3, JAMESON_RK4, LUSGS)
-LUSGS_OMEGA = 1.0             # over-relaxation of the implicit Rusanov operator's dissipation (Blazek: 1 to 2)
-CFL_GROWTH = 1.1              # implicit CFL ramp: x 1.1 per iteration while the residual does not rise
-CFL_SHRINK = 0.7              # ... x 0.7 when it rises by more than 5 %
+LUSGS_OMEGA = 1.5             # extra dissipation of the implicit Rusanov operator (Blazek: 1 to 2); 1.0 stalls the
+                              # second-order nozzle (first-order operator vs second-order residual), 1.5 converges
+SER_EXPONENT = 1.0            # implicit CFL ramp: CFL = CFL_0 (lowest residual)^-SER_EXPONENT
 MAX_CFL_REDUCTIONS = 4        # halve the CFL number at most this often before giving up
 CHECKPOINT_EVERY = 20         # iterations between saved "last good" states
 NORM_ITERATIONS = 5           # residuals are normalised by their largest value in the first 5 iterations
@@ -309,7 +309,7 @@ class EulerSolver:
         else:
             R, gamma, cv = float(self.gas.R), float(self.gas.gamma(300.0)), float(self.gas.cv(300.0))
         kn.lusgs(np.ascontiguousarray(U), np.ascontiguousarray(W), np.ascontiguousarray(dUdt), g.volumes, dt,
-                 b["slot_face"], b["slot_sign"], b["slot_other"], b["normals"], g.flux_areas, R, gamma, cv,
+                 b["slot_face"], b["slot_sign"], b["slot_other"], b["normals"], g.flux_areas, b["source_size"], R, gamma, cv,
                  LUSGS_OMEGA, b["lam"], b["D"], b["work"], b["dU"])
         return b["dU"].copy()
 
@@ -402,6 +402,8 @@ class EulerSolver:
         failed_at = None
         lowest, lowest_it = math.inf, 0          # lowest residual so far and its iteration (stall detection)
         self.psi_frozen = None
+        if continuation is not None and continuation.iterations == 0 and continuation.norm is not None:
+            norm = np.asarray(continuation.norm, dtype=float)     # interpolated start: the earlier run's scale
         if continuation is not None and continuation.iterations > 0:
             it = good_it = int(continuation.iterations)
             res_hist = [np.asarray(r, dtype=float) for r in continuation.residuals][:it]
@@ -422,9 +424,9 @@ class EulerSolver:
         if not steady:
             num.local_time_stepping = False
         implicit = num.time_scheme == LUSGS and steady       # LU-SGS is for steady runs (local time steps)
+        cfl_scale = 1.0                                       # implicit: halved by every CFL back-off
         stall_orders, stall_iterations = ((STALL_ORDERS_IMPLICIT, STALL_ITERATIONS_IMPLICIT) if implicit
                                           else (STALL_ORDERS, STALL_ITERATIONS))
-        prev_level = math.inf
         with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
             while it < num.max_iterations:
                 second = num.order == 2 and it >= num.first_order_iterations
@@ -448,7 +450,8 @@ class EulerSolver:
                         U = good_U
                         break
                     cfl_reductions += 1
-                    cfl = max(num.cfl * 0.5 ** cfl_reductions, 0.25 * cfl) if implicit else 0.5 * cfl
+                    cfl *= 0.5
+                    cfl_scale *= 0.5
                     U = good_U.copy()
                     del res_hist[good_it:]
                     for v in mon_hist.values():
@@ -470,12 +473,11 @@ class EulerSolver:
                 for k, v in values.items():
                     mon_hist.setdefault(k, []).append(float(v))
                 level = float(res.max())
-                if implicit and it > NORM_ITERATIONS:   # CFL ramp (SER-like): grow while the residual does not rise
-                    if level <= 1.05 * prev_level:
-                        cfl = min(cfl * CFL_GROWTH, num.cfl_max)
-                    else:
-                        cfl = max(cfl * CFL_SHRINK, num.cfl * 0.5 ** cfl_reductions)
-                prev_level = level
+                if implicit and it > NORM_ITERATIONS:
+                    # CFL ramp by "switched evolution relaxation" (SER, Mulder & van Leer 1985): the CFL number follows
+                    # the residual, CFL = CFL_0 (residual)^-SER_EXPONENT, up to cfl_max: it falls again if the residual rises.
+                    # After an unphysical step (back-off above) cfl_scale halves, so the ramp restarts lower.
+                    cfl = min(num.cfl_max, cfl_scale * num.cfl * min(level, 1.0) ** (-SER_EXPONENT))
                 if level < lowest:
                     lowest, lowest_it = level, it
                 # Freeze the limiter when the residual has dropped the set number of orders, or - after at least
@@ -539,7 +541,10 @@ def _lusgs_buffers(solver):
                                    "slot_face": np.ascontiguousarray(g.slot_face),
                                    "slot_sign": np.ascontiguousarray(g.slot_sign),
                                    "slot_other": np.ascontiguousarray(g.slot_other),
-                                   "normals": np.ascontiguousarray(g.normals)}
+                                   "normals": np.ascontiguousarray(g.normals),
+                                   # |G_i| of the axisymmetric pressure source (zero on planar meshes)
+                                   "source_size": (np.ascontiguousarray(np.abs(g.geometric_source[1]))
+                                                   if g.axisymmetric else np.zeros(g.n_cells))}
     return buf
 
 

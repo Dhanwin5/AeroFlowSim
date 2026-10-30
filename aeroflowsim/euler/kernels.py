@@ -498,8 +498,8 @@ def _normal_flux_change(U, dU, j, nx, ny, nz, dim, R, cv, out):
 
 
 @_jit(parallel=False)
-def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, flux_areas, R, gamma, cv, omega,
-          lam, D, work, dU):
+def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, flux_areas, source_size, R, gamma,
+          cv, omega, lam, D, work, dU):
     """One LU-SGS step: dU from  [V/dt + L + D + U] dU = V dU/dt  with the first-order Rusanov operator.
 
     Forward sweep over the cells in index order, backward sweep in reverse: a FIXED order, so the result is
@@ -507,7 +507,10 @@ def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, fl
         D_i = V_i/dt_i + omega/2 sum_f lambda_f A_f,   lambda_f = |u_f . n_f| + c_f (face average)
         forward:  dU*_i = [V_i R_i - 1/2 sum_{j<i} A_f (dF_n(U_j; dU*_j) - omega lambda_f dU*_j)] / D_i
         backward: dU_i  = dU*_i - [1/2 sum_{j>i} A_f (dF_n(U_j; dU_j) - omega lambda_f dU_j)] / D_i
-    n_f points out of cell i. Boundary faces add only to the diagonal (their ghost depends on cell i alone)."""
+    n_f points out of cell i. Boundary faces add only to the diagonal (their ghost depends on cell i alone).
+    Axisymmetric: the pressure source p G_i is treated implicitly through its spectral radius c_i |G_i| on the
+    diagonal (source_size = |G_i|, zero for planar meshes); without it large steps are unstable next to the axis,
+    where G_i (the planar cell area) is large compared with the r-weighted face areas."""
     nv, C = U.shape
     dim = nv - 2
     k_max = slot_face.shape[1]
@@ -537,7 +540,7 @@ def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, fl
             else:
                 lam[f] = abs(un) + ci
     for i in range(C):
-        d = volumes[i] / dt[i]
+        d = volumes[i] / dt[i] + omega * math.sqrt(gamma * R * (W[nv - 1, i] / (W[0, i] * R))) * source_size[i]
         for s in range(k_max):
             f = slot_face[i, s]
             if f >= 0:

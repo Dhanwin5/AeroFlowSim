@@ -573,7 +573,9 @@ class Project:
         W = np.array([np.asarray(result.fields[k].values, dtype=float) for k in ("rho", "u", "v", "p")])
         if W.shape[1] != len(centres):
             return None
-        return {"centres": np.asarray(centres, dtype=float), "W": W}
+        norm = (result.info or {}).get("residual_norm")
+        return {"centres": np.asarray(centres, dtype=float), "W": W,
+                "norm": None if norm is None else [float(v) for v in norm]}
 
     def run_extras(self, mesh=None, fresh=False) -> dict:
         """The post-processing settings a run needs (aeroflowsim.engine.run_case(extras=...)): report definitions and
