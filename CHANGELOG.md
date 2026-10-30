@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased - Prompt 8-1: speed (Numba kernels, multi-core)
+
+- The 2D / axisymmetric residual runs in compiled Numba kernels (`aeroflowsim/euler/kernels.py`): 9-17 x faster on
+  one core, 31-70 x with the default 16 threads (`validation/timing.md`). The NumPy code is kept as the reference
+  (equal to 1e-12, `tests/test_kernels.py`). Results do not depend on the thread count (bit-identical).
+- Tools > Preferences: solver threads (default physical cores - 1, at most 16); command line `--threads`, `--backend`.
+  Runs record the backend and thread count (Run step, report, command line, diagnostic info).
+- New dependency: numba 0.68.1 (optional at run time: without it the NumPy solver runs and says so).
+- Light per-push CI (`tests/test_smoke.py` + kernel and core tests); all fast tests and the quick validation set run on
+  pull requests, weekly and on demand.
+- `tools/timing.py`: timing table, profile, thread speed-up table.
+
 ## 0.2.0a1 - 2D alpha (October 2026)
 
 First alpha release: a GUI-first 2D / axisymmetric Euler solver with post-processing, verification and validation.

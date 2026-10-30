@@ -68,6 +68,11 @@ Clarity matters more than speed.
   solver; an error-level mesh check (e.g. negative cell volume) stops the run.
 - **One mesh format:** every 2D/3D generator produces the face-based `Mesh` of `aeroflowsim/mesh.py`
   (VTK cell types, OpenFOAM-style owner/neighbour faces) and every 2D/3D solver consumes it.
+- **Solver kernels** (`aeroflowsim/euler/kernels.py`, Numba; `aeroflowsim/compute.py`: backend and threads): the
+  NumPy code is the reference and must agree to 1e-12. **GPU-ready rule:** every kernel is a pure function of flat
+  arrays (outputs passed in, no Python objects, no global state, no allocation in loops; each loop iteration writes
+  only its own cell or face, face sums by gather), so results never depend on the thread count and the kernels can
+  later be ported to CUDA unchanged.
 - A case may be **mesh-only** (`solver = false` + `solver_message` in `schema.toml`; no `run()`).
 - **Gas library** (`aeroflowsim/gases/`): solvers get every gas property through the `GasModel`
   interface (R, cp, cv, gamma, sound speed, e(T) and T(e), mu, k, Pr, valid ranges; numbers or arrays)

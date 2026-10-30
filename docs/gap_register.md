@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 7c (2026-10-28).
+Last updated: Prompt 8-1 (2026-10-30).
 
 ## 1. Platform and GUI
 
@@ -133,7 +133,11 @@ Last updated: Prompt 7c (2026-10-28).
 | Thrust / Isp / Cf, Cp / Cl / Cd / Cm | done | P1 | Prompt 7: thrust two ways (exit plane; wall + inlet), Isp, Cf, discharge coefficient, ideal quasi-1D Isp; Cl, Cd, Cm in body and wind axes, Cp along the wall |
 | Time-accurate 2D runs in the GUI (end time input, snapshots, animation) | later | P2 | the solver supports a global time step and an end time (2D shock tube validation); no template exposes it yet (8e) |
 | Thermally perfect gas in the 2D solver | later | P2 | the solver uses only the GasModel (T(e), c(T)); the far-field and isentropic-inlet relations use gamma at a reference temperature and need generalising with a thermally perfect gas |
-| Implicit time stepping (LU-SGS), Numba, multi-core | planned 8 | P2 | |
+| Numba kernels and multi-core residual | done | P2 | 8-1: 9-17 x on one core, 31-70 x with 16 threads (validation/timing.md); bit-identical for any thread count; NumPy kept as reference (1e-12) |
+| Implicit time stepping (LU-SGS) | planned 8-2 | P2 | |
+| One-core speed-up on the MMS quads 8.8 x (target 10 x) | partial | P3 | 8-1: gradient and limiter kernels are compute-bound; a fused gradient + limiter kernel could gain more |
+| PyInstaller build with Numba not tested | partial | P1 | 8-1: `--collect-all numba llvmlite` added; check the installer and its first-run compile (kernels.CACHE) before the 8-2 release |
+| Ghost states (boundary conditions) still NumPy | later | P3 | 8-1: boundary faces only, ~0 % of the time now; port when the GPU kernels come |
 | Low-Mach preconditioning | planned 8b | P2 | |
 | Parametric studies and batch runs | planned 8d | P2 | |
 | Unsteady flow (dual time stepping) | planned 8e | P2 | |

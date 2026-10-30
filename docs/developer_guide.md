@@ -241,6 +241,25 @@ the history is unedited, so validated meshes never change by accident.
 
 Run them all: `.venv\Scripts\python.exe -m pytest` (test windows appear briefly on Windows).
 
+## Solver speed: Numba kernels and threads (Prompt 8-1)
+
+- `aeroflowsim/compute.py` holds two settings: backend (`auto` / `numba` / `numpy`; env `AEROFLOWSIM_BACKEND`) and
+  threads (`None` = physical cores - 1, at most 16; env `AEROFLOWSIM_THREADS`). The CLI sets them with `--backend`
+  and `--threads`; the GUI stores the thread count under `solver/threads` (Tools > Preferences,
+  `gui/preferences_dialog.py`) and sends it with every run `Job` (`tasks.py`), so the helper process uses it from the
+  next run on. It is a computer setting, not a project input: it never changes a fingerprint.
+- `EulerSolver._choose_backend()` imports `euler/kernels.py` (and so Numba) only when the first solver is built;
+  `_residual_numba()` is the kernel version of `residual()`. Missing Numba or a gas model without kernels: the NumPy
+  path runs and `solver.backend_note` says why (shown by the command line, stored in the run info).
+- Run info records `backend`, `threads`, `backend_note` (Run banner, report, `print_report`).
+- **Kernel rules (GPU-ready):** a kernel is a pure function of flat arrays and numbers; outputs are passed in
+  (allocated once in `KernelData`); no allocation, Python objects or global state inside loops; each `prange`
+  iteration writes only its own cell or face (face sums by gather), so results never depend on the thread count.
+- Compilation: `cache=True`, compiled at first use (about 20-40 s once per machine), then loaded from
+  `__pycache__`. If no cache folder is writable, `kernels.CACHE` is False and the kernels compile in memory at each
+  start. The installer collects `numba` and `llvmlite` (`tools/build_installer.py`).
+- Timing: `python tools/timing.py` (table), `--profile`, `--threads-table`; results in `validation/timing.md`.
+
 ## Post-processing (`aeroflowsim/post/`, Prompt 7b)
 
 All post-processing logic lives in `aeroflowsim/post/` and imports neither Qt nor VTK, so the command line

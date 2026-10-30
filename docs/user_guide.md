@@ -147,6 +147,16 @@ inputs list the names found and the type each gets. Every boundary of the mesh m
 
 Export writes Gmsh (2.2 or 4.1), SU2 and CGNS, with the patch names as the boundary names, to run the same mesh in SU2 or OpenFOAM.
 
+## Solver speed and Preferences
+
+The 2D solver uses compiled kernels (Numba) on several CPU cores. **Tools > Preferences > Solver threads**: the default
+is the number of physical cores minus one (at most 16), so the window stays responsive; choose fewer to keep cores
+free for other work. The thread count changes only the speed, never the results, and applies from the next run
+(Continue included). The Run step and the report say how a run was computed (e.g. "Numba, 15 threads").
+The very first run on a computer compiles the kernels (about 20-40 s, once); later runs start at once.
+On the command line: `python -m aeroflowsim run <case or project> --threads 8`. If Numba is missing, the solver
+still works with plain NumPy (10-30 x slower, same results) and says so.
+
 ## Keyboard shortcuts
 
 | Keys | Action |

@@ -931,6 +931,41 @@ stagnation region that contains the bow shock. The metric is its peak-to-peak ch
 divided by its mean: a settled shock gives a tiny value, a carbuncle (a shock that keeps moving) a large one. It
 separates the HLLE-blend on / off runs by orders of magnitude, unlike the earlier spatial shock-roughness measure.
 
+## 13b. Compiled kernels, parallel face sums and determinism (Prompt 8-1)
+
+**What changed and what did not.** The equations of section 12 are unchanged. The residual
+`R_i = -(1/V_i) [ sum_f s_if F(W_L, W_R; n_f) A_f - p_i G_i - S_i ]` (s_if = +1 if cell i owns face f, -1 if it is
+its neighbour) is now evaluated by compiled loops (`aeroflowsim/euler/kernels.py`, Numba) instead of whole-array
+NumPy formulas. The NumPy code stays as the reference implementation (`aeroflowsim/compute.py`, backend "numpy");
+the tests (`tests/test_kernels.py`) require the two to agree to 1e-12 relative per residual evaluation on every mesh
+type, order, limiter and with the carbuncle blend. The kernels are, in order of one evaluation:
+`primitive` (U -> W), `gradients` (least squares or Green-Gauss, per cell: grad_i = sum_s a_s X_other(s) + b_i W_i),
+`limiter` (Barth-Jespersen / Venkatakrishnan, min over the faces), `reconstruct` (W_L, W_R = W + psi grad . r_f),
+`shock_weight` (pressure-jump sensor), `fluxes` (HLLC / HLLE blend, positivity fallback) and `face_sums`;
+`time_steps` gives dt_i = CFL V_i / Lambda_i. Ghost states stay in NumPy (boundary faces only).
+
+**Why faster.** NumPy runs each of ~40 formulas over the whole mesh in turn, writing ~40 temporary arrays to memory;
+a loop does all formulas for one face while its numbers are in the CPU cache. Measured (validation/timing.md): 9-17 x
+on one core, 31-70 x with 16 threads.
+
+**Parallel face sums without races (gather).** A face's flux belongs to two cells. Adding it to both from the face
+loop ("scatter") in parallel would let two threads write the same cell at once (a race); atomic additions fix that,
+but then the order of additions depends on thread timing, so the last bits of R differ from run to run. Instead
+each cell sums its own faces ("gather", the per-cell slot lists of `euler/geometry.py`): every number is computed by
+exactly one thread in a fixed order. So a run is bit-for-bit identical for any thread count (tested with exact
+array equality); the flux of each face is computed once and read twice.
+
+**Floating-point differences from NumPy.** Sums are done in another order (e.g. the least-squares gradient sums
+c_s X_s + b_i X_i with b_i = -sum c_s per cell), so results differ in the last 1-3 digits: relative differences per
+residual evaluation are about 1e-15 to 1e-13, and whole runs agree to about 1e-10.
+
+**GPU-ready rule.** Each kernel is a pure function of flat arrays with preallocated outputs, no Python objects and
+no global state, and each loop iteration writes only its own cell or face: the same kernels can be ported to CUDA
+(one thread per cell or face) later without changing the data layout.
+
+References: Lam, Pitrou & Seibert (2015), "Numba: a LLVM-based Python JIT compiler", LLVM-HPC'15; Blazek (2015),
+Computational Fluid Dynamics: Principles and Applications, ch. 5 (face-based data structures).
+
 ## 14. New shapes, nozzle contours and intakes (Prompt 6e, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,
