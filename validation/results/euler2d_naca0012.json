@@ -14,7 +14,7 @@
     "source": "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 11, p. 1165: mean of FLO82 0.356209, OVERFLOW 0.351663, CFL3D 0.348226",
     "tolerance_percent_quick": 12.0,
     "pending": "",
-    "shortfall": "Study design, not the solver (found in Prompt 7b): halving only the WALL cell size refined the mesh very little (7,326 / 9,400 / 13,251 cells), because the far-field size (2 c) and the growth rate stayed fixed, so the shock region is barely refined; the GCI observed order of 10 shows the sequence is not a proper refinement, and the comparison falls back to the finest mesh (Cl 0.338, still rising: 0.311, 0.331, 0.338). The coarsest mesh also stopped at 40,000 iterations without converging. A systematic study (all sizes scaled together, up to about 100k cells) needs Prompt 8 speed; Cd (2.4 %) and the Mach 0.5 lift (2.9 %) are within their tolerances."
+    "shortfall": "Prompt 8-2 study (wall AND far-field sizes halved together: 14,523 / 40,388 / 136,920 cells, LU-SGS): Cl 0.3349 / 0.3325 / 0.3352, flat within 0.8 % over a 9 x refinement (the middle mesh stopped at 40,000 iterations, residual limit cycle), so the 4.8 % gap is no longer a mesh error (the 7b study refined only the wall size). Most likely cause, NOT yet tested: the far field. The C-domain is 30 chords with a plain characteristic far-field condition and no point-vortex correction; the circulation of a lifting airfoil decays only like 1/r, which lowers Cl on a small domain (Vassberg and Jameson use far fields of about 1e5 chords; their CFL3D run without the vortex correction gives the lowest value, 0.348). Next: a domain-size study (30 / 100 / 300 c) or a far-field vortex correction. Cd (3.6 %) and the Mach 0.5 lift (1.7 %) are within their tolerances."
    },
    "measured": 0.3352227832325247
   },
@@ -67,7 +67,7 @@
     "14,523",
     "7,307",
     "yes",
-    "18",
+    "19",
     "0.33489",
     "0.022000",
     "-0.03438"
@@ -89,7 +89,7 @@
     "136,920",
     "25,964",
     "yes",
-    "893",
+    "886",
     "0.33522",
     "0.021737",
     "-0.03432"
@@ -111,7 +111,7 @@
     "40,388",
     "10,118",
     "yes",
-    "74",
+    "75",
     "0.17556",
     "0.000287",
     "-0.00172"
@@ -122,7 +122,7 @@
     "136,920",
     "14,133",
     "yes",
-    "488",
+    "492",
     "0.17779",
     "0.000191",
     "-0.00221"

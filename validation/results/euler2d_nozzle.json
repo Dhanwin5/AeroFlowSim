@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1.000000017299082
+   "measured": 1.0000002505790357
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.9999993398606571
+   "measured": 0.9999992239432042
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 71.4747779708
+   "measured": 71.47477836553938
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 71.47324529006488
+   "measured": 71.47834970653685
   }
  ],
  "study": {
@@ -81,13 +81,13 @@
    [
     "structured 50 x 10",
     "500",
-    "4,672",
+    "4,457",
     "yes",
-    "3",
+    "1",
     "68.4750",
     "0.9581",
-    "47.9973",
-    "47.9975",
+    "47.9974",
+    "47.9969",
     "71.477",
     "0.9855",
     "2.609"
@@ -95,13 +95,13 @@
    [
     "structured 100 x 20",
     "2,000",
-    "8,095",
+    "7,908",
     "yes",
-    "7",
+    "5",
     "67.6312",
     "0.9463",
     "47.3907",
-    "47.3913",
+    "47.3907",
     "71.454",
     "0.9852",
     "2.902"
@@ -109,65 +109,65 @@
    [
     "structured 200 x 40",
     "8,000",
-    "24,688",
+    "13,771",
     "yes",
-    "37",
+    "21",
     "67.2131",
     "0.9404",
     "47.1116",
     "47.1115",
     "71.475",
     "0.9855",
-    "2.541"
+    "2.542"
    ],
    [
     "triangles, wall 0.16 D_t",
     "1,098",
     "30,000",
     "NO",
-    "25",
-    "67.5969",
-    "0.9458",
-    "47.3525",
-    "47.3324",
-    "71.432",
+    "13",
+    "67.5774",
+    "0.9455",
+    "47.3359",
+    "47.3604",
+    "71.428",
     "0.9849",
-    "4.715"
+    "4.745"
    ],
    [
     "triangles, wall 0.08 D_t",
     "2,350",
     "30,000",
     "NO",
-    "28",
-    "67.2139",
-    "0.9405",
-    "47.0977",
-    "47.1522",
+    "19",
+    "67.2126",
+    "0.9404",
+    "47.0971",
+    "47.0557",
     "71.453",
     "0.9852",
-    "4.053"
+    "4.052"
    ],
    [
     "triangles, wall 0.04 D_t",
     "5,505",
     "30,000",
     "NO",
-    "41",
-    "67.0710",
-    "0.9385",
-    "47.0109",
-    "46.9250",
-    "71.473",
-    "0.9855",
-    "3.501"
+    "34",
+    "67.0779",
+    "0.9386",
+    "47.0192",
+    "47.2436",
+    "71.478",
+    "0.9856",
+    "3.487"
    ],
    [
     "rounded throat, structured 100 x 20",
     "2,000",
-    "12,198",
+    "10,111",
     "yes",
-    "11",
+    "6",
     "71.0768",
     "0.9945",
     "49.7479",
@@ -179,13 +179,13 @@
    [
     "rounded throat, structured 200 x 40",
     "8,000",
-    "28,239",
+    "19,244",
     "yes",
-    "44",
+    "32",
     "71.0594",
     "0.9943",
     "49.7270",
-    "49.7271",
+    "49.7270",
     "71.359",
     "0.9839",
     "0.100"
@@ -198,14 +198,14 @@
    "p0 loss: drop of the mass-flux-weighted exit total pressure below the inlet p0 = 5 bar (numerical entropy; an isentropic nozzle loses nothing). Most of it is made at the SHARP throat corner, a singular expansion point of the inviscid flow; it does not fall clearly on these meshes. With a rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4) the coarsest triangle mesh already gives about 1 %.",
    "Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Prompt 8) is the planned cure (gap register).",
    "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in Prompt 8).",
-   "Structured meshes, Isp (GCI tool, aeroflowsim/gci.py): observed order 0.13, extrapolated value 71.6962 s, GCI fine 0.387 %, GCI coarse 0.424 %, asymptotic ratio 1.000 (oscillatory convergence).",
-   "Sharp vs rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4), structured 100 x 20 and 200 x 40: p0 loss 2.902 / 2.541 % (sharp) and 0.046 / 0.100 % (rounded); Cd 0.9463 / 0.9404 (sharp) and 0.9945 / 0.9943 (rounded).",
+   "Structured meshes, Isp (GCI tool, aeroflowsim/gci.py): observed order 0.13, extrapolated value 71.6952 s, GCI fine 0.386 %, GCI coarse 0.422 %, asymptotic ratio 1.000 (oscillatory convergence).",
+   "Sharp vs rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4), structured 100 x 20 and 200 x 40: p0 loss 2.902 / 2.542 % (sharp) and 0.046 / 0.100 % (rounded); Cd 0.9463 / 0.9404 (sharp) and 0.9945 / 0.9943 (rounded).",
    "Finding: rounded-throat loss smaller than the sharp one and NOT falling with refinement (see the gap register)."
   ],
   "Isp": [
-   71.47675645055074,
-   71.45384740011912,
-   71.4747779708
+   71.4767635518021,
+   71.45385862054965,
+   71.47477836553938
   ]
  }
 }

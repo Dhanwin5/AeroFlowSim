@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.929927989309401
+   "measured": 0.9299279714698416
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": "The inviscid value is 0.80 on both meshes (100 x 20: 0.806, 200 x 40: 0.799): not a mesh error. Cause not resolved: the report concludes that boundary-layer effects on the wall pressure were negligible (Conclusions, item 3), so a viscous effect is unlikely. At z = 2.24 in, just after the tangency of the 45 deg cone with the small throat arc, the measured pressure falls steeply (about -1.2 to -2.5 per inch), so an uncertainty of 0.03-0.05 in in the tap position or the digitized position equals the 0.07 difference, and the report finds tap-size effects of up to 7 % (Conclusions, item 4). A band that includes the position uncertainty (or the report's tabulated data, if they can be found) is recorded in the gap register."
    },
-   "measured": 0.7988415423658339
+   "measured": 0.7988444912391978
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.4826710420505408
+   "measured": 0.48267073699426294
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.47228112162677693
+   "measured": 0.47228074874959813
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.22855496546035364
+   "measured": 0.2285549979226546
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.18622554824390808
+   "measured": 0.18622550839788485
   },
   {
    "reference": {
@@ -100,7 +100,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.16919642812028965
+   "measured": 0.16919642726163728
   },
   {
    "reference": {
@@ -114,7 +114,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.1219308284201589
+   "measured": 0.12193082432832292
   },
   {
    "reference": {
@@ -128,7 +128,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.09311585738159363
+   "measured": 0.0931158530698559
   }
  ],
  "study": {
@@ -256,7 +256,7 @@
    ]
   ],
   "notes": [
-   "Mesh: 8,000 cells, 4,229 iterations, converged yes, 8 s; discharge coefficient 0.9813.",
+   "Mesh: 8,000 cells, 3,945 iterations, converged yes, 6 s; discharge coefficient 0.9813.",
    "RMS difference over all 19 measured points: 0.0210 (in p/p0).",
    "Geometry from the printed dimensions; the profile's exit area ratio is 6.57 (the report rounds it to 6.63; the measured points end at z = 6.66 in, before the exit).",
    "The test gas was heated air (1500 R) with a boundary layer; the solver is inviscid with gamma = 1.4 (the report's one-dimensional curve uses 1.40 as well)."

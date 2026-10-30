@@ -104,7 +104,7 @@ Numba backend, ms per iteration (SSP-RK3, three residuals per iteration):
 | Default N2 nozzle (Medium, 8k cells) converged | 60 s | 20.8 s (13,771 iterations, LU-SGS) | 13-19 min |
 | MMS 128 x 128 quads, residual drop 8 | 120 s | 12.5 s (LU-SGS, 3,982 it); explicit 17.5 s (10,747 it) | 1,646 s |
 | Quick validation set | 5 min | 5.0 min (LU-SGS default) | ~32 min |
-| Full validation suite | 60 min | see the end of Prompt 8-2 (explicit, after 8-1: 16 min) | ~3 h |
+| Full validation suite | 60 min | 39 min (LU-SGS, NACA study now up to 137k cells; explicit after 8-1: 16 min with the old 13k-cell NACA meshes) | ~3 h |
 
 Iterations, LU-SGS vs SSP-RK3 (converged, same solution): MMS 32 x 32 triangles 1,212 vs 5,217 (CFL ramp of the
 first version; the final SER ramp needs about 2 x fewer than SSP-RK3 on small MMS meshes, 2.7 x on 128 x 128 quads);

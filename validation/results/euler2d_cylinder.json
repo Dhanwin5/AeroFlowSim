@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.22485960995268878
+   "measured": 0.22485453652035128
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.22932743237371173
+   "measured": 0.2296055681484317
   }
  ],
  "study": {
@@ -51,13 +51,13 @@
    [
     "polar grid, carbuncle fix on",
     "4,800",
-    "6,184",
+    "2,706",
     "yes",
-    "1.0e-06",
-    "9",
+    "9.7e-07",
+    "3",
     "0.2249",
     "0.77",
-    "1.05e-05",
+    "3.06e-06",
     "0"
    ],
    [
@@ -65,23 +65,23 @@
     "4,800",
     "12,000",
     "NO",
-    "3.2e-01",
-    "18",
-    "0.2246",
-    "0.84",
-    "4.82e-04",
+    "3.3e-01",
+    "14",
+    "0.2244",
+    "1.51",
+    "1.05e-03",
     "0"
    ],
    [
     "Gmsh quad-dominant, fix on",
     "1,329",
-    "2,423",
-    "yes",
-    "9.9e-07",
-    "3",
-    "0.2293",
+    "501",
+    "NO",
+    "6.4e-02",
+    "0",
+    "0.2296",
     "-",
-    "1.23e-04",
+    "1.12e+00",
     "0"
    ]
   ],
@@ -95,36 +95,36 @@
   "runs": {
    "polar grid, carbuncle fix on": {
     "cells": 4800,
-    "iterations": 6184,
+    "iterations": 2706,
     "converged": true,
-    "residual": 9.997150279273125e-07,
-    "time": 9.482658799970523,
-    "standoff": 0.22485960995268878,
-    "roughness": 0.7703693176919493,
+    "residual": 9.660831789248839e-07,
+    "time": 3.1062100999988616,
+    "standoff": 0.22485453652035128,
+    "roughness": 0.7701970319865021,
     "positivity": 0,
-    "carbuncle": 1.0538889238646683e-05
+    "carbuncle": 3.0596660749820242e-06
    },
    "polar grid, carbuncle fix OFF": {
     "cells": 4800,
     "iterations": 12000,
     "converged": false,
-    "residual": 0.3225393017843555,
-    "time": 18.07242580014281,
-    "standoff": 0.22458987299127206,
-    "roughness": 0.8427593473770683,
+    "residual": 0.3315599142684867,
+    "time": 14.414442799985409,
+    "standoff": 0.22437610229144744,
+    "roughness": 1.513593420507228,
     "positivity": 0,
-    "carbuncle": 0.00048164190182974043
+    "carbuncle": 0.0010513996969821033
    },
    "Gmsh quad-dominant, fix on": {
     "cells": 1329,
-    "iterations": 2423,
-    "converged": true,
-    "residual": 9.941049771846541e-07,
-    "time": 2.56685349997133,
-    "standoff": 0.22932743237371173,
+    "iterations": 501,
+    "converged": false,
+    "residual": 0.06423115387215882,
+    "time": 0.2554768999107182,
+    "standoff": 0.2296055681484317,
     "roughness": null,
     "positivity": 0,
-    "carbuncle": 0.00012281677588958154
+    "carbuncle": 1.1152917157792335
    }
   }
  }

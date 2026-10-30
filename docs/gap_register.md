@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 8-1 (2026-10-30).
+Last updated: Prompt 8-2 (2026-10-30).
 
 ## 1. Platform and GUI
 
@@ -138,6 +138,9 @@ Last updated: Prompt 8-1 (2026-10-30).
 | Venkatakrishnan K = 5 loses order on smooth flows (MMS triangles 0.71 at 64-128); K = 20 keeps 2.0 but overshoots more at shocks | partial | P2 | 8-2: table in theory 13d; next: Michalak & Ollivier-Gooch (2009) accuracy-preserving limiter as an option |
 | One-core speed-up on the MMS quads 8.8 x (target 10 x) | partial | P3 | 8-1: gradient and limiter kernels are compute-bound; a fused gradient + limiter kernel could gain more |
 | PyInstaller build with Numba not tested | partial | P1 | 8-1: `--collect-all numba llvmlite` added; check the installer and its first-run compile (kernels.CACHE) before the 8-2 release |
+| NACA 0012 Mach 0.8 Cl 4.8 % low, flat over 14.5k-137k cells | partial | P2 | 8-2: suspected far-field size (30 c, no vortex correction); do a domain study 30/100/300 c or add the far-field point-vortex correction |
+| Diamond residual stall | done | P2 | 8-2: converges with both schemes (LU-SGS to 5e-12 in 975 iterations) |
+| BMG point z = 2.24 in, planar MOC nozzle finer mesh, quasi-1D fine-mesh stall, triangle-nozzle stall (~1e-4) | planned | P2 | 8-2 parts 2, 7, 8 not reached in the session: next prompt |
 | Ghost states (boundary conditions) still NumPy | later | P3 | 8-1: boundary faces only, ~0 % of the time now; port when the GPU kernels come |
 | Low-Mach preconditioning | planned 8b | P2 | |
 | Parametric studies and batch runs | planned 8d | P2 | |
