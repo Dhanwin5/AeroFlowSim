@@ -2,7 +2,7 @@
  "name": "euler2d_diamond",
  "title": "Diamond airfoil t/c = 0.1 at Mach 2, alpha 0 and 2 deg (2D Euler, external_2d)",
  "case": "cases/external_2d",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.0231626
+   "measured": 0.02316260863069173
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.0822659
+   "measured": 0.08226594741701375
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.0261137
+   "measured": 0.02611371061571436
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1.22727
+   "measured": 1.2272739067316825
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.63417
+   "measured": 0.6341701070219516
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1.51782
+   "measured": 1.517817807756715
   },
   {
    "reference": {
@@ -100,7 +100,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.809633
+   "measured": 0.8096328431308382
   }
  ],
  "study": {
@@ -124,7 +124,7 @@
     "10,034",
     "1,358",
     "yes",
-    "47",
+    "3",
     "0.00006 (0.00000)",
     "0.02316 (0.02320)",
     "1.3659 (1.3660)",
@@ -137,7 +137,7 @@
     "10,034",
     "1,406",
     "yes",
-    "49",
+    "3",
     "0.08227 (0.08209)",
     "0.02611 (0.02614)",
     "1.2273 (1.2274)",

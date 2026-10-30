@@ -96,3 +96,16 @@ Numba backend, ms per iteration (SSP-RK3, three residuals per iteration):
 - Threads: speed-up stops growing beyond about 8 threads on 4k-16k cells (the work per thread becomes too small and
   thread start-up dominates) and reaches 6.8 x at 24 threads on 65k cells, where memory bandwidth limits it.
 - Validation suite times before / after: see the CHANGELOG entry of Prompt 8-1 and the ledger.
+
+## Prompt 8-2: implicit LU-SGS, wall-clock targets (default threads = 16)
+
+| Target | Limit | Measured | Before Prompt 8 |
+|---|---:|---:|---:|
+| Default N2 nozzle (Medium, 8k cells) converged | 60 s | 20.8 s (13,771 iterations, LU-SGS) | 13-19 min |
+| MMS 128 x 128 quads, residual drop 8 | 120 s | 12.5 s (LU-SGS, 3,982 it); explicit 17.5 s (10,747 it) | 1,646 s |
+| Quick validation set | 5 min | 5.0 min (LU-SGS default) | ~32 min |
+| Full validation suite | 60 min | see the end of Prompt 8-2 (explicit, after 8-1: 16 min) | ~3 h |
+
+Iterations, LU-SGS vs SSP-RK3 (converged, same solution): MMS 32 x 32 triangles 1,212 vs 5,217 (CFL ramp of the
+first version; the final SER ramp needs about 2 x fewer than SSP-RK3 on small MMS meshes, 2.7 x on 128 x 128 quads);
+Mach 2 wedge 924-988 vs 1,935; N2 nozzle Medium reaches 3e-6 in 8,000 vs 24,688 to 1e-6.

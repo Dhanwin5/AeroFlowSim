@@ -28,7 +28,11 @@ from validation.common import is_quick
 
 HERE = Path(__file__).resolve().parent
 CASE = "cases/external_2d"
-LEVELS = {"wall 0.02 c": 0.02, "wall 0.01 c": 0.01, "wall 0.005 c": 0.005}
+# Prompt 8-2: every size scales together (wall size AND far-field size halve per level; growth 1.15, C-domain 30 c):
+# 14.5k / 40k / 137k cells (about 3 x per level). The 7b study halved only the wall size (7k / 9k / 13k cells: not a
+# refinement, GCI order 10).
+LEVELS = {"wall 0.01 c": 0.01, "wall 0.005 c": 0.005, "wall 0.0025 c": 0.0025}
+FAR_FIELD_PER_WALL = 100.0          # far-field cell size / wall cell size
 CONDITIONS = {"transonic": 0.8, "subcritical": 0.5}
 RUNS = {}
 
@@ -47,7 +51,7 @@ def _run(condition, label, size):
         params = validate(case.parameters(), {
             **defaults(case.parameters()), "shape": "Custom coordinates file",
             "coordinates_file.file": str(HERE / "naca0012_vassberg_jameson.dat"), "mach": CONDITIONS[condition],
-            "alpha": 1.25, "surface_size": size, "farfield_size": 2.0, "size_growth": 1.15,
+            "alpha": 1.25, "surface_size": size, "farfield_size": FAR_FIELD_PER_WALL * size, "size_growth": 1.15,
             "max_iter": 5000 if is_quick() else 40000})
         doc = template_document(case)
         doc.operations[1].suppressed = True                     # the template's own far field is replaced by

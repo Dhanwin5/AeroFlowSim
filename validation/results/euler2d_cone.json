@@ -2,7 +2,7 @@
  "name": "euler2d_cone",
  "title": "15 deg cone at Mach 2 (2D axisymmetric Euler, external_2d) vs Taylor-Maccoll",
  "case": "cases/external_2d",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 34.20555488891768
+   "measured": 34.20555488891769
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.20187089793270524
+   "measured": 0.20187089793270513
   }
  ],
  "study": {
@@ -50,7 +50,7 @@
     "5,823",
     "3,965",
     "yes",
-    "126",
+    "6",
     "34.206",
     "33.915",
     "0.2019",

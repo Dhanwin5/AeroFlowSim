@@ -2,7 +2,7 @@
  "name": "quasi1d_nozzle",
  "title": "Quasi-1D nozzle (N2 thruster, p0 = 5 bar, T0 = 293.15 K)",
  "case": "cases/quasi1d_nozzle",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.98019
+   "measured": 3.9801909185621196
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.36988
+   "measured": 3.3698803511034483
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 71.6005
+   "measured": 71.60049073561838
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 50.9131
+   "measured": 50.913149062373286
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.323142
+   "measured": 0.3231423293230573
   }
  ],
  "study": {
@@ -123,6 +123,18 @@
     "0.3223",
     "0.47"
    ]
+  ],
+  "M_exit": [
+   3.968662729936357,
+   3.980190816780999,
+   3.9839074842848246,
+   3.9851705432879547
+  ],
+  "x_shock": [
+   0.32533259602674075,
+   0.3231423293230573,
+   0.3232221627034811,
+   0.32230171808041336
   ],
   "notes": [
    "Exit Mach number: observed order of convergence p = 1.56 from the last three meshes; Richardson extrapolation 3.98582; isentropic theory 3.98602.",

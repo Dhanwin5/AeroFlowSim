@@ -2,7 +2,7 @@
  "name": "sod",
  "title": "Sod shock tube (Toro test 1, t = 0.2 s, 400 cells)",
  "case": "cases/sod_shock_tube",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.303136
+   "measured": 0.30313550128830424
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.927469
+   "measured": 0.9274691378171691
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.426235
+   "measured": 0.42623457365872847
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.265558
+   "measured": 0.26555787288201943
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.351345
+   "measured": 0.35134451308220715
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.184991
+   "measured": 0.18499082856568705
   }
  ],
  "study": null

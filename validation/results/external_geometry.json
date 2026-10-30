@@ -2,7 +2,7 @@
  "name": "external_geometry",
  "title": "Gmsh mesh geometry: external domains and rounded-throat nozzle",
  "case": "cases/external_2d",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.14158
+   "measured": 3.1415789867579234
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.14159
+   "measured": 3.141588910581747
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.14159
+   "measured": 3.1415914123242827
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.28
+   "measured": 1255.2775652220919
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.35
+   "measured": 1255.347068276749
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.72
+   "measured": 1255.7214666039001
   },
   {
    "reference": {
@@ -100,7 +100,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1256.01
+   "measured": 1256.0129498306521
   },
   {
    "reference": {
@@ -114,7 +114,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1256.08
+   "measured": 1256.082462781901
   },
   {
    "reference": {
@@ -128,7 +128,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1256.46
+   "measured": 1256.456863598873
   },
   {
    "reference": {
@@ -142,7 +142,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.89
+   "measured": 1255.8866228499437
   },
   {
    "reference": {
@@ -156,7 +156,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.96
+   "measured": 1255.9561358011927
   },
   {
    "reference": {
@@ -170,7 +170,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1256.33
+   "measured": 1256.3305366181646
   },
   {
    "reference": {
@@ -184,7 +184,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 33487.3
+   "measured": 33487.28408730522
   },
   {
    "reference": {
@@ -198,7 +198,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 33490.1
+   "measured": 33490.064127893405
   },
   {
    "reference": {
@@ -212,7 +212,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 33505.0
+   "measured": 33505.038647327805
   },
   {
    "reference": {
@@ -226,7 +226,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.34977
+   "measured": 6.349770229976022
   },
   {
    "reference": {
@@ -240,7 +240,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.34985
+   "measured": 6.349854025637809
   },
   {
    "reference": {
@@ -254,7 +254,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.34987
+   "measured": 6.349872055029332
   },
   {
    "reference": {
@@ -268,7 +268,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.34994
+   "measured": 6.349941077423798
   },
   {
    "reference": {
@@ -282,7 +282,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.34994
+   "measured": 6.34993935663461
   },
   {
    "reference": {
@@ -296,7 +296,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.34994
+   "measured": 6.3499386023100355
   }
  ],
  "study": null

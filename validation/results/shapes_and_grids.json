@@ -2,7 +2,7 @@
  "name": "shapes_and_grids",
  "title": "New shapes, nozzle contours and structured grids (geometry)",
  "case": "cases/external_2d",
- "date": "2026-10-27",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {

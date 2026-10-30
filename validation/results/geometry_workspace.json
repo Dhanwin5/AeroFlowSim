@@ -2,7 +2,7 @@
  "name": "geometry_workspace",
  "title": "Geometry workspace: sketched, enclosed and plume geometries",
  "case": "cases/geometry_2d",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.29
+   "measured": 1255.2870139135493
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.33
+   "measured": 1255.330923827157
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 1255.72
+   "measured": 1255.7214662725323
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.14158
+   "measured": 3.1415793685658424
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.14159
+   "measured": 3.141589312600706
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 3.14159
+   "measured": 3.141591816532681
   },
   {
    "reference": {
@@ -100,7 +100,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 466.928
+   "measured": 466.9284449606406
   },
   {
    "reference": {
@@ -114,7 +114,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 466.928
+   "measured": 466.9284415418342
   },
   {
    "reference": {
@@ -128,7 +128,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 466.935
+   "measured": 466.9348522601334
   },
   {
    "reference": {
@@ -142,7 +142,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 600.152
+   "measured": 600.1523581383782
   },
   {
    "reference": {
@@ -156,7 +156,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 600.152
+   "measured": 600.1523581383783
   },
   {
    "reference": {
@@ -170,7 +170,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 600.152
+   "measured": 600.1523581383783
   }
  ],
  "study": null

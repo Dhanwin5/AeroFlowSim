@@ -2,7 +2,7 @@
  "name": "nozzle_axi_geometry",
  "title": "Axisymmetric nozzle mesh geometry (default conical nozzle)",
  "case": "cases/nozzle_axi",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 2.52934
+   "measured": 2.5293413031848044
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.3439
+   "measured": 6.343902130718564
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 4.2667
+   "measured": 4.266703695207877
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 2.52956
+   "measured": 2.5295649837897285
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.3453
+   "measured": 6.345295127185021
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 4.26782
+   "measured": 4.267821152328718
   },
   {
    "reference": {
@@ -100,7 +100,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 2.52963
+   "measured": 2.5296289992650536
   },
   {
    "reference": {
@@ -114,7 +114,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 6.3457
+   "measured": 6.345696309575476
   },
   {
    "reference": {
@@ -128,7 +128,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 4.26866
+   "measured": 4.268658417067739
   }
  ],
  "study": null

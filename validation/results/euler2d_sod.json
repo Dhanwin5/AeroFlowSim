@@ -2,7 +2,7 @@
  "name": "euler2d_sod",
  "title": "Sod shock tube with the 2D Euler solver (along x, and along a diagonal of a triangle mesh)",
  "case": "cases/sod_shock_tube",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.303131
+   "measured": 0.30313053396359957
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.927483
+   "measured": 0.927482753577174
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.426291
+   "measured": 0.42629078494855105
   },
   {
    "reference": {
@@ -58,7 +58,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.26559
+   "measured": 0.2655902856729439
   },
   {
    "reference": {
@@ -72,7 +72,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.350815
+   "measured": 0.3508150516817863
   },
   {
    "reference": {
@@ -86,7 +86,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.185673
+   "measured": 0.18567266665338292
   },
   {
    "reference": {
@@ -100,7 +100,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.300762
+   "measured": 0.30076218480278677
   },
   {
    "reference": {
@@ -114,7 +114,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.917851
+   "measured": 0.9178509063833057
   },
   {
    "reference": {
@@ -128,7 +128,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.424467
+   "measured": 0.4244667710715458
   },
   {
    "reference": {
@@ -142,7 +142,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.35129
+   "measured": 0.3512899692954273
   }
  ],
  "study": {
@@ -156,12 +156,12 @@
    [
     "along x, quads",
     "800",
-    "1.7"
+    "0.2"
    ],
    [
     "diagonal, triangles",
     "20,000",
-    "16.8"
+    "0.4"
    ]
   ],
   "notes": [

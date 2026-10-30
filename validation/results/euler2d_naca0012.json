@@ -2,7 +2,7 @@
  "name": "euler2d_naca0012",
  "title": "NACA 0012, inviscid, Mach 0.8 and 0.5 at alpha 1.25 deg (2D Euler, C-domain, GCI)",
  "case": "cases/external_2d",
- "date": "2026-10-26",
+ "date": "2026-10-30",
  "comparisons": [
   {
    "reference": {
@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": "Study design, not the solver (found in Prompt 7b): halving only the WALL cell size refined the mesh very little (7,326 / 9,400 / 13,251 cells), because the far-field size (2 c) and the growth rate stayed fixed, so the shock region is barely refined; the GCI observed order of 10 shows the sequence is not a proper refinement, and the comparison falls back to the finest mesh (Cl 0.338, still rising: 0.311, 0.331, 0.338). The coarsest mesh also stopped at 40,000 iterations without converging. A systematic study (all sizes scaled together, up to about 100k cells) needs Prompt 8 speed; Cd (2.4 %) and the Mach 0.5 lift (2.9 %) are within their tolerances."
    },
-   "measured": 0.338006
+   "measured": 0.3352227832325247
   },
   {
    "reference": {
@@ -30,7 +30,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.0220074
+   "measured": 0.02173688116922783
   },
   {
    "reference": {
@@ -44,7 +44,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.174711
+   "measured": 0.18294833552968612
   }
  ],
  "study": {
@@ -63,79 +63,84 @@
   "rows": [
    [
     "Mach 0.8",
-    "wall 0.02 c",
-    "7,326",
-    "40,000",
-    "NO",
-    "1367",
-    "0.31123",
-    "0.021267",
-    "-0.02815"
-   ],
-   [
-    "Mach 0.8",
     "wall 0.01 c",
-    "9,400",
-    "12,771",
+    "14,523",
+    "7,307",
     "yes",
-    "581",
-    "0.33136",
-    "0.021797",
-    "-0.03324"
+    "18",
+    "0.33489",
+    "0.022000",
+    "-0.03438"
    ],
    [
     "Mach 0.8",
     "wall 0.005 c",
-    "13,251",
-    "26,749",
-    "yes",
-    "1432",
-    "0.33801",
-    "0.022007",
-    "-0.03527"
+    "40,388",
+    "40,000",
+    "NO",
+    "291",
+    "0.33248",
+    "0.021658",
+    "-0.03388"
    ],
    [
-    "Mach 0.5",
-    "wall 0.02 c",
-    "7,326",
-    "37,080",
+    "Mach 0.8",
+    "wall 0.0025 c",
+    "136,920",
+    "25,964",
     "yes",
-    "1240",
-    "0.17394",
-    "0.000966",
-    "-0.00156"
+    "893",
+    "0.33522",
+    "0.021737",
+    "-0.03432"
    ],
    [
     "Mach 0.5",
     "wall 0.01 c",
-    "9,400",
-    "28,388",
+    "14,523",
+    "7,151",
     "yes",
-    "1433",
-    "0.17213",
-    "0.000460",
-    "-0.00097"
+    "17",
+    "0.17430",
+    "0.000475",
+    "-0.00150"
    ],
    [
     "Mach 0.5",
     "wall 0.005 c",
-    "13,251",
-    "40,000",
-    "NO",
-    "2874",
-    "0.17471",
-    "0.000294",
-    "-0.00151"
+    "40,388",
+    "10,118",
+    "yes",
+    "74",
+    "0.17556",
+    "0.000287",
+    "-0.00172"
+   ],
+   [
+    "Mach 0.5",
+    "wall 0.0025 c",
+    "136,920",
+    "14,133",
+    "yes",
+    "488",
+    "0.17779",
+    "0.000191",
+    "-0.00221"
    ]
   ],
   "notes": [
    "Reference (Vassberg & Jameson 2010, Table 11, p. 1165): Mach 0.8, alpha 1.25 deg: continuum Cl 0.3482 (CFL3D) to 0.3562 (FLO82), Cd 0.02245 to 0.02268; Table 10: Mach 0.5, alpha 1.25 deg: Cl 0.17978 to 0.18035, Cd -> 0 (FLO82 4.5e-8).",
    "Cm here is about the quarter chord (template convention); the reference's Cm is about the quarter chord as well.",
-   "Mach 0.8, Cl: GCI observed order 10.01, extrapolated value 0.339457, GCI fine 0.537 %, GCI coarse 3.06 %, asymptotic ratio 1.020.",
-   "Mach 0.8, Cd: GCI observed order 8.68, extrapolated value 0.0220685, GCI fine 0.347 %, GCI coarse 1.56 %, asymptotic ratio 1.010.",
-   "Mach 0.5, Cl: GCI observed order 1.78, extrapolated value 0.181928, GCI fine 5.16 %, GCI coarse 5.3 %, asymptotic ratio 0.756 (oscillatory convergence).",
-   "Mach 0.5, Cd: GCI observed order 10.04, extrapolated value 0.000257395, GCI fine 15.4 %, GCI coarse 55.1 %, asymptotic ratio 0.638.",
-   "Mach 0.5 drag on the three meshes: 0.000966, 0.000460, 0.000294 (inviscid subcritical flow has zero drag; it must fall with refinement)."
+   "Mach 0.8, Cl: GCI observed order 0.19, extrapolated value 0.357282, GCI fine 8.23 %, GCI coarse 8.8 %, asymptotic ratio 0.952 (oscillatory convergence).",
+   "Mach 0.8, Cd: GCI observed order 2.78, extrapolated value 0.0217546, GCI fine 0.102 %, GCI coarse 0.629 %, asymptotic ratio 1.134 (oscillatory convergence).",
+   "Mach 0.5, Cl: GCI observed order 0.59, extrapolated value 0.182948, GCI fine 3.63 %, GCI coarse 2.56 %, asymptotic ratio 0.494.",
+   "Mach 0.5, Cd: GCI observed order 1.56, extrapolated value 0.000131506, GCI fine 39.1 %, GCI coarse 67.6 %, asymptotic ratio 0.668.",
+   "Mach 0.5 drag on the three meshes: 0.000475, 0.000287, 0.000191 (inviscid subcritical flow has zero drag; it must fall with refinement)."
+  ],
+  "subsonic_cd": [
+   0.0004750538043248183,
+   0.0002865112660831001,
+   0.00019145374397743105
   ]
  }
 }
