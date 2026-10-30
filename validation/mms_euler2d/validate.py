@@ -39,12 +39,19 @@ def _levels(order=2, limiter="None"):
     return (16, 32, 64, 128) if (order == 2 and limiter == "None") else (8, 16, 32, 64)
 
 
+MMS_WORKERS = 6        # worker processes of the MMS study
+
+
 def measure():
     jobs = [(kind, n, axi, order, lim) for _, axi, order, lim in VARIANTS for kind in mms.MESH_KINDS
             for n in _levels(order, lim)]
     jobs.sort(key=lambda j: -j[1])                       # big meshes first (best use of the cores)
-    workers = max(1, min(len(jobs), (os.cpu_count() or 2) - 2))
-    with ProcessPoolExecutor(workers) as pool:
+    # Numba kernels are multi-threaded (Prompt 8-1): a few worker processes share the cores between them (one process
+    # per core with many threads each oversubscribed the CPU and ran out of memory on a 32 GB machine)
+    from aeroflowsim import compute
+    workers = max(1, min(len(jobs), MMS_WORKERS))
+    threads = max(1, compute.physical_cores() // workers)
+    with ProcessPoolExecutor(workers, initializer=compute.set_threads, initargs=(threads,)) as pool:
         for args, out in pool.map(mms.run_job, jobs):
             RESULTS[args] = out
     measured = {}

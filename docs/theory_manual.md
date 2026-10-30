@@ -966,6 +966,56 @@ no global state, and each loop iteration writes only its own cell or face: the s
 References: Lam, Pitrou & Seibert (2015), "Numba: a LLVM-based Python JIT compiler", LLVM-HPC'15; Blazek (2015),
 Computational Fluid Dynamics: Principles and Applications, ch. 5 (face-based data structures).
 
+## 13c. Implicit time stepping: LU-SGS (Prompt 8-2)
+
+**Why.** An explicit scheme may only move information about one cell per stage (CFL < ~1), so a steady flow on a
+fine mesh needs tens of thousands of iterations. An implicit scheme solves for the change of the whole field at
+once and can take time steps hundreds of times larger.
+
+**The equations.** Backward Euler in time, linearised, for cell i (Blazek 2015, sec. 6.2; Yoon & Jameson 1988):
+
+    (V_i / dt_i) dU_i + sum_f d(F_f A_f) = V_i dU_i/dt |_explicit         (right-hand side: the full residual)
+
+The right-hand side is the SAME second-order residual as the explicit schemes, so the converged solution is
+unchanged; only the left-hand side (how fast we get there) is approximated, by the first-order Rusanov
+(scalar-dissipation) flux  F_f = 1/2 (F_i + F_j) . n - 1/2 lambda_f (U_j - U_i),  lambda_f = |u . n| + c. Its change
+splits into a diagonal part and neighbour parts:
+
+    D_i dU_i + 1/2 sum_{j} A_f [dF_n(U_j; dU_j) - omega lambda_f dU_j] = V_i R_i
+    D_i = V_i / dt_i + omega/2 sum_f lambda_f A_f + omega c_i |G_i|
+
+LU-SGS ("lower-upper symmetric Gauss-Seidel") solves this with one sweep forward and one backward through the
+cells, without storing any matrix:
+
+    forward  (i = 1..N):   dU*_i = [V_i R_i - 1/2 sum_{j<i} A_f (dF_n(U_j; dU*_j) - omega lambda_f dU*_j)] / D_i
+    backward (i = N..1):   dU_i  = dU*_i - [1/2 sum_{j>i} A_f (dF_n(U_j; dU_j) - omega lambda_f dU_j)] / D_i
+
+with dF_n(U_j; dU_j) = F_n(U_j + dU_j) - F_n(U_j) evaluated exactly (no flux Jacobian matrices). Code:
+`aeroflowsim/euler/kernels.py` (`lusgs`), called by `EulerSolver._lusgs` (`solver.py`).
+
+**Choices, and why** (each found necessary on the N2 nozzle; the planar MMS and the wedge did not need them):
+- omega = 1.5 (Blazek recommends 1 to 2): with omega = 1 the first-order operator does not damp every error of the
+  second-order residual, and the nozzle residual stalled near 1e-2; first order converged at once.
+- The axisymmetric pressure source p G_i (section 12) enters the diagonal through its spectral radius c_i |G_i|.
+  Next to the axis G_i (the planar cell area) is large compared with the r-weighted face areas, and an explicit
+  source with large time steps went unphysical there.
+- Boundary faces add to the diagonal only (their ghost state depends on the cell inside); the subsonic inlet and
+  outlet are therefore treated explicitly, which slows the nozzle's convergence (an implicit boundary Jacobian is a
+  later improvement, gap register).
+- CFL ramp by switched evolution relaxation (SER, Mulder & van Leer 1985): CFL = CFL_0 / (normalised residual),
+  between the input CFL (0.8) and `cfl_max` = 100. It follows the residual down AND up: a ramp that ignored rises
+  kept a 96-CFL step after the nozzle start-up transient and never recovered. After an unphysical step the state is
+  restored and the whole ramp is halved (as the explicit CFL back-off).
+- Deterministic: the sweeps are sequential in the fixed cell order (Gauss-Seidel is sequential by nature); the
+  residual runs in parallel. A multi-colour sweep would parallelise them but changes the convergence path with the
+  colouring; the sweeps are about a third of the cost of one iteration.
+- Limiter chatter: big steps amplify tiny limiter changes, so for implicit runs the stall rule freezes the limiter
+  after 2 orders and 200 iterations without a new lowest residual (explicit: 3 orders, 1,000 iterations).
+
+References: Yoon, S. & Jameson, A. (1988), "Lower-upper symmetric-Gauss-Seidel method for the Euler and Navier-Stokes
+equations", AIAA J. 26(9), 1025-1026; Blazek (2015), sec. 6.2.4; Mulder, W. A. & van Leer, B. (1985), "Experiments
+with implicit upwind methods for the Euler equations", J. Comput. Phys. 59, 232-246.
+
 ## 14. New shapes, nozzle contours and intakes (Prompt 6e, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,

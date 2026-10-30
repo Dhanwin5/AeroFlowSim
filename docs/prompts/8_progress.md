@@ -1,32 +1,44 @@
-# Prompt 8-1 progress ledger (speed: Numba, multi-core, timing, light CI)
+# Prompt 8 progress ledger (8-1: Numba, multi-core, timing, light CI; 8-2: LU-SGS, stalls, limiter, NACA, release)
 
-Continue with: "continue Prompt 8-1 from docs/prompts/8_progress.md".
+Continue with: "continue Prompt 8-2 from docs/prompts/8_progress.md".
 
-## Done
-- Part 1 (timing baseline): `tools/timing.py` (ms/iteration over 200 iterations x stored iteration counts, profile,
-  thread table). NumPy baseline measured (see `validation/timing.md`).
-- Part 2 (kernels, code written): `aeroflowsim/euler/kernels.py`, `aeroflowsim/compute.py`, solver hooks
-  (`EulerSolver._residual_numba`, `_primitive`, `time_steps`), tests `tests/test_kernels.py`.
-- Part 3 (plumbing written): Tools > Preferences (`gui/preferences_dialog.py`), `Job.threads`, CLI `--threads/--backend`,
-  run info `backend/threads/backend_note`, report and Run banner text, diagnostics line, `tests/gui/test_preferences_qt.py`.
-- Part 4 (written): `tests/test_smoke.py` (marker smoke), tests.yml light set per push; full fast + quick validation on
-  PRs / weekly / manual.
+## 8-1 - done (pushed)
+- 4f08aa5 parts 1-4: Numba kernels (`euler/kernels.py`), `compute.py`, solver hooks, Tools > Preferences threads,
+  `Job.threads`, CLI `--threads/--backend`, run info backend/threads, `tools/timing.py`, light CI, tests.
+- dd2399b part 5: timing tables (`validation/timing.md`), docs, gap register, CHANGELOG.
+- Verified: 101 kernel/core tests (Numba = NumPy to 1e-12 on every mesh type; positivity counts; freeze and stall
+  freeze; bit-identical for 1/2/4 threads); full fast + GUI tests 986 passed, 1 skipped; quick validation all pass,
+  all 129 compared values identical to the printed digits, 6.8 min (was ~32).
+- Speed: 1 thread 8.8-17 x, 16 threads 31-70 x (MMS 128 quads 70 -> 2.2 ms/iteration).
+- Full validation (explicit, 8-1 state): first attempts died of memory (see anomalies); rerun alone in progress.
+
+## 8-2 - in progress
+- 0b50402 + 780dfb9 part 1: LU-SGS (Rusanov operator, omega 1.5, axisymmetric source on the diagonal, SER CFL ramp
+  0.8 -> 100 following the residual, halved after an unphysical step, ramp state kept on Continue, fixed-order
+  sweeps = deterministic). Option "Implicit LU-SGS" in Numerics; NOT yet the default. tests/test_lusgs.py (8 tests).
+- Part 4: interpolated start keeps the earlier run's normalisation x sqrt(C_new/C_old). FINDING: on its own it saves
+  nothing (explicit 60x12 nozzle 4,712 vs 5,087 fresh, 7 %): the interpolated field's first residual is as large as a
+  fresh start's, and the tail from 1e-3 to 1e-6 sets the count. With LU-SGS the interpolated start saves 57 %
+  (2,337 vs 5,461 iterations).
+- Part 2 so far: diamond 0.01 c alpha 2 converges with both schemes now (LU-SGS 975 it to 5e-12, explicit 1,406);
+  triangle nozzle 0.08 D_t still stalls near 1e-4 with both (explicit 3.8e-5, LU-SGS 1.9e-5 min) - to investigate.
 
 ## Decisions
-- Ghost states stay NumPy: they touch only the boundary faces (~1-3 % of faces); profile shows 0 % of the time.
-- Kernels take R, cv, gamma as numbers (calorically perfect gas, the only model); another GasModel runs NumPy.
-- Face sums by GATHER over each cell's slots (no scatter/atomics): results are bit-identical for any thread count,
-  so "different thread counts agree within round-off" is in fact exact (tested with array_equal).
-- Default threads = physical cores - 1, capped at 16 (memory bandwidth). Thread count is a computer preference,
-  not a project input: changing it never marks a project out of date.
-- Light CI per push; the 32-minute quick validation set moved to PRs / weekly / manual runs.
+- Ghost states stay NumPy (boundary faces only). Kernels for the calorically perfect gas; other models run NumPy.
+- Gather face sums: bit-identical for any thread count. Default threads = physical cores - 1, max 16.
+- LU-SGS sweeps sequential in cell order (deterministic); omega 1.5 (1.0 stalled the 2nd-order nozzle at 1e-2);
+  SER ramp on the CURRENT residual (a ramp on the lowest residual kept CFL 96 after the start-up and never recovered);
+  implicit stall rule 2 orders / 200 iterations (explicit 3 / 1,000).
+- MMS validation pool: 6 workers sharing the cores (22 workers x Numba threads ran out of memory).
 
 ## Anomalies
-- Network on this machine kept cutting the Numba/llvmlite download (pip resume retries needed, ~30 min).
-- NumPy baseline profile: the Venkatakrishnan limiter is 55 % of a residual (many temporary (n_vars, C, k) arrays).
-- PyInstaller build with Numba not run in this session (`--collect-all numba llvmlite` added); if the frozen app
-  has no source files for caching, kernels.CACHE is False and they compile in memory at each start.
+- Network cut the Numba/llvmlite download many times (~1 h to install).
+- Running several validation jobs at once ran the 32 GB machine out of memory: run heavy jobs one at a time.
+- LU-SGS on the wedge: Cd 0.196653 vs explicit 0.196493 (0.08 %): the limiter is frozen at a different state.
+- LU-SGS quick set with the FIRST ramp: cylinder Gmsh stand-off 7.8 % off (tolerance 5 %); to recheck with the final
+  settings before LU-SGS becomes the default.
+- PyInstaller build with Numba not run yet.
 
 ## Next
-- Install Numba, run tests/test_kernels.py, timings (1 thread, threads table), full tests, quick + full validation,
-  docs, CHANGELOG, gap register, push.
+- Full validation (explicit) -> compare with the previous report.md; LU-SGS quick set -> decide the default.
+- Parts 2 (triangle nozzle stall), 3 (limiter K table: `tools/limiter_order.py`), 5 (NACA), 6 (targets), 9 (finish).
