@@ -56,6 +56,7 @@ def _choice(key, label, options, default, help):
 
 
 # The Numerics default. AEROFLOWSIM_TIME_SCHEME overrides it (developer knob: run the validation with another scheme).
+VENKAT_K_DEFAULT = float(os.environ.get("AEROFLOWSIM_VENKAT_K", 5.0))   # developer knob for the K study
 DEFAULT_TIME_SCHEME = os.environ.get("AEROFLOWSIM_TIME_SCHEME", LUSGS)   # LU-SGS since Prompt 8-2 (validated)
 
 
@@ -81,7 +82,10 @@ def solver_parameters(overrides=None) -> list:
         _choice("limiter", "Limiter", LIMITERS, LIMITERS[0], "Venkatakrishnan: smooth, converges well (default). "
                 "Barth-Jespersen: strict, may stall the residual. None: no limiting (smooth flows only; "
                 "oscillates at shocks)."),
-        _number("venkat_k", "Venkatakrishnan K", "-", 5.0, 0.0, 100.0, "Larger K = less limiting in smooth "
+        _number("venkat_k", "Venkatakrishnan K", "-", VENKAT_K_DEFAULT, 0.0, 100.0, "Larger K = less limiting in smooth "
+                "regions. K = 5 (default) keeps shocks tightest; K = 20 gives full second order on smooth flows "
+                "(MMS: order 2.0 on quads and triangles, 0.7-1.6 with K = 5 under refinement) with a slightly larger "
+                "overshoot at shocks (+1 % of the jump on the Mach 2 wedge). Smooth "
                 "regions (0 = as strict as Barth-Jespersen).", ),
         _number("freeze_limiter", "Freeze the limiter after a drop of", "orders", 4.0, 0.0, 15.0,
                 "Keep the limiter fixed once the residual has dropped this many orders of magnitude, so it "

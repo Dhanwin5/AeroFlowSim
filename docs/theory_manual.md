@@ -1016,6 +1016,30 @@ References: Yoon, S. & Jameson, A. (1988), "Lower-upper symmetric-Gauss-Seidel m
 equations", AIAA J. 26(9), 1025-1026; Blazek (2015), sec. 6.2.4; Mulder, W. A. & van Leer, B. (1985), "Experiments
 with implicit upwind methods for the Euler equations", J. Comput. Phys. 59, 232-246.
 
+## 13d. Limiter and order of accuracy (Prompt 8-2)
+
+With the Venkatakrishnan limiter ACTIVE (not frozen, not off), the MMS order depends on K
+(`tools/limiter_order.py`, LU-SGS, residual drop 8, L2 error of p; eps² = (K h / L_ref)³ size² with the LOCAL cell
+size h, as section 12 requires):
+
+| Mesh | K | order 16-32 | 32-64 | 64-128 |
+|---|---:|---:|---:|---:|
+| quads | 1 | 1.71 | 1.68 | 1.72 |
+| quads | 5 | 1.89 | 1.67 | 1.58 |
+| quads | 20 | 2.01 | 2.01 | 2.00 |
+| triangles | 1 | 1.23 | 1.03 | 0.91 |
+| triangles | 5 | 1.78 | 1.08 | 0.71 |
+| triangles | 20 | 2.02 | 2.02 | 1.99 |
+
+Why: eps² ~ h³ shrinks faster than the squared jump between neighbours (~h²) near smooth extrema, so as the mesh is
+refined the limiter switches on in more and more smooth cells (clipping extrema = first order there). A larger K
+moves that point to finer meshes. Decision: the default stays K = 5. With K = 20 the quick validation set passes as well,
+but the peak overshoot at the Mach 2 wedge shock grows from 4.5 % to 5.7 % above p2/p1, so K = 20 is recommended
+(help text) for smooth flows only. The accuracy-preserving modification of Michalak & Ollivier-Gooch (2009), which
+switches the limiter off only where the solution is smooth, would remove the trade-off: gap register.
+Reference: Michalak, C. & Ollivier-Gooch, C. (2009), "Accuracy preserving limiter for the high-order accurate solution
+of the Euler equations", J. Comput. Phys. 228, 8693-8711.
+
 ## 14. New shapes, nozzle contours and intakes (Prompt 6e, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,

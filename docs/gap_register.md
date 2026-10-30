@@ -134,7 +134,8 @@ Last updated: Prompt 8-1 (2026-10-30).
 | Time-accurate 2D runs in the GUI (end time input, snapshots, animation) | later | P2 | the solver supports a global time step and an end time (2D shock tube validation); no template exposes it yet (8e) |
 | Thermally perfect gas in the 2D solver | later | P2 | the solver uses only the GasModel (T(e), c(T)); the far-field and isentropic-inlet relations use gamma at a reference temperature and need generalising with a thermally perfect gas |
 | Numba kernels and multi-core residual | done | P2 | 8-1: 9-17 x on one core, 31-70 x with 16 threads (validation/timing.md); bit-identical for any thread count; NumPy kept as reference (1e-12) |
-| Implicit time stepping (LU-SGS) | planned 8-2 | P2 | |
+| Implicit time stepping (LU-SGS) | done | P2 | 8-2: default for steady runs; subsonic inlet/outlet still explicit in the implicit operator (an implicit boundary Jacobian would speed up the nozzle further) |
+| Venkatakrishnan K = 5 loses order on smooth flows (MMS triangles 0.71 at 64-128); K = 20 keeps 2.0 but overshoots more at shocks | partial | P2 | 8-2: table in theory 13d; next: Michalak & Ollivier-Gooch (2009) accuracy-preserving limiter as an option |
 | One-core speed-up on the MMS quads 8.8 x (target 10 x) | partial | P3 | 8-1: gradient and limiter kernels are compute-bound; a fused gradient + limiter kernel could gain more |
 | PyInstaller build with Numba not tested | partial | P1 | 8-1: `--collect-all numba llvmlite` added; check the installer and its first-run compile (kernels.CACHE) before the 8-2 release |
 | Ghost states (boundary conditions) still NumPy | later | P3 | 8-1: boundary faces only, ~0 % of the time now; port when the GPU kernels come |
