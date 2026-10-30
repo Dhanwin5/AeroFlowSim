@@ -6,7 +6,7 @@ type: software
 authors:
   - family-names: Mehta
     given-names: Dhanwin
-version: 0.2.0a1
+version: 0.2.0a2
 license: GPL-3.0-or-later
 keywords:
   - CFD

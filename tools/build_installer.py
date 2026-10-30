@@ -122,6 +122,11 @@ def smoke(folder):
                        timeout=600)
     print("run sod: exit", r.returncode)
     assert r.returncode in (0, 2) and (tmp / "summary.yaml").is_file(), r.stdout[-2000:] + r.stderr[-2000:]
+    # a 2D run: the Numba kernels must load in the frozen program (first run compiles, then the cache is used)
+    r2 = subprocess.run([str(exe), "run", "external_2d", "--set", "shape=Wedge", "--set", "max_iter=50", "--out",
+                         str(tmp / "2d")], capture_output=True, text=True, timeout=900)
+    print("run 2D:", next((line for line in r2.stdout.splitlines() if line.startswith("Solver:")), "no solver line"))
+    assert "Numba kernels" in r2.stdout, r2.stdout[-2000:] + r2.stderr[-2000:]
     env = {**__import__("os").environ, "AEROFLOWSIM_QUIT_AFTER_MS": "4000"}
     g = subprocess.run([str(exe)], timeout=180, env=env)
     print("GUI start/close: exit", g.returncode)

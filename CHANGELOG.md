@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased - Prompt 8-2: implicit LU-SGS
+## 0.2.0a2 - speed (Prompt 8: Numba, multi-core, implicit LU-SGS) (October 2026)
+
+### Prompt 8-2: implicit LU-SGS
 
 - Implicit LU-SGS time stepping for steady 2D / axisymmetric runs, now the default (`Implicit LU-SGS` in Numerics):
   first-order Rusanov implicit operator (omega 1.5), axisymmetric pressure source on the diagonal, SER CFL ramp from the
