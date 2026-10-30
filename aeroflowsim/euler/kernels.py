@@ -466,3 +466,114 @@ def set_threads(n: int):
 
 def get_threads() -> int:
     return numba.get_num_threads() if numba is not None else 1
+
+
+# ---- implicit LU-SGS (Yoon & Jameson 1988; Blazek 2015 sec. 6.2.4) ------------------------------------
+
+@_jit(parallel=False)
+def _normal_flux_change(U, dU, j, nx, ny, nz, dim, R, cv, out):
+    """out = F_n(U_j + dU_j) - F_n(U_j): change of the Euler flux through a face of unit normal n (per unit area)."""
+    nv = U.shape[0]
+    for side in range(2):
+        sgn = 1.0 if side == 0 else -1.0
+        rho = U[0, j] + (dU[0, j] if side == 0 else 0.0)
+        E = U[nv - 1, j] + (dU[nv - 1, j] if side == 0 else 0.0)
+        ke = 0.0
+        un = 0.0
+        for k in range(dim):
+            m = U[1 + k, j] + (dU[1 + k, j] if side == 0 else 0.0)
+            u = m / rho
+            ke += u * u
+            un += u * (nx if k == 0 else (ny if k == 1 else nz))
+        p = rho * R * ((E / rho - 0.5 * ke) / cv)
+        if side == 0:
+            for v in range(nv):
+                out[v] = 0.0
+        out[0] += sgn * rho * un
+        for k in range(dim):
+            m = U[1 + k, j] + (dU[1 + k, j] if side == 0 else 0.0)
+            nk = nx if k == 0 else (ny if k == 1 else nz)
+            out[1 + k] += sgn * (m * un + p * nk)
+        out[nv - 1] += sgn * (E + p) * un
+
+
+@_jit(parallel=False)
+def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, flux_areas, R, gamma, cv, omega,
+          lam, D, work, dU):
+    """One LU-SGS step: dU from  [V/dt + L + D + U] dU = V dU/dt  with the first-order Rusanov operator.
+
+    Forward sweep over the cells in index order, backward sweep in reverse: a FIXED order, so the result is
+    deterministic (the sweeps are sequential by nature; the residual itself runs in parallel).
+        D_i = V_i/dt_i + omega/2 sum_f lambda_f A_f,   lambda_f = |u_f . n_f| + c_f (face average)
+        forward:  dU*_i = [V_i R_i - 1/2 sum_{j<i} A_f (dF_n(U_j; dU*_j) - omega lambda_f dU*_j)] / D_i
+        backward: dU_i  = dU*_i - [1/2 sum_{j>i} A_f (dF_n(U_j; dU_j) - omega lambda_f dU_j)] / D_i
+    n_f points out of cell i. Boundary faces add only to the diagonal (their ghost depends on cell i alone)."""
+    nv, C = U.shape
+    dim = nv - 2
+    k_max = slot_face.shape[1]
+    nI = C  # noqa: F841  (cells index the "other" values below C; boundary values are >= C)
+    # spectral radius per face, from the mean of the two cell states (boundary: the owner state)
+    F = normals.shape[0]
+    for f in range(F):
+        lam[f] = -1.0
+    for i in range(C):
+        ci = math.sqrt(gamma * R * (W[nv - 1, i] / (W[0, i] * R)))
+        for s in range(k_max):
+            f = slot_face[i, s]
+            if f < 0:
+                continue
+            un = 0.0
+            for k in range(dim):
+                un += W[1 + k, i] * normals[f, k]
+            j = slot_other[i, s]
+            if j < C:
+                if lam[f] >= 0.0:
+                    continue
+                cj = math.sqrt(gamma * R * (W[nv - 1, j] / (W[0, j] * R)))
+                unj = 0.0
+                for k in range(dim):
+                    unj += W[1 + k, j] * normals[f, k]
+                lam[f] = abs(0.5 * (un + unj)) + 0.5 * (ci + cj)
+            else:
+                lam[f] = abs(un) + ci
+    for i in range(C):
+        d = volumes[i] / dt[i]
+        for s in range(k_max):
+            f = slot_face[i, s]
+            if f >= 0:
+                d += 0.5 * omega * lam[f] * flux_areas[f]
+        D[i] = d
+    # forward sweep
+    for i in range(C):
+        for v in range(nv):
+            dU[v, i] = volumes[i] * dUdt[v, i]
+        for s in range(k_max):
+            f = slot_face[i, s]
+            j = slot_other[i, s]
+            if f < 0 or j >= C or j >= i:
+                continue
+            sg = slot_sign[i, s]
+            nx = sg * normals[f, 0]
+            ny = sg * normals[f, 1] if dim > 1 else 0.0
+            nz = sg * normals[f, 2] if dim > 2 else 0.0
+            _normal_flux_change(U, dU, j, nx, ny, nz, dim, R, cv, work)
+            a = 0.5 * flux_areas[f]
+            for v in range(nv):
+                dU[v, i] -= a * (work[v] - omega * lam[f] * dU[v, j])
+        for v in range(nv):
+            dU[v, i] /= D[i]
+    # backward sweep
+    for i in range(C - 1, -1, -1):
+        for s in range(k_max):
+            f = slot_face[i, s]
+            j = slot_other[i, s]
+            if f < 0 or j >= C or j <= i:
+                continue
+            sg = slot_sign[i, s]
+            nx = sg * normals[f, 0]
+            ny = sg * normals[f, 1] if dim > 1 else 0.0
+            nz = sg * normals[f, 2] if dim > 2 else 0.0
+            _normal_flux_change(U, dU, j, nx, ny, nz, dim, R, cv, work)
+            a = 0.5 * flux_areas[f]
+            for v in range(nv):
+                dU[v, i] -= a * (work[v] - omega * lam[f] * dU[v, j]) / D[i]

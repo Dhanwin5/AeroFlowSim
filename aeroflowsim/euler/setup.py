@@ -17,6 +17,7 @@ case's default for its kind (inlet, outlet, wall, ...) unless the user changed i
 
 import contextvars
 import math
+import os
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -54,6 +55,10 @@ def _choice(key, label, options, default, help):
                      step="setup")
 
 
+# The Numerics default. AEROFLOWSIM_TIME_SCHEME overrides it (developer knob: run the validation with another scheme).
+DEFAULT_TIME_SCHEME = os.environ.get("AEROFLOWSIM_TIME_SCHEME", TIME_SCHEMES[0])
+
+
 def solver_parameters(overrides=None) -> list:
     """The inputs every Euler template gets (Numerics group + boundary-condition table).
 
@@ -83,8 +88,10 @@ def solver_parameters(overrides=None) -> list:
                 "cannot stall the convergence. 0 = never freeze."),
         _choice("gradient", "Gradients", GRADIENT_METHODS, GRADIENT_METHODS[0], "Weighted least squares (exact "
                 "for linear fields on any cell) or Green-Gauss."),
-        _choice("time_scheme", "Time stepping", TIME_SCHEMES, TIME_SCHEMES[0], "SSP-RK3 (robust) or Jameson's "
-                "four-stage scheme (allows a larger CFL number for steady flow)."),
+        _choice("time_scheme", "Time stepping", TIME_SCHEMES, DEFAULT_TIME_SCHEME, "Implicit LU-SGS: large time "
+                "steps (the CFL number grows from the value above up to 100 while the residual falls), several "
+                "times fewer iterations, for steady flows. SSP-RK3: explicit, robust, the reference. Jameson: "
+                "explicit four-stage (a larger CFL number than SSP-RK3)."),
         _number("max_iter", "Maximum iterations", "-", 20000, 1, 10_000_000, "The run stops at this iteration "
                 "number if it has not converged, counted over the whole run (a continued run carries on numbering: "
                 "raise it to go further).", "int"),
@@ -286,7 +293,8 @@ def continuation_of(restart):
     norm = info.get("residual_norm")
     return Continuation(iterations=len(residuals), residuals=residuals, monitors=monitors,
                         norm=None if norm is None else np.asarray(norm, dtype=float),
-                        limiter=series.get("limiter_frozen"), limiter_frozen_at=info.get("limiter_frozen_at"))
+                        limiter=series.get("limiter_frozen"), limiter_frozen_at=info.get("limiter_frozen_at"),
+                        cfl=info.get("cfl_final"))
 
 
 def _inlet_total_state(bcs, params):

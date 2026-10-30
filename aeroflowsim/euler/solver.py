@@ -46,13 +46,18 @@ from aeroflowsim.euler.gradients import LEAST_SQUARES, Gradients
 from aeroflowsim.euler.limiters import BARTH_JESPERSEN, VENKATAKRISHNAN, limiter_factors
 from aeroflowsim.euler.state import conserved_to_primitive, is_physical, primitive_to_conserved, sound_speed
 
-SSP_RK3, JAMESON_RK4 = "SSP-RK3", "Jameson 4-stage"
-TIME_SCHEMES = (SSP_RK3, JAMESON_RK4)
+SSP_RK3, JAMESON_RK4, LUSGS = "SSP-RK3", "Jameson 4-stage", "Implicit LU-SGS"
+TIME_SCHEMES = (SSP_RK3, JAMESON_RK4, LUSGS)
+LUSGS_OMEGA = 1.0             # over-relaxation of the implicit Rusanov operator's dissipation (Blazek: 1 to 2)
+CFL_GROWTH = 1.1              # implicit CFL ramp: x 1.1 per iteration while the residual does not rise
+CFL_SHRINK = 0.7              # ... x 0.7 when it rises by more than 5 %
 MAX_CFL_REDUCTIONS = 4        # halve the CFL number at most this often before giving up
 CHECKPOINT_EVERY = 20         # iterations between saved "last good" states
 NORM_ITERATIONS = 5           # residuals are normalised by their largest value in the first 5 iterations
 STALL_ORDERS = 3.0            # the limiter may be frozen on a stall only after this residual drop [orders]
 STALL_ITERATIONS = 1000       # ... when the residual has made no new lowest value for this many iterations
+STALL_ORDERS_IMPLICIT = 2.0   # LU-SGS: large steps amplify limiter chatter, so the stall rule acts sooner
+STALL_ITERATIONS_IMPLICIT = 200
 
 CONVERGED, MAX_ITERATIONS, DIVERGED, END_TIME, STOPPED = (
     "converged", "max_iterations", "diverged", "end_time", "stopped")
@@ -77,6 +82,7 @@ class Numerics:
     monitor_window: int = 200               # ... over this many iterations
     end_time: float | None = None           # time-accurate runs: stop at this time [s]
     carbuncle_fix: bool = True              # HLLE blend near strong shocks
+    cfl_max: float = 100.0                  # implicit LU-SGS: the CFL ramp goes from cfl up to this [-]
 
     def __post_init__(self):
         if self.time_scheme not in TIME_SCHEMES:
@@ -120,6 +126,7 @@ class Continuation:
     norm: np.ndarray | None = None    # the residual normalisation of the earlier run
     limiter: np.ndarray | None = None # its frozen limiter (n_vars, C), or None
     limiter_frozen_at: int | None = None
+    cfl: float | None = None          # implicit runs: the CFL number reached (the ramp carries on from it)
 
 
 class EulerSolver:
@@ -291,6 +298,21 @@ class EulerSolver:
         if W.shape[0] > 2:
             size[0], size[-1] = np.abs(W[0]), np.abs(W[-1])
 
+    def _lusgs(self, U, W, dUdt, dt):
+        """dU of one implicit LU-SGS step (kernels.lusgs: first-order Rusanov operator, local time steps).
+        The right-hand side is the full second-order residual, so the converged solution is that of the
+        explicit schemes; only the path to it changes."""
+        from aeroflowsim.euler import kernels as kn
+        g, b = self.geom, _lusgs_buffers(self)
+        if self.kernels is not None:
+            R, gamma, cv = self.kernels.R, self.kernels.gamma, self.kernels.cv
+        else:
+            R, gamma, cv = float(self.gas.R), float(self.gas.gamma(300.0)), float(self.gas.cv(300.0))
+        kn.lusgs(np.ascontiguousarray(U), np.ascontiguousarray(W), np.ascontiguousarray(dUdt), g.volumes, dt,
+                 b["slot_face"], b["slot_sign"], b["slot_other"], b["normals"], g.flux_areas, R, gamma, cv,
+                 LUSGS_OMEGA, b["lam"], b["D"], b["work"], b["dU"])
+        return b["dU"].copy()
+
     def boundary_face_values(self, Wb_in, ghost_c):
         """Value at each boundary face centre for the gradients: the mean of inside and ghost state.
         (The MMS verification overrides this with the exact solution.)"""
@@ -390,6 +412,8 @@ class EulerSolver:
                 levels = np.array([r.max() for r in res_hist])
                 lowest_it = int(np.argmin(levels)) + 1
                 lowest = float(levels[lowest_it - 1])
+            if continuation.cfl and num.time_scheme == LUSGS:
+                cfl = min(float(continuation.cfl), num.cfl_max)
             psi = continuation.limiter
             if psi is not None and np.shape(psi) == (n_vars, self.geom.n_cells):
                 self.psi_frozen = np.asarray(psi, dtype=float).copy()
@@ -397,6 +421,10 @@ class EulerSolver:
         steady = num.end_time is None
         if not steady:
             num.local_time_stepping = False
+        implicit = num.time_scheme == LUSGS and steady       # LU-SGS is for steady runs (local time steps)
+        stall_orders, stall_iterations = ((STALL_ORDERS_IMPLICIT, STALL_ITERATIONS_IMPLICIT) if implicit
+                                          else (STALL_ORDERS, STALL_ITERATIONS))
+        prev_level = math.inf
         with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
             while it < num.max_iterations:
                 second = num.order == 2 and it >= num.first_order_iterations
@@ -420,7 +448,7 @@ class EulerSolver:
                         U = good_U
                         break
                     cfl_reductions += 1
-                    cfl *= 0.5
+                    cfl = max(num.cfl * 0.5 ** cfl_reductions, 0.25 * cfl) if implicit else 0.5 * cfl
                     U = good_U.copy()
                     del res_hist[good_it:]
                     for v in mon_hist.values():
@@ -442,6 +470,12 @@ class EulerSolver:
                 for k, v in values.items():
                     mon_hist.setdefault(k, []).append(float(v))
                 level = float(res.max())
+                if implicit and it > NORM_ITERATIONS:   # CFL ramp (SER-like): grow while the residual does not rise
+                    if level <= 1.05 * prev_level:
+                        cfl = min(cfl * CFL_GROWTH, num.cfl_max)
+                    else:
+                        cfl = max(cfl * CFL_SHRINK, num.cfl * 0.5 ** cfl_reductions)
+                prev_level = level
                 if level < lowest:
                     lowest, lowest_it = level, it
                 # Freeze the limiter when the residual has dropped the set number of orders, or - after at least
@@ -450,7 +484,7 @@ class EulerSolver:
                 # the second condition, so its result is exactly what the first one alone gives.
                 if (num.freeze_limiter_orders > 0.0 and self.psi_frozen is None and second
                         and (level <= 10.0 ** (-num.freeze_limiter_orders)
-                             or (lowest <= 10.0 ** (-STALL_ORDERS) and it - lowest_it >= STALL_ITERATIONS))):
+                             or (lowest <= 10.0 ** (-stall_orders) and it - lowest_it >= stall_iterations))):
                     self.psi_frozen = self.last_psi.copy()
                     frozen_at = it
                 if progress is not None and progress(it, level, {"residuals": res, "monitors": values,
@@ -483,6 +517,8 @@ class EulerSolver:
         """One multistage step; returns (new U, residual dU/dt of the first stage)."""
         R0, _ = self.residual(U, second, W)
         self.stage0_boundary_flux = self.boundary_flux     # fluxes of the state W, for the monitors
+        if self.numerics.time_scheme == LUSGS and self.numerics.end_time is None:
+            return U + self._lusgs(U, W, R0, dt), R0
         if self.numerics.time_scheme == SSP_RK3:
             U1 = U + dt * R0
             U2 = 0.75 * U + 0.25 * (U1 + dt * self.residual(U1, second)[0])
@@ -491,6 +527,20 @@ class EulerSolver:
         for alpha in (1.0 / 3.0, 0.5, 1.0):
             Uk = U + alpha * dt * self.residual(Uk, second)[0]
         return Uk, R0
+
+
+def _lusgs_buffers(solver):
+    """Work arrays of the LU-SGS sweeps (allocated once per solver)."""
+    buf = getattr(solver, "_lusgs_buf", None)
+    if buf is None:
+        g, nv = solver.geom, solver.geom.dim + 2
+        buf = solver._lusgs_buf = {"lam": np.empty(g.n_faces), "D": np.empty(g.n_cells), "work": np.empty(nv),
+                                   "dU": np.empty((nv, g.n_cells)),
+                                   "slot_face": np.ascontiguousarray(g.slot_face),
+                                   "slot_sign": np.ascontiguousarray(g.slot_sign),
+                                   "slot_other": np.ascontiguousarray(g.slot_other),
+                                   "normals": np.ascontiguousarray(g.normals)}
+    return buf
 
 
 def _settled(history, names, scales, num, rules=None) -> bool:
@@ -520,4 +570,4 @@ def boundary_mass_flow(solver, patch_name):
 
 
 __all__ = ["Numerics", "EulerSolver", "SolveResult", "Continuation", "boundary_mass_flow", "normal_velocity",
-           "SSP_RK3", "JAMESON_RK4", "TIME_SCHEMES"]
+           "SSP_RK3", "JAMESON_RK4", "LUSGS", "TIME_SCHEMES"]
