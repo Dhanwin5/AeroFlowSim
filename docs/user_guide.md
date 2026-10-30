@@ -157,6 +157,15 @@ The very first run on a computer compiles the kernels (about 20-40 s, once); lat
 On the command line: `python -m aeroflowsim run <case or project> --threads 8`. If Numba is missing, the solver
 still works with plain NumPy (10-30 x slower, same results) and says so.
 
+## Time stepping (Numerics)
+
+Steady 2D runs use **Implicit LU-SGS** by default (since Prompt 8-2): large time steps, so several times fewer
+iterations than the explicit schemes, and the same converged result (the right-hand side is the same second-order
+residual). The CFL number input is the START value: the CFL grows as the residual falls, up to 100, and falls again
+if the residual rises; after an unphysical step the solver backs off by itself. **SSP-RK3** (explicit, the reference
+of earlier versions) and **Jameson 4-stage** stay available; projects saved with them keep them. Continue carries on
+with the CFL reached; Start from scratch starts the ramp again. Time-accurate runs (Sod) always use an explicit scheme.
+
 ## Keyboard shortcuts
 
 | Keys | Action |

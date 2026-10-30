@@ -28,7 +28,7 @@ from aeroflowsim.euler.boundary import BC_TYPES, DEFAULT_FOR_KIND, BoundaryCondi
 from aeroflowsim.euler.gradients import METHODS as GRADIENT_METHODS
 from aeroflowsim.euler.initial import QUASI_1D, RESTART, UNIFORM, quasi1d_state, restart_state
 from aeroflowsim.euler.limiters import LIMITERS
-from aeroflowsim.euler.solver import CONVERGED, DIVERGED, TIME_SCHEMES, Continuation, EulerSolver, Numerics
+from aeroflowsim.euler.solver import CONVERGED, DIVERGED, LUSGS, TIME_SCHEMES, Continuation, EulerSolver, Numerics
 from aeroflowsim.euler.state import (entropy, mach_number, primitive_to_conserved, state_from_mach, temperature,
                                      total_pressure, total_temperature, uniform_state)
 from aeroflowsim.geometry import WallProfile
@@ -56,7 +56,7 @@ def _choice(key, label, options, default, help):
 
 
 # The Numerics default. AEROFLOWSIM_TIME_SCHEME overrides it (developer knob: run the validation with another scheme).
-DEFAULT_TIME_SCHEME = os.environ.get("AEROFLOWSIM_TIME_SCHEME", TIME_SCHEMES[0])
+DEFAULT_TIME_SCHEME = os.environ.get("AEROFLOWSIM_TIME_SCHEME", LUSGS)   # LU-SGS since Prompt 8-2 (validated)
 
 
 def solver_parameters(overrides=None) -> list:

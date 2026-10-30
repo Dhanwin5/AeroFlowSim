@@ -97,7 +97,7 @@ def test_numerics_suggestions_follow_the_mach_number_and_the_start():
 def test_a_diverged_run_stops_cleanly_and_is_diagnosed(monkeypatch):
     import aeroflowsim.euler.solver as solver
     monkeypatch.setattr(solver, "MAX_CFL_REDUCTIONS", 0)
-    out = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 50, "cfl": 5.0,
+    out = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 50, "cfl": 5.0, "time_scheme": "SSP-RK3",
                                         "initialisation": "Uniform (free stream)"})
     info = out.result.info
     assert info["status"] == "diverged" and not out.result.converged and info["diverged_at"] is not None
@@ -142,7 +142,7 @@ def test_an_angle_of_attack_on_an_axisymmetric_mesh_is_refused_before_the_run():
 
 
 def test_a_cfl_reduction_keeps_the_run_going(monkeypatch):
-    out = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 60, "cfl": 5.0})
+    out = aeroflowsim.run_case(NOZZLE, {"mesh_preset": "Coarse", "max_iter": 60, "cfl": 5.0, "time_scheme": "SSP-RK3"})
     info = out.result.info
     assert info["status"] != "diverged" and info["cfl_reductions"] >= 1 and info["cfl_final"] < 5.0
     assert smart_rules.diagnose(NOZZLE, out.params, out.result)[0].title == "Lower CFL"
