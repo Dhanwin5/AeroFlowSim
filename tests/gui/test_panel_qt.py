@@ -143,6 +143,11 @@ def test_details_area_follows_click_and_keyboard_focus(qtbot):
     assert "Allowed range" in panel.details.facts.text() and "m" in panel.details.facts.text()
     assert row.editor.toolTip()                                  # the hover tooltip is still there
     panel.rows["d_exit"].editor.setFocus(Qt.TabFocusReason)      # reaching a box with the keyboard
+    # A window that is not the active one (macOS test machines) gets no focus events from setFocus: send it as Qt would
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QFocusEvent
+    from PySide6.QtWidgets import QApplication
+    QApplication.sendEvent(panel.rows["d_exit"].editor, QFocusEvent(QEvent.FocusIn, Qt.TabFocusReason))
     qtbot.waitUntil(lambda: "Exit diameter" in panel.details.title.text(), timeout=2000)
     editor = panel.rows["d_exit"].editor
     editor.setText("5")
