@@ -77,8 +77,10 @@ def test_uniform_axial_flow_and_gas_at_rest_on_axisymmetric_nozzle_meshes(kind):
         mesh = _gmsh_nozzle(**options)
     # The geometric source is exactly the planar cell area (sum n_r r_f A_f = A for straight edges)
     geom = FVGeometry(mesh)
-    # (thin inflation cells far from the axis lose a few digits: r_f times a tiny height)
-    assert np.allclose(geom.geometric_source[1], mesh.cell_volumes, rtol=1e-9, atol=0)
+    # (thin inflation cells far from the axis lose a few digits: r_f times a tiny height; how many depends on the
+    # processor's floating-point contraction, e.g. Apple silicon, so the inflation mesh gets a wider round-off band)
+    rtol = 1e-7 if kind == "hybrid (inflation)" else 1e-9
+    assert np.allclose(geom.geometric_source[1], mesh.cell_volumes, rtol=rtol, atol=0)
     assert np.abs(geom.geometric_source[0]).max() < 1e-11 * mesh.cell_volumes.max()
 
     # Gas at rest stays at rest (well-balanced pressure source)

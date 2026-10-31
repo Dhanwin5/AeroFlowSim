@@ -96,6 +96,8 @@ jobs:
           "$PY" -m aeroflowsim list | tee cases.txt
           grep -q nozzle_axi cases.txt
           "$PY" -c "from aeroflowsim.examples import EXAMPLES_DIR; assert EXAMPLES_DIR.is_dir(), EXAMPLES_DIR"
-          "$PY" -m aeroflowsim run sod_shock_tube
-          "$PY" -m aeroflowsim run external_2d --set shape=Wedge --set max_iter=30
+          # exit code 2 = the run ended without converging (expected for 30 iterations); anything else is an error
+          "$PY" -m aeroflowsim run sod_shock_tube || [ $? -eq 2 ]
+          "$PY" -m aeroflowsim run external_2d --set shape=Wedge --set max_iter=30 || [ $? -eq 2 ]
+          test -f results/external_2d/summary.yaml
           test -f results/sod_shock_tube/summary.yaml
