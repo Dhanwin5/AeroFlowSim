@@ -41,7 +41,7 @@ If it says FUSE is missing, install `libfuse2` (Ubuntu: `sudo apt install libfus
 
 ```bash
 python3 -m venv aeroflowsim-env
-source aeroflowsim-env/bin/activate        # Windows: aeroflowsim-env\Scriptsctivate
+source aeroflowsim-env/bin/activate        # Windows: aeroflowsim-env\Scripts\activate
 pip install aeroflowsim
 python -m aeroflowsim gui
 ```
