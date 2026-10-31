@@ -22,11 +22,12 @@ USER_GUIDE = DOCS / "user_guide.md"
 
 ORGANISATION = "AeroFlowSim"
 APPLICATION = "AeroFlowSim"
+AUTHOR = "Dhanwin Mehta"          # shown as "AeroFlowSim by Dhanwin Mehta" (start page, About)
 
 
 def about_html() -> str:
     """Text of Help > About: version, licence, how to cite."""
-    return (f"<h2>AeroFlowSim {__version__}</h2>"
+    return (f"<h2>AeroFlowSim {__version__}</h2><p><b>by {AUTHOR}</b></p>"
             "<p>A GUI-first, open-source CFD solver for nozzle and propulsion aerodynamics, with built-in "
             "validity checks and published validation.</p>"
             "<p>Copyright © 2026 Dhanwin Mehta.<br>Licence: <b>GPL-3.0-or-later</b> (see the LICENSE file). "
