@@ -931,6 +931,24 @@ stagnation region that contains the bow shock. The metric is its peak-to-peak ch
 divided by its mean: a settled shock gives a tiny value, a carbuncle (a shock that keeps moving) a large one. It
 separates the HLLE-blend on / off runs by orders of magnitude, unlike the earlier spatial shock-roughness measure.
 
+### 13.8 Flow animation frames (`aeroflowsim/post/animation.py`)
+
+A frame is the primitive state W = (rho, u, v, p) of every cell at one iteration n, stored in single precision
+(relative rounding 6e-8, far below what a colour map shows; frames are never used for numbers). Every other field of
+a frame (M, T, p0, Cp, schlieren, custom fields) is computed from W exactly as for the final result. For a steady run
+the iteration counter is pseudo-time: the frames show the path of the iterative method (local time steps, the
+implicit LU-SGS CFL ramp) from the initial state to the steady state, not a physical transient; only a time-accurate
+run (one global dt) shows the real time evolution t^n = sum dt.
+
+Automatic spacing: the number of iterations N is unknown in advance (a steady run stops when it converges), so frames
+are kept at n = 0 and every k-th iteration, k = 1 at first; when more than F = 100 frames are stored, every second one
+is dropped and k doubles (k = 1, 2, 4, ...). At the end k = 2^m with N / k <= F < 2N / k, so 50 to 100 frames are
+evenly spread over any run, at a memory cost of at most F x 4 x 4 bytes per cell. The final state is always the
+last frame. When the solver restores its last good state after an unphysical step (CFL back-off), the frames after
+that iteration are dropped with it, so the frames always show the path the accepted solution took. Recording only
+copies a state the solver has already computed, so it cannot change the result (`tests/test_animation.py` checks
+this bit for bit).
+
 ## 13b. Compiled kernels, parallel face sums and determinism (Prompt 8-1)
 
 **What changed and what did not.** The equations of section 12 are unchanged. The residual

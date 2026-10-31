@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned 6d` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Prompt 8-2 (2026-10-30).
+Last updated: flow animation (2026-10-31).
 
 ## 1. Platform and GUI
 
@@ -131,7 +131,7 @@ Last updated: Prompt 8-2 (2026-10-30).
 | Full boundary-condition set from named boundaries | done | P1 | Prompt 7: total-pressure (direction normal or at an angle) and mass-flow inlets, pressure outlet (automatic supersonic switch), supersonic in/out, characteristic far field, slip wall, symmetry, axis; tested one by one |
 | Initialisation options, restart from a saved solution, live monitors | done | P1 | Prompt 7: uniform, quasi-1D (axisymmetric nozzles, from the mesh's wall profile), previous result (same mesh) |
 | Thrust / Isp / Cf, Cp / Cl / Cd / Cm | done | P1 | Prompt 7: thrust two ways (exit plane; wall + inlet), Isp, Cf, discharge coefficient, ideal quasi-1D Isp; Cl, Cd, Cm in body and wind axes, Cp along the wall |
-| Time-accurate 2D runs in the GUI (end time input, snapshots, animation) | later | P2 | the solver supports a global time step and an end time (2D shock tube validation); no template exposes it yet (8e) |
+| Time-accurate 2D runs in the GUI (end time input, snapshots, animation) | later | P2 | the solver supports a global time step and an end time (2D shock tube validation); no template exposes it yet (8e). The frame recorder already stores physical times (frame label "t = ..."); 8e adds a "frame every dt" option |
 | Thermally perfect gas in the 2D solver | later | P2 | the solver uses only the GasModel (T(e), c(T)); the far-field and isentropic-inlet relations use gamma at a reference temperature and need generalising with a thermally perfect gas |
 | Numba kernels and multi-core residual | done | P2 | 8-1: 9-17 x on one core, 31-70 x with 16 threads (validation/timing.md); bit-identical for any thread count; NumPy kept as reference (1e-12) |
 | Implicit time stepping (LU-SGS) | done | P2 | 8-2: default for steady runs; subsonic inlet/outlet still explicit in the implicit operator (an implicit boundary Jacobian would speed up the nozzle further) |
@@ -160,6 +160,7 @@ Last updated: Prompt 8-2 (2026-10-30).
 | 1D field plots vs reference, key numbers, shape view, x-t diagram, CSV/PNG export | done | P1 | matplotlib embedded |
 | 2D/3D field contours in the VTK view | done | P1 | Prompt 7: field, colour map, range, mesh edges, click a cell for all its values (smooth contour lines and isolines: 7b) |
 | Streamlines, line probes, surface plots (Cp vs x) | done | P1 | 7b |
+| Flow animation (play back how the flow developed; GIF / MP4) | done | P2 | 2026-10-31: frames recorded during 2D runs (automatic 50-100 frames or every N iterations; appended on continue), Animation tab (play, step, slider, speed, loop, fixed / per-frame range, every Display setting), 1D snapshots of Sod, GIF export (MP4 when ffmpeg is installed), `export --animation`. Not yet: recording by physical time step for time-accurate 2D runs (no 2D template is time-accurate yet, see section 5), animation in the HTML report, frames of a 3D run |
 | Image / CSV / VTK export of solution fields | done | P1 | 7b: CSV (cells / nodes), VTU with node data, Tecplot ASCII, surface CSV, report-definition CSV; GUI and `export` command |
 | Order-preserving limiter | later | P2 | 7b MMS finding: Venkatakrishnan with a constant K loses order under refinement on smooth flows (triangles 0.7-1.0 at 64->128, 1.1-1.3 at 32->64); e.g. Michalak and Ollivier-Gooch (2008) or a K that scales with h |
 

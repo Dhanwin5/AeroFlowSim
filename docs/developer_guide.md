@@ -275,6 +275,7 @@ All post-processing logic lives in `aeroflowsim/post/` and imports neither Qt no
 | `definitions.py` | report definitions, `MonitorEvaluator` (during the run), `ReportFileWriter` (CSV) |
 | `xy.py`, `pictures.py` | matplotlib figures (paper style) |
 | `snapshots.py`, `compare.py`, `export.py`, `report.py` | snapshots, differences, files, HTML / PDF report |
+| `animation.py` | flow animation: `FrameRecorder` (used by the solver), `Animation`, `results/animation.npz`, `Playback` (play / step / loop logic), GIF / MP4 export |
 
 GUI side: `gui/results_logic.py` (Scene and the arrays to draw, no Qt), `gui/flow_view.py` (VTK drawing, linked
 views), `gui/post_panels.py` (the six panels), `gui/steps/results.py` (the page that owns the Solution).
@@ -282,6 +283,17 @@ Project settings are stored in `project.yaml` under `surfaces`, `report_definiti
 `xy_plots`, `init_patches`, `interpolate_new_mesh` (`Project.post`, `Project.set_post`). A run receives them
 through `run_case(..., extras=project.run_extras(mesh))`; `aeroflowsim/euler/setup.py` reads them from the context
 variable `RUN_EXTRAS` (monitors, patches, interpolation).
+
+**Flow animation:** `EulerSolver.solve(..., recorder=)` hands a `post.animation.FrameRecorder` the initial state,
+every accepted state it asks for (`due(it)`; the state is already computed, so recording costs only a float32 copy)
+and the final state; a CFL back-off calls `rewind(good_it)`. `euler/setup.solve` builds the recorder from
+`extras["animation"]` (the project's `post["animation"]` = `{"record", "every"}`; no extras = no recording, so scripts
+and the validation suite are unchanged) and the earlier frames of a continued run (`Continuation.animation`, loaded by
+`result_io.continuation_data`). The frames travel as `Result.animation`; `result_io.save_run` writes
+`results/animation.npz` or removes a stale one, so the frames share the run's fingerprint (out of date together). The
+settings are post-processing settings, not template inputs, so changing them never marks results out of date. GUI:
+`gui/animation_panel.py` (`PlaybackBar` with a QTimer driving `Playback`; `AnimationPanel`); `ResultsPage.view_solution`
+returns the frame's Solution while the Animation tab is open, and `draw_view` swaps in the range over all frames.
 
 **How to add a derived field:** add a line to `_DERIVED` in `post/fields.py` (label, unit, group) and its formula
 in `_compute`; add a test with a field whose value is known (e.g. a linear or solid-body field). It then appears in

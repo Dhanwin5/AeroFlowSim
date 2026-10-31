@@ -61,7 +61,7 @@ on changed), grey not started, red failed. A running job shows its progress and 
 
 ## Post-processing: the Results step for 2D flows
 
-On the left are six panels (tabs on the left edge); on the right one, two or four views of the flow (their cameras
+On the left are seven panels (tabs on the left edge); on the right one, two or four views of the flow (their cameras
 are linked: pan or zoom one and the others follow), and under them the plots and the key numbers.
 
 **Display** - per view: what it shows (the current result, a snapshot, or the difference current minus snapshot
@@ -108,6 +108,24 @@ views: current, snapshot, difference, and a key-number table). The panel shows t
 `sqrt(u**2 + v**2)`, `rho * u`. Allowed: + - * / ** %, numbers, field names, `pi e g0 gamma R`, and functions such
 as `sqrt exp log log10 abs sin cos tan minimum maximum`. The formula is checked as you type (unknown names, syntax,
 adding different units); it can never run other code. Your fields are available everywhere a field is.
+
+**Animation** - play back how the flow developed during the run. While the run is solving, AeroFlowSim keeps
+*frames* of the flow (density, velocity and pressure in every cell); the last frame is the final result. For a
+steady run the frames show the convergence in pseudo-time: the start-up transient (shocks forming and moving into
+place) until the steady state. Press ▶ to play; ⏮ ◀ ▶| ⏭ and the slider step through the frames; the label shows
+the iteration (or the time of a time-accurate run). Speed (2-30 frames per second), Loop, and the colour range:
+*Fixed over all frames* (default: a colour means the same value in every frame) or *Per frame*. Every view that
+shows the current result plays the frame with its own Display settings (field, colour map, contour lines, vectors,
+streamlines, mirror), so you can watch Mach number and pressure side by side. Leaving the tab shows the final
+result again. *Save GIF / MP4* writes the active view's field as an animated GIF (paper style, your units); MP4 is
+offered when the ffmpeg program is installed. *Recording* (used by the next run): on by default, *Automatic* keeps
+50 to 100 frames spread over the whole run whatever its length, or choose every N iterations. Run again continues
+the run and adds frames to the earlier ones; Start from scratch records a new set; with recording off a run keeps
+no frames. The frames are stored in `results/animation.npz` next to the result (a few MB) and are out of date
+exactly when the result is. Projects run before this feature have no frames: run again to record them.
+
+1D unsteady results (Sod shock tube) have the same playback bar under the field plot: it plays the stored
+snapshots (the field against x at up to 200 moments).
 
 **Export** (button under the views): fields as CSV (cell centres or nodes, in your display units), VTU for ParaView
 (cell and node data, velocity vector) or Tecplot ASCII; *Save .vtu* is the quick ParaView export.
@@ -201,6 +219,7 @@ AeroFlowSim.exe report "My nozzle.afsproj"
 AeroFlowSim.exe export "My nozzle.afsproj" --format tecplot --fields p,M,p0
 AeroFlowSim.exe export "My nozzle.afsproj" --surface wall --fields p,Cp
 AeroFlowSim.exe export "My nozzle.afsproj" --definitions
+AeroFlowSim.exe export "My nozzle.afsproj" --animation flow.gif --field M     (--fps 10, --per-frame-range)
 AeroFlowSim.exe snapshot "My nozzle.afsproj" save baseline
 ```
 

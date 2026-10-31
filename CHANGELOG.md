@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Flow animation
+
+- Results step, new **Animation** tab: play back how the flow developed during the run (the pseudo-time convergence
+  of a steady run, from the start-up transient to the steady state): play / pause, step, slider, speed, loop, colour
+  range fixed over all frames or per frame, iteration / time label; every view showing the current result plays the
+  frame with its own Display settings. Save as animated GIF (paper style, display units); MP4 when ffmpeg is installed.
+- Recording during 2D runs (project setting, on by default): automatic 50-100 frames over any run length, or every N
+  iterations; float32 frames in `results/animation.npz` next to `run.npz`. A continued run appends frames, Start from
+  scratch records a new set, out of date together with the results. Runs outside a project (scripts, validation)
+  record nothing, and recording never changes a result (tested bit for bit). No validated number changes.
+- 1D unsteady results (Sod shock tube): the stored snapshots play back in the field plot.
+- Command line: `export <project> --animation out.gif [--field M] [--fps 10] [--per-frame-range]`.
+
 ## 0.2.0a2 - speed (Prompt 8: Numba, multi-core, implicit LU-SGS) (October 2026)
 
 ### Prompt 8-2: implicit LU-SGS
