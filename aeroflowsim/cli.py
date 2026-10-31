@@ -19,6 +19,9 @@
                                                           export fields (csv, vtu, tecplot), --surface NAME for
                                                           the data along a surface, --definitions for the
                                                           report definitions table
+    python -m aeroflowsim export "My Nozzle.afsproj" --animation flow.gif --field M
+                                                          animated GIF (or .mp4 if ffmpeg is installed) of how
+                                                          the flow developed during the run
     python -m aeroflowsim snapshot "My Nozzle.afsproj" save baseline
                                                           snapshots: save, list, rename, restore, delete
     python -m aeroflowsim assist "Mach 2.4 nitrogen over a 10 degree wedge" --case "My Wedge.afsproj" --dry-run
@@ -219,6 +222,12 @@ def main(argv=None):
     export.add_argument("--definitions", action="store_true", help="the report definitions table (CSV)")
     export.add_argument("--snapshot", default=None, help="export a snapshot instead of the current result")
     export.add_argument("--out", default=None, help="output file (default: in the project's results/exports/)")
+    export.add_argument("--animation", default=None, metavar="FILE",
+                        help="save the recorded flow animation as FILE (.gif, or .mp4 when ffmpeg is installed)")
+    export.add_argument("--field", default=None, help="animation: the field shown (default: M for 2D, rho for 1D)")
+    export.add_argument("--fps", type=int, default=10, help="animation: frames per second")
+    export.add_argument("--per-frame-range", action="store_true",
+                        help="animation: each frame its own colour range (default: one range over all frames)")
     snap = commands.add_parser("snapshot", help="save, list, rename, restore or delete solution snapshots")
     snap.add_argument("project", help="project folder (*.afsproj)")
     snap.add_argument("action", choices=("save", "list", "rename", "restore", "delete"))
@@ -340,6 +349,8 @@ def command_export(args):
     from aeroflowsim.post.definitions import definitions_from, evaluate_definitions
     from aeroflowsim.post.solution import Solution
     from aeroflowsim.post.surfaces import default_surfaces, surfaces_from
+    if args.animation:
+        return command_export_animation(args)
     try:
         project = _open_project(args.project)
         sol = Solution.from_project(project, snapshot=args.snapshot)
@@ -369,6 +380,40 @@ def command_export(args):
         print(f"Error: {error}")
         return 1
     print(f"Exported: {path}")
+    return 0
+
+
+def command_export_animation(args):
+    """export <project> --animation FILE: the frames recorded during the run as a GIF / MP4 (paper style, SI units)."""
+    from aeroflowsim.post.animation import RANGE_ALL, RANGE_FRAME, export_animation, project_animation
+    try:
+        project = _open_project(args.project)
+        mesh = project.load_mesh()
+        payload = project.load_results()
+        if payload is None:
+            raise ValueError(f"The project '{project.name}' has no result yet: run it first.")
+        if project.status("results") in ("outdated", "error"):
+            print("Warning: the results are OUT OF DATE (made from older inputs); run again to update them.")
+        anim = project_animation(project, payload, mesh)
+        if anim is None:
+            raise ValueError("This result has no recorded frames (recording off, or run before AeroFlowSim had "
+                             "animations): run it again to record them.")
+        mode = RANGE_FRAME if args.per_frame_range else RANGE_ALL
+        if anim.x is not None:               # 1D snapshots
+            name = args.field or "rho"
+            final = payload["result"].fields.get(name)
+            path = export_animation(args.animation, anim, None, name, range_mode=mode, fps=args.fps,
+                                    label=final.label if final else name, unit=final.unit if final else "")
+        else:
+            from aeroflowsim.post.solution import Solution
+            sol = Solution.from_project(project)
+            path = export_animation(args.animation, anim, sol, args.field or "M", range_mode=mode, fps=args.fps,
+                                    progress=lambda i, n: print(f"\r  frame {i}/{n}", end="", flush=True))
+            print()
+    except (ValueError, OSError, KeyError) as exc:
+        print(f"Error: {exc}")
+        return 2
+    print(f"Animation ({anim.n} frames) saved to {path}")
     return 0
 
 

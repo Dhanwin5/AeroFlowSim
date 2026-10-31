@@ -93,6 +93,12 @@ class ResultsPage(QWidget):
         plot_layout.setContentsMargins(0, 0, 0, 0)
         plot_layout.addLayout(top)
         plot_layout.addWidget(self.field_stack, 1)
+        from aeroflowsim.gui.animation_panel import PlaybackBar
+        self.bar1d = PlaybackBar()               # 1D unsteady results: play the snapshots back in the field plot
+        self.bar1d.range_mode.setToolTip("Fixed over all frames: the same y axis for the whole animation.")
+        self.bar1d.frame_changed.connect(lambda _i: self.draw_field())
+        self.bar1d.setVisible(False)
+        plot_layout.addWidget(self.bar1d)
         numbers_area = QWidget()
         numbers_layout = QVBoxLayout(numbers_area)
         numbers_layout.setContentsMargins(0, 0, 0, 0)
@@ -199,11 +205,16 @@ class ResultsPage(QWidget):
         self.xy = XYPanel(self)
         self.snapshots_panel = SnapshotsPanel(self)
         self.fields_panel = FieldsPanel(self)
+        from aeroflowsim.gui.animation_panel import AnimationPanel
+        self.animation_panel = AnimationPanel(self)
+        self._animation, self._animation_key, self._frame_cache, self._range_cache = None, None, {}, {}
         self.surfaces_panel.changed.connect(self._surfaces_changed)
         self.post_tabs = QTabWidget()
         for panel, name in ((self.display, "Display"), (self.surfaces_panel, "Surfaces"), (self.reports, "Reports"),
-                            (self.xy, "XY plot"), (self.snapshots_panel, "Snapshots"), (self.fields_panel, "Fields")):
+                            (self.xy, "XY plot"), (self.snapshots_panel, "Snapshots"), (self.fields_panel, "Fields"),
+                            (self.animation_panel, "Animation")):
             self.post_tabs.addTab(panel, name)
+        self.post_tabs.currentChanged.connect(self._post_tab_changed)
         self.post_tabs.setTabPosition(QTabWidget.West)      # every tab visible, also in a narrow panel
         self.post_tabs.setMinimumWidth(360)
         self.plots2d_choice = QComboBox()
@@ -291,6 +302,62 @@ class ResultsPage(QWidget):
             self._snapshot_cache = {}
         return self._solution
 
+    # ---- flow animation (gui/animation_panel.py, post/animation.py) ---------------------------------
+
+    def animation(self):
+        """The recorded frames of the current result (2D frames or 1D snapshots), or None."""
+        w = self.window
+        if w.results is None or w.project is None:
+            return None
+        if self._animation_key != id(w.results):
+            from aeroflowsim.post.animation import project_animation
+            try:
+                self._animation = project_animation(w.project, w.results, w.mesh)
+            except (OSError, ValueError, KeyError) as exc:
+                self.window.log(f"The recorded frames cannot be read: {exc}", "warning")
+                self._animation = None
+            self._animation_key = id(w.results)
+            self._frame_cache, self._range_cache = {}, {}
+        return self._animation
+
+    def showing_frame(self) -> bool:
+        """True while the Animation tab is open on a frame other than the last (the final result)."""
+        anim = self.animation() if self.animation_panel.active else None
+        return anim is not None and anim.n >= 2 and self.animation_panel.bar.index < anim.n - 1
+
+    def frame_solution(self):
+        from aeroflowsim.post.animation import frame_solution
+        i = self.animation_panel.bar.index
+        if i not in self._frame_cache:
+            if len(self._frame_cache) > 8:
+                self._frame_cache.clear()
+            self._frame_cache[i] = frame_solution(self.solution(), self.animation(), i)
+        return self._frame_cache[i]
+
+    def frame_range(self, name):
+        """(vmin, vmax) of a field over all frames [display units] (the fixed colour range of the animation)."""
+        from aeroflowsim.gui.results_logic import display_values
+        from aeroflowsim.post.animation import field_range
+        from aeroflowsim.post.fields import field_info, field_values
+        sol, prefs = self.solution(), self.window.units
+        key = (name, repr(getattr(prefs, "__dict__", prefs)))
+        if key not in self._range_cache:
+            unit = field_info(sol, name).unit
+            self._range_cache[key] = field_range(sol, self.animation(), name,
+                                                 lambda s: display_values(field_values(s, name), unit, prefs)[0])
+        return self._range_cache[key]
+
+    def animation_frame_changed(self):
+        if self.animation_panel.active:
+            self.draw_all(keep_camera=True)
+
+    def _post_tab_changed(self, _index):
+        on = self.post_tabs.currentWidget() is self.animation_panel
+        was = self.animation_panel.active
+        self.animation_panel.set_active(on)
+        if on != was and self.animation() is not None:
+            self.draw_all(keep_camera=True)
+
     def snapshot_solution(self, name):
         if name not in self._snapshot_cache:
             from aeroflowsim.post.snapshots import snapshot_mesh
@@ -314,7 +381,7 @@ class ResultsPage(QWidget):
         if sol is None:
             return None
         if source == SOURCE_CURRENT:
-            return sol
+            return self.frame_solution() if self.showing_frame() else sol
         if source.startswith("Difference: "):
             other = source.split(" - ", 1)[1]
             return self._difference_solution(sol, self.snapshot_solution(other), self.display.scenes[k].field)
@@ -381,6 +448,13 @@ class ResultsPage(QWidget):
                 scene.log_scale = False
             if scene.revolve and not sol.axisymmetric:
                 scene.revolve = False
+        if self.showing_frame() and self.animation_panel.bar.fixed_range() and sol.name.startswith("frame ")                 and not scene.revolve and not problem:
+            from aeroflowsim.gui.results_logic import RANGE_TYPED, Scene
+            try:
+                lo, hi = self.frame_range(scene.field)
+                scene = Scene.from_dict({**scene.to_dict(), "range_mode": RANGE_TYPED, "vmin": lo, "vmax": hi})
+            except Exception:                     # noqa: BLE001 - fall back to the frame's own range
+                pass
         snaps = []
         if scene.range_mode == "Over all snapshots":
             from aeroflowsim.post.snapshots import list_snapshots
@@ -471,7 +545,7 @@ class ResultsPage(QWidget):
         self.plots2d_choice.blockSignals(False)
         self.draw_plot2d()
         for panel in (self.display, self.surfaces_panel, self.reports, self.xy, self.snapshots_panel,
-                      self.fields_panel):
+                      self.fields_panel, self.animation_panel):
             panel.fill()
         self.draw_all(keep_camera=False)
 
@@ -592,6 +666,9 @@ class ResultsPage(QWidget):
         self.flow_controls.setVisible(two_d)
         self.vtu_button.setVisible(two_d)
         self._first_draw = True
+        anim = None if two_d else self.animation()
+        self.bar1d.setVisible(anim is not None)
+        self.bar1d.set_animation(anim)
         self.draw_field()
         plots = flow_plots(result) if two_d else []
         self.flow_box.setVisible(bool(plots))
@@ -644,8 +721,31 @@ class ResultsPage(QWidget):
             self._first_draw = False
             return
         reference = payload.get("reference") or {}
+        anim = self.bar1d.animation if self.bar1d.isVisible() else None
+        if anim is not None and anim.n >= 2 and self.bar1d.index < anim.n - 1:
+            self._draw_field_frame(payload["result"].fields[key], key, anim, self.bar1d.index)
+            return
         self.field_plot.set_figure(field_figure(self.window.mesh, payload["result"].fields[key], reference.get(key),
                                                 self.window.units))
+
+    def _draw_field_frame(self, final, key, anim, i):
+        """1D playback: the field of snapshot i against x (no exact solution: it belongs to the final time)."""
+        from aeroflowsim.post.animation import frame_label
+        from aeroflowsim.results import Field
+        if key not in anim.fields:
+            self.field_plot.set_figure(message_figure(f"The snapshots do not hold '{final.label}'; choose another field."))
+            return
+        values = anim.fields[key]
+        fig = field_figure(self.window.mesh, Field(values=values[i], unit=final.unit, label=final.label), None,
+                           self.window.units)
+        if self.bar1d.fixed_range() and fig.axes:
+            shown = display_field(Field(values=values, unit=final.unit, label=final.label), self.window.units).values
+            lo, hi = float(shown.min()), float(shown.max())
+            pad = 0.05 * (hi - lo if hi > lo else max(abs(hi), 1.0))
+            fig.axes[0].set_ylim(lo - pad, hi + pad)
+        if fig.axes:
+            fig.axes[0].set_title(frame_label(anim, i))
+        self.field_plot.set_figure(fig)
 
     def draw_flow_plot(self):
         payload = self.window.results

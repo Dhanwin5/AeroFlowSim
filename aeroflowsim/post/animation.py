@@ -173,7 +173,8 @@ def from_snapshots(result, mesh=None):
     snaps = getattr(result, "snapshots", None)
     if snaps is None or len(snaps.times) < 2:
         return None
-    x = np.asarray(mesh.x, dtype=float) if mesh is not None and hasattr(mesh, "x") else None
+    n_x = np.shape(next(iter(snaps.fields.values())).values)[1]
+    x = np.asarray(mesh.positions(n_x), dtype=float) if mesh is not None and hasattr(mesh, "positions")         else np.arange(n_x, dtype=float)                 # cell centres [m] (or the cell index without a mesh)
     return Animation(iterations=np.arange(len(snaps.times)), times=np.asarray(snaps.times, dtype=float),
                      fields={k: np.asarray(f.values) for k, f in snaps.fields.items()}, steady=False, x=x)
 
@@ -187,7 +188,9 @@ def project_animation(project, payload=None, mesh=None):
     result = payload["result"]
     if getattr(result, "snapshots", None) is not None:
         return from_snapshots(result, mesh if mesh is not None else payload.get("mesh1d"))
-    anim = load_animation(project.results_dir)
+    anim = getattr(result, "animation", None)          # a run just finished: its frames are still in memory
+    if anim is None:
+        anim = load_animation(project.results_dir)
     if anim is None or not anim.n:
         return None
     if mesh is not None and hasattr(mesh, "n_cells"):

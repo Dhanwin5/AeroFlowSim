@@ -54,7 +54,7 @@ def test_results_step_shows_the_post_workspace_with_all_panels(window):
     page = _page(window)
     assert page.post_area.isVisible() and not page.splitter.isVisible()
     assert [page.post_tabs.tabText(i) for i in range(page.post_tabs.count())] == [
-        "Display", "Surfaces", "Reports", "XY plot", "Snapshots", "Fields"]
+        "Display", "Surfaces", "Reports", "XY plot", "Snapshots", "Fields", "Animation"]
     assert page.solution() is not None
     view = page.grid.views[0]
     needs_rendering(view)
