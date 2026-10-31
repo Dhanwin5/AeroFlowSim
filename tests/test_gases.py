@@ -179,8 +179,9 @@ def test_custom_gas_with_r_and_cp_round_trips(tmp_path):
 def test_user_library_is_outside_the_code_folder(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setenv("HOME", str(tmp_path))                 # macOS: ~/Library/Application Support/AeroFlowSim
     folder = user_gas_dir()
-    assert folder.parent.parent == tmp_path and folder.name == "gases"
+    assert tmp_path in folder.parents and folder.name == "gases"
     from aeroflowsim.discovery import PROJECT_DIR
     assert PROJECT_DIR not in folder.parents
 

@@ -28,7 +28,7 @@ dependencies = [
     "numpy>=2.5",
     # compiled residual kernels (Speed stage (Numba)); optional at run time: NumPy path without it. Numba no longer
     # publishes builds for Intel Macs, so they run the NumPy solver (same results, slower)
-    "numba>=0.68; not (sys_platform == 'darwin' and platform_machine == 'x86_64')",
+    "numba>=0.68; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "scipy>=1.18",
     "matplotlib>=3.11",
     "plotly>=7.1",

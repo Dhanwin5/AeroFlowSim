@@ -7,6 +7,7 @@
 import pytest
 
 from aeroflowsim.gases import gas_model, save_user_gas
+from aeroflowsim.gases.library import user_gas_dir
 from aeroflowsim.gui.gas_logic import NEW_GAS, form_from_gas, form_to_toml, gas_choices, gas_detail_rows
 from aeroflowsim.gui.panel_model import PanelModel, details
 from aeroflowsim.discovery import load_case
@@ -16,6 +17,7 @@ from aeroflowsim.discovery import load_case
 def library(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setenv("HOME", str(tmp_path))              # macOS: ~/Library/Application Support/AeroFlowSim
     return tmp_path
 
 
@@ -29,7 +31,7 @@ def test_dropdown_lists_library_project_and_user_gases(library, tmp_path):
     assert kinds[:11] == ["builtin"] * 11 and kinds[11:] == ["project", "user", "new"]
     assert choices[11].text == "Argon mix (custom, in this project)" and choices[12].data == str(path)
     assert choices[-1].data == NEW_GAS
-    (library / "AeroFlowSim" / "gases" / "broken.toml").write_text("not = [valid")   # skipped, no crash
+    (user_gas_dir() / "broken.toml").write_text("not = [valid")   # skipped, no crash
     assert len(gas_choices("N2")) == 13
     assert "file missing" in gas_choices("gases/none.toml", base=tmp_path)[11].text
 

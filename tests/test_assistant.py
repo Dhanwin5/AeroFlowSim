@@ -175,7 +175,10 @@ def test_rules_provider_phrases(case, text, expected):
     got = new_values(text, case)
     assert set(got) == set(expected), (text, got)
     for key, value in expected.items():
-        assert got[key] == pytest.approx(value, rel=1e-4), (text, key)
+        if isinstance(value, str):           # gas ids, choices: compared as text (newer pytest refuses approx on text)
+            assert got[key] == value, (text, key)
+        else:
+            assert got[key] == pytest.approx(value, rel=1e-4), (text, key)
 
 
 def test_rules_provider_places_nothing_it_cannot_explain():

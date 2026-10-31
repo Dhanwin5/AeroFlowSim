@@ -19,6 +19,7 @@ from aeroflowsim.project import Project
 def window(qtbot, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))           # the user's gas library goes here
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "appdata"))
+    monkeypatch.setenv("HOME", str(tmp_path / "appdata"))              # macOS
     w = MainWindow(QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat))
     qtbot.addWidget(w)
     w.show()
