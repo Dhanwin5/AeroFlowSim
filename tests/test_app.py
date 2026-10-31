@@ -178,7 +178,7 @@ def test_dropdowns_are_pick_only_without_a_text_cursor():
 def test_nozzle_axi_mesh_tab_updates_with_presets_and_inflation():
     at = _app()
     at.sidebar.selectbox[0].set_value("nozzle_axi").run()
-    assert [b for b in at.button if b.key == "run"]                   # Run tab: the 2D Euler solver (Prompt 7)
+    assert [b for b in at.button if b.key == "run"]                   # Run tab: the 2D Euler solver (2D Euler solver stage)
     at.button(key="generate_mesh").click().run()
     assert not at.exception, at.exception
     metrics = {m.label: m.value for m in at.metric}

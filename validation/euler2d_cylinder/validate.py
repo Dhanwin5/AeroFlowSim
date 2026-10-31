@@ -13,7 +13,7 @@ The stand-off distance is where the pressure in the cells along the stagnation l
 stream and the normal-shock value. The shock-front roughness is the largest jump of the shock radius between
 neighbouring grid rays, relative to the radial cell size (kept for comparison: it does NOT separate the runs).
 
-Carbuncle metric (Prompt 7b): the UNSTEADINESS of the shock layer. A report definition (aeroflowsim/post), the
+Carbuncle metric (Post-processing and alpha release stage): the UNSTEADINESS of the shock layer. A report definition (aeroflowsim/post), the
 volume-weighted mean pressure in a box around the stagnation region that contains the bow shock, is recorded as a
 monitor every iteration; the metric is its peak-to-peak change over the last 1,000 iterations relative to its mean.
 A settled shock gives a tiny value; the carbuncle (a shock that keeps moving and bulging) gives a large one. The

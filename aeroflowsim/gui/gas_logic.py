@@ -77,7 +77,7 @@ def gas_detail_rows(value, base=None) -> list[tuple[str, str]]:
     rows.append(("Saturation curve", "stored (condensation check)" if g.vapour_pressure else "none"))
     if g.note:
         rows.append(("Note", g.note))
-    rows.append(("Used by the solver", "gamma and R only (inviscid); viscosity and conductivity from Prompt 7 on"))
+    rows.append(("Used by the solver", "gamma and R only (inviscid); viscosity and conductivity from the 2D Euler solver stage on"))
     return rows
 
 

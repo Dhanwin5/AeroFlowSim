@@ -196,8 +196,8 @@
    "Conical divergence estimate: 72.53 s x (1 + cos 15 deg)/2 = 71.29 s (point-source flow).",
    "Cd = mass flow / ideal quasi-1D choked mass flow of the same throat; the throat is sharp (Rcu = Rcd = 0), so the sonic line is curved and the 2D nozzle passes less than 1D theory.",
    "p0 loss: drop of the mass-flux-weighted exit total pressure below the inlet p0 = 5 bar (numerical entropy; an isentropic nozzle loses nothing). Most of it is made at the SHARP throat corner, a singular expansion point of the inviscid flow; it does not fall clearly on these meshes. With a rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4) the coarsest triangle mesh already gives about 1 %.",
-   "Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Prompt 8) is the planned cure (gap register).",
-   "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in Prompt 8).",
+   "Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Speed stage) is the planned cure (gap register).",
+   "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in the speed stage).",
    "Structured meshes, Isp (GCI tool, aeroflowsim/gci.py): observed order 0.13, extrapolated value 71.6952 s, GCI fine 0.386 %, GCI coarse 0.422 %, asymptotic ratio 1.000 (oscillatory convergence).",
    "Sharp vs rounded throat (Rcu/Rt = 1.5, Rcd/Rt = 0.4), structured 100 x 20 and 200 x 40: p0 loss 2.902 / 2.542 % (sharp) and 0.046 / 0.100 % (rounded); Cd 0.9463 / 0.9404 (sharp) and 0.9945 / 0.9943 (rounded).",
    "Finding: rounded-throat loss smaller than the sharp one and NOT falling with refinement (see the gap register)."

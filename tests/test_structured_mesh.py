@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Prompt 6e, part 2: structured O-grids and C-grids (aeroflowsim/structured_mesh.py).
+"""Shapes, grids and mesh import stage, part 2: structured O-grids and C-grids (aeroflowsim/structured_mesh.py).
 
 Format (closure, patches, node counts), exact geometry (domain areas, wall length), the wall-size controls (first-layer
 height exact, every size input really changes the mesh by the expected factor), quality, clear refusals, the same patch

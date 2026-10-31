@@ -6,7 +6,7 @@
 diagram, 2D contour) and export. Out-of-date results carry an amber banner and are never shown as
 current. Validity checks are in the Validity checks panel.
 
-2D results get the post-processing workspace instead (Prompt 7b): panels on the left (Display, Surfaces, Reports,
+2D results get the post-processing workspace instead (Post-processing and alpha release stage): panels on the left (Display, Surfaces, Reports,
 XY plot, Snapshots, Fields; gui/post_panels.py), one, two or four linked views of the flow (gui/flow_view.py) and
 the plots and key numbers below them. Every number comes from aeroflowsim/post/."""
 

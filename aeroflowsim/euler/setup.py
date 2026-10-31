@@ -57,7 +57,7 @@ def _choice(key, label, options, default, help):
 
 # The Numerics default. AEROFLOWSIM_TIME_SCHEME overrides it (developer knob: run the validation with another scheme).
 VENKAT_K_DEFAULT = float(os.environ.get("AEROFLOWSIM_VENKAT_K", 5.0))   # developer knob for the K study
-DEFAULT_TIME_SCHEME = os.environ.get("AEROFLOWSIM_TIME_SCHEME", LUSGS)   # LU-SGS since Prompt 8-2 (validated)
+DEFAULT_TIME_SCHEME = os.environ.get("AEROFLOWSIM_TIME_SCHEME", LUSGS)   # LU-SGS since the speed stage (LU-SGS) (validated)
 
 
 def solver_parameters(overrides=None) -> list:

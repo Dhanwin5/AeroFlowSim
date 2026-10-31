@@ -32,7 +32,7 @@ NOT_SYMMETRIC = {"Custom coordinates file", "NACA 5-digit airfoil", "Ramp intake
 def test_registry_finds_every_shape_in_group_order():
     assert len(SHAPES) == 17
     assert {"Wedge", "Diamond airfoil", "NACA 4-digit airfoil", "Circular cylinder", "Conical nose cone",
-            "Custom coordinates file"} <= set(SHAPES)       # the first six (Prompts 6c-6d)
+            "Custom coordinates file"} <= set(SHAPES)       # the first six (the desktop GUI and geometry workspace stages)
     assert SHAPES[-1] == "Custom coordinates file"        # group "Custom" comes last
 
 

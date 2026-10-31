@@ -1,4 +1,4 @@
-# Prompt 8 - Speed: Numba, implicit LU-SGS, multi-core; the residual stalls; wall-clock targets
+# Speed - Numba, implicit LU-SGS, multi-core; the residual stalls; wall-clock targets
 
 **Model: Opus** (implicit time stepping and its stability: where subtle bugs hide).
 
@@ -14,7 +14,7 @@ beginner programmer who knows aerospace engineering and CFD theory. **This whole
 session.** I will not send follow-up prompts, so:
 
 1. **Start:** read `CLAUDE.md`, `docs/gap_register.md`, `docs/theory_manual.md` (sections 12 and 13),
-   `docs/developer_guide.md`, the memory files, `docs/prompts/7b_progress.md` (the last session's ledger), and skim
+   `docs/developer_guide.md`, the memory files, `docs/roadmap/post_processing_and_alpha.md` (the last session's ledger), and skim
    `aeroflowsim/euler/` (solver.py, flux.py, gradients.py, limiters.py, geometry.py, boundary.py, setup.py),
    `aeroflowsim/mms.py`, `aeroflowsim/tasks.py`, `validation/`. Then write a short plan in plain words and **start
    immediately: do not wait for my approval.**
@@ -28,12 +28,12 @@ session.** I will not send follow-up prompts, so:
 5. **Commit after each part**; run long jobs (validation, timing studies) in the background and keep working.
 6. **Verify everything:** unit tests, GUI tests, MMS order (must stay 2), validation, timing tables; screenshots of
    changed GUI pages with `tools/screenshots.py` (light and dark).
-7. **Keep a ledger** `docs/prompts/8_progress.md` (done with commits, verified how, next, anomalies, decisions),
+7. **Keep a ledger** `docs/roadmap/speed.md` (done with commits, verified how, next, anomalies, decisions),
    updated after every part; if the conversation is summarised, re-read it and CLAUDE.md first.
 8. **At the end:** full fast tests, full validation, report every result line, docs and gap register updated, push,
-   and write the next prompt file (`docs/prompts/prompt_9.md`: 3D geometry workspace and 3D meshes; 6e and 7c are done, see `docs/prompts/next_steps.md`) in the same style.
+   and write the next prompt file (`docs/roadmap/3d_geometry_and_meshing.md`: 3D geometry workspace and 3D meshes; shapes, grids and mesh import and AI assistant are done, see `docs/roadmap/next_steps.md`) in the same style.
 
-## Context (state after Prompt 7b, release v0.2.0a1)
+## Context (state after the post-processing and alpha release stage, release v0.2.0a1)
 
 - Solver: explicit finite-volume Euler (rotated HLLC + HLLE blend, least-squares gradients, Venkatakrishnan /
   Barth-Jespersen / None limiters with freezing and stall-freeze, SSP-RK3 / Jameson, local time steps, CFL back-off),
@@ -50,13 +50,13 @@ session.** I will not send follow-up prompts, so:
   (limiter limit cycle; Cl and Cd steady to 1e-6; found with the per-cell residual field "Residual of the last
   iteration" in the Results view / `aeroflowsim.post.fields`); (3) the quasi-1D solver stalls on fine meshes
   (minmod). The stall-freeze only acts after 3 orders of drop, so (2) never freezes.
-- 7b findings for this prompt: an interpolated start on a new mesh saves only ~8 % of the iterations (4,712 vs
+- post-processing and alpha release findings for this prompt: an interpolated start on a new mesh saves only ~8 % of the iterations (4,712 vs
   5,087 on the N2 nozzle 60 x 12) because the residual is normalised by its first iterations, which are already
   small for a good start; Venkatakrishnan with constant K loses order on smooth flows under refinement (MMS triangles
   0.7-1.0 at 64 -> 128 in a first full study) - an order-preserving limiter option belongs here or in a later prompt (decide and record).
 
-Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch runs (8d), unsteady dual time stepping
-(8e), viscous flow, 3D. Do not start them; note dependencies.
+Out of scope: low-Mach preconditioning (low-Mach preconditioning), adaptive refinement (adaptive mesh refinement), batch runs (parametric studies), unsteady dual time stepping
+(unsteady flow), viscous flow, 3D. Do not start them; note dependencies.
 
 ## Decisions (made: follow them)
 
@@ -90,7 +90,7 @@ Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch run
 4. **Multi-core** and determinism (two runs give identical histories); speed-up table versus threads.
 5. **Stalls**: triangle nozzle, diamond, quasi-1D fine meshes: each converges to 1e-6 (or the remaining cause is
    found and recorded); interpolated-start normalisation; NACA 0012 study extended to 0.0025 c (and 0.00125 c if it
-   fits), GCI updated against Vassberg & Jameson 2010 Table 11. 7b finding: the 7b study halved only the WALL size
+   fits), GCI updated against Vassberg & Jameson 2010 Table 11. post-processing and alpha release finding: the post-processing and alpha release study halved only the WALL size
    (far field 2 c and growth fixed), so the meshes grew only 7,326 / 9,400 / 13,251 cells, the GCI order came out as 10
    (meaningless) and Cl (0.311 / 0.331 / 0.338, still rising) is a documented SHORTFALL against 0.352. Redesign the
    study so every size (wall, far field, growth or a refinement factor) scales together, aiming for about 4x cells per
@@ -111,10 +111,10 @@ Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch run
 3. Runs are deterministic with several threads; speed-up table written.
 4. The triangle-nozzle, diamond and quasi-1D stalls are gone (or their cause is documented with evidence).
 5. The wall-clock targets of Part 6 hold (or the shortfall is reported with the measured numbers).
-6. Docs, gap register, CHANGELOG, `docs/prompts/8_progress.md`, and `docs/prompts/prompt_9.md` written; tests and
+6. Docs, gap register, CHANGELOG, `docs/roadmap/speed.md`, and `docs/roadmap/3d_geometry_and_meshing.md` written; tests and
    validation pass; everything pushed.
 
-## Addendum from Prompt 6e (27 Oct 2026): findings that belong to this prompt
+## Addendum from the shapes, grids and mesh import stage (27 Oct 2026): findings that belong to this prompt
 
 - **Convergence of the new meshes is limited by speed.** NACA 0012 at Mach 0.5, alpha 1.25: the C-grid Medium (15,600 cells) took
   945 s for 8,000 iterations and was NOT converged (Cl 0.1751, Cd 0.0008; triangles 9,280 cells: Cl 0.1681, 348 s, not converged;
@@ -127,4 +127,73 @@ Out of scope: low-Mach preconditioning (8b), adaptive refinement (8c), batch run
   by the exact area ratio (validation/shapes_and_grids).
 - **C-grid wake cells are very flat** (aspect ratio 1,300-4,800 along the wake line at a first layer of 1e-3 c). Harmless for Euler flow;
   an implicit solver is insensitive to it, an explicit one is limited by it (local time stepping handles it).
-- A planar nozzle template does not exist (the MOC check solves it directly): decide in Prompt 9/10 or earlier.
+- A planar nozzle template does not exist (the MOC check solves it directly): decide in the 3D stages or earlier.
+
+
+---
+
+## Progress log
+
+Continue with: "continue the speed stage (LU-SGS) from docs/roadmap/speed.md".
+
+## speed (Numba) - done (pushed)
+- 4f08aa5 parts 1-4: Numba kernels (`euler/kernels.py`), `compute.py`, solver hooks, Tools > Preferences threads,
+  `Job.threads`, CLI `--threads/--backend`, run info backend/threads, `tools/timing.py`, light CI, tests.
+- dd2399b part 5: timing tables (`validation/timing.md`), docs, gap register, CHANGELOG.
+- Verified: 101 kernel/core tests (Numba = NumPy to 1e-12 on every mesh type; positivity counts; freeze and stall
+  freeze; bit-identical for 1/2/4 threads); full fast + GUI tests 986 passed, 1 skipped; quick validation all pass,
+  all 129 compared values identical to the printed digits, 6.8 min (was ~32).
+- Speed: 1 thread 8.8-17 x, 16 threads 31-70 x (MMS 128 quads 70 -> 2.2 ms/iteration).
+- Full validation (explicit, speed (Numba) state): first attempts died of memory (see anomalies); rerun alone in progress.
+
+## speed (LU-SGS) - done (parts 2, 7, 8 partly / not reached: see 'Not done')
+- 0b50402 + 780dfb9 part 1: LU-SGS (Rusanov operator, omega 1.5, axisymmetric source on the diagonal, SER CFL ramp
+  0.8 -> 100 following the residual, halved after an unphysical step, ramp state kept on Continue, fixed-order
+  sweeps = deterministic). Option "Implicit LU-SGS" in Numerics; NOT yet the default. tests/test_lusgs.py (8 tests).
+- Part 4: interpolated start keeps the earlier run's normalisation x sqrt(C_new/C_old). FINDING: on its own it saves
+  nothing (explicit 60x12 nozzle 4,712 vs 5,087 fresh, 7 %): the interpolated field's first residual is as large as a
+  fresh start's, and the tail from 1e-3 to 1e-6 sets the count. With LU-SGS the interpolated start saves 57 %
+  (2,337 vs 5,461 iterations).
+- Part 2 so far: diamond 0.01 c alpha 2 converges with both schemes now (LU-SGS 975 it to 5e-12, explicit 1,406);
+  triangle nozzle 0.08 D_t still stalls near 1e-4 with both (explicit 3.8e-5, LU-SGS 1.9e-5 min) - to investigate.
+
+- d6b4fda: LU-SGS is the DEFAULT for steady runs (quick set: all pass, 5.0 min; 117/129 values identical, 12 within
+  tolerance). Two divergence tests pinned to SSP-RK3 (LU-SGS does not diverge at CFL 5).
+- cefab1a part 3: limiter study (theory 13d): K 5 -> MMS triangles 0.71 at 64-128; K 20 -> 2.0 on quads and triangles,
+  quick set passes, but wedge shock overshoot 4.5 % -> 5.7 %: default stays K = 5, K = 20 recommended for smooth flows.
+- part 6: N2 nozzle Medium converged 20.8 s (13,771 it), MMS 128 quads 12.5 s (LU-SGS) / 17.5 s (explicit); quick set
+  5.0 min. Full suite: see below.
+- dea98e4 part 5: NACA study redesigned (wall and far-field sizes together, 14.5k / 40k / 137k cells): Mach 0.5 Cl
+  1.7 % PASS, Cd 3.6 % PASS; Mach 0.8 Cl 0.335 flat over 9 x cells, -4.8 %: SHORTFALL kept, diagnosis updated (30 c
+  far field without vortex correction suspected, untested). Reference values: from the post-processing and alpha release ledger (Vassberg & Jameson
+  2010 Tables 10-11, p. 1165), NOT re-fetched in this session (paywalled): "pending reference re-check".
+- Not done (time): part 2 triangle-nozzle stall (still ~1e-4 with both schemes, per-cell investigation next), part 7
+  (BMG z = 2.24 in), part 8 (planar MOC nozzle on a finer mesh), quasi-1D fine-mesh stall, `structured_flow_checks.py naca`.
+
+- 87a0660 full validation (LU-SGS): ALL PASS, 39 min; 7 of 129 values changed vs speed (Numba), all explained (LU-SGS limiter
+  freeze state: BMG z=2.24 in 0.798842 -> 0.798844, cylinder stand-off +0.13 % max, triangle-nozzle Isp +0.007 %;
+  NACA study redesign: Cl M0.8 0.338 -> 0.335, Cd 0.02201 -> 0.02174, Cl M0.5 0.1747 -> 0.1829).
+- Full fast + GUI tests: 994 passed, 1 skipped.
+- fb5d050 + tag v0.2.0a2: installer built (205 MB), smoke test passed; frozen program runs the 2D solver with Numba
+  (first run compiles 8.7 s, second run 0.6 s from the cache). GitHub pre-release v0.2.0a2 on the PRIVATE repository.
+  Repository visibility unchanged (owner's decision; see docs/launch_checklist.md).
+
+## Decisions
+- Ghost states stay NumPy (boundary faces only). Kernels for the calorically perfect gas; other models run NumPy.
+- Gather face sums: bit-identical for any thread count. Default threads = physical cores - 1, max 16.
+- LU-SGS sweeps sequential in cell order (deterministic); omega 1.5 (1.0 stalled the 2nd-order nozzle at 1e-2);
+  SER ramp on the CURRENT residual (a ramp on the lowest residual kept CFL 96 after the start-up and never recovered);
+  implicit stall rule 2 orders / 200 iterations (explicit 3 / 1,000).
+- MMS validation pool: 6 workers sharing the cores (22 workers x Numba threads ran out of memory).
+
+## Anomalies
+- Network cut the Numba/llvmlite download many times (~1 h to install).
+- Running several validation jobs at once ran the 32 GB machine out of memory: run heavy jobs one at a time.
+- LU-SGS on the wedge: Cd 0.196653 vs explicit 0.196493 (0.08 %): the limiter is frozen at a different state.
+- LU-SGS quick set with the FIRST ramp: cylinder Gmsh stand-off 7.8 % off (tolerance 5 %); to recheck with the final
+  settings before LU-SGS becomes the default.
+- PyInstaller build with Numba not run yet.
+
+## Next
+- Full validation (explicit) -> compare with the previous report.md; LU-SGS quick set -> decide the default.
+- Parts 2 (triangle nozzle stall), 3 (limiter K table: `tools/limiter_order.py`), 5 (NACA), 6 (targets), 9 (finish).

@@ -130,7 +130,7 @@ def shape_preview(profile):
         st.warning(note)
     st.plotly_chart(shape_figure(profile), key="shape_plot")
     st.caption("Planar bodies: reference area = reference length × 1 m depth. Axisymmetric bodies: "
-               "base area π R². These are used for the force coefficients from Prompt 7.")
+               "base area π R². These are used for the force coefficients from the 2D Euler solver stage.")
 
 
 def geometry_preview(values):

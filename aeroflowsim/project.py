@@ -197,7 +197,7 @@ class Project:
         return project
 
     def _convert_old_restart_input(self):
-        """Projects from before Run carried on by itself (Prompt 7) may have Initial solution = 'Previous result
+        """Projects from before Run carried on by itself (2D Euler solver stage) may have Initial solution = 'Previous result
         (restart)'. That option is gone: Run now continues the current solution by default. It becomes the
         template's default start (used only when starting from scratch)."""
         from aeroflowsim.euler.initial import RESTART
@@ -210,7 +210,7 @@ class Project:
                 self.dirty = True
 
     def _convert_old_gas_inputs(self, saved):
-        """Projects from before the gas library (6f) stored gamma and R as numbers. 1.4 and 296.8 (the old
+        """Projects from before the gas library stored gamma and R as numbers. 1.4 and 296.8 (the old
         default) become the built-in N2; other values become a custom gas inside the project."""
         gas_inputs = [p for p in self.case.parameters() if p.type == "gas"]
         if not gas_inputs or gas_inputs[0].name in saved or not {"gamma", "R"} <= set(saved):

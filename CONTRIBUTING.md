@@ -143,7 +143,7 @@ and no change to any case.
    counter-clockwise and free of crossings; add a test of its exact geometry (area, thickness,
    angles) and, where possible, a validation value in `validation/external_geometry`.
 
-## How to add a gas (coming in Prompt 6c)
+## How to add a gas (coming in the desktop GUI stage)
 
 Gases will live in a gas library (`aeroflowsim/gases/`). The intended pattern:
 

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The optional assistant (Prompt 7c): proposals are checked against the schema, the rules provider reads
+"""The optional assistant (AI assistant stage): proposals are checked against the schema, the rules provider reads
 plain English, nothing is contacted unless a local / online provider is chosen, and nothing outside the
 schema's inputs can be changed. No network and no model are needed: a fake provider stands in."""
 

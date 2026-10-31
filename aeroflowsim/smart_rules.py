@@ -15,7 +15,7 @@ Each rule is ONE small function, like a check:
 built: the replayed workspace geometry (BuiltGeometry); context: SizeContext below (the template,
 its inputs, where its size inputs are). To add a rule, write one function and add it to RULES.
 
-First rules (Prompt 6d): suggested sizes from the geometry -
+First rules (Geometry workspace stage): suggested sizes from the geometry -
   wall cell size   at most L / 100 (L: reference length) and at most a quarter of the smallest wall
                    feature, so that every wall feature gets at least about 4 cells;
   largest size     about 1/25 of the domain (internal flow), or 2 L but at most 1/20 of the domain
@@ -216,11 +216,11 @@ def suggestions(built, context) -> list[Suggestion]:
 
 
 # ==================================================================================================
-# Flow rules (Prompt 7): numerics from the flow inputs, first-layer height, failure diagnosis
+# Flow rules (2D Euler solver stage): numerics from the flow inputs, first-layer height, failure diagnosis
 # ==================================================================================================
 #
 # These rules use the flow inputs (Mach number, reservoir or free-stream state, gas), so they complete
-# the 6d rules. Signature:  def rule(case, params, result=None) -> list[Suggestion]. A Suggestion of kind
+# the geometry workspace rules. Signature:  def rule(case, params, result=None) -> list[Suggestion]. A Suggestion of kind
 # "advice" has no Apply button (something to check by hand, e.g. a boundary value).
 
 TARGET_Y_PLUS = 1.0          # wall-resolved boundary layers (laminar / low-Re models) [-]
@@ -297,7 +297,7 @@ def numerics_suggestions(case, params) -> list:
     elif mach is not None and mach < LOW_MACH:
         out.append(Suggestion("Low Mach number", f"Mach {mach:g}", "An explicit density-based solver converges "
                               "slowly below about Mach 0.3 (acoustic waves are much faster than the flow); expect many "
-                              "iterations. Low-Mach preconditioning comes in Prompt 8b.", "advice"))
+                              "iterations. Low-Mach preconditioning comes in a later version.", "advice"))
     if params.get("initialisation") == "Uniform (free stream)" and "p0" in params:
         out.append(Suggestion("Initial solution", "Quasi-1D solution", "A nozzle started from the quasi-1D flow already "
                               "has its throat and supersonic expansion; from a uniform state it must find them, which "

@@ -1,4 +1,4 @@
-# Prompt 7b - Post-processing at Fluent level (and beyond), trust (MMS + validation suite), report, installer, 2D alpha release
+# Post-processing and alpha release - Post-processing at Fluent level (and beyond), trust (MMS + validation suite), report, installer, 2D alpha release
 
 **Model: Opus** (one large session with many design decisions and verification numerics).
 
@@ -38,14 +38,14 @@ session.** I will not send follow-up prompts, so:
 7. **The conversation may be summarised automatically when it gets long. Keep going** until every "Done when" item
    below is checked off with evidence.
 8. **At the very end** (Part 11): full fast tests, full validation, all result lines reported, docs and gap register
-   updated, push, release, and write the next prompt file `docs/prompts/prompt_8.md` in the same style as this one,
+   updated, push, release, and write the next prompt file `docs/roadmap/speed.md` in the same style as this one,
    including everything you found that belongs to it.
 
 ## Context
 
 Done before this prompt (see the gap register and git log): 1D / quasi-1D solvers; face-based `Mesh` (2D, axisymmetric,
 3D-ready); structured and Gmsh meshes; shape library; geometry workspace (CAD-like 2D editing, named boundaries);
-gas library and units system; Prompt 7: the finite-volume 2D / axisymmetric Euler solver (`aeroflowsim/euler/`),
+gas library and units system; 2D Euler solver stage: the finite-volume 2D / axisymmetric Euler solver (`aeroflowsim/euler/`),
 boundary-condition table, live monitors, Stop keeps the flow, Run CONTINUES the current solution (iteration 159 after
 158; "Start from scratch" begins again), validity checks and smart rules, nozzle / external / custom-geometry templates,
 validation (2D Sod, Mach 2 wedge, Mach 6 cylinder + carbuncle test, N2 nozzle on six meshes), 9 of 9 validation cases
@@ -55,8 +55,8 @@ better one); the nozzle total-pressure loss (2.5 %) is made at the sharp throat 
 refinement; the validation suite takes about 1.5 h, too long for every CI push.
 
 Out of scope here (they have their own prompts): speed, implicit time stepping and the triangle-mesh residual stall
-(Prompt 8); low-Mach preconditioning (8b); adaptive refinement (8c); batch runs (8d); unsteady flow and animations of
-time (8e); viscous flow (Phase 4); 3D (Phase 3). Do not start them; if something here depends on them, note it.
+(Speed stage); low-Mach preconditioning; adaptive mesh refinement; batch runs (parametric studies); unsteady flow and animations of
+time (unsteady flow); viscous flow (Phase 4); 3D (Phase 3). Do not start them; if something here depends on them, note it.
 
 ## Goal
 
@@ -129,7 +129,7 @@ report of any project; ship a Windows installer and the 2D alpha release (v0.2.0
 - Forces and moments: any set of walls, any axis and moment point, pressure force (viscous later), in body and wind
   axes, coefficients with editable reference values; centre of pressure for 2D bodies.
 - Report definitions + monitors + convergence criteria as decided above; the Run page shows user monitors next to the
-  built-in ones; the report file CSV is written during the run and continues when a run is continued (Prompt 7
+  built-in ones; the report file CSV is written during the run and continues when a run is continued (2D Euler solver stage
   behaviour), and restarts with "Start from scratch".
 - Tests: integrals of known fields on known surfaces (exact for linear fields); mass-flow report equals the solver's
   boundary flux; flux balance closes on a converged run; report definitions survive save/reopen and a re-mesh.
@@ -248,7 +248,7 @@ sections; HTML has no external links (privacy rule 12).
 
 - Fast tests pass on Windows (and CI Ubuntu); GUI tests pass; quick validation passes; full validation passes with
   every number explained if it changed.
-- No regression of Prompt 7 behaviour: Stop keeps the flow, Run continues (159 after 158), Start from scratch, results
+- No regression of the 2D Euler solver stage behaviour: Stop keeps the flow, Run continues (159 after 158), Start from scratch, results
   of an older mesh never painted on a new one, angle of attack refused on axisymmetric meshes.
 - Every new GUI page: screenshots light and dark at 100 % and 150 % scaling, looked at and fixed.
 - Privacy test still passes (no network, no web addresses in the GUI or reports).
@@ -260,7 +260,7 @@ sections; HTML has no external links (privacy rule 12).
   modules), the theory manual and the developer guide.
 - Run the full fast tests and the full validation; report the result lines.
 - Commit, push, tag, release (Part 9).
-- Write `docs/prompts/prompt_8.md` (speed: Numba, implicit LU-SGS, multi-core; the triangle-mesh residual stall; the
+- Write `docs/roadmap/speed.md` (speed: Numba, implicit LU-SGS, multi-core; the triangle-mesh residual stall; the
   wall-clock targets; anything you found) in the same style as this file, so it too can be done in one session.
 - Final message to me, in plain words: what was built (by part), the verification table (MMS orders, every validation
   case with reference, result, error, pass/fail), what changed from this plan and why, anomalies found and what was
@@ -281,5 +281,54 @@ sections; HTML has no external links (privacy rule 12).
 4. The installer installs, starts AeroFlowSim, opens a double-clicked `.afsproj`, and uninstalls cleanly; v0.2.0a1 is
    released on GitHub with the installer.
 5. User guide, tutorials, theory manual, developer guide, gap register, CHANGELOG, parity checklist updated.
-6. `docs/prompts/prompt_8.md` written.
+6. `docs/roadmap/speed.md` written.
 7. Fast tests and validation pass; result lines reported; everything pushed.
+
+
+---
+
+## Progress log
+
+If the session was summarised or interrupted: re-read this file and `CLAUDE.md`, then continue with "Next".
+Order of work (addendum A): Part 6 → Parts 1-2 → Part 7 → Part 3 → Parts 4-5 → Part 8 → Part 9 → Parts 10-11.
+
+## Done
+
+| Part | What | Commit | Verified by |
+|---|---|---|---|
+| 6 | MMS (`aeroflowsim/mms.py`), solver hooks (source, boundary face values), limiter "None", smooth mesh warp, GCI tool, `validation/mms_euler2d`, quick/full validation sets | 4d355c6 | `tests/test_mms_gci.py`; full study 16-128: L2 order 1.98-2.02 on quads, distorted quads, triangles, mixed, planar + axisymmetric (all PASS) |
+| 1-2 | `aeroflowsim/post/` (solution, fields + safe formulas, sampling, surfaces, integrals, flux balance, forces, report definitions + monitors + CSV writer), project settings, run extras (monitors, patches, interpolation) | 4d355c6, c51ff89 | `tests/test_post.py` (29), `tests/test_post_project.py` (8; stop/continue/scratch CSV walk-through, convergence criterion, snapshots, exports, patches; interpolation test marked validation) |
+| 4-5 | snapshots, compare, export (CSV/VTU node data/Tecplot), XY data, CLI `report`/`export`/`snapshot` | c51ff89 + later | tests above, `tests/test_report.py` |
+| 7 | diamond, cone, Prandtl-Meyer, NACA 0012 (Vassberg & Jameson Table 10/11 fetched), BMG nozzle (JPL TR 32-654 fetched, Fig. 4 digitized), carbuncle metric, rounded throat + GCI in nozzle study, Taylor-Maccoll/shock-expansion/PM theory | d4b1519 + later | quick runs: diamond 7/7 within 0.4 %, PM 0.66 %/0.05 %, cone Cp 0.09 %, BMG 8/9 points (z = 2.24 in SHORTFALL explained) |
+| 3 | Results workspace: display scenes, contours/lines/vectors/streamlines/mirror/revolve, 1/2/4 linked views, surfaces by click, reports, XY plot in Plots area, snapshots compare, custom fields, histogram, pictures, right-click, hover; Run start options | d4b1519 | `tests/gui/test_post_gui.py` (7) + all GUI tests (64 pass); screenshots via `tools/screenshots.py` |
+| 8 | `post/report.py` HTML + PDF, `post/pictures.py`, CLI report, GUI Tools > Project report | (this commit) | `tests/test_report.py` (3 templates, sections, no web addresses, Qt blocked) |
+| 9 | installer (PyInstaller + Inno Setup, per user, .afsproj association via `project.afsproj`, uninstaller), smoke test, THIRD_PARTY_LICENSES.txt, workflows (tests quick set, weekly full validation, installer on tags), user guide, 3 tutorials, theory manual section 13, developer guide, CHANGELOG, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue templates, parity checklist, examples + start page, diagnostics + log + error dialog, version 0.2.0a1 | (this commit) | first build 166 MB, smoke test passed (version fix after) ; silent install + registry checked |
+
+## Next
+
+1. Fast tests (running), commit.
+2. Full validation in the background (`run_all.py --jobs 3`), compare with `report_before.md` (rule 4), update theory-manual MMS table from `last_study.json`.
+3. Dark + 150 % screenshots, fix what is ugly.
+4. Final installer build + install / double-click / uninstall test; README screenshots, `docs/showcase/`.
+5. Gap register, CLAUDE.md layout, `docs/roadmap/speed.md` + `next_steps.md`, push, tag, release (only if the gates hold).
+
+## Decisions
+
+- Validation folders whose "case" is not a template use `case = "aeroflowsim/<module>.py"`.
+- Quick set writes `validation/report_quick.md`, full set `validation/report.md`; references may have `tolerance_percent_quick` and `shortfall` (status SHORTFALL: shown with its explanation, not counted as failure).
+- Mass-weighted average uses rho |V.n| (Fluent). Boundary fluxes in post-processing are the solver's stored final fluxes.
+- Cone reference: Sims 1964 (NASA SP-3004, tabulated) instead of the charts of NACA 1135.
+- Cone shock angle: half-level crossing (tested against the maximum density gradient, the 5 % foot and M_n = 1 on the fine mesh: only the half-level crossing converges to the exact angle: 35.05 deg coarse, 34.21 deg fine, exact 33.91 deg); quick-set tolerance 4 % for the coarse mesh.
+- .afsproj association: every project folder gets a small file `project.afsproj`; double-clicking it opens the folder.
+- `run_all.py` runs cases sequentially by default (`--jobs N` parallel).
+
+## Open anomalies
+
+- Diamond airfoil: residual stalls ~4e-3 at the lower leading-edge shock foot (limiter limit cycle); Cl, Cd steady to 1e-6. Speed stage.
+- Venkatakrishnan limiter loses order under refinement on smooth flows (MMS, triangles ~0.7-1.0). Gap register.
+- BMG z = 2.24 in: 0.80 vs 0.87 measured, mesh-converged; cause not settled (steep gradient + position uncertainty, tap size). Gap register.
+- Interpolated start only ~8 % fewer iterations (residual normalisation by the first iterations). Gap register.
+- NACA 0012 Cl: SHORTFALL (study design: meshes not refined systematically; speed stage).
+- Quick set: passes but takes about 32 min (target 10 min; NACA 9.5, quasi-1D 5.6, nozzle 5, diamond 4.5 min): the speed stage.
+- Full validation 26 Oct: 15 of 15 cases pass with 2 explained shortfalls (BMG z = 2.24 in, NACA 0012 Cl); all 72 earlier validated numbers unchanged (rule 4). Validation results are now kept per case (validation/results/*.json) so single cases can be re-run and the report rebuilt.
+- Two idle Python processes of an earlier parallel validation run could not be stopped (permission); they finished by themselves.

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Prompt 6e geometry validation: new shapes, nozzle contours and structured grids against exact values. No solver is run.
+"""Shapes, grids and mesh import stage geometry validation: new shapes, nozzle contours and structured grids against exact values. No solver is run.
 
 Shapes (exact formulas in the theory manual, section 14):
     von Karman nose            volume of revolution = pi R² L / 2           (Haack C = 0: the integral of y² is exact)

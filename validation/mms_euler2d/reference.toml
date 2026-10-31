@@ -4,7 +4,7 @@
 # observed order between the two finest meshes is compared with the formal order 2 of the scheme
 # (MUSCL reconstruction with least-squares gradients, no limiter).
 # The value compared is the SMALLEST observed L2 order over the four variables (rho, u, v, p).
-# Acceptance (Prompt 7b): >= 1.8 on structured / distorted quads, >= 1.7 on triangles and mixed meshes,
+# Acceptance (Post-processing and alpha release stage): >= 1.8 on structured / distorted quads, >= 1.7 on triangles and mixed meshes,
 # i.e. a tolerance of 10 % (quads) and 15 % (triangles, mixed) below the formal order 2.
 # The quick set (CI on every push) uses three coarser meshes (8, 16, 32 cells per side); there the
 # distorted quads are not yet in the asymptotic range, so the quick set has its own, wider tolerance

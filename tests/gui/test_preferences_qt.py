@@ -94,7 +94,7 @@ def test_an_old_result_without_solver_info_still_shows(qtbot, window, tmp_path):
     from aeroflowsim.gui.steps.run import _solver_text
 
     class _R:
-        info = {"status": "converged"}                              # a result saved before Prompt 8-1
+        info = {"status": "converged"}                              # a result saved before the speed stage (Numba)
     window.results = {"result": _R()}
     assert _solver_text(window) == ""
     _R.info = {"backend": "numba", "threads": 15}

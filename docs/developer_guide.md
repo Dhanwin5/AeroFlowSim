@@ -241,7 +241,7 @@ the history is unedited, so validated meshes never change by accident.
 
 Run them all: `.venv\Scripts\python.exe -m pytest` (test windows appear briefly on Windows).
 
-## Solver speed: Numba kernels and threads (Prompt 8-1)
+## Solver speed: Numba kernels and threads (Speed stage (Numba))
 
 - `aeroflowsim/compute.py` holds two settings: backend (`auto` / `numba` / `numpy`; env `AEROFLOWSIM_BACKEND`) and
   threads (`None` = physical cores - 1, at most 16; env `AEROFLOWSIM_THREADS`). The CLI sets them with `--backend`
@@ -260,7 +260,7 @@ Run them all: `.venv\Scripts\python.exe -m pytest` (test windows appear briefly 
   start. The installer collects `numba` and `llvmlite` (`tools/build_installer.py`).
 - Timing: `python tools/timing.py` (table), `--profile`, `--threads-table`; results in `validation/timing.md`.
 
-## Post-processing (`aeroflowsim/post/`, Prompt 7b)
+## Post-processing (`aeroflowsim/post/`, post-processing and alpha release stage)
 
 All post-processing logic lives in `aeroflowsim/post/` and imports neither Qt nor VTK, so the command line
 (`report`, `export`, `snapshot`), scripts, the automatic report and the GUI share it. The GUI only draws.

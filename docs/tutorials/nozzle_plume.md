@@ -1,7 +1,7 @@
 # Tutorial: a nozzle with an exhaust plume region
 
 You will mesh the inside of a small cold-gas nozzle **and** the region behind it where the jet
-expands, with boundaries named for the 2D axisymmetric solver (Prompt 7). Two ways: from the
+expands, with boundaries named for the 2D axisymmetric solver (2D Euler solver stage). Two ways: from the
 built-in nozzle template (A), or from your own CAD drawing (B). About 10 minutes.
 
 ## A. From the nozzle template

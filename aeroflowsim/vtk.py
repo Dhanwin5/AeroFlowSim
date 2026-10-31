@@ -10,7 +10,7 @@
 uses VTK cell type numbers and node ordering, so the cells are written as they are.
 
 The writer accepts ANY cell fields, so the same code exports mesh quality now and flow results
-(pressure, Mach number, velocity vectors ...) from Prompt 7 on:
+(pressure, Mach number, velocity vectors ...) from the 2D Euler solver stage on:
 
     write_vtu("mesh.vtu", mesh, {"p": pressure, "U": velocity})   # (C,) or (C, 3) arrays
 

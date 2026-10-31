@@ -15,9 +15,9 @@
 - 1D unsteady results (Sod shock tube): the stored snapshots play back in the field plot.
 - Command line: `export <project> --animation out.gif [--field M] [--fps 10] [--per-frame-range]`.
 
-## 0.2.0a2 - speed (Prompt 8: Numba, multi-core, implicit LU-SGS) (October 2026)
+## 0.2.0a2 - speed (Speed stage: Numba, multi-core, implicit LU-SGS) (October 2026)
 
-### Prompt 8-2: implicit LU-SGS
+### Speed stage (LU-SGS): implicit LU-SGS
 
 - Implicit LU-SGS time stepping for steady 2D / axisymmetric runs, now the default (`Implicit LU-SGS` in Numerics):
   first-order Rusanov implicit operator (omega 1.5), axisymmetric pressure source on the diagonal, SER CFL ramp from the
@@ -28,7 +28,7 @@
 - Validation suite: MMS study uses 6 worker processes sharing the cores (one per core with Numba threads ran out of
   memory).
 
-## Prompt 8-1: speed (Numba kernels, multi-core)
+## Speed stage (Numba): speed (Numba kernels, multi-core)
 
 - The 2D / axisymmetric residual runs in compiled Numba kernels (`aeroflowsim/euler/kernels.py`): 9-17 x faster on
   one core, 31-70 x with the default 16 threads (`validation/timing.md`). The NumPy code is kept as the reference

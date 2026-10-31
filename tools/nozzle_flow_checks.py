@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Quick flow runs on the new nozzle contours (Prompt 6e): checks that the contours WORK, not new validation cases.
+"""Quick flow runs on the new nozzle contours (Shapes, grids and mesh import stage): checks that the contours WORK, not new validation cases.
 
     python tools/nozzle_flow_checks.py [bell] [moc]        (no argument: both; one result line each)
 

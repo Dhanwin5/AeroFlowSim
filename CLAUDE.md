@@ -114,7 +114,7 @@ aeroflowsim/               the Python package
     nozzle_mesh.py         structured axisymmetric nozzle mesh (throat clustering, inflation layers)
     gmsh_mesh.py           optional Gmsh meshes (triangles / quad-dominant): external domain, nozzle
     inflation_layers.py    inflation layers grown from a wall for unstructured meshes
-    shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape (6e: bell and MOC
+    shapes/                shape library: profile.py (ShapeProfile), registry, one .py + .toml per shape (shapes, grids and mesh import: bell and MOC
                            nozzles, ramp / spike intakes, biconvex, NACA 5-digit, nose cones, sphere, capsule, ...);
                            revolution.py, intake_common.py: helpers (no .toml)
     nozzle_contours.py     Rao bell (digitised Huzel-Huang angles) and planar minimum-length MOC nozzle -> WallProfile
@@ -124,7 +124,7 @@ aeroflowsim/               the Python package
     gases/                 gas library: model.py (GasModel, CaloricallyPerfectGas), data.py (TOML format,
                            saturation curves), library.py (built-in / user / project gases), real_gas.py
                            (Peng-Robinson Z), one <id>.toml per built-in gas
-    assistant/             optional assistant (7c, off by default; nothing in it is imported until the user turns it on):
+    assistant/             optional assistant (AI assistant, off by default; nothing in it is imported until the user turns it on):
                            proposal.py (Proposal, strict JSON), context.py (schema context + prompt), review.py (checks every
                            proposal against schema.toml), units_map.py, rules.py (provider "Rules (no AI)"), local.py
                            (localhost model server), online.py (opt-in, own key), net.py (the ONLY network code),
@@ -181,7 +181,7 @@ docs/parity_checklist.md   Streamlit -> desktop GUI parity, for the user to tick
 docs/tutorials/            step-by-step tutorials (nozzle with plume region, airfoil in a C-domain)
 spikes/                    throwaway proofs of concept (not part of the package)
 tools/gas_data/            developer tool that writes aeroflowsim/gases/*.toml from NIST data (not packaged)
-tools/structured_flow_checks.py, tools/nozzle_flow_checks.py   quick flow runs on the new grids and nozzle contours (6e)
+tools/structured_flow_checks.py, tools/nozzle_flow_checks.py   quick flow runs on the new grids and nozzle contours (shapes, grids and mesh import)
 tools/assistant_screenshots.py   screenshots of the Assistant panel (off / review / online, light and dark)
 tools/screenshots.py       screenshots of every GUI page (light/dark, scaling); tools/build_installer.py: Windows
                            installer (PyInstaller + Inno Setup, tools/installer/); tools/make_examples.py
@@ -234,14 +234,14 @@ Commands (from the project folder):
 9. Use a Python virtual environment in **`.venv`**; the project is installed into it with
    `pip install -e .`. Dependencies (pyproject.toml): numpy, scipy, matplotlib, plotly, streamlit,
    pyyaml, pytest, PySide6-Essentials, vtk, pyvista, pyvistaqt, pytest-qt, gmsh (meshes and the
-   workspace's OpenCASCADE kernel; required since 6d), ezdxf (DXF files) - exact versions in
+   workspace's OpenCASCADE kernel; required since geometry workspace), ezdxf (DXF files) - exact versions in
    requirements.txt. The old `pip install -e ".[mesh]"` still works (empty group).
 10. Every `.py` file starts with the AeroFlowSim licence header (GPL-3.0-or-later).
 11. Ask before deleting files or making changes that were not requested.
 12. **Privacy:** the desktop GUI makes no network connections, contains no web addresses, opens only
     local files and collects no usage statistics (`tests/test_gui_privacy.py`); the old Streamlit GUI
     listens on localhost only without statistics (`.streamlit/config.toml`, tested). The one exception is
-    the optional assistant (7c): off by default; only its "Local model" provider (localhost only) and its
+    the optional assistant (AI assistant): off by default; only its "Local model" provider (localhost only) and its
     "Online (your own key)" provider (own explicit opt-in, the user's key in the OS keyring) open a connection, and
     only `aeroflowsim/assistant/net.py` contains network code (`tests/test_assistant.py`); the GUI files stay free of
     it. Never change this without asking. User data (results/,
@@ -263,8 +263,9 @@ Commands (from the project folder):
     counter-clockwise, corners marked, reference length and area) - plus tests. No GUI or case code.
 18. **Gap register:** read `docs/gap_register.md` at the start of every prompt. At the end, update it
     (status of the items that moved, new gaps found) and report both to the user.
-19. **Next prompt:** prompts live in `docs/prompts/` (index in its README). At the end of every prompt, write
-    the next prompt file in the same style: complete enough to be finished in ONE session without follow-up
+19. **Roadmap stages:** the development stages are named by topic (e.g. "speed", "3D geometry and meshing"),
+    never by number; each has one file `docs/roadmap/<topic>.md` (plan + progress log; index in its README). At
+    the end of every prompt, write the next stage's file in the same style: complete enough to be finished in ONE session without follow-up
     prompts (context, decisions already made, parts, quality gates, "Done when"; first line: the model to use,
     Opus for new numerics or many design decisions, Sonnet for well-defined building), including every finding of
     this session that belongs to it. Behaviour must match the best commercial CFD tools by default; walk
@@ -275,10 +276,10 @@ Commands (from the project folder):
   user, is editable, and is verified by the validity checks. The core software must work fully
   offline without any AI.
 - **Smart rules:** setup suggestions (mesh size, inflation first-layer height from Re and target y+,
-  suggested enclosure, CFL) from **Prompt 6d**; failure diagnosis with suggested fixes and result sanity
-  checks against theory from **Prompt 7**. Each rule is one small function, like a check.
-- **Adaptive mesh refinement:** **Prompt 8c**.
-- **Optional AI assistant plugin:** **Prompt 7c, done (v1: natural-language setup)**; result explanation is later. It
+  suggested enclosure, CFL) from the geometry workspace stage; failure diagnosis with suggested fixes and result sanity
+  checks against theory from the 2D Euler solver stage. Each rule is one small function, like a check.
+- **Adaptive mesh refinement:** **Adaptive mesh refinement stage**.
+- **Optional AI assistant plugin:** **AI assistant stage, done (v1: natural-language setup)**; result explanation is later. It
   works only through the schema inputs (fills them, never runs its own code), so every new feature
   becomes available to it automatically; opt-in, with a local-model option for confidential designs.
 - **Surrogate models and shape optimisation** (nozzle contour for maximum thrust/Isp, nose cone for
@@ -286,31 +287,31 @@ Commands (from the project folder):
 
 ## Roadmap
 - **Phase 1 - platform and 2D supersonic:**
-  - 6c desktop GUI (Qt + PyVista), Workbench-style steps and status, projects, undo/redo, gap register (done).
-  - 6d geometry workspace (clickable): import CSV/DAT, DXF and 2D STEP/IGES; shape templates; edit
+  - **Desktop GUI** (Qt + PyVista), Workbench-style steps and status, projects, undo/redo, gap register (done).
+  - **Geometry workspace** (clickable): import CSV/DAT, DXF and 2D STEP/IGES; shape templates; edit
     (move, rotate, scale, mirror, point table, drag points); sketch (line, arc, spline); enclosure tool
     (box, circle, C-shape around the body; inlet plenum and plume region for nozzles); booleans (Gmsh
     OpenCASCADE); name boundaries by clicking; refinement regions; smart rule: suggested enclosure and
     mesh sizes (done).
-  - 6e remaining shapes (bell nozzle, ramp and spike intakes, biconvex, NACA 5-digit, ogive, von Karman,
+  - **Shapes, grids and mesh import:** remaining shapes (bell nozzle, ramp and spike intakes, biconvex, NACA 5-digit, ogive, von Karman,
     power-law, sphere, hemisphere-cylinder, sphere-cone); structured C-grid / O-grid meshes via Gmsh
     (transfinite); mesh import (Gmsh .msh, SU2, CGNS, Fluent .msh).
-  - 6f materials: gas library + custom gas (designed for mixtures, real gas and liquids later); units
+  - **Gas library and units:** materials: gas library + custom gas (designed for mixtures, real gas and liquids later); units
     system (SI, mm, imperial in the GUI; SI inside) (done).
-  - 7 2D Euler solver (2D + axisymmetric) with local time stepping (done; see the gap register for what moved to 7b); full boundary-condition set
+  - **2D Euler solver** (2D + axisymmetric) with local time stepping (done; see the gap register for what moved to the post-processing stage); full boundary-condition set
     (total-pressure inlet, mass-flow inlet, pressure outlet, supersonic inlet/outlet, far-field, slip wall,
     symmetry, axis) taken from the named boundaries; initialisation options; live monitors (residuals,
     forces, mass flow); restart from a saved solution; carbuncle fix; thrust/Isp/Cf, Cp/Cl/Cd/Cm; smart
     rules for failure diagnosis.
-  - 7b post-processing (contours, streamlines, line probes, surface plots such as Cp vs x, image/CSV/VTK
+  - **Post-processing and alpha release:** post-processing (contours, streamlines, line probes, surface plots such as Cp vs x, image/CSV/VTK
     export); validation suite + MMS verification; automatic report (HTML/PDF); first tutorials; Windows
     installer; then the 2D alpha release.
-  - 7c AI assistant plugin v1 (opt-in; fills schema inputs only; local-model option).
-- **Phase 2 - speed and all speeds:** 8 Numba + implicit time stepping (LU-SGS) + multi-core parallel;
-  8b low-Mach preconditioning; 8c adaptive mesh refinement; 8d parametric studies and batch runs (lift
-  polars, thrust vs back pressure); 8e unsteady flow (dual time stepping).
-- **Phase 3 - 3D:** 9 3D geometry workspace (STEP) + 3D Gmsh meshes (tetrahedra, prism inflation);
-  10 3D Euler; multiple zones.
+  - **AI assistant** plugin v1 (opt-in; fills schema inputs only; local-model option).
+- **Phase 2 - speed and all speeds:** **speed** (done): Numba + implicit time stepping (LU-SGS) + multi-core parallel;
+  **low-Mach preconditioning**; **adaptive mesh refinement**; **parametric studies** and batch runs (lift
+  polars, thrust vs back pressure); **unsteady flow** (dual time stepping).
+- **Phase 3 - 3D:** **3D geometry and meshing**: 3D geometry workspace (STEP) + 3D Gmsh meshes (tetrahedra, prism inflation);
+  **3D Euler solver**; multiple zones.
 - **Phase 4 - viscous and liquids:** laminar Navier-Stokes (with slip-wall option for rarefied
   micro-nozzles), Spalart-Allmaras, k-omega SST, wall heat flux; constant-density liquids
   (preconditioned) + classic cases (lid-driven cavity vs Ghia, backward-facing step, cylinder at

@@ -11,7 +11,7 @@ axis have r = 0 and so zero flux area: nothing flows through the axis, without a
 
 The solver also needs, per cell, the list of its faces ("slots", padded to the largest number of faces
 of any cell). With these padded arrays a sum or minimum over a cell's faces is one NumPy call, and the
-same arrays can be handed to Numba later (Prompt 8) unchanged.
+same arrays can be handed to Numba later (Speed stage) unchanged.
 
 Sums over faces use sparse matrices: `scatter` (cells x faces) has +1 at (owner, face) and -1 at
 (neighbour, face). The net outflow of every cell is then  scatter @ (flux x area)  in one call.

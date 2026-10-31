@@ -1,8 +1,8 @@
-# Solver timing (Prompt 8-1)
+# Solver timing (Speed stage (Numba))
 
 Measured on the development machine (Intel Core Ultra 9, 24 physical cores, 32 GB, Windows 11) with
 `tools/timing.py`: milliseconds per iteration (SSP-RK3, second order, 3 residual evaluations per iteration) over
-200 iterations, times the iteration count of the Prompt 7b validation run = estimated full wall time. Timings vary
+200 iterations, times the iteration count of the post-processing and alpha release stage validation run = estimated full wall time. Timings vary
 by about 10-20 % between repeats (other programs, turbo clock).
 
 ## Before: NumPy reference implementation, one core
@@ -95,16 +95,16 @@ Numba backend, ms per iteration (SSP-RK3, three residuals per iteration):
   limited residual), and its gradient is already a fast SciPy sparse product, so less is left to gain there.
 - Threads: speed-up stops growing beyond about 8 threads on 4k-16k cells (the work per thread becomes too small and
   thread start-up dominates) and reaches 6.8 x at 24 threads on 65k cells, where memory bandwidth limits it.
-- Validation suite times before / after: see the CHANGELOG entry of Prompt 8-1 and the ledger.
+- Validation suite times before / after: see the CHANGELOG entry of the speed stage (Numba) and the ledger.
 
-## Prompt 8-2: implicit LU-SGS, wall-clock targets (default threads = 16)
+## Speed stage (LU-SGS): implicit LU-SGS, wall-clock targets (default threads = 16)
 
-| Target | Limit | Measured | Before Prompt 8 |
+| Target | Limit | Measured | Before speed stage |
 |---|---:|---:|---:|
 | Default N2 nozzle (Medium, 8k cells) converged | 60 s | 20.8 s (13,771 iterations, LU-SGS) | 13-19 min |
 | MMS 128 x 128 quads, residual drop 8 | 120 s | 12.5 s (LU-SGS, 3,982 it); explicit 17.5 s (10,747 it) | 1,646 s |
 | Quick validation set | 5 min | 5.0 min (LU-SGS default) | ~32 min |
-| Full validation suite | 60 min | 39 min (LU-SGS, NACA study now up to 137k cells; explicit after 8-1: 16 min with the old 13k-cell NACA meshes) | ~3 h |
+| Full validation suite | 60 min | 39 min (LU-SGS, NACA study now up to 137k cells; explicit after speed (Numba): 16 min with the old 13k-cell NACA meshes) | ~3 h |
 
 Iterations, LU-SGS vs SSP-RK3 (converged, same solution): MMS 32 x 32 triangles 1,212 vs 5,217 (CFL ramp of the
 first version; the final SER ramp needs about 2 x fewer than SSP-RK3 on small MMS meshes, 2.7 x on 128 x 128 quads);

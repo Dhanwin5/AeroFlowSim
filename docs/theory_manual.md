@@ -18,8 +18,8 @@ Contents
 10. [Reproducibility: projects, fingerprints and background runs](#10-reproducibility-projects-fingerprints-and-background-runs)
 11. [Gas models](#11-gas-models)
 12. [The 2D / axisymmetric Euler solver](#12-the-2d--axisymmetric-euler-solver)
-13. [Verification, post-processing and the new validation cases](#13-verification-post-processing-and-the-new-validation-cases-prompt-7b)
-14. [New shapes, nozzle contours and intakes](#14-new-shapes-nozzle-contours-and-intakes-prompt-6e-part-1)
+13. [Verification, post-processing and the new validation cases](#13-verification-post-processing-and-the-new-validation-cases-post-processing-and-alpha-release-stage)
+14. [New shapes, nozzle contours and intakes](#14-new-shapes-nozzle-contours-and-intakes-shapes-grids-and-mesh-import-stage-part-1)
 15. [The optional assistant: it assists, it never replaces physics](#15-the-optional-assistant-it-assists-it-never-replaces-physics)
 16. [References](#16-references)
 
@@ -260,7 +260,7 @@ gets a negative volume, which the mesh check reports as an error.
 **Axisymmetric metrics.** In the meridional plane $(x, r)$ a cell revolved by one radian sweeps the
 volume $A_{cell}\,r_c$ (**theorem of Pappus**, exact for straight-edged cells), and a face sweeps the
 area $L_f\,r_f$. These "per radian" values are stored next to the planar ones; the axisymmetric
-solver (Prompt 7) uses them, so the same face loop handles axisymmetric flow.
+solver (2D Euler solver stage) uses them, so the same face loop handles axisymmetric flow.
 
 **Quality metrics** (per cell, used by the validity checks):
 
@@ -512,7 +512,7 @@ $$e = c_v T,\qquad h = c_p T,\qquad c = \sqrt{\gamma R T},$$
 
 with $R_u = 8.314462618$ J/(mol K) (CODATA 2018, exact) and $M$ the molar mass. A solver that
 carries the total energy $E = \rho(e + u^2/2)$ gets $T$ back with $T(e) = e / c_v$. For the 2D solver
-(Prompt 7) this is the only place where the gas enters the flux and the boundary conditions:
+(2D Euler solver stage) this is the only place where the gas enters the flux and the boundary conditions:
 $p = (\gamma - 1)(E - \rho u^2/2)$, $c = \sqrt{\gamma p/\rho}$, and the inlet's total-to-static
 relations, all with $\gamma$ and $R$ from the model.
 
@@ -829,7 +829,7 @@ refine at the throat if it failed there). Suggestions are only applied by the us
 
 ---
 
-## 13. Verification, post-processing and the new validation cases (Prompt 7b)
+## 13. Verification, post-processing and the new validation cases (Post-processing and alpha release stage)
 
 ### 13.1 Method of Manufactured Solutions (`aeroflowsim/mms.py`)
 
@@ -949,7 +949,7 @@ that iteration are dropped with it, so the frames always show the path the accep
 copies a state the solver has already computed, so it cannot change the result (`tests/test_animation.py` checks
 this bit for bit).
 
-## 13b. Compiled kernels, parallel face sums and determinism (Prompt 8-1)
+## 13b. Compiled kernels, parallel face sums and determinism (Speed stage (Numba))
 
 **What changed and what did not.** The equations of section 12 are unchanged. The residual
 `R_i = -(1/V_i) [ sum_f s_if F(W_L, W_R; n_f) A_f - p_i G_i - S_i ]` (s_if = +1 if cell i owns face f, -1 if it is
@@ -984,7 +984,7 @@ no global state, and each loop iteration writes only its own cell or face: the s
 References: Lam, Pitrou & Seibert (2015), "Numba: a LLVM-based Python JIT compiler", LLVM-HPC'15; Blazek (2015),
 Computational Fluid Dynamics: Principles and Applications, ch. 5 (face-based data structures).
 
-## 13c. Implicit time stepping: LU-SGS (Prompt 8-2)
+## 13c. Implicit time stepping: LU-SGS (Speed stage (LU-SGS))
 
 **Why.** An explicit scheme may only move information about one cell per stage (CFL < ~1), so a steady flow on a
 fine mesh needs tens of thousands of iterations. An implicit scheme solves for the change of the whole field at
@@ -1034,7 +1034,7 @@ References: Yoon, S. & Jameson, A. (1988), "Lower-upper symmetric-Gauss-Seidel m
 equations", AIAA J. 26(9), 1025-1026; Blazek (2015), sec. 6.2.4; Mulder, W. A. & van Leer, B. (1985), "Experiments
 with implicit upwind methods for the Euler equations", J. Comput. Phys. 59, 232-246.
 
-## 13d. Limiter and order of accuracy (Prompt 8-2)
+## 13d. Limiter and order of accuracy (Speed stage (LU-SGS))
 
 With the Venkatakrishnan limiter ACTIVE (not frozen, not off), the MMS order depends on K
 (`tools/limiter_order.py`, LU-SGS, residual drop 8, L2 error of p; eps² = (K h / L_ref)³ size² with the LOCAL cell
@@ -1058,7 +1058,7 @@ switches the limiter off only where the solution is smooth, would remove the tra
 Reference: Michalak, C. & Ollivier-Gooch, C. (2009), "Accuracy preserving limiter for the high-order accurate solution
 of the Euler equations", J. Comput. Phys. 228, 8693-8711.
 
-## 14. New shapes, nozzle contours and intakes (Prompt 6e, part 1)
+## 14. New shapes, nozzle contours and intakes (Shapes, grids and mesh import stage, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,
 `aeroflowsim/intake_theory.py`. Tests: `tests/test_shapes_new.py` (each shape against its defining equation).
@@ -1130,7 +1130,7 @@ same code validated against Sims' tables). The rule is a smart rule: shown with 
 automatic. **Limitation:** a ShapeProfile is one closed outline, so the cowl is joined to the centre body by a solid
 rear block and the duct is a dead-end pocket; the outlines are for the shock system and the capture, not the duct flow.
 
-### Structured O-grids and C-grids (Prompt 6e, part 2)
+### Structured O-grids and C-grids (Shapes, grids and mesh import stage, part 2)
 
 Code: `aeroflowsim/structured_mesh.py`; tests: `tests/test_structured_mesh.py`; selected in the Mesh step of
 `external_2d` (input *Mesh type*). The grids are made in NumPy (not Gmsh transfinite blocks, see the ledger for why):
@@ -1167,7 +1167,7 @@ leading edge of the biconvex section).
 **Not covered:** blunt trailing edges (a base block is needed), surfaces with interior corners (the resampling would cut
 them), edited workspace geometry. The message says why. See the gap register.
 
-### Mesh import and export (Prompt 6e, part 3)
+### Mesh import and export (Shapes, grids and mesh import stage, part 3)
 
 Code: `aeroflowsim/mesh_io.py`; tests: `tests/test_mesh_io.py` (sample files in `tests/data/`); template `cases/imported_mesh`;
 command line `mesh-info` and `mesh-convert`.

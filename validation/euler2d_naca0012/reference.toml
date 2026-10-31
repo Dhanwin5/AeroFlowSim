@@ -4,7 +4,7 @@
 # solutions", Journal of Aircraft 47(4), 1152-1166, doi:10.2514/1.46737. Continuum estimates of three codes on
 # O-meshes up to 4096 x 4096 cells: Table 11 (Mach 0.8) and Table 10 (Mach 0.5), page 1165.
 # The reference value is the mean of the three codes (FLO82, OVERFLOW, CFL3D without vortex); their spread is
-# 2.3 % in Cl and 1 % in Cd at Mach 0.8, so the tolerance must include it. The full-set meshes are coarse (Prompt 8
+# 2.3 % in Cl and 1 % in Cd at Mach 0.8, so the tolerance must include it. The full-set meshes are coarse (Speed stage
 # speed is needed for finer ones): tolerance 3 % on Cl, 8 % on Cd (stated in the report). Quick set: the coarsest
 # mesh only, with wider tolerances.
 
@@ -18,7 +18,7 @@ value = 0.352033
 unit = "-"
 tolerance_percent = 3.0
 tolerance_percent_quick = 12.0
-shortfall = "Prompt 8-2 study (wall AND far-field sizes halved together: 14,523 / 40,388 / 136,920 cells, LU-SGS): Cl 0.3349 / 0.3325 / 0.3352, flat within 0.8 % over a 9 x refinement (the middle mesh stopped at 40,000 iterations, residual limit cycle), so the 4.8 % gap is no longer a mesh error (the 7b study refined only the wall size). Most likely cause, NOT yet tested: the far field. The C-domain is 30 chords with a plain characteristic far-field condition and no point-vortex correction; the circulation of a lifting airfoil decays only like 1/r, which lowers Cl on a small domain (Vassberg and Jameson use far fields of about 1e5 chords; their CFL3D run without the vortex correction gives the lowest value, 0.348). Next: a domain-size study (30 / 100 / 300 c) or a far-field vortex correction. Cd (3.6 %) and the Mach 0.5 lift (1.7 %) are within their tolerances."
+shortfall = "speed stage (LU-SGS) study (wall AND far-field sizes halved together: 14,523 / 40,388 / 136,920 cells, LU-SGS): Cl 0.3349 / 0.3325 / 0.3352, flat within 0.8 % over a 9 x refinement (the middle mesh stopped at 40,000 iterations, residual limit cycle), so the 4.8 % gap is no longer a mesh error (the post-processing and alpha release study refined only the wall size). Most likely cause, NOT yet tested: the far field. The C-domain is 30 chords with a plain characteristic far-field condition and no point-vortex correction; the circulation of a lifting airfoil decays only like 1/r, which lowers Cl on a small domain (Vassberg and Jameson use far fields of about 1e5 chords; their CFL3D run without the vortex correction gives the lowest value, 0.348). Next: a domain-size study (30 / 100 / 300 c) or a far-field vortex correction. Cd (3.6 %) and the Mach 0.5 lift (1.7 %) are within their tolerances."
 source = "Vassberg and Jameson (2010), J. Aircraft 47(4), Table 11, p. 1165: mean of FLO82 0.356209, OVERFLOW 0.351663, CFL3D 0.348226"
 
 [[reference]]

@@ -4,8 +4,8 @@
 
 """Boundary names and types: the table of types, name rules, automatic suggestions and checks.
 
-A boundary type says what kind of boundary condition the solver will use there (Prompt 7). The
-table below is the ONE place that lists them: Prompt 7 adds rows such as "total-pressure inlet",
+A boundary type says what kind of boundary condition the solver will use there (2D Euler solver stage). The
+table below is the ONE place that lists them: 2D Euler solver stage adds rows such as "total-pressure inlet",
 "mass-flow inlet", "pressure outlet", "supersonic inlet" and "supersonic outlet", and the GUI
 dropdown, the colours and the checks pick them up automatically.
 """

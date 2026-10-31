@@ -26,7 +26,7 @@ classifiers = [
 # Lower bounds only; requirements.txt holds the exact versions used in .venv.
 dependencies = [
     "numpy>=2.5",
-    "numba>=0.68",              # compiled residual kernels (Prompt 8-1); optional at run time: NumPy path without it
+    "numba>=0.68",              # compiled residual kernels (Speed stage (Numba)); optional at run time: NumPy path without it
     "scipy>=1.18",
     "matplotlib>=3.11",
     "plotly>=7.1",

@@ -7,7 +7,7 @@
     python tools/limiter_order.py [--levels 16,32,64,128] [--k 1,5,20] [--out table.md]
 
 Each run: implicit LU-SGS from the exact solution, residual drop 8 orders (or 30,000 iterations), limiter never
-frozen. Prints the L2 error of p and rho on every level and the observed order between levels (Prompt 8-2, part 3).
+frozen. Prints the L2 error of p and rho on every level and the observed order between levels (Speed stage (LU-SGS), limiter study).
 """
 
 import argparse

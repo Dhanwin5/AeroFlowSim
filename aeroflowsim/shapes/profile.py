@@ -19,7 +19,7 @@ In plain words, a ShapeProfile is:
     axisymmetric  False: a planar 2D body (1 m deep). True: a body of revolution about the x axis;
                   the outline is then the full silhouette, symmetric about y = 0.
     reference_length [m], reference_area [m²]: used to size the domain and the cells now, and
-                  for the force coefficients (Cl, Cd, Cm) from Prompt 7:
+                  for the force coefficients (Cl, Cd, Cm) from the 2D Euler solver stage:
                       planar        reference area = reference length x 1 m depth
                       axisymmetric  reference area = base area pi R²
 """

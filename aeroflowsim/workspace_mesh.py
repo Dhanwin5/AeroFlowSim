@@ -15,7 +15,7 @@ workspace_mesh(), in plain words:
   1. Replay the history in OpenCASCADE (the same replay the Geometry step shows), and refuse with
      a clear message if a step failed or a boundary edge has no name.
   2. Every boundary name becomes a Gmsh "physical group" of its edges, so the mesh patches carry
-     exactly the names (and types) given in the workspace; Prompt 7 reads the boundary conditions
+     exactly the names (and types) given in the workspace; 2D Euler solver stage reads the boundary conditions
      from them. The fluid faces are meshed; solid faces are not.
   3. Cell sizes (Gmsh "size fields", all combined with Min):
         walls          h(d) = min(h_max, h_wall + (growth - 1) d)  (distance d from the walls)

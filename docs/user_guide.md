@@ -177,7 +177,7 @@ still works with plain NumPy (10-30 x slower, same results) and says so.
 
 ## Time stepping (Numerics)
 
-Steady 2D runs use **Implicit LU-SGS** by default (since Prompt 8-2): large time steps, so several times fewer
+Steady 2D runs use **Implicit LU-SGS** by default (since the speed stage (LU-SGS)): large time steps, so several times fewer
 iterations than the explicit schemes, and the same converged result (the right-hand side is the same second-order
 residual). The CFL number input is the START value: the CFL grows as the residual falls, up to 100, and falls again
 if the residual rises; after an unphysical step the solver backs off by itself. **SSP-RK3** (explicit, the reference
@@ -279,7 +279,7 @@ Physics note: see the theory manual, section 15 ("it assists, it never replaces 
 
 - **The run does not converge / the residual stalls.** Look at the *Residual of the last iteration* field in the
   Results view: it shows where. On triangle meshes and at attached shocks the explicit solver can stall near
-  1e-3-1e-4 while forces have settled (see the gap register; implicit time stepping comes in Prompt 8). The
+  1e-3-1e-4 while forces have settled (see the gap register; implicit time stepping comes in the speed stage). The
   "What to try" button lists fixes.
 - **"Results of an older mesh"** - the mesh changed after the run: press Run (it starts from the interpolated old
   solution).

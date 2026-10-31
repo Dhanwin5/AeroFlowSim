@@ -46,7 +46,7 @@ def measure():
     jobs = [(kind, n, axi, order, lim) for _, axi, order, lim in VARIANTS for kind in mms.MESH_KINDS
             for n in _levels(order, lim)]
     jobs.sort(key=lambda j: -j[1])                       # big meshes first (best use of the cores)
-    # Numba kernels are multi-threaded (Prompt 8-1): a few worker processes share the cores between them (one process
+    # Numba kernels are multi-threaded (Speed stage (Numba)): a few worker processes share the cores between them (one process
     # per core with many threads each oversubscribed the CPU and ran out of memory on a 32 GB machine)
     from aeroflowsim import compute
     workers = max(1, min(len(jobs), MMS_WORKERS))
@@ -93,7 +93,7 @@ def study():
                       "The GCI columns apply the three-mesh GCI procedure (aeroflowsim/gci.py) to the L2 error of p: "
                       "its observed order should match and the asymptotic ratio be near 1.",
                       "First order and the Venkatakrishnan limiter are reported for information (not pass/fail): "
-                      "Finding (Prompt 7b): with Venkatakrishnan's limiter the order does NOT approach 2 on finer meshes; "
+                      "Finding (Post-processing and alpha release stage): with Venkatakrishnan's limiter the order does NOT approach 2 on finer meshes; "
                       "on triangles and mixed meshes it falls towards 1. Its threshold eps² = (K h / L)³ scale² shrinks "
                       "faster than the cell-to-cell differences of a smooth field (h^1.5 against h), so the limiter "
                       "clips the smooth extrema more and more as the mesh is refined. Smooth flows on fine meshes "

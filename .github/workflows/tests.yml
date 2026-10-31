@@ -1,4 +1,4 @@
-# Automatic testing on GitHub, on Windows and Ubuntu Linux with Python 3.13 (Prompt 8-1):
+# Automatic testing on GitHub, on Windows and Ubuntu Linux with Python 3.13 (Speed stage (Numba)):
 #   every push:                     the LIGHT set (a few minutes): Numba = NumPy residual equality, free-stream and
 #                                   well-balanced tests, 2D Sod and wedge (quick meshes), MMS-lite (tests/test_smoke.py);
 #   pull requests, weekly, manual:  all fast tests (including the desktop-GUI tests) and the QUICK validation set;

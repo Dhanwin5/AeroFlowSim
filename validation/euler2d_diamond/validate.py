@@ -27,7 +27,7 @@ BASE = {"shape": "Diamond airfoil", "diamond.thickness_ratio": 0.1, "domain_shap
 QUICK_RUN = {"max_iter": 5000}
 # The residual stalls near 4e-3 in a few cells at the foot of the attached leading-edge shock (a limiter limit cycle,
 # found with the residual field of aeroflowsim/post); Cl and Cd are steady to 1e-6 long before the iteration limit.
-# The stall is a Prompt 8 item (implicit time stepping), see the gap register.
+# The stall is a speed stage item (implicit time stepping), see the gap register.
 RUNS = {}
 
 

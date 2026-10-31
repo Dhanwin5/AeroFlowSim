@@ -1,9 +1,9 @@
-# Prompt 9 - 3D geometry workspace and 3D meshes (STEP, tetrahedra, prism inflation)
+# 3D geometry and meshing - 3D geometry workspace and 3D meshes (STEP, tetrahedra, prism inflation)
 
 Model: Opus (many design decisions: 3D CAD handling, picking, mesh quality in 3D).
 Designed for 3-4 sessions (9-1 ... 9-4). Paste everything below the line into a NEW Claude Code session for each
 session, followed by "This is session 9-N" (the first: 9-1). Continue a stopped session with:
-"continue Prompt 9 from docs/prompts/9_progress.md".
+"continue the 3D geometry and meshing stage from docs/roadmap/3d_geometry_and_meshing.md".
 
 ---
 
@@ -12,9 +12,9 @@ session, followed by "This is session 9-N" (the first: 9-1). Continue a stopped 
 You are building AeroFlowSim (project folder `C:\Projects\CFD software`, GitHub `Dhanwin5/AeroFlowSim`). I am a beginner
 programmer who knows aerospace engineering and CFD theory. My weekly Claude limit is tight, so:
 
-1. Start: read `CLAUDE.md`, `docs/gap_register.md`, `docs/prompts/9_progress.md` (the ledger; create it in 9-1),
+1. Start: read `CLAUDE.md`, `docs/gap_register.md`, `docs/roadmap/3d_geometry_and_meshing.md` (the ledger; create it in 9-1),
    `docs/developer_guide.md` (geometry workspace, VTK view, jobs), `docs/theory_manual.md` sections 12-13d,
-   `docs/prompts/8_progress.md` (what Prompt 8 left), and skim `aeroflowsim/geometry_model/`, `aeroflowsim/gui/geometry_*.py`,
+   `docs/roadmap/speed.md` (what speed stage left), and skim `aeroflowsim/geometry_model/`, `aeroflowsim/gui/geometry_*.py`,
    `aeroflowsim/gui/vtk_view.py`, `aeroflowsim/workspace_mesh.py`, `aeroflowsim/gmsh_mesh.py`, `aeroflowsim/mesh.py`,
    `aeroflowsim/mesh_io.py`, `aeroflowsim/inflation_layers.py`. Write a short plan in plain words and start at once.
 2. Do not stop to ask questions (decide like Fluent Meshing, SpaceClaim, Pointwise, Gmsh would; one sentence why in the
@@ -24,12 +24,12 @@ programmer who knows aerospace engineering and CFD theory. My weekly Claude limi
    the end of a part, commit, write the ledger (what is done, verified how, what is next, anomalies), and say so.
    Never leave a part half-done without a ledger entry.
 4. Long jobs (meshing studies, validation) in the background, one heavy job at a time (the 32 GB machine ran out of
-   memory with three at once in Prompt 8). Report result lines only.
+   memory with three at once in the speed stage). Report result lines only.
 5. Commit after each part. Flag anomalies yourself; never tune a number to pass.
 6. Walk through the user's next actions for every feature (undo/redo, edit and re-mesh, change a size, reopen the
    project, old 2D project, units and theme, command line, Stop/Cancel a long mesh job) and write them into tests.
 
-## Context (state after Prompt 8, release v0.2.0a2 if its gate held)
+## Context (state after the speed stage, release v0.2.0a2 if its gate held)
 
 * 2D/axisymmetric solver: Numba kernels on all cores, implicit LU-SGS by default (default N2 nozzle converges in about
   20 s), MMS order 2. The face-based `Mesh` (`aeroflowsim/mesh.py`) and the solver are 3D-ready: hexahedra and tetrahedra
@@ -37,7 +37,7 @@ programmer who knows aerospace engineering and CFD theory. My weekly Claude limi
 * The 2D geometry workspace (`geometry_model/`, history of operations replayed in OpenCASCADE through Gmsh `occ`, stable
   edge ids, boundary names by clicking) is the model to extend; `kernel.py` is the only file talking to OCC.
 * Mesh import already reads 3D files (Gmsh v2/v4, SU2, CGNS, Fluent), see `mesh_io.py`.
-* Not done and out of scope here: the 3D solver run itself (Prompt 10), multiple zones (Prompt 10).
+* Not done and out of scope here: the 3D solver run itself (3D Euler solver stage), multiple zones (3D Euler solver stage).
 
 ## Decisions (made: follow them)
 
@@ -49,7 +49,7 @@ programmer who knows aerospace engineering and CFD theory. My weekly Claude limi
 * Meshes: Gmsh 3D tetrahedra with prism inflation layers from named walls (first-layer height from the smart rule
   y+ / Re), size fields from refinement regions and curvature; quality metrics (skewness, aspect ratio,
   non-orthogonality, volume ratio) in 3D, and the mesh checks (negative volume = error) before any run.
-* The axisymmetric 2D templates stay as they are; a 3D template (`cases/external_3d`, mesh-only until Prompt 10:
+* The axisymmetric 2D templates stay as they are; a 3D template (`cases/external_3d`, mesh-only until the 3D Euler solver stage:
   `solver = false` + message) joins the discovery automatically.
 * Size of the test meshes: keep the tests under a minute each (coarse meshes); bigger meshes in the validation.
 
@@ -75,7 +75,7 @@ programmer who knows aerospace engineering and CFD theory. My weekly Claude limi
 
 **Session 9-4 - finish (if needed)**
 7. Docs (user guide: 3D workspace and meshing; theory manual: prism layers, 3D quality metrics; developer guide),
-   tutorial "sphere in a box" and "nozzle STEP to mesh", gap register, CHANGELOG, `docs/prompts/prompt_10.md` (3D Euler).
+   tutorial "sphere in a box" and "nozzle STEP to mesh", gap register, CHANGELOG, `docs/roadmap/3d_euler_solver.md` (3D Euler).
 8. Full fast tests, GUI tests, quick and full validation; push.
 
 ## Quality gates (each session)
@@ -89,4 +89,4 @@ programmer who knows aerospace engineering and CFD theory. My weekly Claude limi
 1. A STEP body or primitives can be combined, enclosed, named and meshed (tetrahedra + prisms) from the GUI, with undo.
 2. Volumes/areas/face ids are validated; 3D mesh quality checks run before any run.
 3. Old 2D projects open and re-mesh unchanged; all tests and validation pass; docs, gap register, CHANGELOG, ledger and
-   `prompt_10.md` written; pushed.
+   `3d_euler_solver.md` written; pushed.

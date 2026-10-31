@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Quick flow runs on the structured grids (Prompt 6e): checks that the meshes WORK with the solver, not new validation cases.
+"""Quick flow runs on the structured grids (Shapes, grids and mesh import stage): checks that the meshes WORK with the solver, not new validation cases.
 
     python tools/structured_flow_checks.py [naca] [cylinder]      (no argument: both; results are printed as one line each)
 

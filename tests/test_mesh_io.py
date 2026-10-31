@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Prompt 6e, part 3: mesh import and export (aeroflowsim/mesh_io.py).
+"""Shapes, grids and mesh import stage, part 3: mesh import and export (aeroflowsim/mesh_io.py).
 
 Round trips (export, import, same nodes, cells and patches) for Gmsh 2.2 and 4.1, SU2 and CGNS; the sample files of
 tests/data (all five formats, in millimetres, with boundary names that are not type names); real Gmsh output (version 2

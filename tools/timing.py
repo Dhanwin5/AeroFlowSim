@@ -26,7 +26,7 @@ import numpy as np  # noqa: E402
 
 from aeroflowsim import compute  # noqa: E402
 
-# Iterations of the validation runs (validation/report.md, Prompt 7b), to estimate the full wall time.
+# Iterations of the validation runs (validation/report.md, post-processing and alpha release stage), to estimate the full wall time.
 STORED_ITERATIONS = {"MMS quads 128": 20367, "MMS triangles 128": 29216, "N2 nozzle Coarse": 8095,
                      "N2 nozzle Medium": 24688, "N2 nozzle triangles 0.04": 30000, "wedge 0.02 L": 1935,
                      "cylinder polar 60 x 80": 6184, "diamond 0.01 c alpha 0": 1358, "NACA 0012 0.01 c M 0.8": 12771}

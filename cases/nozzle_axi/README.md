@@ -27,7 +27,7 @@ p0 = 5 bar, T0 = 293.15 K and a back pressure of 1 kPa.
   back pressure, vacuum Isp and Cf, and the ideal quasi-1D Isp of the same wall for comparison. Fields:
   rho, u, v, p, T, Mach, total pressure, total temperature, entropy; the wall pressure p/p0 against the
   quasi-1D isentropic p/p0; the solution as `results/solution.vtu` for ParaView.
-- **Speed:** plain NumPy (Numba and implicit time stepping are Prompt 8): the coarse mesh (2,000 cells)
+- **Speed:** plain NumPy (Numba and implicit time stepping come in the speed stage): the coarse mesh (2,000 cells)
   converges in about 8,000 iterations, 75 s; the default medium mesh (8,000 cells) takes several minutes.
 
 ## Geometry

@@ -25,7 +25,7 @@ may warn; choose "More info" > "Run anyway". Example projects are on the start p
 ## Known limitations (docs/gap_register.md)
 - Inviscid and 2D only; calorically perfect gas.
 - Explicit solver: slow (minutes for the default nozzle); a few cases stall near a residual of 1e-3-1e-4 in a few cells
-  while forces have settled. Speed (Numba, implicit LU-SGS) is the next step (Prompt 8).
+  while forces have settled. Speed (Numba, implicit LU-SGS) is the next step (Speed stage).
 - Venkatakrishnan's limiter loses order on smooth flows on fine meshes.
 - The NACA 0012 mesh study is not yet a systematic refinement (Cl 4 % low; explained shortfall).
 

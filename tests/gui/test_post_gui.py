@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The 2D post-processing workspace of the Results step (Prompt 7b), on a small converged nozzle run.
+"""The 2D post-processing workspace of the Results step (Post-processing and alpha release stage), on a small converged nozzle run.
 
 Walk-through: open a project with a result -> contours, lines, vectors, streamlines, mirror, revolve -> surfaces
 by clicking and typing -> XY plot -> integrals, flux balance, forces -> report definitions -> custom field ->

@@ -1,6 +1,6 @@
 # Launch checklist (before making the repository public)
 
-Written at the end of Prompt 8-2 (2026-10-30). The repository is still private; making it public is the owner's
+Written at the end of the speed stage (LU-SGS) (2026-10-30). The repository is still private; making it public is the owner's
 decision and is done by the owner on GitHub (Settings > General > Danger zone > Change visibility).
 
 ## 1. Git history scan (done 2026-10-30, re-run just before the switch)
@@ -56,5 +56,5 @@ AeroFlowSim is GPL-3.0-or-later. Whoever gives someone the installer must also o
 - [ ] Latest full validation report all PASS (`validation/report.md`), CI green on main.
 - [ ] README: install, screenshots, how to cite, licence badge.
 - [ ] CONTRIBUTING and an issue template (optional).
-- [ ] Tag and pre-release exist with the installer (Prompt 8-2 release gate).
+- [ ] Tag and pre-release exist with the installer (Speed stage (LU-SGS) release gate).
 - [ ] Re-run section 1 on the final main.

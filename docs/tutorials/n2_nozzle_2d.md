@@ -24,7 +24,7 @@ throat. About 20 minutes, most of it waiting for the run.
      residual tolerance 1e-6, thrust and mass flow settled to 1e-4 over 500 iterations).
 5. **Run step → Run.** Watch the four residuals fall, and under them the thrust computed two ways and the
    mass flow in and out: they come together as the run converges. The Medium mesh needs 24,688
-   iterations, 13 to 19 minutes in plain NumPy depending on the computer (Numba arrives in Prompt 8).
+   iterations, 13 to 19 minutes in plain NumPy depending on the computer (Numba arrives in the speed stage).
 6. **Results step.**
    - **Key results:** mass flow, discharge coefficient, exit Mach number and pressure, vacuum thrust and
      thrust at the back pressure, vacuum Isp, and the Isp of the ideal quasi-1D nozzle of the same wall.

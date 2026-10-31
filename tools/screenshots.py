@@ -10,7 +10,7 @@
 
 Pictures go to docs/screenshots/<project>/<page>_<theme>_<scale>.png (or --out). The window is grabbed from the
 screen, so the VTK views (OpenGL) appear as they are drawn. Used to look at every page after a GUI change
-(Prompt 7b quality gate: light and dark, 100 % and 150 % scaling).
+(Post-processing and alpha release stage quality gate: light and dark, 100 % and 150 % scaling).
 """
 
 import argparse

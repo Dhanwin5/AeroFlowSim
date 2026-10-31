@@ -12,7 +12,7 @@ Domain: C-domain (workspace Enclosure) of radius 30 c, 30 c downstream; characte
 vortex correction (as OVERFLOW and CFL3D without vortex in the reference). Gmsh triangles, wall cells of 0.02, 0.01
 and 0.005 c (refinement ratio 2); the quick set runs only the coarsest mesh with a short budget.
 The three-mesh GCI (aeroflowsim/gci.py) gives the extrapolated Cl and Cd, compared with the grid-converged values
-of the reference. Prompt 8 speed is needed for the finer meshes of a proper study (see the gap register).
+of the reference. The speed stage is needed for the finer meshes of a proper study (see the gap register).
 """
 
 from pathlib import Path
@@ -28,8 +28,8 @@ from validation.common import is_quick
 
 HERE = Path(__file__).resolve().parent
 CASE = "cases/external_2d"
-# Prompt 8-2: every size scales together (wall size AND far-field size halve per level; growth 1.15, C-domain 30 c):
-# 14.5k / 40k / 137k cells (about 3 x per level). The 7b study halved only the wall size (7k / 9k / 13k cells: not a
+# Speed stage (LU-SGS): every size scales together (wall size AND far-field size halve per level; growth 1.15, C-domain 30 c):
+# 14.5k / 40k / 137k cells (about 3 x per level). The post-processing and alpha release study halved only the wall size (7k / 9k / 13k cells: not a
 # refinement, GCI order 10).
 LEVELS = {"wall 0.01 c": 0.01, "wall 0.005 c": 0.005, "wall 0.0025 c": 0.0025}
 FAR_FIELD_PER_WALL = 100.0          # far-field cell size / wall cell size

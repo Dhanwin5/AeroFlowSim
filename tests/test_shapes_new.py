@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Prompt 6e, part 1: the new shapes against their defining equations, the nozzle contours (Rao bell, Method of
+"""Shapes, grids and mesh import stage, part 1: the new shapes against their defining equations, the nozzle contours (Rao bell, Method of
 Characteristics) and the intake shock rule. Every number is checked against an equation or a source value."""
 
 import math

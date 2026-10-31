@@ -349,7 +349,7 @@ def test_geometry_checks_suggestions_and_export(qtbot, window, tmp_path):
 
 
 def test_import_name_refine_and_mesh_in_the_window(qtbot, window, tmp_path, monkeypatch):
-    """The Prompt 6d flow: import a file, select edges, name them, add a refinement box, mesh, see the patches."""
+    """The geometry workspace stage flow: import a file, select edges, name them, add a refinement box, mesh, see the patches."""
     from pathlib import Path
     import numpy as np
     from aeroflowsim.geometry_model.operations import ImportFile

@@ -2,11 +2,11 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Throwaway proof of concept for the Qt + PyVista desktop GUI (Prompt 6c, step 0).
+"""Throwaway proof of concept for the Qt + PyVista desktop GUI (Desktop GUI stage, step 0).
 
 Run from the project folder:   .venv\\Scripts\\python.exe spikes\\qt_poc\\poc.py
 
-It proves the pieces Prompt 6d needs: main window with menus, toolbar, dockable panels and a VTK
+It proves the pieces geometry workspace stage needs: main window with menus, toolbar, dockable panels and a VTK
 view; our meshes shown with edges and a colour field; click a boundary edge -> its patch; click a
 cell -> its values; a draggable point handle and box with live coordinates; a long meshing job in
 a separate process with progress and Cancel; light and dark theme. Not part of the package.

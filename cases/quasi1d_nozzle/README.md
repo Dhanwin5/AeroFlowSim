@@ -71,7 +71,7 @@ Finite volumes. Cell i lies between faces i−½ and i+½ and has volume V_i = �
   solution is steady by then (the exit Mach number agrees with a fully converged CFL 0.1 run to 1e-10),
   so for fine meshes set the residual drop to 1e-6, or use CFL 0.1 for 8 orders (about twice the
   iterations). The number of iterations grows about in proportion to the number of cells (local time
-  stepping is explicit); implicit time stepping (Prompt 8) removes this. At 5 000 cells (throat
+  stepping is explicit); implicit time stepping (Speed stage) removes this. At 5 000 cells (throat
   cells about 1/10 000 of the nozzle length) the residual stalls already near 1e-2, but the mass flow
   through inlet and exit agrees to 0.001 % and the exit Mach number to 1e-5 between CFL 0.1 and 0.2.
 * **Initial guess.** The isentropic solution on the correct branch. For a supersonic exit it is

@@ -93,9 +93,9 @@ def study():
              "(Rcu/Rt = 1.5, Rcd/Rt = 0.4) the coarsest triangle mesh already gives about 1 %.",
              "Triangle meshes: the residual stalls near 1e-4 in a few cells at the sharp throat corner (also slow, "
              "but still falling, with a rounded throat), so they do not meet the convergence criterion; the thrust "
-             "from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Prompt 8) is the "
+             "from both methods and the Isp have settled to about 0.1 %. Implicit time stepping (Speed stage) is the "
              "planned cure (gap register).",
-             "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in Prompt 8)."]
+             "Wall-clock times: plain NumPy on one core (Numba and implicit time stepping follow in the speed stage)."]
     try:
         g = gci.three_mesh((1.0, 2.0, 4.0), isp[::-1])          # cell size relative to the finest (ratio 2)
         notes.append(f"Structured meshes, Isp (GCI tool, aeroflowsim/gci.py): {g.summary('s')}.")

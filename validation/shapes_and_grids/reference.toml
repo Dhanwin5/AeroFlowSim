@@ -1,5 +1,5 @@
 # New shapes, nozzle contours (Rao bell, Method of Characteristics) and the structured C/O-grids against exact values.
-# No solver is run (Prompt 6e). Every value is a ratio measured / exact, so the expected value is 1.
+# No solver is run (Shapes, grids and mesh import stage). Every value is a ratio measured / exact, so the expected value is 1.
 
 title = "New shapes, nozzle contours and structured grids (geometry)"
 case = "cases/external_2d"

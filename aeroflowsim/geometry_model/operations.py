@@ -547,7 +547,7 @@ def entity_points(pts, ent, n=65) -> np.ndarray:
 
 
 class Sketch(Operation):
-    """A sketched entity from points [m] (Prompt 6d; new sketches use SketchGroup):
+    """A sketched entity from points [m] (Geometry workspace stage; new sketches use SketchGroup):
         polyline   straight lines through the points (closed: back to the first point, making a face)
         spline     a smooth curve through the points (closed: a smooth closed curve, making a face)
         arc3       a circle arc from point 1 through point 2 to point 3

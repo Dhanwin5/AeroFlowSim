@@ -1,4 +1,4 @@
-# Prompt 7c - progress ledger (AI assistant plugin)
+# AI assistant stage - progress ledger (AI assistant plugin)
 
 Updated after each part so a new session can continue. Model: Sonnet. Rule: the assistant only fills schema inputs,
 every proposal is checked against the schema, nothing is applied without the user ticking it, off by default.

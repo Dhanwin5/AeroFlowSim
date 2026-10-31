@@ -9,7 +9,7 @@ WallProfile or a ShapeProfile (aeroflowsim/geometry.py, aeroflowsim/shapes/). Th
 that object into the boundaries the mesh will have, each with its name and patch type:
     nozzle (WallProfile):         wall, inlet, outlet, axis
     body in a free stream:        wall (the body), farfield, and symmetry / axis on y = 0 for a half domain
-so the user sees and checks the boundaries before meshing. Prompt 6d (geometry workspace)
+so the user sees and checks the boundaries before meshing. Geometry workspace stage
 replaces this read-only preview by an editable geometry with boundaries named by clicking.
 """
 

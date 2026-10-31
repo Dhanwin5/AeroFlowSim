@@ -60,7 +60,7 @@ def test_nozzle_regimes_for_default_thruster():
     assert M1 == pytest.approx(2.49, rel=5e-3)
 
 
-# ---- oblique shocks, Prandtl-Meyer, shock-expansion, Taylor-Maccoll (Prompt 7b) ----------------------------
+# ---- oblique shocks, Prandtl-Meyer, shock-expansion, Taylor-Maccoll (Post-processing and alpha release stage) ----------------------------
 
 def test_oblique_shock_matches_the_wedge_reference():
     s = gd.oblique_shock(2.0, math.radians(10.0), 1.4)
