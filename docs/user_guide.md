@@ -22,7 +22,9 @@ The installer is **not code-signed** yet. Windows SmartScreen may say "Windows p
 **macOS installer** (Apple silicon: `AeroFlowSim-<version>-macOS-arm64.dmg`; Intel Macs: `...-macOS-x86_64.dmg`).
 Open the .dmg and drag AeroFlowSim onto Applications. The app is **not signed by Apple** yet, so the first time
 macOS says it cannot check it: right-click (or Control-click) AeroFlowSim in Applications, choose *Open*, then *Open*
-again (on recent macOS: System Settings > Privacy & Security > *Open Anyway*). After that it opens normally. Your
+again (on recent macOS: System Settings > Privacy & Security > *Open Anyway*). After that it opens normally. On Intel
+Macs the solver runs without its compiled (Numba) kernels, which no longer support them: every feature works and the
+results are the same, but runs take several times longer than on Apple silicon. Your
 settings, log and own gases are in `~/Library/Application Support/AeroFlowSim`; projects in
 `Documents/AeroFlowSim Projects`. Uninstall: drag AeroFlowSim from Applications to the Bin.
 

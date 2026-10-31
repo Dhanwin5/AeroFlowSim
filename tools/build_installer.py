@@ -67,6 +67,11 @@ def third_party_licenses(path):
     return path
 
 
+def _has(module):
+    import importlib.util
+    return importlib.util.find_spec(module) is not None
+
+
 def pyinstaller():
     from aeroflowsim import __version__
     third_party_licenses(ROOT / "THIRD_PARTY_LICENSES.txt")
@@ -84,7 +89,7 @@ def pyinstaller():
     args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed", "--name", "AeroFlowSim",
             "--distpath", str(DIST), "--workpath", str(BUILD), "--specpath", str(BUILD),
             "--collect-all", "aeroflowsim", "--collect-all", "gmsh", "--collect-all", "pyvista",
-            "--collect-all", "pyvistaqt", "--collect-all", "numba", "--collect-all", "llvmlite",
+            "--collect-all", "pyvistaqt", *(["--collect-all", "numba", "--collect-all", "llvmlite"] if _has("numba") else []),
             "--collect-submodules", "vtkmodules", "--collect-data", "matplotlib",
             "--exclude-module", "streamlit", "--exclude-module", "plotly", "--exclude-module", "pytest",
             "--exclude-module", "tkinter"]
@@ -207,7 +212,8 @@ def smoke(folder):
     r2 = subprocess.run([str(exe), "run", "external_2d", "--set", "shape=Wedge", "--set", "max_iter=50", "--out",
                          str(tmp / "2d")], capture_output=True, text=True, timeout=900)
     print("run 2D:", next((line for line in r2.stdout.splitlines() if line.startswith("Solver:")), "no solver line"))
-    assert "Numba kernels" in r2.stdout, r2.stdout[-2000:] + r2.stderr[-2000:]
+    intel_mac = sys.platform == "darwin" and arch() == "x86_64"         # no Numba for Intel Macs: the NumPy solver
+    assert ("NumPy" if intel_mac else "Numba kernels") in r2.stdout, r2.stdout[-2000:] + r2.stderr[-2000:]
     env = {**__import__("os").environ, "AEROFLOWSIM_QUIT_AFTER_MS": "4000"}
     g = subprocess.run([str(exe)], timeout=180, env=env)
     print("GUI start/close: exit", g.returncode)
