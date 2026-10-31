@@ -112,7 +112,7 @@ adding different units); it can never run other code. Your fields are available 
 **Animation** - play back how the flow developed during the run. While the run is solving, AeroFlowSim keeps
 *frames* of the flow (density, velocity and pressure in every cell); the last frame is the final result. For a
 steady run the frames show the convergence in pseudo-time: the start-up transient (shocks forming and moving into
-place) until the steady state. Press ▶ to play; ⏮ ◀ ▶| ⏭ and the slider step through the frames; the label shows
+place) until the steady state. Press Play; the first / previous / next / last buttons and the slider step through the frames; the label shows
 the iteration (or the time of a time-accurate run). Speed (2-30 frames per second), Loop, and the colour range:
 *Fixed over all frames* (default: a colour means the same value in every frame) or *Per frame*. Every view that
 shows the current result plays the frame with its own Display settings (field, colour map, contour lines, vectors,

@@ -14,7 +14,7 @@ settings (field, colour map, vectors, streamlines, ...). All logic is in aeroflo
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
-                               QLabel, QMessageBox, QPushButton, QSlider, QSpinBox, QToolButton, QVBoxLayout, QWidget)
+                               QLabel, QMessageBox, QPushButton, QSlider, QSpinBox, QStyle, QToolButton, QVBoxLayout, QWidget)
 
 from aeroflowsim.post.animation import (DEFAULT_SETTINGS, RANGE_ALL, RANGE_FRAME, Playback, frame_label,
                                         mp4_available)
@@ -32,10 +32,14 @@ class PlaybackBar(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
         self.first, self.back, self.play, self.next, self.last = (QToolButton() for _ in range(5))
-        for b, text, tip in ((self.first, "⏮", "First frame"), (self.back, "◀", "Previous frame"),
-                             (self.play, "▶", "Play / pause"), (self.next, "▶|", "Next frame"),
-                             (self.last, "⏭", "Last frame (the final result)")):
-            b.setText(text)
+        icon = self.style().standardIcon          # Qt's own media icons: drawn the same with every font
+        self._icons = {"play": icon(QStyle.SP_MediaPlay), "pause": icon(QStyle.SP_MediaPause)}
+        for b, pixmap, tip in ((self.first, QStyle.SP_MediaSkipBackward, "First frame"),
+                               (self.back, QStyle.SP_MediaSeekBackward, "Previous frame"),
+                               (self.play, QStyle.SP_MediaPlay, "Play / pause"),
+                               (self.next, QStyle.SP_MediaSeekForward, "Next frame"),
+                               (self.last, QStyle.SP_MediaSkipForward, "Last frame (the final result)")):
+            b.setIcon(icon(pixmap))
             b.setToolTip(tip)
         self.first.clicked.connect(lambda: self.seek(0))
         self.back.clicked.connect(lambda: self.step(-1))
@@ -50,10 +54,12 @@ class PlaybackBar(QWidget):
             self.speed.addItem(f"{fps} frames/s", fps)
         self.speed.setCurrentIndex(Playback.SPEEDS.index(10))
         self.speed.currentIndexChanged.connect(self._speed)
+        self.speed.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.loop = QCheckBox("Loop", checked=True)
         self.loop.toggled.connect(lambda on: setattr(self.playback, "loop", on))
         self.range_mode = QComboBox()
         self.range_mode.addItems([RANGE_ALL, RANGE_FRAME])
+        self.range_mode.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.range_mode.setToolTip("Fixed over all frames: one colour bar for the whole animation, so colours mean the "
                                    "same value in every frame. Per frame: each frame uses its own range.")
         self.range_mode.currentIndexChanged.connect(lambda _: self.frame_changed.emit(self.playback.index))
@@ -112,7 +118,7 @@ class PlaybackBar(QWidget):
         self._show()
 
     def _timer(self):
-        self.play.setText("⏸" if self.playback.playing else "▶")
+        self.play.setIcon(self._icons["pause" if self.playback.playing else "play"])
         if self.playback.playing:
             self.timer.start(self.playback.interval_ms)
         else:
@@ -203,7 +209,7 @@ class AnimationPanel(QWidget):
         elif status in ("outdated", "error"):
             self.note.setText(f"OUT OF DATE: {anim.n} frames of a run made from older inputs. Run again to update them.")
         else:
-            self.note.setText(f"{anim.n} frames recorded. Press ▶ to watch how the flow developed; the last frame is "
+            self.note.setText(f"{anim.n} frames recorded. Press Play to watch how the flow developed; the last frame is "
                               "the final result.")
 
     def _settings_changed(self, *_):
