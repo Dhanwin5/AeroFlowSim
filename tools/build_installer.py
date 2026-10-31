@@ -2,11 +2,17 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Build the Windows installer: PyInstaller one-folder build + Inno Setup script.
+"""Build the installer of this operating system: PyInstaller one-folder build, then
 
-    python tools/build_installer.py              build dist/AeroFlowSim/ and, if Inno Setup is installed,
-                                                 dist/AeroFlowSim-<version>-setup.exe
+    Windows   dist/AeroFlowSim-<version>-setup.exe      (Inno Setup, if installed)
+    macOS     dist/AeroFlowSim-<version>-macOS-<arm64|x86_64>.dmg   (AeroFlowSim.app in a disk image, hdiutil)
+    Linux     dist/AeroFlowSim-<version>-<arch>.AppImage            (one file; appimagetool, if found)
+
+    python tools/build_installer.py              build it
     python tools/build_installer.py --smoke      also run the smoke test of the built program
+
+macOS and Linux builds are made by GitHub Actions (.github/workflows/installer.yml); they are not code-signed either
+(macOS: right-click > Open the first time; see docs/user_guide.md).
 
 Build tools (not runtime dependencies): PyInstaller (pip install pyinstaller) and Inno Setup 6 (iscc.exe).
 The one-folder build keeps Qt / PySide6 (LGPL) as separate, replaceable DLLs. THIRD_PARTY_LICENSES.txt is
@@ -82,7 +88,12 @@ def pyinstaller():
             "--collect-submodules", "vtkmodules", "--collect-data", "matplotlib",
             "--exclude-module", "streamlit", "--exclude-module", "plotly", "--exclude-module", "pytest",
             "--exclude-module", "tkinter"]
-    if icon.is_file():
+    if sys.platform == "darwin":
+        icns = BUILD / "aeroflowsim.icns"
+        Image.open(ROOT / "assets" / "icon.png").save(icns)
+        icon = icns
+        args += ["--osx-bundle-identifier", "org.aeroflowsim.AeroFlowSim"]
+    if icon.is_file() and sys.platform != "linux":
         args += ["--icon", str(icon)]
     for src, dst in data:
         if src.exists():
@@ -92,6 +103,76 @@ def pyinstaller():
     # cases are found next to the package (aeroflowsim/discovery.py: the package folder's parent)
     print(f"Built {DIST / 'AeroFlowSim'} (version {__version__})")
     return DIST / "AeroFlowSim"
+
+
+def executable(folder):
+    """The program inside the build: the .exe (Windows), the binary inside the .app (macOS) or the folder (Linux)."""
+    if sys.platform == "win32":
+        return folder / "AeroFlowSim.exe"
+    if sys.platform == "darwin":
+        return DIST / "AeroFlowSim.app" / "Contents" / "MacOS" / "AeroFlowSim"
+    return folder / "AeroFlowSim"
+
+
+def arch():
+    import platform
+    m = platform.machine().lower()
+    return {"amd64": "x86_64", "aarch64": "arm64"}.get(m, m)
+
+
+def dmg():
+    """macOS: AeroFlowSim.app and a link to /Applications in a compressed disk image (drag to install)."""
+    from aeroflowsim import __version__
+    app = DIST / "AeroFlowSim.app"
+    stage = BUILD / "dmg"
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True)
+    subprocess.run(["ditto", str(app), str(stage / "AeroFlowSim.app")], check=True)     # keeps links and attributes
+    (stage / "Applications").symlink_to("/Applications")
+    out = DIST / f"AeroFlowSim-{__version__}-macOS-{arch()}.dmg"
+    out.unlink(missing_ok=True)
+    subprocess.run(["hdiutil", "create", "-volname", f"AeroFlowSim {__version__}", "-srcfolder", str(stage),
+                    "-ov", "-format", "UDZO", str(out)], check=True)
+    print(f"Disk image: {out} ({out.stat().st_size / 1024**2:.0f} MB)")
+    return out
+
+
+DESKTOP = """[Desktop Entry]
+Type=Application
+Name=AeroFlowSim
+Comment=CFD for nozzle and propulsion aerodynamics
+Exec=AeroFlowSim %f
+Icon=aeroflowsim
+Categories=Science;Education;Engineering;
+Terminal=false
+"""
+
+APPRUN = """#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/lib/aeroflowsim/AeroFlowSim" "$@"
+"""
+
+
+def appimage(folder):
+    """Linux: the program folder as one AppImage file (AppDir + appimagetool); None if appimagetool is missing."""
+    from aeroflowsim import __version__
+    tool = shutil.which("appimagetool") or (str(BUILD / "appimagetool") if (BUILD / "appimagetool").is_file() else None)
+    if tool is None:
+        print("appimagetool not found: only the program folder was built.")
+        return None
+    appdir = BUILD / "AeroFlowSim.AppDir"
+    shutil.rmtree(appdir, ignore_errors=True)
+    shutil.copytree(folder, appdir / "usr" / "lib" / "aeroflowsim", symlinks=True)
+    (appdir / "aeroflowsim.desktop").write_text(DESKTOP, encoding="utf-8")
+    shutil.copy(ROOT / "assets" / "icon.png", appdir / "aeroflowsim.png")
+    run = appdir / "AppRun"
+    run.write_text(APPRUN, encoding="utf-8")
+    run.chmod(0o755)
+    out = DIST / f"AeroFlowSim-{__version__}-{arch()}.AppImage"
+    env = {**__import__("os").environ, "ARCH": arch(), "APPIMAGE_EXTRACT_AND_RUN": "1"}
+    subprocess.run([tool, str(appdir), str(out)], check=True, env=env)
+    print(f"AppImage: {out} ({out.stat().st_size / 1024**2:.0f} MB)")
+    return out
 
 
 def inno(folder):
@@ -112,7 +193,7 @@ def inno(folder):
 
 def smoke(folder):
     """--version, a headless run of the Sod case, and the GUI starts and closes."""
-    exe = folder / "AeroFlowSim.exe"
+    exe = executable(folder)
     out = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=120)
     print("version:", out.stdout.strip() or out.stderr.strip())
     assert __import__("aeroflowsim").__version__ in out.stdout, "--version printed nothing"
@@ -142,7 +223,12 @@ def main(argv=None):
     folder = DIST / "AeroFlowSim" if args.skip_build else pyinstaller()
     if args.smoke:
         smoke(folder)
-    inno(folder)
+    if sys.platform == "win32":
+        inno(folder)
+    elif sys.platform == "darwin":
+        dmg()
+    else:
+        appimage(folder)
     return 0
 
 

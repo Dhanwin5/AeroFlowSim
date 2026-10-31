@@ -44,6 +44,10 @@ def physical_cores() -> int:
                         core = line.split(":")[1].strip()
                         pairs.add((phys, core))
             return len(pairs) or logical
+        if sys.platform == "darwin":
+            import subprocess
+            out = subprocess.run(["sysctl", "-n", "hw.physicalcpu"], capture_output=True, text=True, timeout=5)
+            return int(out.stdout.strip()) or logical
     except Exception:
         pass
     return logical

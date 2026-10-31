@@ -3,7 +3,7 @@
 # ("-e" = editable: Python uses the files in this folder directly, so edits take effect at once.)
 
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -52,9 +52,9 @@ mesh = []
 # The optional assistant (docs/user_guide.md): only the online provider needs it (stores its key in the OS keyring).
 assistant = ["keyring"]
 
-[tool.setuptools]
-packages = ["aeroflowsim", "aeroflowsim.gui", "aeroflowsim.gui.steps", "aeroflowsim.shapes", "aeroflowsim.geometry_model",
-            "aeroflowsim.gases", "aeroflowsim.assistant"]
+[tool.setuptools.packages.find]
+# Every package under aeroflowsim/ (the templates, examples and docs are installed by setup.py as data files)
+include = ["aeroflowsim*"]
 
 [tool.setuptools.package-data]
 # Every shape has a .toml file next to its .py module (its inputs and metadata).

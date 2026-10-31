@@ -9,12 +9,34 @@ as long as its schema.toml and case.py are valid. Folders whose name starts with
 (e.g. _template) are skipped. A broken case is reported as a problem instead of crashing everything.
 """
 
+import site
+import sys
 from pathlib import Path
 
 from aeroflowsim.case import Case
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent   # the project folder (holds cases/, results/)
-CASES_DIR = PROJECT_DIR / "cases"
+
+
+def _data_dir() -> Path:
+    """The folder that holds cases/, examples/, assets/ and docs/.
+
+    A source checkout and the Windows / Linux program folders have them next to the package (PROJECT_DIR). A
+    macOS app has them in Contents/Resources (sys._MEIPASS points there or to Contents/Frameworks). A pip install
+    puts them in <prefix>/share/aeroflowsim (setup.py data_files): the environment, or the user base of
+    "pip install --user"."""
+    candidates = [PROJECT_DIR]
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", PROJECT_DIR))
+        candidates += [base, base.parent / "Resources", Path(sys.executable).resolve().parent.parent / "Resources"]
+    for prefix in (sys.prefix, getattr(site, "USER_BASE", None) or "", sys.base_prefix):
+        if prefix:
+            candidates.append(Path(prefix) / "share" / "aeroflowsim")
+    return next((c for c in candidates if (c / "cases").is_dir()), PROJECT_DIR)
+
+
+DATA_DIR = _data_dir()
+CASES_DIR = DATA_DIR / "cases"
 
 
 def find_cases(cases_dir: Path = CASES_DIR) -> tuple[dict, dict]:

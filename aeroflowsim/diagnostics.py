@@ -24,6 +24,8 @@ PACKAGES = ("numpy", "numba", "scipy", "matplotlib", "PySide6-Essentials", "vtk"
 
 
 def app_data_dir() -> Path:
+    if sys.platform == "darwin":                 # macOS convention
+        return Path.home() / "Library" / "Application Support" / "AeroFlowSim"
     base = os.environ.get("APPDATA") or os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(base) / "AeroFlowSim"
 

@@ -2,7 +2,8 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Entry point of the installed program (AeroFlowSim.exe, built by tools/build_installer.py).
+"""Entry point of the installed program (AeroFlowSim.exe on Windows, AeroFlowSim.app on macOS, the AppImage on Linux;
+built by tools/build_installer.py).
 
     AeroFlowSim.exe                          start the desktop GUI
     AeroFlowSim.exe "My nozzle.afsproj"      open a project in the GUI; double-clicking the file project.afsproj inside
@@ -28,7 +29,7 @@ def _attach_console():
 
 
 def main():
-    args = sys.argv[1:]
+    args = [a for a in sys.argv[1:] if not a.startswith("-psn_")]   # macOS Finder may add a process serial number
     if args and args[0] in COMMANDS:
         _attach_console()
         from aeroflowsim.cli import main as cli

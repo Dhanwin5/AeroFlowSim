@@ -12,7 +12,8 @@ A case input of type "gas" holds ONE text value:
 gas_model(value, base) turns that value into a GasModel; solvers only ever see the GasModel.
 
 The user's own library (custom gases made with the GUI form) is a folder in the user's profile,
-never the code folder:  Windows %APPDATA%/AeroFlowSim/gases, elsewhere ~/.local/share/aeroflowsim/gases
+never the code folder:  Windows %APPDATA%/AeroFlowSim/gases, macOS ~/Library/Application Support/AeroFlowSim/gases,
+Linux ~/.local/share/aeroflowsim/gases
 (or $XDG_DATA_HOME/aeroflowsim/gases).
 """
 
@@ -34,6 +35,8 @@ def user_gas_dir() -> Path:
     """The user's own gas library folder (created when the first custom gas is saved)."""
     if sys.platform.startswith("win"):
         root = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "AeroFlowSim"
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support" / "AeroFlowSim"
     else:
         root = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "aeroflowsim"
     return root / "gases"

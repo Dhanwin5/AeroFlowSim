@@ -23,7 +23,11 @@ from aeroflowsim.mesh import Mesh
 from aeroflowsim.visualise import (COLOR_MUTED, COLOR_NUMERICAL, COLOR_REFERENCE, figure_png, length_axes,
                                    shape_view, style_axes, xt_diagram)
 
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"   # default output folder
+from aeroflowsim.discovery import DATA_DIR, PROJECT_DIR  # noqa: E402
+
+# Default output folder: results/ in the project folder of a source checkout or program folder; for a pip install
+# (templates in <prefix>/share/aeroflowsim) results/ in the current folder, never inside the Python environment
+RESULTS_DIR = (PROJECT_DIR if DATA_DIR == PROJECT_DIR else Path.cwd()) / "results"
 
 
 def save_outputs(out_dir, output) -> Path:

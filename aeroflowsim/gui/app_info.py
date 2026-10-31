@@ -7,17 +7,17 @@
 from pathlib import Path
 
 from aeroflowsim import __version__
-from aeroflowsim.discovery import PROJECT_DIR
+from aeroflowsim.discovery import DATA_DIR
 
-ASSETS = PROJECT_DIR / "assets"
+ASSETS = DATA_DIR / "assets"
 LOGO = ASSETS / "logo.png"
 ICON = ASSETS / "icon.png"
-DOCS = PROJECT_DIR / "docs"
+DOCS = DATA_DIR / "docs"
 THEORY_MANUAL = DOCS / "theory_manual.md"
 DEVELOPER_GUIDE = DOCS / "developer_guide.md"
-VALIDATION_REPORT = PROJECT_DIR / "validation" / "report.md"
-VALIDATION_SCRIPT = PROJECT_DIR / "validation" / "run_all.py"
-THIRD_PARTY = PROJECT_DIR / "THIRD_PARTY_LICENSES.txt"
+VALIDATION_REPORT = DATA_DIR / "validation" / "report.md"
+VALIDATION_SCRIPT = DATA_DIR / "validation" / "run_all.py"
+THIRD_PARTY = DATA_DIR / "THIRD_PARTY_LICENSES.txt"
 USER_GUIDE = DOCS / "user_guide.md"
 
 ORGANISATION = "AeroFlowSim"

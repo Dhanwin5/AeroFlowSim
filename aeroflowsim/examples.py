@@ -11,9 +11,9 @@ exists already), so the shipped example is never changed.
 import shutil
 from pathlib import Path
 
-from aeroflowsim.discovery import PROJECT_DIR
+from aeroflowsim.discovery import DATA_DIR
 
-EXAMPLES_DIR = PROJECT_DIR / "examples"
+EXAMPLES_DIR = DATA_DIR / "examples"
 TITLES = {"N2 nozzle": "N2 nozzle (2D axisymmetric, with its result)",
           "NACA 0012 transonic": "NACA 0012, Mach 0.8, alpha 1.25 deg",
           "Mach 2 wedge": "Mach 2 flow over a 10 deg wedge",
