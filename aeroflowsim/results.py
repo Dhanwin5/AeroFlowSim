@@ -106,3 +106,6 @@ class Result:
     # distribution, ...) and plain facts about the run (status, positivity events, CFL reductions, ...)
     series: dict[str, np.ndarray] = field(default_factory=dict)
     info: dict = field(default_factory=dict)
+    # 2D solvers: frames of the flow recorded during the run (post.animation.Animation, saved as
+    # results/animation.npz next to run.npz), or None
+    animation: object = None

@@ -215,7 +215,7 @@ CONTINUED = "Continued from the previous result"   # Problem.initialisation of a
 INTERPOLATED = "Interpolated from the result on the previous mesh"
 
 # Extras of a project run that are not template inputs (set by aeroflowsim.engine.run_case for the duration of one
-# run): {"report_definitions": [dicts], "surfaces": [dicts], "init_patches": [dicts],
+# run): {"report_definitions": [dicts], "surfaces": [dicts], "init_patches": [dicts], "animation": {"record", "every"},
 #        "interpolate": {"centres": (C_old, 2) array, "W": (4, C_old) array} or None}
 RUN_EXTRAS = contextvars.ContextVar("aeroflowsim_run_extras", default=None)
 
@@ -312,7 +312,7 @@ def continuation_of(restart):
     return Continuation(iterations=len(residuals), residuals=residuals, monitors=monitors,
                         norm=None if norm is None else np.asarray(norm, dtype=float),
                         limiter=series.get("limiter_frozen"), limiter_frozen_at=info.get("limiter_frozen_at"),
-                        cfl=info.get("cfl_final"))
+                        cfl=info.get("cfl_final"), animation=restart.get("animation"))
 
 
 def _inlet_total_state(bcs, params):
@@ -523,8 +523,11 @@ def solve(problem, params, mesh, progress=None) -> Result:
             if d.converge:
                 converge_on += ("user_" + d.name,)
                 rules["user_" + d.name] = (float(d.tolerance), int(d.window))
+    from aeroflowsim.post.animation import recorder_for
+    recorder = recorder_for(_extras().get("animation"), mesh,
+                            getattr(problem.continuation, "animation", None), steady=True)
     out = solver.solve(problem.W0, forward, monitor, problem.monitor_scales, converge_on,
-                       problem.continuation, monitor_rules=rules)
+                       problem.continuation, monitor_rules=rules, recorder=recorder)
     W = out.W
     # One more residual evaluation of the final state, so the boundary fluxes (forces, mass flows) belong to it
     solver.residual(primitive_to_conserved(W, problem.gas), params["order"] == SECOND_ORDER, W)
@@ -557,7 +560,8 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "gamma": float(problem.gas.gamma(float(np.median(temperature(W, problem.gas)))))}
     residual_level = out.residuals.max(axis=1) if len(out.residuals) else np.zeros(0)
     return Result(fields=flow_fields(W, problem.gas), residuals=residual_level.tolist(), key_numbers=numbers,
-                  iterations=out.iterations, converged=out.status == CONVERGED, series=series, info=info)
+                  iterations=out.iterations, converged=out.status == CONVERGED, series=series, info=info,
+                  animation=solver.animation)
 
 
 

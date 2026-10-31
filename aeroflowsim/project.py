@@ -74,6 +74,7 @@ POST_DEFAULTS = {
     "xy_plots": {},              # {name: XY plot settings}
     "init_patches": [],          # patch regions for a fresh start (aeroflowsim/euler/setup.py apply_patches)
     "interpolate_new_mesh": True,   # a run on a new mesh starts from the old solution interpolated onto it
+    "animation": {"record": True, "every": 0},   # frames of the flow for playback (post/animation.py; 0 = automatic)
 }
 
 
@@ -582,6 +583,7 @@ class Project:
         surfaces (monitors), custom fields, patch regions, and the previous solution to interpolate when the mesh has
         changed (only for a start that does not continue the current result; never with "Start from scratch")."""
         extras = {k: self.post[k] for k in ("report_definitions", "surfaces", "custom_fields", "init_patches")}
+        extras["animation"] = dict(self.post.get("animation") or POST_DEFAULTS["animation"])
         if not fresh:
             source = self.interpolation_source(mesh)
             if source is not None:

@@ -127,6 +127,7 @@ class Continuation:
     limiter: np.ndarray | None = None # its frozen limiter (n_vars, C), or None
     limiter_frozen_at: int | None = None
     cfl: float | None = None          # implicit runs: the CFL number reached (the ramp carries on from it)
+    animation: object = None          # its recorded frames (post.animation.Animation): a continued run appends
 
 
 class EulerSolver:
@@ -363,7 +364,7 @@ class EulerSolver:
     # ---- the loop ----------------------------------------------------------------------------------
 
     def solve(self, W0, progress=None, monitor=None, monitor_scales=None, converge_on=(), continuation=None,
-              monitor_rules=None):
+              monitor_rules=None, recorder=None):
         """March from the primitive state W0 (n_vars, C) and return a SolveResult.
 
         continuation: a Continuation of an earlier run whose final state is W0. The iterations are then numbered
@@ -380,6 +381,8 @@ class EulerSolver:
         a sensible size instead of its own tiny value.
         monitor_rules: {name: (tolerance, window)} for monitors with their own rule (the project's report
         definitions used as convergence criteria); the others use the Numerics' monitor tolerance and window.
+        recorder: a post.animation.FrameRecorder that keeps frames of the flow for playback, or None. It gets the
+        initial state (fresh runs), every accepted state it asks for and the final state; it never changes the run.
         """
         num = self.numerics
         n_threads = 1
@@ -425,6 +428,8 @@ class EulerSolver:
             num.local_time_stepping = False
         implicit = num.time_scheme == LUSGS and steady       # LU-SGS is for steady runs (local time steps)
         cfl_scale = 1.0                                       # implicit: halved by every CFL back-off
+        if recorder is not None and it == 0:
+            recorder.add(0, 0.0, W0)                          # the initial state is the first frame
         stall_orders, stall_iterations = ((STALL_ORDERS_IMPLICIT, STALL_ITERATIONS_IMPLICIT) if implicit
                                           else (STALL_ORDERS, STALL_ITERATIONS))
         with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
@@ -457,6 +462,8 @@ class EulerSolver:
                     for v in mon_hist.values():
                         del v[good_it:]
                     it, t_phys = good_it, good_t
+                    if recorder is not None:
+                        recorder.rewind(good_it)
                     self.psi_frozen = None
                     continue
                 U = U_new
@@ -464,6 +471,8 @@ class EulerSolver:
                 positivity_total += self.last_positivity
                 if not steady:
                     t_phys += float(dt[0])
+                if recorder is not None and recorder.due(it):
+                    recorder.add(it, t_phys, W_new)
                 rms = np.sqrt(np.mean(R0**2, axis=1))                   # per equation
                 if it <= NORM_ITERATIONS:
                     norm = rms if norm is None else np.maximum(norm, rms)
@@ -505,6 +514,7 @@ class EulerSolver:
                     status = CONVERGED
                     break
         W = conserved_to_primitive(U, self.gas)
+        self.animation = recorder.animation(it, t_phys, W) if recorder is not None else None
         residuals = np.array(res_hist) if res_hist else np.zeros((0, n_vars))
         return SolveResult(W=W, status=status, iterations=it, residuals=residuals,
                            monitors={k: np.array(v) for k, v in mon_hist.items()},

@@ -83,6 +83,12 @@ def save_run(folder, payload, mesh=None) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / RUN_FILE
     np.savez_compressed(path, meta=np.array(json.dumps(meta)), **arrays)
+    # The recorded frames live next to run.npz and always belong to it: a run without frames removes old ones
+    from aeroflowsim.post.animation import clear_animation, save_animation
+    if getattr(result, "animation", None) is not None and result.animation.n:
+        save_animation(folder, result.animation)
+    else:
+        clear_animation(folder)
     return path
 
 
@@ -119,10 +125,13 @@ def continuation_data(result) -> dict:
     """What a run needs to carry on from a finished (or stopped) 2D result: its fields, its histories (residual
     per equation, monitors, frozen limiter) and its run facts (residual normalisation, iterations).
     result: a Result, or the path of a run.npz. Used as run_case(..., restart=continuation_data(...))."""
+    animation = getattr(result, "animation", None)
     if not isinstance(result, Result):
+        from aeroflowsim.post.animation import load_animation
+        animation = load_animation(Path(result).parent)          # the recorded frames carry on (appended)
         result = load_run(result)["result"]
     return {"fields": {k: f.values for k, f in result.fields.items()}, "series": dict(result.series),
-            "info": dict(result.info), "iterations": int(result.iterations)}
+            "info": dict(result.info), "iterations": int(result.iterations), "animation": animation}
 
 
 def can_continue(result, mesh) -> bool:
