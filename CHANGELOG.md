@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Linux and macOS
+
+- Installers for every system on each release: macOS disk images for Apple silicon and Intel Macs (drag to
+  Applications), a Linux AppImage (one file, Ubuntu 22.04 and newer), next to the Windows installer. Each is built and
+  smoke-tested (a 1D and a 2D run, the GUI starts) by GitHub Actions. Not signed yet: macOS asks once (right-click >
+  Open), as Windows SmartScreen does.
+- `pip install aeroflowsim` works on all three systems: the templates, example projects, icons and docs are installed as
+  data files (`<prefix>/share/aeroflowsim`), so the full program runs outside the source folder.
+- macOS added to the automatic tests; macOS keeps its settings in `~/Library/Application Support/AeroFlowSim` and
+  counts its physical CPU cores for the solver threads.
+
 ### Flow animation
 
 - Results step, new **Animation** tab: play back how the flow developed during the run (the pseudo-time convergence

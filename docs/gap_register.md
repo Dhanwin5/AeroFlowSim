@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned geometry workspace` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: flow animation (2026-10-31).
+Last updated: Linux and macOS (2026-10-31).
 
 ## 1. Platform and GUI
 
@@ -38,6 +38,7 @@ Last updated: flow animation (2026-10-31).
 | Remove the Streamlit GUI (`app.py`, `streamlit_panel.py`, `job.py`, `plots.py`, `settings.py`) | later | P2 | only after the parity check, with the user's OK |
 | Windows installer + Start-menu shortcut | done | P1 | post-processing and alpha release: PyInstaller one-folder + Inno Setup (tools/build_installer.py), per user, .afsproj association (project.afsproj in each project), uninstaller, smoke test; GitHub workflow on tags. NOT code-signed (SmartScreen warning documented) |
 | Code signing of the installer | later | P2 | needs a certificate; until then SmartScreen warns |
+| Linux and macOS: installers and pip package | partial | P1 | 2026-10-31: `pip install aeroflowsim` (templates, examples, icons and docs installed as data files in `share/aeroflowsim`, found by `discovery.DATA_DIR`); macOS (Apple silicon) in the test matrix; per tag: macOS .dmg (arm64 + Intel) and Linux AppImage (x86_64, built on Ubuntu 22.04), smoke-tested in CI and attached to the release. PyPI publishing waits for the owner's PyPI account (trusted publisher, `PUBLISH_PYPI` variable). Not yet: Apple signing / notarisation (Gatekeeper warning documented), Linux ARM, file association on macOS / Linux, a test on a real Mac by a person |
 | Help > Copy diagnostic info, log file, error dialog | done | P1 | post-processing and alpha release: aeroflowsim/diagnostics.py, %APPDATA%/AeroFlowSim/aeroflowsim.log |
 | Example projects on the start page | done | P1 | post-processing and alpha release: examples/ (N2 nozzle with result, NACA 0012, wedge, Sod), tools/make_examples.py |
 | 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |

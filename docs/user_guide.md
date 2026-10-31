@@ -19,6 +19,36 @@ double-clicking the file `project.afsproj` inside its folder. Uninstall from Win
 The installer is **not code-signed** yet. Windows SmartScreen may say "Windows protected your PC": click
 *More info*, then *Run anyway*. The download size is about 400 MB (Qt, VTK, Gmsh, NumPy/SciPy are included).
 
+**macOS installer** (Apple silicon: `AeroFlowSim-<version>-macOS-arm64.dmg`; Intel Macs: `...-macOS-x86_64.dmg`).
+Open the .dmg and drag AeroFlowSim onto Applications. The app is **not signed by Apple** yet, so the first time
+macOS says it cannot check it: right-click (or Control-click) AeroFlowSim in Applications, choose *Open*, then *Open*
+again (on recent macOS: System Settings > Privacy & Security > *Open Anyway*). After that it opens normally. Your
+settings, log and own gases are in `~/Library/Application Support/AeroFlowSim`; projects in
+`Documents/AeroFlowSim Projects`. Uninstall: drag AeroFlowSim from Applications to the Bin.
+
+**Linux AppImage** (`AeroFlowSim-<version>-x86_64.AppImage`, for Ubuntu 22.04 and newer and similar systems): one
+file, nothing to install. Make it runnable and start it:
+
+```bash
+chmod +x AeroFlowSim-*-x86_64.AppImage
+./AeroFlowSim-*-x86_64.AppImage
+```
+
+If it says FUSE is missing, install `libfuse2` (Ubuntu: `sudo apt install libfuse2`) or start it with
+`--appimage-extract-and-run`. The command line works the same: `./AeroFlowSim-...AppImage run "My nozzle.afsproj"`.
+
+**With pip** (Windows, macOS or Linux, Python 3.13): everything, including the templates and example projects:
+
+```bash
+python3 -m venv aeroflowsim-env
+source aeroflowsim-env/bin/activate        # Windows: aeroflowsim-env\Scriptsctivate
+pip install aeroflowsim
+python -m aeroflowsim gui
+```
+
+On Linux the Gmsh mesher needs a few system libraries: `sudo apt install libglu1-mesa libxcursor1 libxft2
+libxinerama1`.
+
 **From the source code** (any system with Python 3.13):
 
 ```

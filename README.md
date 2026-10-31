@@ -11,7 +11,7 @@ AeroFlowSim is a free, open-source CFD software for nozzle aerodynamics and prop
 ## Status
 
 **2D alpha, version 0.2.0a1** (pre-release). Inputs, file formats and results may still change between versions.
-Windows installer: see the GitHub release; or install from source (below). User guide: [docs/user_guide.md](docs/user_guide.md).
+Installers for Windows, macOS (Apple silicon and Intel) and Linux (AppImage): see the GitHub releases; or `pip install aeroflowsim`, or install from source (below). User guide: [docs/user_guide.md](docs/user_guide.md).
 
 <p align="center"><img src="docs/showcase/n2_nozzle_mach_mirrored.png" alt="Mach number in the N2 nozzle" width="720"></p>
 <p align="center"><img src="docs/showcase/n2_nozzle_mach_revolved.png" alt="3D revolved view" width="360">
@@ -123,7 +123,7 @@ Run all validation cases and write `validation/report.md` (pass/fail table):
 python validation/run_all.py
 ```
 
-Tests run automatically on GitHub (Windows and Ubuntu) for every push and pull request
+Tests run automatically on GitHub (Windows, Ubuntu and macOS) for every push and pull request
 (`.github/workflows/tests.yml`).
 
 ## Roadmap
