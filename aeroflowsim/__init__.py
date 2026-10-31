@@ -9,6 +9,6 @@ the run engine, validity checks and output files. Only aeroflowsim/gui/ may impo
 the solver side must work without the GUI.
 """
 
-__version__ = "0.2.0a2"   # keep equal to the version in pyproject.toml and CITATION.cff
+__version__ = "0.2.0a3"   # keep equal to the version in pyproject.toml and CITATION.cff
 
 from aeroflowsim.engine import run_case  # noqa: E402  (aeroflowsim.run_case(...) for scripts)

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0a3 - Linux and macOS, flow animation (October 2026)
 
 ### Linux and macOS
 
