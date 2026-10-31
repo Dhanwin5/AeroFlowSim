@@ -59,6 +59,9 @@ class FlowView(MeshView):
         if self.closed:
             return
         camera = self.plotter.camera_position if keep_camera and self.mesh is not None else None
+        # The zoom of the flat 2D view is the parallel scale, which the camera position does not hold: keep it too,
+        # or a redraw (e.g. every frame of an animation) undoes Zoom to body / a mouse zoom
+        scale = self.plotter.camera.parallel_scale if camera is not None else None
         if scene.camera and not keep_camera:
             camera = [tuple(c) for c in scene.camera]
         self.sol, self.scene, self.data = sol, scene, data
@@ -122,17 +125,19 @@ class FlowView(MeshView):
                 p.reset_camera()
                 p.view_isometric()
         elif camera is not None:
-            self._restore_2d(camera)
+            self._restore_2d(camera, scale)
         else:
             self.fit()
         p.render()
 
-    def _restore_2d(self, camera):
+    def _restore_2d(self, camera, scale=None):
         p = self.plotter
         p.enable_parallel_projection()
         p.enable_2d_style()
         try:
             p.camera_position = camera
+            if scale:
+                p.camera.parallel_scale = scale
         except (TypeError, ValueError):
             self.fit()
 

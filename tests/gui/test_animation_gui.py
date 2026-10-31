@@ -66,8 +66,11 @@ def test_play_step_and_leave_the_animation_tab(window, qtbot):
     assert view.data.vmin == pytest.approx(lo) and view.data.vmax == pytest.approx(hi)   # fixed over all frames
     bar.range_mode.setCurrentText(RANGE_FRAME)
     assert view.data.vmax <= hi + 1e-12
+    view.zoom_to_body()                                                     # the zoom stays while frames change
+    zoomed = view.plotter.camera.parallel_scale
     bar.step(1)
     assert bar.index == 1
+    assert view.plotter.camera.parallel_scale == pytest.approx(zoomed)
     bar.toggle()
     assert bar.playback.playing and bar.timer.isActive()
     qtbot.waitUntil(lambda: bar.index >= 3 or bar.index == 0, timeout=3000)
