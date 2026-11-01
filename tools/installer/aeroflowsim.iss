@@ -31,8 +31,13 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
+[Tasks]
+; A tick box on the installer's "Additional tasks" page (ticked by default)
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
+
 [Icons]
 Name: "{userprograms}\AeroFlowSim"; Filename: "{app}\AeroFlowSim.exe"
+Name: "{userdesktop}\AeroFlowSim"; Filename: "{app}\AeroFlowSim.exe"; Tasks: desktopicon
 Name: "{userprograms}\AeroFlowSim user guide"; Filename: "{app}\_internal\docs\user_guide.md"
 Name: "{userprograms}\Uninstall AeroFlowSim"; Filename: "{uninstallexe}"
 
