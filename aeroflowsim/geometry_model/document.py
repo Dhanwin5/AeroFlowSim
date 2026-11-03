@@ -16,6 +16,12 @@ Saved in a project as geometry/history.json:
 
 A project WITHOUT history.json uses template_document(case): the template's own geometry, exactly
 as before this workspace existed (so old projects are unchanged).
+
+A 3D geometry (solids, see operations3d.py and kernel3d.py) is the same kind of document with
+"dimension": 3, saved with "format": 2:
+    {"format": 2, "dimension": 3, "axisymmetric": false, "next_number": 3, "operations": [...]}
+A 2D document is still saved exactly as before (format 1, no dimension key), so the files and the
+fingerprints of old projects do not change; both formats load.
 """
 
 import json
@@ -24,17 +30,26 @@ from pathlib import Path
 
 from aeroflowsim.geometry_model.built import BuiltGeometry
 from aeroflowsim.geometry_model.kernel import Kernel, gmsh_session
+from aeroflowsim.geometry_model.kernel3d import Kernel3D
 from aeroflowsim.geometry_model.operations import (
     TEMPLATE_TYPES, Operation, TemplateEnclosure, TemplateShape, operation_from_dict)
+from aeroflowsim.geometry_model.operations3d import TEMPLATE_TYPES_3D, TemplateBody, TemplateEnclosure3D
 
-FORMAT = 1
+FORMAT = 1                  # format of a 2D document (unchanged since the workspace existed)
+FORMAT_3D = 2               # first format with 3D documents ("dimension": 3)
 HISTORY_FILE = "history.json"
 
 
 class GeometryDocument:
-    def __init__(self, operations=(), axisymmetric=False, next_number=None):
+    def __init__(self, operations=(), axisymmetric=False, next_number=None, dimension=2):
         self.operations = list(operations)
         self.axisymmetric = bool(axisymmetric)       # for documents without a template shape
+        self.dimension = int(dimension)              # 2 (faces in the x-y plane) or 3 (solids)
+        if self.dimension not in (2, 3):
+            raise ValueError(f"a geometry is 2D or 3D, not {dimension}D")
+        wrong = [op.title for op in self.operations if getattr(op, "dimension", 2) != self.dimension]
+        if wrong:
+            raise ValueError(f"a {self.dimension}D geometry cannot contain: {', '.join(wrong)}")
         numbers = [int(op.id[2:]) for op in self.operations if op.id.startswith("op") and op.id[2:].isdigit()]
         self.next_number = max(next_number or 1, max(numbers, default=0) + 1)
 
@@ -79,24 +94,27 @@ class GeometryDocument:
         """True if the document is just the template's own geometry (no edits): then the template's
         own mesher can be used, exactly as before the workspace existed."""
         active = [op for op in self.operations if not op.suppressed]
-        return bool(active) and all(op.type in TEMPLATE_TYPES for op in active) and \
+        return bool(active) and all(op.type in TEMPLATE_TYPES + TEMPLATE_TYPES_3D for op in active) and \
             len(active) == len(self.operations)
 
     def uses_template(self) -> bool:
-        return any(op.type in TEMPLATE_TYPES and not op.suppressed for op in self.operations)
+        return any(op.type in TEMPLATE_TYPES + TEMPLATE_TYPES_3D and not op.suppressed for op in self.operations)
 
     # ---- saving ----------------------------------------------------------------------------------
 
     def to_dict(self) -> dict:
+        if self.dimension == 3:
+            return {"format": FORMAT_3D, "dimension": 3, "axisymmetric": False, "next_number": self.next_number,
+                    "operations": [op.to_dict() for op in self.operations]}
         return {"format": FORMAT, "axisymmetric": self.axisymmetric, "next_number": self.next_number,
                 "operations": [op.to_dict() for op in self.operations]}
 
     @classmethod
     def from_dict(cls, data) -> "GeometryDocument":
-        if int(data.get("format", 0)) > FORMAT:
+        if int(data.get("format", 0)) > FORMAT_3D:
             raise ValueError("This geometry was saved by a newer AeroFlowSim; please update AeroFlowSim.")
         ops = [operation_from_dict(d) for d in data.get("operations", [])]
-        return cls(ops, data.get("axisymmetric", False), data.get("next_number"))
+        return cls(ops, data.get("axisymmetric", False), data.get("next_number"), data.get("dimension", 2))
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=1)
@@ -120,12 +138,22 @@ class GeometryDocument:
 
 
 def has_workspace(case) -> bool:
-    """True if a template's geometry can be edited in the workspace (it makes 2D meshes)."""
-    return case is not None and hasattr(case, "workspace_settings")
+    """True if a template's geometry can be edited in the workspace (2D or 3D)."""
+    return case is not None and (hasattr(case, "workspace_settings") or has_workspace_3d(case))
+
+
+def has_workspace_3d(case) -> bool:
+    """True if a template makes 3D meshes from a 3D workspace geometry (its case.py has workspace_settings_3d)."""
+    return case is not None and hasattr(case, "workspace_settings_3d")
 
 
 def template_document(case) -> GeometryDocument:
     """The document of an unedited template: its shape (and its far field, if it has one)."""
+    if has_workspace_3d(case):
+        ops = [TemplateBody("op1")] if hasattr(case, "body_3d") else []
+        if hasattr(case, "domain_3d"):
+            ops.append(TemplateEnclosure3D("op2"))
+        return GeometryDocument(ops, dimension=3)
     ops = []
     if case is not None and hasattr(case, "geometry"):
         ops.append(TemplateShape("op1"))
@@ -158,7 +186,7 @@ class ReplayContext:
 
 def run_operations(kernel, document, context):
     """Apply every active operation in order; stop at the first one that fails (later ones depend on it)."""
-    kernel.axisymmetric = document.axisymmetric
+    kernel.axisymmetric = document.axisymmetric and document.dimension == 2
     for op in document.operations:
         if op.suppressed:
             continue
@@ -173,9 +201,9 @@ def run_operations(kernel, document, context):
 
 
 def replay(document, context=None, triangulate=True) -> BuiltGeometry:
-    """Build the geometry of a document (see the module docstring)."""
+    """Build the geometry of a document (see the module docstring); a BuiltGeometry3D for a 3D document."""
     context = context or ReplayContext()
     with gmsh_session() as gmsh:
-        kernel = Kernel(gmsh)
+        kernel = Kernel3D(gmsh) if document.dimension == 3 else Kernel(gmsh)
         run_operations(kernel, document, context)
         return kernel.extract(triangulate)

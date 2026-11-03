@@ -961,3 +961,8 @@ def operation_from_dict(data) -> Operation:
 from aeroflowsim.geometry_model import edit_operations as _edit  # noqa: E402  (after Operation is defined)
 
 OPERATIONS.update(_edit.OPERATIONS)
+
+# The 3D operations (bodies, booleans, enclosure, face names) live in their own module too.
+from aeroflowsim.geometry_model import operations3d as _3d  # noqa: E402
+
+OPERATIONS.update(_3d.OPERATIONS_3D)

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The 2D geometry workspace model: a history of operations replayed in a CAD kernel (no GUI code).
+"""The geometry workspace model (2D and 3D): a history of operations replayed in a CAD kernel (no GUI code).
 
     document.py    GeometryDocument (the history), replay(), template_document()
     operations.py  one class per operation (template shape, transform, enclosure, names, ...)
@@ -14,9 +14,9 @@
 
 from aeroflowsim.geometry_model.built import FLUID, SOLID, Boundary, BuiltGeometry, Edge, Face, Region, Vertex
 from aeroflowsim.geometry_model.document import (
-    HISTORY_FILE, GeometryDocument, ReplayContext, has_workspace, replay, template_document)
+    HISTORY_FILE, GeometryDocument, ReplayContext, has_workspace, has_workspace_3d, replay, template_document)
 from aeroflowsim.geometry_model.operations import OPERATIONS, Operation, operation_from_dict
 
 __all__ = ["FLUID", "SOLID", "Boundary", "BuiltGeometry", "Edge", "Face", "Region", "Vertex", "HISTORY_FILE",
-           "GeometryDocument", "ReplayContext", "has_workspace", "replay", "template_document", "OPERATIONS",
+           "GeometryDocument", "ReplayContext", "has_workspace", "has_workspace_3d", "replay", "template_document", "OPERATIONS",
            "Operation", "operation_from_dict"]
