@@ -41,8 +41,13 @@ Clarity matters more than speed.
 - **Geometry workspace** (Geometry step of 2D templates, `aeroflowsim/geometry_model/`): the geometry is a
   history of operations (template shape, import, sketch, transform, fillet, boolean, enclosure, boundary
   names, refinement regions, edit tools: split, trim, extend, offset, chamfer, pattern, fill, merge)
-  replayed in OpenCASCADE (Gmsh `occ`, only in `kernel.py`); edge ids are
+  replayed in OpenCASCADE (Gmsh `occ`, only in `kernel.py` and, for 3D, `kernel3d.py`); edge ids are
   stable across edits (lineage); saved as `geometry/history.json`; every edit is one undoable command.
+- **3D geometry and meshes** (templates with `workspace_settings_3d`, e.g. `cases/external_3d`): the same history
+  document with `dimension = 3` (format 2; 2D files unchanged), 3D operations in `operations3d.py` (bodies, STEP/IGES,
+  revolve, extrude, booleans, enclosure, face names, refinement), stable FACE ids (`kernel3d.py`), page
+  `gui/steps/geometry3d.py` + view `gui/geometry3d_view.py`; every 3D mesh is made by `workspace_mesh3d.py`
+  (tetrahedra + prism layers from `prism_layers.py`).
   Unedited template geometry keeps the template's own mesher (`workspace_mesh.mesh_for`); edited geometry
   is meshed by `workspace_mesh.py` with boundary names as patches. A template joins with
   `workspace_settings(params, built)` (+ `size_inputs` for the suggested sizes). Page logic without Qt
@@ -99,10 +104,13 @@ aeroflowsim/               the Python package
     geometry_preview.py    template geometry as named boundary curves (1D templates' Geometry step)
     geometry_model/        geometry workspace (no Qt): document.py (history, replay), operations.py,
                            kernel.py (OCC, stable edge ids), built.py, importers.py, healing.py,
+                           operations3d.py, kernel3d.py (OCC solids, stable face ids), built3d.py (3D),
                            boundaries.py, picking.py, snapping.py, export.py, edit_operations.py
                            (split/trim/extend/offset/chamfer/pattern/fill/merge), inference.py
                            (snapping while drawing), constraints.py (sketch constraint solver)
-    workspace_mesh.py      mesh_for(): template mesher, or Gmsh mesh of an edited workspace geometry
+    workspace_mesh.py      mesh_for(): template mesher, or Gmsh mesh of an edited workspace geometry (3D: mesh_3d)
+    workspace_mesh3d.py    3D meshes: Gmsh tetrahedra + prism layers from named walls, size fields, 3D estimate
+    prism_layers.py        prism inflation layers grown from wall triangles (3D form of inflation_layers.py)
     smart_rules.py         suggestions with reasons (sizes, enclosure); applied only by the user
     checks.py              validity checks (convergence, mass balance, ...)
     job.py                 old thread-based run for the Streamlit GUI
@@ -151,7 +159,8 @@ aeroflowsim/               the Python package
         panel_model.py, panel.py input panel: logic (no Qt) + Qt drawing
         workflow_strip.py        step chips with status and progress
         steps/                   one page per step (geometry = the workspace, mesh, setup, run, results) + welcome
-        geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt), view, dialogs
+        geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt, 2D and 3D), view, dialogs
+        geometry3d_view.py       3D workspace view (faces, picking, box selection, hide / isolate, section plane)
         sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
         assistant_panel.py, assistant_settings.py   optional Assistant panel of the Setup step + Tools > Assistant settings
                                  (no network code; imports aeroflowsim.assistant only when the assistant is on)
@@ -173,6 +182,7 @@ cases/nozzle_axi/          axisymmetric nozzle (structured or Gmsh mesh), 2D Eul
 cases/external_2d/         body in a free stream (shape library + Gmsh), 2D Euler: Cl, Cd, Cm, Cp
 cases/geometry_2d/         custom 2D geometry from the workspace (import / sketch), 2D Euler (internal / external)
 cases/imported_mesh/       "start from an existing mesh": mesh file (Gmsh, SU2, CGNS, Fluent) + boundary-type map, 2D Euler
+cases/external_3d/         3D body in free stream (or a STEP solid): 3D workspace, tetrahedra + prism layers (mesh only)
 docs/theory_manual.md      equations and methods, with references and where they are in the code
 docs/developer_guide.md    how the desktop GUI is built (Qt, signals/slots, VTK view, jobs, projects)
 docs/gap_register.md       living checklist of everything still missing (read at the start of every prompt)

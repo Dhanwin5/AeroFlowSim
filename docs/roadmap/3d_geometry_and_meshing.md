@@ -189,3 +189,13 @@ The stage was done as ONE session (prompt 9, all 8 parts) instead of the 4 sessi
   estimate, y+ suggestion, the nozzle STEP tutorial), GUI test of the 3D Mesh step (cut, histogram, worst cell, checks)
   and of Cancel during a long 3D Gmsh job; CLI `run` of a 3D project and `export --mesh` to four formats.
 - Next: part 7 (docs, tutorials, gap register, CHANGELOG, next stage plan).
+
+### Part 7 - docs (done)
+- User guide "3D geometry and meshing"; theory manual 13e (3D face lineage), 13f (prism layers: column heights,
+  angle-weighted normals, mitre stretch, plane constraint, validity), 13g (equivolume skewness, dihedral angle, checks)
+  + references; developer guide "The 3D geometry workspace and 3D meshes"; tutorials `sphere_in_a_box.md` and
+  `nozzle_step_to_mesh.md` (the latter is a test); gap register (3D rows done, new gaps: edge picking / sizing, layers
+  next to curved non-wall boundaries, layer thinning in gaps, 3D fillet / chamfer, 3D plume / plenum helpers, faster
+  meshing, 3D mesh import (finding), CSV revolve uses straight segments); CHANGELOG; CLAUDE.md layout;
+  `docs/roadmap/3d_euler_solver.md` (one-session plan with this stage's findings) and the roadmap README.
+- Next: part 8 (full fast tests, GUI tests, quick and full validation, push).

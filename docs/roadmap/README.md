@@ -15,7 +15,8 @@ between sessions by hand.
 | Post-processing and alpha release | `post_processing_and_alpha.md` | Post-processing at Fluent level, MMS verification, wider validation, report, installer, 2D alpha release (v0.2.0a1) | done |
 | AI assistant | `ai_assistant.md` | Optional AI assistant: providers (Rules, Local model, Online), schema context, Setup panel, `assist` command | done |
 | Speed | `speed.md` | Numba kernels, multi-core, implicit LU-SGS; residual stalls; wall-clock targets (v0.2.0a2) | done |
-| 3D geometry and meshing | `3d_geometry_and_meshing.md` | 3D geometry workspace (STEP), tetrahedra, prism inflation | next |
+| 3D geometry and meshing | `3d_geometry_and_meshing.md` | 3D geometry workspace (STEP), tetrahedra, prism inflation | done |
+| 3D Euler solver | `3d_euler_solver.md` | The Euler solver on 3D meshes, 3D templates, 3D results, 3D mesh import, multiple zones | next |
 
 Earlier stages (desktop GUI, geometry workspace, gas library and units, 2D Euler solver) were planned before this
 folder existed; their results are in the gap register and the CHANGELOG. Where the later stages fit: `next_steps.md`
@@ -33,6 +34,7 @@ wiring (GUI, file formats, workflows, integrations, docs). Each stage file names
 | Speed | Opus | implicit time stepping and its stability: where subtle bugs hide |
 | Shapes, grids and mesh import | Sonnet | shapes, transfinite grids and mesh-file formats: well defined, follows existing patterns |
 | 3D geometry and meshing | Opus | many design decisions: 3D CAD handling, picking, mesh quality in 3D |
+| 3D Euler solver | Opus | new numerics in 3D (BCs, LU-SGS on mixed cells, verification) and the 3D Results step |
 | Low-Mach preconditioning | Opus | changes the equations' eigenstructure |
 | AI assistant | Sonnet | integration and GUI around a clear rule (the assistant only fills inputs) |
 | Adaptive mesh refinement | Opus | mesh data structures, conservation, solution transfer |

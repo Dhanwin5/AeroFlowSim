@@ -9,7 +9,8 @@ and pyvistaqt puts a VTK render window inside a Qt widget (QtInteractor). This v
   - a face-based Mesh: cells (optionally coloured by a per-cell field), cell edges, boundary
     patches as coloured lines with a legend;
   - a geometry preview: the named boundary curves of aeroflowsim/geometry_preview.py.
-Mouse: left drag pans, wheel zooms (2D style; 3D rotation comes with 3D meshes). A click (press
+  - a 3D Mesh (show_mesh_3d): its boundary faces, or the cells a cut plane passes through; left drag rotates.
+Mouse (2D): left drag pans, wheel zooms. A click (press
 and release without moving) picks a cell, or the boundary edge nearest to the cursor; the view
 then emits cell_picked(cell) or edge_picked(patch index, face index). A right click (without dragging)
 opens a menu: zoom to fit, reset view, save picture (subclasses add their own entries).

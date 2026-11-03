@@ -10,6 +10,7 @@
     built.py       the replayed geometry as plain data: vertices, edges, faces, names, regions
     boundaries.py  boundary types, suggestions and checks
     picking.py     which vertex / edge / face is under a clicked point
+    operations3d.py, kernel3d.py, built3d.py   the same for 3D solids (dimension = 3): stable FACE ids
 """
 
 from aeroflowsim.geometry_model.built import FLUID, SOLID, Boundary, BuiltGeometry, Edge, Face, Region, Vertex

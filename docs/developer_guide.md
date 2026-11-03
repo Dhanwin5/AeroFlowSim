@@ -230,6 +230,50 @@ the history is unedited, so validated meshes never change by accident.
 **Meshing jobs.** `Job.geometry` carries the edited history (a dict) to the helper process;
 `tasks._mesh_job` calls `mesh_for(case, params, document, folder)` like the command line.
 
+## The 3D geometry workspace and 3D meshes (3D geometry and meshing stage)
+
+**Model (no Qt):** a 3D geometry is a `GeometryDocument` with `dimension = 3` (saved as format 2; 2D documents are
+still written exactly as before, format 1). Its operations are in `geometry_model/operations3d.py` (each has
+`dimension = 3`; a document refuses operations of the other dimension). `replay()` picks the kernel by the dimension:
+`kernel3d.Kernel3D` builds solids in OpenCASCADE (only `kernel.py` and `kernel3d.py` call `gmsh.model.occ` for the
+geometry) and `extract()` returns a `built3d.BuiltGeometry3D` (bodies, faces with stable ids and a coarse
+triangulation for drawing and picking, edges, names, regions). The face lineage (theory manual 13e) is
+`Kernel3D.snapshot()` / `relabel()`; transformations go through `Kernel3D.transformed()`, which moves the lineage
+copies too, because OCC renumbers the faces of a moved body.
+
+**Adding a 3D operation** = one class in `operations3d.py` (type, title, DEFAULTS, apply(kernel, context), label the
+faces it makes with `kernel.name_face`, the bodies with `kernel.name_body`), listed in `OPERATIONS_3D`, plus a `FIELDS`
+entry in `gui/geometry_logic.py` (the dialog and the History form are generated from it) and, for the tool bar, a row
+in `BODIES_3D` or `TOOLS_3D`.
+
+**A 3D template** defines `workspace_settings_3d(params, built) -> MeshSettings3D` in its case.py, and its own geometry
+with `body_3d(params)` (one 3D operation) and `domain_3d(params)` (an `Enclosure3D`): `template_document(case)` makes
+them the steps "Template body" and "Template far field". `workspace_mesh.mesh_for()` sends every mesh of such a
+template, edited or not, to `workspace_mesh3d.mesh_3d()`, so the GUI's helper process, the command line and scripts
+use the same mesher. See `cases/external_3d`.
+
+**The mesher** (`workspace_mesh3d.py`) runs under the Gmsh lock: replay, `check_3d`, size fields, `generate(2)`, prism
+layers (`prism_layers.grow_prisms`, then the walls' surface mesh is replaced by the top of the layers and flat
+neighbouring boundaries are meshed again in a temporary Gmsh model), `generate(3)` (Delaunay, one thread: the same
+mesh every time), `_arrays` (node tags -> rows; `Mesh.Renumber = 0` keeps Gmsh's node tags valid). The result is the
+usual face-based `Mesh` (dim 3, VTK cell types 10 and 13), saved and exported like any mesh (`mesh_io.write_mesh`).
+
+**GUI:** the Geometry step page (`gui/steps/geometry.py`) holds the 2D workspace and, in a `QStackedWidget`, the 3D
+page `gui/steps/geometry3d.py` (`Geometry3DPage`); `GeometryPage.refresh()` shows the 3D page for templates with
+`workspace_settings_3d`, and `GeometryPage.built` is then the 3D geometry (the window's geometry checks and cell
+estimate use it). The 3D view `gui/geometry3d_view.py` (`Geometry3DView`, PyVista trackball) draws the faces from their
+triangulation, one PolyData with the cell data "face"; a click uses `vtkCellPicker`, box selection projects the
+triangle corners with the camera's composite matrix and asks `geometry_logic.faces_in_rectangle`. Hide / isolate
+(`geometry_logic.Visibility`) and the section plane (`geometry_logic.section_plane`, a PyVista clip of the drawing)
+are view settings, not history. The Mesh step's `MeshView.show_mesh_3d` draws the boundary faces (`patch_surface`) or,
+with a cut, the cells the plane passes through (`gui/logic.cells_cut_by_plane`); `MeshPage` adds the cut controls,
+the quality histogram (`figures.quality_histogram_figure`) and *Worst cell* (`gui/logic.worst_cell`).
+
+**Tests:** `tests/test_geometry_3d.py` (model), `tests/test_workspace_mesh3d.py` (mesher, quality, export),
+`tests/test_geometry_logic_3d.py` (page logic without Qt), `tests/gui/test_geometry3d_gui.py` (the window: picking, box
+selection, hide / isolate / section, booleans, names, undo / redo, reopen, mesh with prism layers, cancel, theme, a 2D
+project afterwards), `cases/external_3d/test_case.py`; validation `validation/geometry_3d/`, `validation/mesh_3d/`.
+
 ## 9. Tests
 
 - `tests/test_panel_model.py`, `tests/test_gui_logic.py`, `tests/test_project.py`,

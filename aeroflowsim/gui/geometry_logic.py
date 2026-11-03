@@ -14,7 +14,9 @@ something lives here:
     points_of(), with_points()   the point table / dragged points of an operation
     selection_rows(), history_rows()   texts for the Properties panel and the History list
 Every edit returns a NEW document; the window turns "old document -> new document" into an
-undoable command.
+undoable command. The 3D workspace (gui/steps/geometry3d.py) has its own section at the end: FIELDS of the 3D
+operations, operation_for_3d(), boundary_rows_3d() and the names, suggestions_3d(), Visibility, section_plane(),
+faces_in_rectangle(), selection_rows_3d() and summary_rows_3d().
 """
 
 import math

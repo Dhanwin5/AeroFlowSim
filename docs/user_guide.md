@@ -197,6 +197,59 @@ inputs list the names found and the type each gets. Every boundary of the mesh m
 
 Export writes Gmsh (2.2 or 4.1), SU2 and CGNS, with the patch names as the boundary names, to run the same mesh in SU2 or OpenFOAM.
 
+## 3D geometry and meshing
+
+The template **Body in free stream (3D, mesh only)** makes 3D meshes: tetrahedra in the volume and, if you want them,
+prism layers on the walls. Its Geometry step is the **3D workspace**. The 3D flow solver comes in the next development
+stage; until then you can check the mesh here and export it for another solver.
+
+**Geometry step (3D workspace).** The geometry is a list of steps (History tab), replayed from the top. The
+template's own body and far field are the first two steps; they follow the geometry inputs (body, diameter,
+length, far-field shape and distances). Tool bar:
+- *Bodies*: box, cylinder, sphere, cone, revolve (a profile in the x-r plane, or a nozzle wall file `x_mm,r_mm`,
+  turned about the x axis) and extrude (an outline in the x-y plane pulled along z). Points are typed in mm as
+  `x y; x y; ...`.
+- *Import…*: a STEP or IGES solid (unit from the file, or chosen). The file is copied into the project. The import
+  replaces the template body; imported as *fluid* (for example the gas inside a nozzle) it replaces the far field too.
+- *Edit*: transform (move, rotate, scale, mirror, optionally a copy), boolean (union, subtract, intersect: select a
+  face of the body to keep, then Shift-click a face of the tool), fluid / solid, delete.
+- *Enclosure…*: a box, cylinder or sphere round the solid bodies (sizes in reference lengths L, the largest extent of
+  the bodies), optionally only y >= 0 with a symmetry plane. The bodies are cut out of it.
+- *Name boundary…*: the selected faces become one boundary (mesh patch) with a type; walls can have prism layers.
+- *Refinement…*: a box, sphere or cylinder in which the cells are at most a given size.
+- *Hide*, *Isolate*, *Show all* and *Section* (a plane across x, y or z, moved with the slider) only change the view,
+  so you can reach faces inside others (a body inside its enclosure). They are not in the undo list.
+- *Suggestions…*: wall cell size, largest cell size and (with prism layers) the first-layer height for y+ = 1, each
+  with its reason; nothing is applied until you press Apply.
+
+Mouse: left drag rotates, middle drag (or Shift + left) pans, the wheel zooms; a click selects the face under the
+cursor (Shift or Ctrl adds or removes); in *Box select* mode a box dragged left to right takes the faces fully inside
+it, right to left the faces it touches. The buttons above the view give the standard views (iso, +x, +y, +z, -x).
+Right-click a face for the likely next steps.
+
+The Boundaries tab lists every boundary of the fluid with its type and number of faces; *Accept suggestions* names
+unnamed faces (a flat face across the flow at the smallest x: inlet, at the largest x: outlet, on y = 0: symmetry,
+anything else: wall). Names stay on their faces when you change something earlier in the history (a size, a moved
+body): every face has a stable id, see the theory manual section 13e.
+
+**Mesh step.** Gmsh meshes the surfaces, the prism layers are grown from the walls, Gmsh fills the rest with
+tetrahedra. Inputs (Mesh group, sizes in reference lengths L): cell size on the body, largest cell size, size growth
+rate, cells per circle on curved faces; prism layers: on / off, first-layer height, number of layers, layer growth
+rate. The view shows the boundary faces in their boundary colours; *Colour by* colours them by a quality field of the
+cells behind them; *Cut* x / y / z shows the whole cells a plane passes through (move it with the slider);
+*Worst cell* zooms to the worst cell of the field. The histogram under the summary shows the field over all cells.
+Click a cell (or, with *Click: boundary faces*, a face) for its values in the Properties panel. Quality measures in 3D:
+skewness (equivolume for tetrahedra), smallest dihedral angle, non-orthogonality, neighbour volume ratio, aspect ratio,
+first-layer height reached; a cell with zero or negative volume is an error. A mesh that takes long can be stopped
+with the Cancel cross in the Mesh chip of the workflow strip.
+
+Export: *Export mesh…* writes the mesh for ParaView (.vtu, with the quality fields) or another solver (Gmsh .msh 2.2,
+SU2, CGNS), with the boundary names (2D and 3D meshes). From the command line,
+`python -m aeroflowsim run "<project>.afsproj"` meshes a 3D project and prints the mesh checks, and
+`python -m aeroflowsim export "<project>.afsproj" --mesh out.su2` writes its mesh (.msh, .su2, .cgns or .vtu).
+
+Tutorials: `docs/tutorials/sphere_in_a_box.md`, `docs/tutorials/nozzle_step_to_mesh.md`.
+
 ## Solver speed and Preferences
 
 The 2D solver uses compiled kernels (Numba) on several CPU cores. **Tools > Preferences > Solver threads**: the default

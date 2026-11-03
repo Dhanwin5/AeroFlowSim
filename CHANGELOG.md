@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased - 3D geometry and meshing (November 2026)
+
+### 3D geometry workspace
+- New template **Body in free stream (3D, mesh only)** (`external_3d`): sphere, cylinder, nose cone or box in a box,
+  cylinder or sphere far field (optionally a half domain with a symmetry plane). The 3D flow solver follows in the
+  next stage; the Run step says so.
+- The Geometry step of a 3D template is a clickable 3D workspace: bodies (box, cylinder, sphere, cone, revolve of a
+  profile or a nozzle wall CSV, extrude), STEP / IGES import (closed shells are sewn into solids), transform, union /
+  subtract / intersect, fluid / solid, delete, enclosure, face names (with a prism-layer tick per wall), refinement
+  regions (box, sphere, cylinder), suggested sizes and first-layer height. Faces are picked with the mouse (Shift / Ctrl
+  adds), by box (left to right: inside, right to left: touching), hidden, isolated and cut by a section plane. Every edit
+  is undoable; names stay on their faces after upstream changes (stable face ids). STEP export of 3D geometry.
+- Saved as `geometry/history.json` format 2 (`"dimension": 3`); 2D histories are written exactly as before, so old
+  projects keep their fingerprints and results.
+
+### 3D meshes
+- Gmsh tetrahedra with prism layers grown from the named walls (angle-weighted normals, mitre stretch at wall edges,
+  ending cleanly on flat neighbouring boundaries such as symmetry, inlet and outlet planes), sizes from the walls, the
+  curvature and refinement regions, a minimum size (sharp tips), a cell estimate and a 3 million cell limit.
+- 3D quality: equivolume skewness of tetrahedra, smallest dihedral angle, first-layer height reached, volume ratio;
+  checks before any run (negative volume is an error).
+- Mesh step in 3D: boundary faces in their colours or coloured by a quality field, a cut through the volume (x / y / z,
+  moveable), a quality histogram, Worst cell, cell and face picking. *Export mesh…* writes ParaView .vtu, Gmsh .msh, SU2
+  and CGNS (2D and 3D); command line `export <project> --mesh FILE`.
+
+### Validation
+- `validation/geometry_3d` (24 exact volumes / areas / STEP round trip / stable face ids, errors below 1e-14) and
+  `validation/mesh_3d` (sphere in a box, three levels: fluid volume 0.000 %, wall area 0.04-0.55 %, first prism layer
+  0.4 %). No validated 2D number changed.
+
 ## 0.2.0a3 - Linux and macOS, flow animation (October 2026)
 
 ### Linux and macOS

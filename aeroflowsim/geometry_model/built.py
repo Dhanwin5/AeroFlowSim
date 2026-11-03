@@ -19,7 +19,7 @@ Edge ids are STABLE: they say where an edge came from (see kernel.py, "lineage")
 "op1:wall.2" (the 2nd wall curve made by operation op1) or "op1:body.3#2" (the 2nd piece of it
 after a boolean). Named boundaries refer to these ids, so they survive later edits.
 
-Coordinates are metres. The data is 2D (x, y) now; Phase 3 adds a z column and 3D faces.
+Coordinates are metres. The data is 2D (x, y); 3D geometry has its own classes in built3d.py.
 """
 
 from dataclasses import dataclass, field

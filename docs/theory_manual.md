@@ -1058,6 +1058,116 @@ switches the limiter off only where the solution is smooth, would remove the tra
 Reference: Michalak, C. & Ollivier-Gooch, C. (2009), "Accuracy preserving limiter for the high-order accurate solution
 of the Euler equations", J. Comput. Phys. 228, 8693-8711.
 
+## 13e. 3D geometry: solids and stable face ids (3D geometry and meshing stage)
+
+**Where:** `aeroflowsim/geometry_model/kernel3d.py` (Kernel3D), `operations3d.py`, `built3d.py`; validation
+`validation/geometry_3d/`.
+
+A 3D geometry is the same *history of operations* as in 2D (section 9.3), with solids instead of faces: box,
+cylinder, cone, sphere, STEP/IGES import, revolve of an x-r profile about the x axis, extrude of an x-y outline along
+z, transform, union / subtract / intersect, fluid or solid, enclosure (box, cylinder, sphere, optionally only y >= 0
+with a symmetry plane), face names and refinement regions. Replaying the history in OpenCASCADE gives exact surfaces;
+the volume, area and centroid of every body and face are OpenCASCADE's integrals over these exact surfaces (Gauss
+quadrature on the B-rep), which is why `validation/geometry_3d/` agrees with the closed-form values to about 1e-15.
+
+**Stable face ids (lineage).** OpenCASCADE numbers its surfaces 1, 2, 3 ... and renumbers them after every boolean,
+and in 3D also after every transformation (found in this stage: one `translate` renumbers all faces of the body; the
+volumes keep their numbers). A boundary name must therefore not be stored as "surface 7". Every face carries an id
+that says where it came from (`op1:xmin`, `op2:side`, `op4:upstream` ...). After an operation that changes the
+topology, each new face F is matched to the faces F_k that existed before it:
+
+1. before the operation every face is copied (the copies are not touched by the boolean);
+2. after it, probe points p_i inside F are taken: a 7 x 7 grid in F's parameters (u, v), kept only where
+   OpenCASCADE says the point is inside the trimmed face, at most 6 of them;
+3. each p_i is projected onto every copy: p_i *lies on* F_k when |p_i - closest point| < 1e-6 x (model size) and
+   the projection is inside F_k's trimmed boundary;
+4. all p_i on one F_k: F is F_k or a piece of it (several pieces: `id#1`, `id#2` ..., numbered by centroid);
+   the p_i on several old faces: F was merged from them (`id_a+id_b`); on none: F is new (`op:face`).
+
+For a transformation the copies are moved with the same transformation first, so the matching is exact. Names given
+to a face id apply to the face, its pieces and faces merged from it (`Face3D.matches`). Edges are named after the two
+faces they separate, `E(face a|face b)`, so they are stable too.
+
+## 13f. Prism layers in 3D (3D geometry and meshing stage)
+
+**Where:** `aeroflowsim/prism_layers.py` (grow_prisms), `aeroflowsim/workspace_mesh3d.py` (the mesher);
+tests `tests/test_workspace_mesh3d.py`, validation `validation/mesh_3d/`.
+
+The method is the one of the 2D inflation layers (section 8.3) and of the 3D meshers of Fluent, Pointwise (T-Rex)
+and Star-CCM+: **grow the layers first, then fill the rest.** Gmsh meshes the surfaces; the layers are grown from the
+wall triangles; Gmsh then fills the volume between the *top* of the layers and the other boundaries with tetrahedra.
+
+*Column heights.* At every wall node a straight column of nodes goes into the fluid along the node normal N. With
+first-layer height h, growth rate g and n layers, the j-th node is at
+
+    H_j = s h (1 + g + ... + g^(j-1)) = s h (g^j - 1) / (g - 1),        total thickness  T = h (g^n - 1) / (g - 1)
+
+(`Inflation.thickness`). The first-layer height comes from the smart rule for a target y+ (section 12.10):
+Cf = 0.026 Re^(-1/7), u_tau = U sqrt(Cf / 2), h = y+ mu / (rho u_tau) (White 2006, eq. 6-70).
+
+*Node normal.* N is the average of the unit normals n_k of the wall triangles around the node, each weighted by the
+triangle's corner angle alpha_k there (Thürrner & Wüthrich 1998):
+
+    N = sum_k alpha_k n_k / | sum_k alpha_k n_k |
+
+so that a fine and a coarse triangle count the same. At a wall edge or corner (e.g. the edge of a box) the layers
+measured along each face would be thinner by the cosine between N and n_k; the heights are stretched by the "mitre"
+factor s = 1 / min_k (N . n_k), capped at 2.
+
+*Edge of the wall.* Where the wall meets another boundary (a symmetry plane, an inlet or outlet plane), the column
+must stay in that plane so the layers end cleanly on it. With m_1, m_2 ... the unit normals of the flat neighbouring
+boundaries at the node (made orthonormal, Gram-Schmidt),
+
+    N <- N - sum_i (N . m_i) m_i ,   N <- N / |N|
+
+so a node where two planes meet the wall moves along their line of intersection. The flat neighbouring boundary is
+then meshed again in its plane with its edge moved to the top of the layers; the side faces of the layers (quads)
+fill the strip in between. A curved non-wall neighbour is refused with a message (gap register).
+
+*Validity.* The normals are smoothed (N <- (1 - w) N + w <N of the neighbours>, w = 0.5, the plane constraint
+applied again) until every prism is valid: each prism is split into three tetrahedra and each must have a positive
+volume (V = (b - a) x (c - a) . (d - a) / 6 > 0); if 100 smoothing passes do not help, the layers are too thick for a
+narrow gap or a tight curve and a clear error is raised. A prism is stored in VTK wedge order: the bottom triangle
+(0, 1, 2) with its normal pointing out of the cell (into the wall), the top (3, 4, 5) above it; Gmsh and CGNS number
+the bottom the other way round, which the exporters handle (`mesh_io.FROM_VTK`).
+
+*Check after meshing.* The first-layer height reached is the mean of V / A over the prisms on the walls (V the prism
+volume, A its wall face area): `checks.mesh_first_layer` warns if it differs more than 20 % from the requested h
+(validation: 0.4 % on a sphere).
+
+*Sizes.* The cell size away from the walls follows the same rule as in 2D, h(d) = min(h_max, h_wall + (g_size - 1) d)
+(Gmsh Distance + Threshold fields), curved faces get at least n cells per full circle of the local curvature
+(Gmsh's curvature rule), refinement regions are boxes, spheres or capsules (a cylinder as a row of spheres) with the
+same growth outside them; no cell is smaller than 1/10 of the smallest requested size (the curvature at a cone's
+apex would otherwise ask for cells of size 0).
+
+## 13g. Mesh quality in 3D (3D geometry and meshing stage)
+
+**Where:** `aeroflowsim/mesh_quality.py`, `aeroflowsim/checks.py`; tests `tests/test_workspace_mesh3d.py`.
+
+The face-based measures of section 7 work unchanged in 3D (aspect ratio = largest / smallest face area of a cell,
+non-orthogonality = angle between the face normal and the line joining the cell centres, neighbour volume ratio, cell
+size = V / largest face area). Two measures are added for tetrahedra, the ones 3D meshers report:
+
+*Equivolume skewness* (the skewness Fluent reports for tetrahedra):
+
+    skewness = 1 - V / V_ideal,      V_ideal = 8 / (9 sqrt 3) R³
+
+with R the radius of the tetrahedron's circumsphere and V_ideal the volume of the regular tetrahedron inscribed in
+that sphere. With a = corner 0 and u, v, w the edges from it, the circumcentre is
+
+    c - a = ( |u|² (v x w) + |v|² (w x u) + |w|² (u x v) ) / (2 u . (v x w))
+
+0 is a regular tetrahedron, 1 a flat "sliver". For the other cells (prisms, hexahedra) the equiangle skewness of their
+worst face is used, as in 2D, so the 2D numbers do not change.
+
+*Smallest dihedral angle*: the angle between two faces along their common edge, theta = pi - arccos(n_i . n_j) with
+n_i, n_j the outward unit normals; 70.53° (arccos 1/3) for a regular tetrahedron, near 0 for a sliver.
+
+Checks before any run: a cell with V <= 0 is an **error** (the solver does not start); skewness above 0.95, a dihedral
+angle below 5°, and a neighbour volume ratio above 10 (tetrahedra of equal edge length differ up to about 5 times in
+volume at a skewness of 0.8, and the prism / tetrahedron transition adds about 2) are warnings.
+
 ## 14. New shapes, nozzle contours and intakes (Shapes, grids and mesh import stage, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,
@@ -1307,3 +1417,7 @@ desktop GUI files contain none (`tests/test_gui_privacy.py`, `tests/test_assista
   278-311.
 - Vassberg, J. C., Jameson, A. (2010). In pursuit of grid convergence for two-dimensional Euler solutions.
   *J. Aircraft* 47(4), 1152-1166.
+
+- Thürrner, G. & Wüthrich, C. A. (1998). Computing vertex normals from polygonal facets. Journal of Graphics Tools 3(1), 43-46 (angle-weighted node normals of the prism layers, section 13f).
+- ANSYS Fluent Meshing User's Guide, mesh quality: equivolume skewness of tetrahedra (section 13g).
+- Geuzaine, C. & Remacle, J.-F. (2009). Gmsh: a 3-D finite element mesh generator with built-in pre- and post-processing facilities. Int. J. Numer. Meth. Engng 79, 1309-1331 (surface and Delaunay volume meshes, sections 13e-13f).

@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned geometry workspace` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: Linux and macOS (2026-10-31).
+Last updated: 3D geometry and meshing (2026-11-03).
 
 ## 1. Platform and GUI
 
@@ -42,7 +42,9 @@ Last updated: Linux and macOS (2026-10-31).
 | Quick validation set in CI: Mach 6 cylinder carbuncle check and MMS memory | partial | P2 | Found 2026-10-31 when the full CI ran on all systems: (1) the quick-set cylinder check `off > 100 x on` fails on Windows, Linux and macOS alike (CI: on 0.075, off 0.0013; this PC's report_quick.md: on 3.6e-4, off 9.0e-7) - with implicit LU-SGS both coarse runs settle, so the metric no longer separates fix on / off; the full set and the stand-off distance are unaffected. Needs a quick-set run that stays unsteady without the fix (explicit scheme or more iterations for the OFF run). (2) the MMS study's worker processes run out of memory on the 7 GB Linux CI machine: fewer workers when memory is small |
 | Help > Copy diagnostic info, log file, error dialog | done | P1 | post-processing and alpha release: aeroflowsim/diagnostics.py, %APPDATA%/AeroFlowSim/aeroflowsim.log |
 | Example projects on the start page | done | P1 | post-processing and alpha release: examples/ (N2 nozzle with result, NACA 0012, wedge, Sod), tools/make_examples.py |
-| 3D view rotation, 3D picking | later | P2 | 2D style for now (pan/zoom); Phase 3 |
+| 3D view rotation, 3D picking | done | P2 | 3D geometry and meshing: `gui/geometry3d_view.py` (trackball rotation, standard views, face picking, box selection left-to-right / right-to-left, hide / isolate / show all, section plane) and `MeshView.show_mesh_3d` (boundary faces, cut through the volume, cell / face picking, worst cell); `tests/gui/test_geometry3d_gui.py` |
+| 3D workspace: pick EDGES (e.g. for a local edge size) | later | P2 | edges have stable ids (`E(face a|face b)`) and are drawn, but cannot be clicked or given a size yet; sizes come from walls, curvature and refinement regions |
+| 3D workspace follows the length-unit preference in its dialogs | later | P3 | 3D dialogs take mm like the 2D workspace; Properties and Dimensions follow View > Units |
 | Units system in the GUI (SI, mm, imperial; SI inside) | done | P2 | gas library and units: View > Units (length, pressure, temperature, mass flow, force, area, velocity; presets small propulsion / SI / imperial); inputs, Setup table, key numbers, card, plots, colour pictures, CSV/PNG export follow it; projects, command line, summary.yaml and the validation report stay SI. The geometry workspace stays in mm |
 | Geometry workspace follows the length-unit preference | later | P3 | the workspace still shows and accepts mm only |
 | Units in the Geometry summary, mesh Properties and validity-check messages | done | P2 | gas library and units close-out: check messages carry their numbers as quantities (SI text for the command line and summary.yaml, the user's units in the GUI); Geometry Dimensions and Properties, mesh table and cell/boundary Properties follow View > Units; plot ticks at round values of the chosen unit |
@@ -88,7 +90,10 @@ Last updated: Linux and macOS (2026-10-31).
 | Shapes with two bodies (intake centre body + separate cowl, open through-duct) | later | P2 | `ShapeProfile` is one closed outline: the intake shapes join cowl and centre body with a rear block, so the duct is a dead-end pocket (shock system and capture only) |
 | NACA 5-digit constants: tabulated for L = 2 only (x10-x51); other L scale k1 linearly; 210 line is 2.8 % off its design lift (3-digit r) | partial | P3 | constants from Wikipedia (NASA TM X-3284 not reachable) |
 | Unsourced default dimensions (capsule, intake angles, MOC characteristics count) | partial | P3 | illustrative inputs, labelled as such in the help text |
-| 3D geometry (STEP) | later | P2 | Phase 3, 3D geometry and meshing stage; the workspace data model is ready for a z column and 3D faces |
+| 3D geometry workspace: STEP/IGES solids (closed shells sewn), box / cylinder / cone / sphere, revolve (profile or nozzle wall CSV), extrude, transform (copy), union / subtract / intersect, fluid / solid, delete, enclosure box / cylinder / sphere (half domain with symmetry plane), face names with prism-layer tick, refinement box / sphere / cylinder, stable face ids (lineage), STEP export, undo / redo | done | P2 | 3D geometry and meshing: `geometry_model/kernel3d.py`, `operations3d.py`, `built3d.py`; history format 2 (`"dimension": 3`), 2D histories unchanged; `tests/test_geometry_3d.py`, `validation/geometry_3d/` (24 exact references) |
+| 3D: fillet / chamfer of solid edges, shell, split body by a plane, pattern, draft | later | P2 | not in the 3D operation set yet (do them in CAD and import the STEP) |
+| 3D nozzle helpers: plume region and inlet plenum round an imported nozzle | later | P2 | the 2D enclosure has them; in 3D a box / cylinder can be added and united by hand |
+| Revolve of a CSV wall profile uses straight segments between the points | partial | P3 | the 2D workspace uses splines; fine CSV points make the difference small (1e-6 of the volume for 400 points) |
 
 ## 4. Meshing
 
@@ -105,17 +110,22 @@ Last updated: Linux and macOS (2026-10-31).
 | Structured grid far-field cells in the wake are very flat (aspect ratio about 1,300-4,800 along the wake, first layer 1e-3 c) | partial | P3 | normal for a C-grid with a thin first layer; irrelevant for Euler flow, revisit for viscous flow (Phase 4) |
 | Mesh import (Gmsh .msh v2/v4, SU2, CGNS unstructured 2D, Fluent ASCII 2D) with unit, planar / axisymmetric choice and boundary-type map; export to Gmsh 2.2 / 4.1, SU2, CGNS; template "Start from an existing mesh"; `mesh-info` / `mesh-convert` | done | P2 | shapes, grids and mesh import part 3: `aeroflowsim/mesh_io.py`, `cases/imported_mesh`; round trips exact for all four writers (`tests/test_mesh_io.py`) |
 | Import dialog with a boundary-type TABLE (one row per tag, drop-down) in the GUI | later | P2 | now the map is a text input (`name: type, ...`) with the list of found names and their types shown under the inputs; a Qt table dialog and Tools > Convert mesh are not built |
-| Mesh import: 3D meshes, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | later | P2 | refused with a message (3D: Phase 3) |
+| Mesh import: 3D meshes, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | later | P2 | refused with a message. Found 2026-11-03: the 3D stage plan said `mesh_io` already reads 3D files; it does not (2D only). 3D import belongs to the 3D Euler solver stage |
+| 3D mesh export: Gmsh 2.2 / 4.1, SU2, CGNS (TETRA / PENTA / sections per patch), .vtu; GUI *Export mesh…* and `export <project> --mesh FILE` | done | P2 | 3D geometry and meshing: `mesh_io.write_mesh` and the 3D writers (VTK -> Gmsh / CGNS prism order); Gmsh reads the files back with positive Jacobians (`tests/test_workspace_mesh3d.py`); not yet opened in SU2 itself |
 | CGNS export checked with an external CGNS reader | later | P2 | only our own reader was available; open an exported file in SU2 / ParaView once |
 | Planar nozzle template (for the MOC nozzle) | later | P2 | `tools/nozzle_flow_checks.py moc` solves the planar nozzle directly; no template runs planar internal flow of a wall profile |
 | MOC nozzle flow check: exit Mach 2.23 mean / 2.28 centre line vs design 2.4 on a 2,560-cell mesh (wall cell 1.88) | partial | P2 | contour verified exactly by the area ratio; the CFD deficit comes from the coarse mesh, the throat-corner limit cycle (residual stalls near 1e-3, speed stage) and the sonic line that is not straight; needs a finer mesh and the implicit solver |
 | NACA 0012 C-grid vs triangles (Mach 0.5, alpha 1.25): Cl 0.1751 vs 0.1681 (reference 0.1800), neither converged in 8,000 iterations (C-grid 945 s, triangles 348 s) | partial | P2 | C-grid 2.7 % below the reference, triangles 6.6 %; a converged comparison needs the speed stage |
 | Mesh of an edited geometry with named boundaries as patches (`workspace_mesh.py`), inflation on marked walls | done | P1 | geometry workspace; layers must end on straight boundaries |
 | Structured mesh of an edited nozzle geometry | later | P3 | edited geometry uses Gmsh triangles / quads (clear message) |
-| Gmsh .msh export of workspace meshes | later | P3 | the .vtu is written |
+| Gmsh .msh export of workspace meshes | done | P3 | 3D geometry and meshing: *Export mesh…* in the Mesh step writes .msh, .su2, .cgns or .vtu for any face-based mesh |
 | Smart rule: suggested enclosure and mesh sizes | done | P2 | geometry workspace (`smart_rules.py`), shown with reasons, applied only by the user |
 | Adaptive mesh refinement | planned adaptive mesh refinement | P2 | |
-| 3D meshes (tetrahedra, prism inflation) | later | P2 | Phase 3 |
+| 3D meshes: Gmsh tetrahedra + prism layers grown from named walls (ending on flat neighbouring boundaries), size fields from walls / curvature / refinement regions, minimum size, cell estimate and limit (3 million), template `external_3d` (mesh only) | done | P2 | 3D geometry and meshing: `workspace_mesh3d.py`, `prism_layers.py`; `tests/test_workspace_mesh3d.py`, `validation/mesh_3d/` (volume 0.000 %, first layer 0.4 %, three levels, 30 s for 0.72 million cells) |
+| 3D mesh quality: equivolume skewness, dihedral angle, first-layer height reached, volume ratio for tetrahedra; checks before any run (negative volume = error) | done | P2 | 3D geometry and meshing: `mesh_quality.py`, `checks.py`; Mesh step histogram and Worst cell |
+| Prism layers next to a CURVED boundary that is not a wall (e.g. a curved symmetry or inlet surface) | later | P2 | refused with a message; needs the layer columns projected onto the curved surface and that surface remeshed on the OCC geometry |
+| Prism layers: collision of layers from facing walls (narrow gaps), layer-height reduction at sharp concave corners, pyramid caps | partial | P2 | inverted prisms are found and refused with a message (smoothing first); no automatic local thinning yet (Fluent / Pointwise shrink the layers in a gap) |
+| Faster 3D meshing (HXT, parallel) and meshes above 3 million cells | later | P2 | serial Delaunay keeps meshes reproducible; HXT is parallel but its result can depend on the thread count |
 
 ## 5. Physics and solvers
 
