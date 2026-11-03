@@ -106,7 +106,7 @@ def test_click_box_select_hide_isolate_and_section(qtbot, window, tmp_path):
     page.show_all()
     page.section_axis.setCurrentText("y")                 # cut the box open: the sphere is drawn and clickable
     assert page.section() is not None
-    view.set_view("+y")
+    view.set_view("-y")
     qtbot.wait(50)
     view.pick_at(*_pixel(view, (0.0, 0.0, 0.0)))          # where the sphere's centre is on the screen
     assert page.selection == [("face", "op1:surface")]

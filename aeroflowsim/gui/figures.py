@@ -253,6 +253,6 @@ def quality_histogram_figure(values, title, unit=""):
     ax.hist(v, bins=40, weights=np.full(len(v), 100.0 / len(v)), color=COLOR_NUMERICAL, log=True)
     ax.set_xlabel(f"{title} [{unit}]" if unit and unit != "-" else title)
     ax.set_ylabel("cells [%]")
-    ax.set_title(f"{title}: {len(v):,} cells, min {v.min():.3g}, max {v.max():.3g}")
+    ax.set_title(f"{len(v):,} cells, min {v.min():.3g}, max {v.max():.3g}", fontsize=10)
     style_axes(ax)
     return fig

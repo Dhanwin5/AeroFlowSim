@@ -1078,7 +1078,7 @@ class Visibility:
 
 def section_plane(built, axis, fraction):
     """(origin (3,), normal (3,)) of a section plane across the geometry: normal along `axis` ("x", "y" or "z"), at
-    `fraction` (0 .. 1) of the bounding box; None for "none". The view cuts away the part on the + side."""
+    `fraction` (0 .. 1) of the bounding box; None for "none". The view cuts away the part on the - side (the side the default iso view looks from)."""
     if axis not in _XYZ or built is None or built.bbox() is None:
         return None
     box = np.asarray(built.bbox(), dtype=float)

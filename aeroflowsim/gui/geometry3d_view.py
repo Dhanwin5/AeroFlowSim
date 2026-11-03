@@ -6,7 +6,7 @@
 
 What it shows: every visible face filled in the colour of its boundary type (gui/theme.py PATCH_COLOURS; unnamed
 faces grey, solid bodies' faces lighter), its edges as thin lines, the selection in the accent colour, refinement
-regions as wireframes, an axes triad. A section plane cuts the drawing (the part on its + side is hidden) so inner
+regions as wireframes, an axes triad. A section plane cuts the drawing (the part on its - side is hidden) so inner
 faces, e.g. a body inside its enclosure, can be seen and clicked.
 
 Mouse (the usual 3D CAD conventions):
@@ -143,7 +143,7 @@ class Geometry3DView(QWidget):
             surface.cell_data["rgb"] = np.vstack(rgb).astype(np.uint8)
             surface = surface.clean(tolerance=1e-12 * built.size)
             if section is not None:
-                surface = surface.clip(normal=section[1], origin=section[0], invert=True)
+                surface = surface.clip(normal=section[1], origin=section[0], invert=False)
             self.surface = surface
             if surface.n_cells:
                 self.surface_actor = p.add_mesh(surface, scalars="rgb", rgb=True, smooth_shading=False,
@@ -152,7 +152,7 @@ class Geometry3DView(QWidget):
         if lines:
             poly = pv.merge([pv.lines_from_points(pts) for pts in lines])
             if section is not None:
-                poly = poly.clip(normal=section[1], origin=section[0], invert=True)
+                poly = poly.clip(normal=section[1], origin=section[0], invert=False)
             if poly.n_points:
                 p.add_mesh(poly, color=colours["outline"], line_width=1.5, pickable=False, reset_camera=False)
         for region in built.regions:
