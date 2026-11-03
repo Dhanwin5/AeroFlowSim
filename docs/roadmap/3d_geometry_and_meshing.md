@@ -199,3 +199,10 @@ The stage was done as ONE session (prompt 9, all 8 parts) instead of the 4 sessi
   meshing, 3D mesh import (finding), CSV revolve uses straight segments); CHANGELOG; CLAUDE.md layout;
   `docs/roadmap/3d_euler_solver.md` (one-session plan with this stage's findings) and the roadmap README.
 - Next: part 8 (full fast tests, GUI tests, quick and full validation, push).
+
+### Part 8 - full tests, validation, push (done)
+- Fast tests 984 passed; GUI tests 86 passed (1 skipped), 3D GUI tests re-run after the last view change: 7 passed.
+- Quick validation 18 of 18 pass; full validation all pass. 2D numbers in report.md unchanged (only wall-clock times
+  differ); the quick report's 2D differences date from the speed stage (it was last written with 0.2.0a1).
+- Old 2D project made with the pre-stage code: opens with mesh status ok and re-meshes node-for-node identically.
+- Pushed. Next stage: `docs/roadmap/3d_euler_solver.md`.

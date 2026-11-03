@@ -2,7 +2,7 @@
  "name": "geometry_3d",
  "title": "3D geometry workspace: volumes, areas, STEP round trip, stable face ids",
  "case": "aeroflowsim/geometry_model",
- "date": "2026-11-03",
+ "date": "2026-11-04",
  "comparisons": [
   {
    "reference": {

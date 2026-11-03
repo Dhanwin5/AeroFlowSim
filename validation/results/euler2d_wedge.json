@@ -2,7 +2,7 @@
  "name": "euler2d_wedge",
  "title": "Oblique shock on a 10 deg wedge at Mach 2 (2D Euler, external_2d)",
  "case": "cases/external_2d",
- "date": "2026-10-30",
+ "date": "2026-11-04",
  "comparisons": [
   {
    "reference": {

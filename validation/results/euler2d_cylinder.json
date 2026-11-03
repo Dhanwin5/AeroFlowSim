@@ -2,7 +2,7 @@
  "name": "euler2d_cylinder",
  "title": "Mach 6 cylinder: bow-shock stand-off and the carbuncle test (2D Euler, external_2d)",
  "case": "cases/external_2d",
- "date": "2026-10-30",
+ "date": "2026-11-03",
  "comparisons": [
   {
    "reference": {
@@ -98,7 +98,7 @@
     "iterations": 2706,
     "converged": true,
     "residual": 9.660831789248839e-07,
-    "time": 3.1062100999988616,
+    "time": 3.106607200112194,
     "standoff": 0.22485453652035128,
     "roughness": 0.7701970319865021,
     "positivity": 0,
@@ -109,7 +109,7 @@
     "iterations": 12000,
     "converged": false,
     "residual": 0.3315599142684867,
-    "time": 14.414442799985409,
+    "time": 14.420573099981993,
     "standoff": 0.22437610229144744,
     "roughness": 1.513593420507228,
     "positivity": 0,
@@ -120,7 +120,7 @@
     "iterations": 501,
     "converged": false,
     "residual": 0.06423115387215882,
-    "time": 0.2554768999107182,
+    "time": 0.2693000000435859,
     "standoff": 0.2296055681484317,
     "roughness": null,
     "positivity": 0,

@@ -2,7 +2,7 @@
  "name": "quasi1d_nozzle",
  "title": "Quasi-1D nozzle (N2 thruster, p0 = 5 bar, T0 = 293.15 K)",
  "case": "cases/quasi1d_nozzle",
- "date": "2026-10-30",
+ "date": "2026-11-04",
  "comparisons": [
   {
    "reference": {
