@@ -29,7 +29,7 @@ from pathlib import Path
 
 import numpy as np
 
-from aeroflowsim.mesh import PATCH_TYPES, QUAD, TRIANGLE, Mesh
+from aeroflowsim.mesh import HEXAHEDRON, PATCH_TYPES, PYRAMID, QUAD, TETRA, TRIANGLE, WEDGE, Mesh
 
 LENGTH_UNITS = {"m": 1.0, "mm": 1e-3, "cm": 1e-2, "in": 0.0254, "ft": 0.3048}      # file unit -> metres
 FORMATS = {".msh": "Gmsh or Fluent .msh", ".su2": "SU2", ".cgns": "CGNS"}
@@ -386,8 +386,11 @@ def _node(parent, name, label, kind, data=None):
 
 
 def write_cgns(mesh: Mesh, path) -> Path:
-    """CGNS/HDF5: base (2, 2), one unstructured zone, coordinates, cell sections, one BAR_2 section and BC per patch."""
+    """CGNS/HDF5: base (2, 2), one unstructured zone, coordinates, cell sections, one BAR_2 section and BC per patch.
+    A 3D mesh: see write_cgns_3d."""
     import h5py
+    if mesh.dim == 3:
+        return write_cgns_3d(mesh, path)
     _check_2d(mesh)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -438,10 +441,13 @@ def _cell_lists(mesh):
 
 
 def write_gmsh(mesh: Mesh, path, version="2.2") -> Path:
-    """Gmsh .msh, ASCII, version "2.2" or "4.1": cells, plus one physical group of edges per patch (named like the patch)."""
-    _check_2d(mesh)
+    """Gmsh .msh, ASCII, version "2.2" or "4.1": cells, plus one physical group of edges per patch (named like the patch).
+    A 3D mesh: see write_gmsh_3d."""
     if version not in ("2.2", "4.1"):
         raise ValueError("Gmsh version must be '2.2' or '4.1'.")
+    if mesh.dim == 3:
+        return write_gmsh_3d(mesh, path, version)
+    _check_2d(mesh)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     nodes = mesh.nodes.tolist()                       # python floats: repr() gives all digits, no 'np.float64(...)'
@@ -495,7 +501,9 @@ def write_gmsh(mesh: Mesh, path, version="2.2") -> Path:
 
 
 def write_su2(mesh: Mesh, path) -> Path:
-    """SU2 .su2: the cells, the points and one MARKER_TAG per patch (named like the patch)."""
+    """SU2 .su2: the cells, the points and one MARKER_TAG per patch (named like the patch). 3D: see write_su2_3d."""
+    if mesh.dim == 3:
+        return write_su2_3d(mesh, path)
     _check_2d(mesh)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -513,6 +521,148 @@ def write_su2(mesh: Mesh, path) -> Path:
         out += [f"MARKER_TAG= {p.name}", f"MARKER_ELEMS= {p.count}"]
         out += [f"3 {a} {b}" for a, b in mesh.face_nodes[p.faces, :2]]
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return path
+
+
+# ---- writing 3D meshes -----------------------------------------------------------------------------------------------
+# Node orders: SU2 uses VTK's cell numbers and node orders. Gmsh and CGNS number a prism with its bottom triangle turning
+# towards the top (VTK: away from it), so VTK wedge (0 1 2 3 4 5) is Gmsh / CGNS (0 2 1 3 5 4); tetrahedra, hexahedra and
+# pyramids are numbered the same in all three.
+
+GMSH_3D = {TETRA: 4, HEXAHEDRON: 5, WEDGE: 6, PYRAMID: 7}      # Gmsh element type numbers
+CGNS_3D = {TETRA: 10, PYRAMID: 12, WEDGE: 14, HEXAHEDRON: 17}  # CGNS ElementType_t numbers
+CGNS_TRI_3, CGNS_QUAD_4 = 5, 7
+FROM_VTK = {WEDGE: [0, 2, 1, 3, 5, 4]}                          # VTK node order -> Gmsh / CGNS node order
+N_NODES = {TETRA: 4, PYRAMID: 5, WEDGE: 6, HEXAHEDRON: 8}
+
+
+def _cell_lists_3d(mesh, order=None):
+    """[(VTK type, (n, k) node numbers)] for every 3D cell type present; order = FROM_VTK for Gmsh / CGNS."""
+    out = []
+    for code in (TETRA, PYRAMID, WEDGE, HEXAHEDRON):
+        conn = mesh.cell_nodes[mesh.cell_types == code][:, :N_NODES[code]]
+        if len(conn):
+            out.append((code, conn[:, order[code]] if order and code in order else conn))
+    return out
+
+
+def _patch_faces(mesh, patch):
+    """(triangles (n, 3), quads (m, 4)): the node numbers of the faces of a patch."""
+    f = mesh.face_nodes[patch.faces]
+    tri = f[:, 3] < 0
+    return f[tri, :3], f[~tri, :4]
+
+
+def write_gmsh_3d(mesh: Mesh, path, version="2.2") -> Path:
+    """Gmsh .msh of a 3D mesh, ASCII 2.2 or 4.1: one physical surface per patch (triangles, quads), the volume "fluid"."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    nodes = mesh.nodes.tolist()
+    patches = list(mesh.patches)
+    cells = _cell_lists_3d(mesh, FROM_VTK)
+    faces = [_patch_faces(mesh, p) for p in patches]
+    out = ["$MeshFormat", f"{version} 0 8", "$EndMeshFormat", "$PhysicalNames", str(len(patches) + 1)]
+    out += [f'2 {k} "{p.name}"' for k, p in enumerate(patches, start=1)] + ['3 1 "fluid"', "$EndPhysicalNames"]
+    n_elements = sum(len(c) for _, c in cells) + sum(p.count for p in patches)
+    element = 1
+    if version == "2.2":
+        out += ["$Nodes", str(len(nodes))] + [f"{i + 1} {x!r} {y!r} {z!r}" for i, (x, y, z) in enumerate(nodes)]
+        out += ["$EndNodes", "$Elements", str(n_elements)]
+        for k, (tri, quad) in enumerate(faces, start=1):
+            for kind, conn in ((2, tri), (3, quad)):
+                for row in conn:
+                    out.append(f"{element} {kind} 2 {k} {k} " + " ".join(str(int(n) + 1) for n in row))
+                    element += 1
+        for code, conn in cells:
+            for row in conn:
+                out.append(f"{element} {GMSH_3D[code]} 2 1 1 " + " ".join(str(int(n) + 1) for n in row))
+                element += 1
+        out.append("$EndElements")
+    else:
+        arr = mesh.nodes
+
+        def box(points):
+            return " ".join(repr(v) for v in [*points.min(axis=0).tolist(), *points.max(axis=0).tolist()])
+        out += ["$Entities", f"0 0 {len(patches)} 1"]
+        for k, p in enumerate(patches, start=1):
+            used = mesh.face_nodes[p.faces]
+            out.append(f"{k} {box(arr[used[used >= 0]])} 1 {k} 0")
+        out.append(f"1 {box(arr)} 1 1 {len(patches)} " + " ".join(str(k) for k in range(1, len(patches) + 1)))
+        out += ["$EndEntities", "$Nodes", f"1 {len(nodes)} 1 {len(nodes)}", f"3 1 0 {len(nodes)}"]
+        out += [str(i + 1) for i in range(len(nodes))] + [f"{x!r} {y!r} {z!r}" for x, y, z in nodes] + ["$EndNodes"]
+        blocks = [(2, k, kind, conn) for k, (tri, quad) in enumerate(faces, start=1)
+                  for kind, conn in ((2, tri), (3, quad)) if len(conn)]
+        blocks += [(3, 1, GMSH_3D[code], conn) for code, conn in cells]
+        out += ["$Elements", f"{len(blocks)} {n_elements} 1 {n_elements}"]
+        for dim, entity, kind, conn in blocks:
+            out.append(f"{dim} {entity} {kind} {len(conn)}")
+            for row in conn:
+                out.append(f"{element} " + " ".join(str(int(n) + 1) for n in row))
+                element += 1
+        out.append("$EndElements")
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return path
+
+
+def write_su2_3d(mesh: Mesh, path) -> Path:
+    """SU2 .su2 of a 3D mesh (VTK cell numbers and node orders; marker faces: triangles 5, quads 9)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cells = _cell_lists_3d(mesh)
+    out = ["NDIME= 3", f"NELEM= {sum(len(c) for _, c in cells)}"]
+    index = 0
+    for code, conn in cells:
+        for row in conn:
+            out.append(f"{code} " + " ".join(str(int(n)) for n in row) + f" {index}")
+            index += 1
+    out.append(f"NPOIN= {mesh.n_nodes}")
+    out += [f"{x!r} {y!r} {z!r} {i}" for i, (x, y, z) in enumerate(mesh.nodes.tolist())]
+    out.append(f"NMARK= {len(mesh.patches)}")
+    for p in mesh.patches:
+        tri, quad = _patch_faces(mesh, p)
+        out += [f"MARKER_TAG= {p.name}", f"MARKER_ELEMS= {p.count}"]
+        out += ["5 " + " ".join(str(int(n)) for n in row) for row in tri]
+        out += ["9 " + " ".join(str(int(n)) for n in row) for row in quad]
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return path
+
+
+def write_cgns_3d(mesh: Mesh, path) -> Path:
+    """CGNS/HDF5 of a 3D mesh: base (3, 3), one unstructured zone, one section per cell type; per patch a TRI_3 and a
+    QUAD_4 section (consecutive element numbers) and a BC over their range (GridLocation FaceCenter)."""
+    import h5py
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(path, "w") as f:
+        f.create_dataset(" format", data=np.frombuffer(b"IEEE_LITTLE_64\0", dtype=np.int8))
+        f.create_dataset(" hdf5version", data=np.frombuffer(b"HDF5 Version 1.14.0\0", dtype=np.int8))
+        _node(f, "CGNSLibraryVersion", "CGNSLibraryVersion_t", "R4", [4.0])
+        base = _node(f, "Base", "CGNSBase_t", "I4", [3, 3])
+        zone = _node(base, "Zone", "Zone_t", "I4", [[mesh.n_nodes, mesh.n_cells, 0]])
+        _node(zone, "ZoneType", "ZoneType_t", "C1", np.frombuffer(b"Unstructured", dtype=np.int8))
+        grid = _node(zone, "GridCoordinates", "GridCoordinates_t", "MT")
+        for k, axis in enumerate("XYZ"):
+            _node(grid, f"Coordinate{axis}", "DataArray_t", "R8", mesh.nodes[:, k])
+        element = 1
+        names = {TETRA: "Cells_tetra", PYRAMID: "Cells_pyramid", WEDGE: "Cells_prism", HEXAHEDRON: "Cells_hexa"}
+        for code, conn in _cell_lists_3d(mesh, FROM_VTK):
+            sec = _node(zone, names[code], "Elements_t", "I4", [CGNS_3D[code], 0])
+            _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
+            _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
+            element += len(conn)
+        zbc = _node(zone, "ZoneBC", "ZoneBC_t", "MT")
+        for patch in mesh.patches:
+            first = element
+            for suffix, kind, conn in zip(("", "_quads"), (CGNS_TRI_3, CGNS_QUAD_4), _patch_faces(mesh, patch)):
+                if len(conn):
+                    sec = _node(zone, patch.name + suffix, "Elements_t", "I4", [kind, 0])
+                    _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
+                    _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
+                    element += len(conn)
+            bc = _node(zbc, patch.name, "BC_t", "C1",
+                       np.frombuffer(CGNS_BC.get(patch.type, "BCTypeNull").encode(), dtype=np.int8))
+            _node(bc, "PointRange", "IndexRange_t", "I4", [[first], [element - 1]])
+            _node(bc, "GridLocation", "GridLocation_t", "C1", np.frombuffer(b"FaceCenter", dtype=np.int8))
     return path
 
 

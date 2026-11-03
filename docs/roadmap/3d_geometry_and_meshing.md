@@ -120,3 +120,23 @@ The stage was done as ONE session (prompt 9, all 8 parts) instead of the 4 sessi
   the right faces after upstream edits (resized box, smaller sphere, inserted move).
 - Verified: all pass; errors 0 to 9e-15 relative (tolerance 1e-6 %: OCC integrates the exact surfaces).
 - Next: part 3 (3D meshing path in workspace_mesh.py).
+
+### Part 3 - 3D meshing path (done)
+- New: `aeroflowsim/workspace_mesh3d.py` (mesh_3d: replay, checks, size fields Distance/Threshold from walls + Gmsh
+  curvature + Box / Ball / capsule-of-balls for cylinder regions, surface mesh, prism layers, Delaunay tetrahedra,
+  face-based Mesh with VTK types 10 and 13, patches = face names) and `aeroflowsim/prism_layers.py` (grow_prisms:
+  angle-weighted node normals, mitre stretch at wall edges, columns kept in flat neighbouring planes, smoothing until
+  no prism is inverted). `workspace_mesh.mesh_for` sends every 3D template (case.workspace_settings_3d) there.
+  `mesh_io.py`: 3D export (Gmsh 2.2 and 4.1, SU2, CGNS; VTK -> Gmsh/CGNS prism order).
+- Method (decision): grow the layers first, then give Gmsh the TOP of the layers as the walls' surface mesh, and mesh
+  a flat neighbouring boundary (symmetry, inlet, outlet) again in its plane with its edge at the top of the layers.
+  Same idea as the 2D inflation; Gmsh's own 3D boundary-layer extrusion needs the built-in (not OCC) kernel.
+- Verified: `tests/test_workspace_mesh3d.py` (10 tests, 4 s): tets only, prisms = layers x wall triangles, volume with
+  layers = without (same facets, 1e-10), first layer height 0.005 m reached (mean within 3 %), save/load, half domain
+  (quads on y = 0), nozzle (side quads exactly on the inlet / outlet planes), refinement region, refusals (no fluid,
+  unnamed faces, curved neighbour of an inflation wall, too many cells), estimate within x4, export read back by Gmsh
+  (element counts, physical names, minDetJac > 0 for prisms), SU2 and CGNS contents.
+- Anomalies: (1) Gmsh renumbers nodes after meshing unless Mesh.Renumber = 0 (needed: the layer nodes refer to them).
+  (2) The stage plan said mesh IMPORT reads 3D files; it does not (`mesh_io` reads 2D only) -> gap register, 3D Euler
+  solver stage. (3) Layers next to a CURVED non-wall boundary are refused with a message (gap register).
+- Next: part 4 (3D quality metrics, checks, mesh study).

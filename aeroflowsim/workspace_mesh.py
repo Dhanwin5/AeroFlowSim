@@ -39,7 +39,7 @@ import math
 
 import numpy as np
 
-from aeroflowsim.geometry_model import FLUID, ReplayContext, template_document
+from aeroflowsim.geometry_model import FLUID, ReplayContext, has_workspace_3d, template_document
 from aeroflowsim.geometry_model.boundaries import boundary_problems
 from aeroflowsim.geometry_model.kernel import Kernel, gmsh_session
 from aeroflowsim.geometry_model.document import run_operations
@@ -64,7 +64,20 @@ def is_unedited(case, document) -> bool:
 
 
 def mesh_for(case, params, document=None, folder=None):
-    """The mesh of a template for these inputs and (optional) workspace geometry; see the module text."""
+    """The mesh of a template for these inputs and (optional) workspace geometry; see the module text.
+
+    A 3D template (case.py has workspace_settings_3d) always meshes its 3D document, the template's own geometry
+    (template_document) when there are no edits, with aeroflowsim/workspace_mesh3d.py (tetrahedra + prism layers).
+    """
+    if has_workspace_3d(case):
+        from aeroflowsim.workspace_mesh3d import mesh_3d
+        document = document if document is not None else template_document(case)
+        if document.dimension != 3:
+            raise ValueError(f"The template '{case.title}' makes 3D meshes; its geometry must be a 3D geometry.")
+        return mesh_3d(document, ReplayContext(case, params, folder),
+                       lambda built: case.workspace_settings_3d(params, built))
+    if document is not None and document.dimension == 3:
+        raise ValueError(f"The template '{case.title}' makes 2D meshes and cannot mesh a 3D geometry.")
     if is_unedited(case, document):
         return case.build_mesh(params)
     if not hasattr(case, "workspace_settings"):
