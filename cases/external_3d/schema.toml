@@ -1,0 +1,264 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# A 3D body (sphere, cylinder, nose cone, box) in a 3D far field, meshed with tetrahedra and prism layers. Its geometry can be
+# edited in the 3D geometry workspace (bodies, STEP/IGES import, booleans, enclosure, face names, refinement regions).
+# Mesh only until the 3D Euler solver stage: the Run step shows solver_message. Lengths of the domain and the mesh are
+# multiples of the reference length L (the largest extent of the body), so the same settings fit any body size.
+
+[case]
+name = "Body in free stream (3D, mesh only)"
+description = "A 3D body (sphere, cylinder, nose cone, box, or your own STEP/IGES solid in the geometry workspace) in a box, cylinder or sphere far field, meshed with tetrahedra and prism layers on the walls, with 3D mesh quality checks and export (Gmsh, SU2, CGNS, ParaView). The 3D flow solver follows in the next stage."
+steady = true
+requires = ["gmsh"]
+solver = false
+solver_message = "This template makes and checks 3D meshes; the 3D Euler solver comes in the next development stage. Export the mesh (Gmsh, SU2, CGNS, ParaView) from the Mesh step to use it in another solver."
+
+# ---- body ------------------------------------------------------------------------------------------
+
+[[input]]
+key = "body_shape"
+label = "Body"
+type = "choice"
+default = "Sphere"
+options = ["Sphere", "Cylinder", "Nose cone", "Box"]
+group = "Body"
+step = "geometry"
+help = "The body, with its axis along x (the flow direction). Sphere: diameter only. Cylinder and box: diameter (box: side) and length. Nose cone: a cone with its tip upstream at x = 0, base diameter and length. For any other body, import a STEP or IGES solid in the geometry workspace."
+
+[[input]]
+key = "diameter"
+label = "Diameter"
+unit = "m"
+type = "float"
+default = 0.1
+min = 1e-06
+max = 1000.0
+group = "Body"
+step = "geometry"
+help = "Diameter of the sphere, cylinder or cone base; side of the box (across the flow)."
+
+[[input]]
+key = "length"
+label = "Length"
+unit = "m"
+type = "float"
+default = 0.2
+min = 1e-06
+max = 1000.0
+group = "Body"
+step = "geometry"
+help = "Length along x (the flow direction) of the cylinder, nose cone or box."
+show_if = { body_shape = ["Cylinder", "Nose cone", "Box"] }
+
+# ---- far field ----------------------------------------------------------------------------------
+
+[[input]]
+key = "domain_shape"
+label = "Far-field shape"
+type = "choice"
+default = "Box"
+options = ["Box", "Cylinder", "Sphere"]
+group = "Far field"
+step = "geometry"
+help = "Shape of the far-field boundary around the body. Box and cylinder: from the upstream to the downstream distance along x; sphere: about the body's centre."
+
+[[input]]
+key = "upstream"
+label = "Upstream distance / L"
+unit = "-"
+type = "float"
+default = 5.0
+min = 0.1
+max = 1000.0
+group = "Far field"
+step = "geometry"
+help = "Distance from the body's front to the inflow side, in reference lengths L (the largest extent of the body)."
+show_if = { domain_shape = ["Box", "Cylinder"] }
+
+[[input]]
+key = "downstream"
+label = "Downstream distance / L"
+unit = "-"
+type = "float"
+default = 10.0
+min = 0.1
+max = 1000.0
+group = "Far field"
+step = "geometry"
+help = "Distance from the body's back to the outflow side, in reference lengths."
+show_if = { domain_shape = ["Box", "Cylinder"] }
+
+[[input]]
+key = "lateral"
+label = "Side distance / L"
+unit = "-"
+type = "float"
+default = 5.0
+min = 0.1
+max = 1000.0
+group = "Far field"
+step = "geometry"
+help = "Distance from the body to each side of the box (in y and z), in reference lengths."
+show_if = { domain_shape = "Box" }
+
+[[input]]
+key = "domain_radius"
+label = "Radius / L"
+unit = "-"
+type = "float"
+default = 10.0
+min = 0.5
+max = 1000.0
+group = "Far field"
+step = "geometry"
+help = "Radius of the cylinder (about the x axis through the body's centre) or of the sphere, in reference lengths."
+show_if = { domain_shape = ["Cylinder", "Sphere"] }
+
+[[input]]
+key = "half_domain"
+label = "Half domain (symmetry plane y = 0)"
+type = "bool"
+default = false
+group = "Far field"
+step = "geometry"
+help = "Keep only y >= 0, with a symmetry plane at y = 0: half the cells for a body that is symmetric about that plane (with the flow in the plane)."
+
+# ---- mesh ---------------------------------------------------------------------------------------
+
+[[input]]
+key = "surface_size"
+label = "Cell size on the body / L"
+unit = "-"
+type = "float"
+default = 0.05
+min = 1e-05
+max = 1.0
+group = "Mesh"
+step = "mesh"
+help = "Size of the triangles on the body surface, in reference lengths. Halving it gives about 4 times as many cells near the body."
+
+[[input]]
+key = "farfield_size"
+label = "Largest cell size / L"
+unit = "-"
+type = "float"
+default = 1.0
+min = 1e-04
+max = 100.0
+group = "Mesh"
+step = "mesh"
+help = "Size of the largest cells, far from the body, in reference lengths."
+
+[[input]]
+key = "size_growth"
+label = "Size growth rate"
+unit = "-"
+type = "float"
+default = 1.25
+min = 1.01
+max = 3.0
+group = "Mesh"
+step = "mesh"
+help = "How fast the cells grow away from the body: a cell is about this many times larger than its neighbour nearer the wall."
+
+[[input]]
+key = "curvature_cells"
+label = "Cells per circle on curved faces"
+unit = "-"
+type = "int"
+default = 24
+min = 0
+max = 360
+group = "Mesh"
+step = "mesh"
+help = "On curved faces the cells are at most a 1/n of the full circle of the local curvature, so small rounded features get smaller cells (0 = off)."
+
+[[input]]
+key = "inflation"
+label = "Prism layers on the body"
+type = "bool"
+default = false
+group = "Prism layers"
+step = "mesh"
+help = "Thin prism layers along the walls, for boundary layers in viscous flow (later stage); the Geometry step's Boundaries tab switches them on or off per wall. Not needed for inviscid (Euler) flow."
+
+[[input]]
+key = "first_layer_height"
+label = "First layer height / L"
+unit = "-"
+type = "float"
+default = 0.0005
+min = 1e-09
+max = 0.05
+group = "Prism layers"
+step = "mesh"
+help = "Height of the prism layer touching the wall, in reference lengths. The Suggestions button gives the height for y+ = 1 from the free-stream Reynolds number."
+show_if = { inflation = true }
+
+[[input]]
+key = "n_layers"
+label = "Number of layers"
+unit = "-"
+type = "int"
+default = 5
+min = 1
+max = 50
+group = "Prism layers"
+step = "mesh"
+help = "Number of prism layers on the walls."
+show_if = { inflation = true }
+
+[[input]]
+key = "growth_rate"
+label = "Layer growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.0
+max = 2.0
+group = "Prism layers"
+step = "mesh"
+help = "Each layer is this many times thicker than the one below it."
+show_if = { inflation = true }
+
+# ---- free stream (for the first-layer suggestion now, and the 3D solver later) -----------------------
+
+[[input]]
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "air"
+group = "Free stream"
+help = "The gas, from the gas library (used now for the Reynolds number of the first-layer suggestion)."
+
+[[input]]
+key = "mach"
+label = "Mach number"
+unit = "-"
+type = "float"
+default = 2.0
+min = 0.01
+max = 30.0
+group = "Free stream"
+help = "Free-stream Mach number."
+
+[[input]]
+key = "p_inf"
+label = "Static pressure"
+unit = "Pa"
+type = "float"
+default = 101325.0
+min = 0.001
+max = 1000000000.0
+group = "Free stream"
+help = "Free-stream static pressure."
+
+[[input]]
+key = "T_inf"
+label = "Static temperature"
+unit = "K"
+type = "float"
+default = 288.15
+min = 1.0
+max = 10000.0
+group = "Free stream"
+help = "Free-stream static temperature."

@@ -750,10 +750,64 @@ GEOMETRY_CHECKS = [geometry_replay, geometry_closed_loops, geometry_self_interse
                    geometry_boundary_names, geometry_feature_size, geometry_axisymmetric]
 
 
+# ---- 3D geometry (BuiltGeometry3D, aeroflowsim/geometry_model/built3d.py) ---------------------------
+
+def geometry_3d_bodies(built, settings):
+    """3D: there is a fluid body, and the solid bodies are cut out of it (left-over solids are not meshed)."""
+    from aeroflowsim.geometry_model import FLUID, SOLID
+    solids, fluid = built.bodies_with_role(SOLID), built.bodies_with_role(FLUID)
+    if not fluid:
+        return CheckResult("Body inside the domain", "error", "There is no fluid body: add an enclosure around the "
+                           "solid bodies, or mark a body as fluid.")
+    if solids:
+        return CheckResult("Body inside the domain", "warning", f"{len(solids)} solid body(ies) are not cut out of the "
+                           "fluid (no enclosure after them, or outside it); they are not meshed.", len(solids))
+    return CheckResult("Body inside the domain", "info", "Every solid body is cut out of the fluid.")
+
+
+def geometry_3d_names(built, settings):
+    """3D: every boundary face of the fluid has a name and a type; a name has only one type."""
+    faces = built.boundary_faces()
+    unnamed = [f for f in faces if f not in built.names]
+    types = {}
+    for f in faces:
+        if f in built.names:
+            types.setdefault(built.names[f].name, set()).add(built.names[f].type)
+    mixed = [n for n, t in types.items() if len(t) > 1]
+    if unnamed:
+        return CheckResult("Boundary names", "error", f"{len(unnamed)} boundary face(s) have no name; name them in the "
+                           "Boundaries tab (they become mesh patches).", len(unnamed))
+    if mixed:
+        return CheckResult("Boundary names", "error", f"The boundary name(s) {', '.join(mixed)} have faces of different "
+                           "types; one name, one type.")
+    return CheckResult("Boundary names", "info", f"All boundary faces are named ({len(types)} boundaries).", len(types))
+
+
+def geometry_3d_feature_size(built, settings):
+    """3D: the shortest edge of the walls is resolved by the surface cell size."""
+    if settings is None:
+        return None
+    walls = {f for f in built.boundary_faces() if f in built.names and built.names[f].type == "wall"}
+    edges = [e for e in built.edges.values() if walls & set(e.faces)]
+    if not edges:
+        return None
+    feature = min(e.length for e in edges)                      # [m]
+    cells = feature / settings.surface_size
+    text = f"The shortest wall edge is {{0}} long: {cells:.3g} surface cells of {{1}}."
+    sizes = [Quantity(feature, "m"), Quantity(settings.surface_size, "m")]
+    if cells < MIN_CELLS_PER_FEATURE:
+        return CheckResult("Smallest feature", "warning", text + " Use smaller wall cells to resolve it.", cells,
+                           "cells", sizes)
+    return CheckResult("Smallest feature", "info", text, cells, "cells", sizes)
+
+
+GEOMETRY_CHECKS_3D = [geometry_replay, geometry_3d_bodies, geometry_3d_names, geometry_3d_feature_size]
+
+
 def run_geometry_checks(built, settings=None) -> list[CheckResult]:
-    """Run the geometry checks on a replayed workspace geometry (settings: GmshSettings or None)."""
+    """Run the geometry checks on a replayed workspace geometry (settings: GmshSettings / MeshSettings3D or None)."""
     results = []
-    for check in GEOMETRY_CHECKS:
+    for check in GEOMETRY_CHECKS_3D if getattr(built, "dimension", 2) == 3 else GEOMETRY_CHECKS:
         try:
             outcome = check(built, settings)
         except Exception as error:

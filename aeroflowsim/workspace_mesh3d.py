@@ -47,6 +47,8 @@ TRIANGLE_AREA = math.sqrt(3.0) / 4.0        # area of an equilateral triangle wi
 PLANAR_TOLERANCE = 1e-6        # a boundary is flat if its triangle normals differ by less than this [-]
 GMSH_TRIANGLE, GMSH_TETRA = 2, 4             # Gmsh element type numbers (first order)
 CAPSULE_SPACING = 0.5          # spheres of a cylinder refinement region, this many radii apart [-]
+MIN_SIZE_FRACTION = 0.1        # no cell smaller than this x the smallest requested size (curvature at a sharp tip,
+                               # e.g. a cone's apex, would otherwise ask for cells of size 0) [-]
 
 
 @dataclass
@@ -165,7 +167,7 @@ def mesh_3d(document, context, settings) -> Mesh:
         walls = [t for t, (_, b) in surfaces.items() if b.type == "wall"]
         layer_walls = [t for t, (_, b) in surfaces.items() if wants_layers(b, settings)]
         _size_fields(gmsh, kernel, built, settings, walls)
-        _options(gmsh, settings)
+        _options(gmsh, settings, min([settings.surface_size] + [r.size for r in built.regions]))
         try:
             gmsh.model.mesh.generate(2)
         except Exception as error:
@@ -199,10 +201,11 @@ def _drop_solids(kernel, fluid):
         kernel.sync()
 
 
-def _options(gmsh, settings):
+def _options(gmsh, settings, smallest):
+    """Gmsh options: sizes from the size fields and the curvature rule, never below MIN_SIZE_FRACTION x smallest [m]."""
     for option, value in (("General.Terminal", 0), ("Mesh.MeshSizeExtendFromBoundary", 0),
                           ("Mesh.MeshSizeFromPoints", 0), ("Mesh.MeshSizeFromCurvature", int(settings.curvature)),
-                          ("Mesh.MeshSizeMax", settings.max_size), ("Mesh.MeshSizeMin", 0.0),
+                          ("Mesh.MeshSizeMax", settings.max_size), ("Mesh.MeshSizeMin", MIN_SIZE_FRACTION * smallest),
                           ("Mesh.ElementOrder", 1), ("Mesh.Algorithm", 6), ("Mesh.Algorithm3D", 1),
                           ("Mesh.RecombineAll", 0), ("Mesh.Optimize", 1), ("General.NumThreads", 1),
                           ("Mesh.Renumber", 0)):         # keep node numbers (the layer nodes refer to them)

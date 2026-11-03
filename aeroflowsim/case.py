@@ -55,6 +55,15 @@ A case folder holds two required files:
         {"surface": (input key, scale [m]), "max": (input key, scale [m]), "edge_refinement": input key};
         an input value = size in metres / scale.
 
+    workspace_settings_3d(params, built) -> MeshSettings3D          (optional: a 3D template)
+        The template makes 3D meshes: its geometry is a 3D workspace document (operations3d.py) and EVERY mesh,
+        edited or not, is made by aeroflowsim/workspace_mesh3d.py with these settings (metres; built is the
+        replayed BuiltGeometry3D). Its own geometry comes from
+    body_3d(params) -> Operation3D, domain_3d(params) -> Enclosure3D  (optional, with workspace_settings_3d)
+        the template body (one 3D operation, e.g. Sphere) and its far field; template_document() makes them the
+        steps "Template body" and "Template far field". build_mesh(params) is still required (it meshes that
+        template document). See cases/external_3d.
+
     reference_lines(params, mesh) -> list[Line]                     (optional)
         Exact lines to draw on top of the x-t diagram, e.g. wave paths x = x0 + S t
         (see aeroflowsim/results.py). Kept apart from reference() because reference() returns
@@ -87,7 +96,8 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 # Functions case.py must define, and optional ones.
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
 OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells",
-                      "workspace_settings", "size_inputs", "gas", "reservoir_state"]
+                      "workspace_settings", "size_inputs", "gas", "reservoir_state", "workspace_settings_3d",
+                      "body_3d", "domain_3d"]
 
 
 def check_module(module, has_solver=True) -> list[str]:

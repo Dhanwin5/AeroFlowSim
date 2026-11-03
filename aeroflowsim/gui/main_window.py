@@ -392,8 +392,10 @@ class MainWindow(QMainWindow):
         built = self.pages["geometry"].built
         if self.project is None or built is None:
             return []
+        case = self.project.case
         try:
-            settings = self.project.case.workspace_settings(self.project.params_for(("geometry", "mesh")), built)
+            make = case.workspace_settings_3d if getattr(built, "dimension", 2) == 3 else case.workspace_settings
+            settings = make(self.project.params_for(("geometry", "mesh")), built)
         except (ValueError, AttributeError):
             settings = None
         return run_geometry_checks(built, settings)
@@ -830,7 +832,11 @@ class MainWindow(QMainWindow):
             from aeroflowsim.workspace_mesh import estimate_cells
             built = self.pages["geometry"].built
             try:
-                estimate = estimate_cells(built, project.case.workspace_settings(params, built))
+                if getattr(built, "dimension", 2) == 3:
+                    from aeroflowsim.workspace_mesh3d import estimate_cells_3d
+                    estimate = estimate_cells_3d(built, project.case.workspace_settings_3d(params, built))
+                else:
+                    estimate = estimate_cells(built, project.case.workspace_settings(params, built))
             except (ValueError, AttributeError):
                 return
         if auto_rebuild(estimate):
