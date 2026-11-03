@@ -1,0 +1,199 @@
+# 3D geometry workspace: bodies, booleans, revolve, extrude, enclosure, STEP round trip and stable face ids,
+# from 3D workspace histories (aeroflowsim/geometry_model/operations3d.py, kernel3d.py), against exact formulas.
+# No mesh and no solver: the volumes and areas are OpenCASCADE's integrals over the exact surfaces, so the
+# tolerances are tight (1e-6 %). The exact values are also in validate.py (exact()).
+
+title = "3D geometry workspace: volumes, areas, STEP round trip, stable face ids"
+case = "aeroflowsim/geometry_model"
+
+[[reference]]
+id = "box_volume"
+quantity = "Box 0.2 x 0.3 x 0.5 m: volume"
+value = 0.03
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: a b c"
+
+[[reference]]
+id = "box_area"
+quantity = "Box 0.2 x 0.3 x 0.5 m: surface area"
+value = 0.62
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 2 (ab + ac + bc)"
+
+[[reference]]
+id = "cylinder_volume"
+quantity = "Cylinder r = 0.1 m, h = 0.4 m: volume"
+value = 0.012566370614359175
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: pi r² h"
+
+[[reference]]
+id = "cylinder_area"
+quantity = "Cylinder r = 0.1 m, h = 0.4 m: surface area"
+value = 0.3141592653589793
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 2 pi r h + 2 pi r²"
+
+[[reference]]
+id = "sphere_volume"
+quantity = "Sphere r = 0.25 m: volume"
+value = 0.06544984694978735
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: 4/3 pi r³"
+
+[[reference]]
+id = "sphere_area"
+quantity = "Sphere r = 0.25 m: surface area"
+value = 0.7853981633974483
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 4 pi r²"
+
+[[reference]]
+id = "cone_volume"
+quantity = "Truncated cone r = 0.1 -> 0.05 m, h = 0.3 m: volume"
+value = 0.005497787143782139
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: pi h/3 (R² + R r + r²)"
+
+[[reference]]
+id = "cone_area"
+quantity = "Truncated cone r = 0.1 -> 0.05 m, h = 0.3 m: surface area"
+value = 0.18259162376024354
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: pi (R + r) s + pi (R² + r²), s = slant height"
+
+[[reference]]
+id = "subtract_volume"
+quantity = "Unit box minus sphere r = 0.4 m on a corner: volume"
+value = 0.9664896783617088
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: 1 - (1/8) 4/3 pi r³"
+
+[[reference]]
+id = "subtract_area"
+quantity = "Unit box minus sphere r = 0.4 m on a corner: surface area"
+value = 5.874336293856409
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 6 - 3 pi r²/4 + (1/8) 4 pi r²"
+
+[[reference]]
+id = "union_volume"
+quantity = "Unit box united with sphere r = 0.3 m on its top face: volume"
+value = 1.0565486677646163
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: 1 + 2/3 pi r³"
+
+[[reference]]
+id = "union_area"
+quantity = "Unit box united with sphere r = 0.3 m on its top face: surface area"
+value = 6.282743338823082
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 6 - pi r² + 2 pi r²"
+
+[[reference]]
+id = "intersect_volume"
+quantity = "Unit sphere intersected with the half space x >= 0: volume"
+value = 2.0943951023931953
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: 2/3 pi"
+
+[[reference]]
+id = "intersect_area"
+quantity = "Unit sphere intersected with the half space x >= 0: surface area"
+value = 9.42477796076938
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 2 pi + pi = 3 pi"
+
+[[reference]]
+id = "revolve_volume"
+quantity = "Frustum revolved from its profile (r = 0.4 -> 0.2 m, L = 1 m): volume"
+value = 0.2932153143350474
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: pi L/3 (R² + R r + r²)"
+
+[[reference]]
+id = "revolve_area"
+quantity = "Frustum revolved from its profile: surface area"
+value = 2.5506036000476504
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: pi (R + r) s + pi (R² + r²)"
+
+[[reference]]
+id = "extrude_volume"
+quantity = "Triangle 0.3 x 0.4 m extruded by 0.5 m: volume"
+value = 0.03
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: (1/2) a b L"
+
+[[reference]]
+id = "extrude_area"
+quantity = "Triangle 0.3 x 0.4 m extruded by 0.5 m: surface area"
+value = 0.72
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: a b + (a + b + c) L"
+
+[[reference]]
+id = "enclosure_volume"
+quantity = "Box enclosure (5 L up, 10 L down, 5 L sides) around a sphere D = 1 m: fluid volume"
+value = 1935.4764012244018
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: 16 x 11 x 11 - 4/3 pi (D/2)³"
+
+[[reference]]
+id = "step_volume"
+quantity = "STEP round trip (box + half sphere): volume read back"
+value = 0.006056548667764617
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: a b c + 2/3 pi r³"
+
+[[reference]]
+id = "step_area"
+quantity = "STEP round trip (box + half sphere): surface area read back"
+value = 0.22282743338823083
+unit = "m²"
+tolerance_percent = 1e-06
+source = "Exact: 2 (ab + ac + bc) + pi r²"
+
+[[reference]]
+id = "step_faces"
+quantity = "STEP round trip (box + half sphere): number of faces read back"
+value = 7
+unit = "-"
+tolerance_percent = 1e-09
+source = "Exact: 6 box faces + 1 sphere cap"
+
+[[reference]]
+id = "step_volume_reference"
+quantity = "STEP round trip: volume before writing the file"
+value = 0.006056548667764617
+unit = "m³"
+tolerance_percent = 1e-06
+source = "Exact: a b c + 2/3 pi r³"
+
+[[reference]]
+id = "stable_ids"
+quantity = "Named faces still on the right face after upstream edits (of 3)"
+value = 3
+unit = "-"
+tolerance_percent = 1e-09
+source = "Exact: all 3 names survive (resized box, smaller sphere, inserted move)"

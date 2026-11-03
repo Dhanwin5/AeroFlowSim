@@ -90,3 +90,33 @@ programmer who knows aerospace engineering and CFD theory. My weekly Claude limi
 2. Volumes/areas/face ids are validated; 3D mesh quality checks run before any run.
 3. Old 2D projects open and re-mesh unchanged; all tests and validation pass; docs, gap register, CHANGELOG, ledger and
    `3d_euler_solver.md` written; pushed.
+
+---
+
+## Progress log (ledger)
+
+The stage was done as ONE session (prompt 9, all 8 parts) instead of the 4 sessions planned above.
+
+### Part 1 - 3D operations, stable face ids, history version (done)
+- New: `geometry_model/kernel3d.py` (Kernel3D: solids in OCC, face lineage by projecting probe points of every new
+  face onto COPIES of the old faces), `operations3d.py` (box, cylinder, cone, sphere, STEP/IGES import, revolve of a
+  profile or a nozzle wall CSV, extrude, transform, boolean, fluid/solid, delete, enclosure box/cylinder/sphere with
+  half-domain symmetry plane, face names, refinement box/sphere/cylinder, template body + template far field),
+  `built3d.py` (BuiltGeometry3D: bodies, faces, edges, names, regions). `document.py`: `dimension` (2 or 3);
+  3D documents are saved as format 2 with `"dimension": 3`; 2D documents are written byte-for-byte as before
+  (format 1, no dimension key), so old projects keep their fingerprints. STEP export (`export.py`) writes solids.
+- Verified: `tests/test_geometry_3d.py` (15 tests: old 2D history loads and saves unchanged, 3D round trip, newer
+  format refused, primitives, revolve/extrude, nozzle wall CSV revolve, booleans, pieces "#n", transforms, enclosures
+  incl. half domain, names after upstream edits, refinement, drawing triangulation, STEP round trip, units).
+  Existing 2D geometry tests: 55 passed.
+- Anomaly found and fixed: OCC renumbers ALL faces of a transformed body in 3D (even one translate; volumes keep
+  their numbers). Transform3D therefore applies the same transformation to the lineage copies and relabels.
+- Next: part 2 (validation/geometry_3d).
+
+### Part 2 - validation without a solver (done)
+- `validation/geometry_3d/` (24 references): volumes and areas of box, cylinder, sphere, truncated cone, box minus
+  corner sphere, box united with a half sphere, sphere intersected with a half space, revolved frustum, extruded
+  prism, box enclosure around a sphere, STEP round trip (volume, area, number of faces), and 3 named faces staying on
+  the right faces after upstream edits (resized box, smaller sphere, inserted move).
+- Verified: all pass; errors 0 to 9e-15 relative (tolerance 1e-6 %: OCC integrates the exact surfaces).
+- Next: part 3 (3D meshing path in workspace_mesh.py).
