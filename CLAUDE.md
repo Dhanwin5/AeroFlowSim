@@ -320,7 +320,7 @@ Commands (from the project folder):
 - **Phase 2 - speed and all speeds:** **speed** (done): Numba + implicit time stepping (LU-SGS) + multi-core parallel;
   **low-Mach preconditioning**; **adaptive mesh refinement**; **parametric studies** and batch runs (lift
   polars, thrust vs back pressure); **unsteady flow** (dual time stepping).
-- **Phase 3 - 3D:** **3D geometry and meshing**: 3D geometry workspace (STEP) + 3D Gmsh meshes (tetrahedra, prism inflation);
+- **Phase 3 - 3D:** **3D geometry and meshing** (done): 3D geometry workspace (STEP) + 3D Gmsh meshes (tetrahedra, prism inflation);
   **3D Euler solver**; multiple zones.
 - **Phase 4 - viscous and liquids:** laminar Navier-Stokes (with slip-wall option for rarefied
   micro-nozzles), Spalart-Allmaras, k-omega SST, wall heat flux; constant-density liquids
