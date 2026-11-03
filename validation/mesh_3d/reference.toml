@@ -1,0 +1,130 @@
+# 3D mesh study (no solver): sphere D = 1 m in a box enclosure (5 L up, 10 L down, 5 L to the sides; L = 1 m), meshed
+# by aeroflowsim/workspace_mesh3d.py with tetrahedra and 5 prism layers (first layer 2 mm, growth 1.2) on three levels,
+# every cell size halved from one level to the next (quick set: twice as large). The faceted sphere makes the fluid
+# volume slightly too large and the wall area slightly too small; both errors fall as the mesh is refined.
+
+title = "3D mesh study: sphere in a box, tetrahedra + prism layers"
+case = "aeroflowsim/workspace_mesh3d.py"
+
+[[reference]]
+id = "volume_coarse"
+quantity = "Fluid volume (sum of cell volumes), coarse mesh"
+value = 1935.4764012244018
+unit = "m³"
+tolerance_percent = 0.1
+source = "Exact: 16 x 11 x 11 - 4/3 pi (D/2)³"
+
+[[reference]]
+id = "area_coarse"
+quantity = "Wall area (sphere patch), coarse mesh"
+value = 3.141592653589793
+unit = "m²"
+tolerance_percent = 1.0
+tolerance_percent_quick = 3.0
+source = "Exact: 4 pi (D/2)² (faceted surface: slightly less)"
+
+[[reference]]
+id = "first_layer_coarse"
+quantity = "First prism layer height on the wall (volume / face area), coarse mesh"
+value = 0.002
+unit = "m"
+tolerance_percent = 3.0
+source = "Requested first-layer height"
+
+[[reference]]
+id = "positive_coarse"
+quantity = "Share of cells with a positive volume, coarse mesh"
+value = 1.0
+unit = "-"
+tolerance_percent = 1e-09
+source = "Every cell must be valid"
+
+[[reference]]
+id = "no_errors_coarse"
+quantity = "No error-level mesh check (1 = none), coarse mesh"
+value = 1.0
+unit = "-"
+tolerance_percent = 1e-09
+source = "The mesh checks run before any solver"
+
+[[reference]]
+id = "volume_medium"
+quantity = "Fluid volume (sum of cell volumes), medium mesh"
+value = 1935.4764012244018
+unit = "m³"
+tolerance_percent = 0.1
+source = "Exact: 16 x 11 x 11 - 4/3 pi (D/2)³"
+
+[[reference]]
+id = "area_medium"
+quantity = "Wall area (sphere patch), medium mesh"
+value = 3.141592653589793
+unit = "m²"
+tolerance_percent = 1.0
+tolerance_percent_quick = 3.0
+source = "Exact: 4 pi (D/2)² (faceted surface: slightly less)"
+
+[[reference]]
+id = "first_layer_medium"
+quantity = "First prism layer height on the wall (volume / face area), medium mesh"
+value = 0.002
+unit = "m"
+tolerance_percent = 3.0
+source = "Requested first-layer height"
+
+[[reference]]
+id = "positive_medium"
+quantity = "Share of cells with a positive volume, medium mesh"
+value = 1.0
+unit = "-"
+tolerance_percent = 1e-09
+source = "Every cell must be valid"
+
+[[reference]]
+id = "no_errors_medium"
+quantity = "No error-level mesh check (1 = none), medium mesh"
+value = 1.0
+unit = "-"
+tolerance_percent = 1e-09
+source = "The mesh checks run before any solver"
+
+[[reference]]
+id = "volume_fine"
+quantity = "Fluid volume (sum of cell volumes), fine mesh"
+value = 1935.4764012244018
+unit = "m³"
+tolerance_percent = 0.1
+source = "Exact: 16 x 11 x 11 - 4/3 pi (D/2)³"
+
+[[reference]]
+id = "area_fine"
+quantity = "Wall area (sphere patch), fine mesh"
+value = 3.141592653589793
+unit = "m²"
+tolerance_percent = 1.0
+tolerance_percent_quick = 3.0
+source = "Exact: 4 pi (D/2)² (faceted surface: slightly less)"
+
+[[reference]]
+id = "first_layer_fine"
+quantity = "First prism layer height on the wall (volume / face area), fine mesh"
+value = 0.002
+unit = "m"
+tolerance_percent = 3.0
+source = "Requested first-layer height"
+
+[[reference]]
+id = "positive_fine"
+quantity = "Share of cells with a positive volume, fine mesh"
+value = 1.0
+unit = "-"
+tolerance_percent = 1e-09
+source = "Every cell must be valid"
+
+[[reference]]
+id = "no_errors_fine"
+quantity = "No error-level mesh check (1 = none), fine mesh"
+value = 1.0
+unit = "-"
+tolerance_percent = 1e-09
+source = "The mesh checks run before any solver"

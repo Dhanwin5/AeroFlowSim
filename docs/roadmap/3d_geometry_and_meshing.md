@@ -140,3 +140,17 @@ The stage was done as ONE session (prompt 9, all 8 parts) instead of the 4 sessi
   (2) The stage plan said mesh IMPORT reads 3D files; it does not (`mesh_io` reads 2D only) -> gap register, 3D Euler
   solver stage. (3) Layers next to a CURVED non-wall boundary are refused with a message (gap register).
 - Next: part 4 (3D quality metrics, checks, mesh study).
+
+### Part 4 - 3D mesh quality, checks, mesh study (done)
+- `mesh_quality.py`: equivolume skewness (1 - V / V_ideal of the circumsphere, Fluent's tetrahedron skewness), smallest
+  dihedral angle, `skewness` (equivolume for tetrahedra, equiangle otherwise: 2D numbers unchanged),
+  `QUALITY_COLORINGS_3D` + `colorings(mesh)`; quality_summary adds min_dihedral_angle for meshes with tetrahedra.
+- `checks.py`: skewness check of a 3D mesh (warning above 0.95), dihedral-angle check (warning below 5 deg), first
+  layer height check (measured V/A of the wall prisms vs requested, warning beyond 20 %), volume-ratio limit 10 for
+  meshes with tetrahedra (documented why). The negative-volume error check already ran before any solver.
+- `validation/mesh_3d/` (15 references): sphere D = 1 m in a 16 x 11 x 11 m box, 5 prism layers, three levels:
+  fluid volume to 0.000 % (tol 0.1 %), wall area 0.55 / 0.15 / 0.04 % low (faceting), first layer 0.4 % high, all
+  cells positive, no error check. Full set 44 s. Study table: cells per level and quality numbers.
+- Verified: 3 more tests in `tests/test_workspace_mesh3d.py` (regular / corner / sliver tetrahedron metrics, 3D mesh
+  checks, inverted cell = error): 13 pass; tests/test_checks.py passes (2D unchanged).
+- Next: part 5 (Geometry step in 3D).

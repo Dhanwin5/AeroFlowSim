@@ -40,7 +40,7 @@ import numpy as np
 
 from aeroflowsim import mesh_quality
 from aeroflowsim.gases import peng_robinson_z
-from aeroflowsim.mesh import TRIANGLE, Mesh
+from aeroflowsim.mesh import TETRA, TRIANGLE, WEDGE, Mesh
 from aeroflowsim.units import Quantity
 
 LEVELS = ("info", "warning", "error")
@@ -51,6 +51,8 @@ NO_FLOW = 1e-15              # mass flows below this are treated as "no flow" [k
 MAX_ASPECT_RATIO = 100.0     # largest cell aspect ratio without a warning (no inflation) [-]
 MAX_NON_ORTHOGONALITY = 70.0 # largest angle between face normal and centre line [deg]
 MAX_VOLUME_RATIO = 2.0       # largest volume ratio of two neighbouring cells, quad meshes [-]
+MAX_VOLUME_RATIO_TETRAHEDRA = 10.0   # ... 3D meshes with tetrahedra: tetrahedra with equal edges differ up to
+                             # about 5 times in volume at a skewness of 0.8, and the prism / tetrahedron transition adds 2 [-]
 MAX_VOLUME_RATIO_TRIANGLES = 4.0   # ... meshes with triangles: equal-sized triangles of different
                                    # shapes already differ about 2.5 times in area [-]
 MAX_INFLATION_FRACTION = 0.5 # inflation thicker than this fraction of the throat radius: warning [-]
@@ -58,6 +60,9 @@ MAX_INFLATION_FRACTION_BODY = 0.1  # ... or of the reference length of a body in
 MIN_ANGLE_WARNING = 20.0     # smallest triangle angle below this: warning [deg]
 MIN_ANGLE_ERROR = 5.0        # smallest triangle angle below this: error, the solver will not run [deg]
 MAX_SKEWNESS = 0.85          # largest equiangle skewness without a warning [-]
+MAX_SKEWNESS_3D = 0.95       # largest skewness of a 3D mesh (equivolume for tetrahedra) without a warning [-]
+MIN_DIHEDRAL_WARNING = 5.0   # smallest dihedral angle of a tetrahedron without a warning [deg]
+FIRST_LAYER_TOLERANCE = 0.2  # measured first-layer height may differ this much from the requested one [-]
 MIN_CELLS_PER_FEATURE = 2.0  # the smallest wall feature should be at least this many surface cells long [-]
 AXIS_TOLERANCE = 1e-9        # a point is below the axis if y < -this x geometry size [-]
 MAX_Z_DEVIATION = 2.0        # ideal-gas check: largest |Z - 1| without a warning [%]
@@ -347,9 +352,11 @@ def mesh_volume_ratio(case, params, mesh, result):
         return None
     worst = float(np.nanmax(mesh_quality.volume_ratio(mesh)))
     limit = MAX_VOLUME_RATIO_TRIANGLES if _has_triangles(mesh) else MAX_VOLUME_RATIO
+    if np.any(mesh.cell_types == TETRA):
+        limit = MAX_VOLUME_RATIO_TETRAHEDRA
     if worst > limit:
         hint = ""
-        if mesh.info.get("inflation") and str(mesh.info.get("generator", "")).startswith("gmsh"):
+        if mesh.info.get("inflation") and str(mesh.info.get("generator", "")).startswith(("gmsh", "workspace 3D")):
             hint = (" With inflation layers the biggest jumps are where the thin layers meet the triangles and "
                     "at the corner fans: more layers or a larger growth rate give a smoother transition.")
         return CheckResult("Cell growth", "warning",
@@ -408,15 +415,56 @@ def mesh_min_angle(case, params, mesh, result):
 
 
 def mesh_skewness(case, params, mesh, result):
-    """Largest equiangle skewness (0 = perfect cell shapes, 1 = flat cells)."""
+    """Largest equiangle skewness (0 = perfect cell shapes, 1 = flat cells); 3D: equivolume for tetrahedra."""
     if _face_mesh(mesh) is None:
         return None
+    if mesh.dim == 3:
+        worst = float(np.nanmax(mesh_quality.skewness(mesh)))
+        if worst > MAX_SKEWNESS_3D:
+            return CheckResult("Skewness", "warning",
+                               f"Largest skewness {worst:.3g} (more than {MAX_SKEWNESS_3D:g}; equivolume for tetrahedra, "
+                               "equiangle for the other cells): strongly distorted cells reduce accuracy and can slow "
+                               "convergence.", worst, "-")
+        return CheckResult("Skewness", "info", f"Largest skewness {worst:.3g} (equivolume for tetrahedra, equiangle for "
+                           "the other cells).", worst, "-")
     worst = float(np.nanmax(mesh_quality.equiangle_skewness(mesh)))
     if worst > MAX_SKEWNESS:
         return CheckResult("Skewness", "warning",
                            f"Largest equiangle skewness {worst:.3g} (more than {MAX_SKEWNESS:g}): strongly distorted "
                            "cells reduce accuracy and can slow convergence.", worst, "-")
     return CheckResult("Skewness", "info", f"Largest equiangle skewness {worst:.3g}.", worst, "-")
+
+
+def mesh_dihedral_angle(case, params, mesh, result):
+    """Smallest dihedral angle of the tetrahedra of a 3D mesh (slivers: four corners almost in one plane)."""
+    if _face_mesh(mesh) is None or mesh.dim != 3 or not np.any(mesh.cell_types == TETRA):
+        return None
+    smallest = float(np.nanmin(mesh_quality.min_dihedral_angle(mesh)))     # [deg]
+    if smallest < MIN_DIHEDRAL_WARNING:
+        return CheckResult("Dihedral angle", "warning",
+                           f"A tetrahedron has a dihedral angle of only {smallest:.3g}° (less than "
+                           f"{MIN_DIHEDRAL_WARNING:g}°): a nearly flat 'sliver' gives inaccurate gradients there.",
+                           smallest, "deg")
+    return CheckResult("Dihedral angle", "info", f"The smallest dihedral angle of the tetrahedra is {smallest:.3g}°.",
+                       smallest, "deg")
+
+
+def mesh_first_layer(case, params, mesh, result):
+    """3D prism layers: the height of the first cell on the walls (volume / wall face area) against the requested one."""
+    if _face_mesh(mesh) is None or mesh.dim != 3 or not mesh.info.get("first_layer_height"):
+        return None
+    wanted = float(mesh.info["first_layer_height"])                         # [m]
+    walls = [p for p in mesh.patches if p.type == "wall"]
+    faces = np.concatenate([p.faces for p in walls]) if walls else np.zeros(0, dtype=np.int64)
+    faces = faces[mesh.cell_types[mesh.owner[faces]] == WEDGE]
+    if not len(faces):
+        return None
+    height = float(np.mean(mesh.cell_volumes[mesh.owner[faces]] / mesh.face_areas[faces]))   # [m]
+    error = 100.0 * (height - wanted) / wanted                               # [%]
+    level = "warning" if abs(error) > 100.0 * FIRST_LAYER_TOLERANCE else "info"
+    note = " (the layers were squeezed or stretched: check the wall corners)" if level == "warning" else ""
+    return CheckResult("First layer height", level, "The first cells on the walls are {0} high on average (requested "
+                       f"{{1}}, {error:+.2g} %){note}.", height, "m", [Quantity(height, "m"), Quantity(wanted, "m")])
 
 
 def mesh_smallest_cell(case, params, mesh, result):
@@ -430,7 +478,7 @@ def mesh_smallest_cell(case, params, mesh, result):
 
 # Mesh-only checks: run before the solver, and shown with the other checks. Add new ones here.
 MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mesh_volume_ratio,
-               mesh_min_angle, mesh_skewness, mesh_inflation, mesh_smallest_cell]
+               mesh_min_angle, mesh_skewness, mesh_dihedral_angle, mesh_inflation, mesh_first_layer, mesh_smallest_cell]
 
 
 # ---- 2D/3D flow solver checks (results with Result.info, aeroflowsim/euler/) -----------------------

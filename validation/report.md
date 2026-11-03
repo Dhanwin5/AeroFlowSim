@@ -1,10 +1,10 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.2.0a1, generated 2026-10-30 by `python validation/run_all.py`.
+AeroFlowSim 0.2.0a3, generated 2026-11-03 by `python validation/run_all.py`.
 
 **Validation set: full** (all meshes of every case; run weekly and on version tags).
 
-**Overall: PASS** (16 of 16 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
+**Overall: PASS** (18 of 18 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
 
 ## Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi): PASS
 
@@ -327,6 +327,63 @@ Sources:
 - Exact: 4/3 pi R³ - pi R_b² L / 3 (sphere minus cone), R_b = L tan 15 deg
 - Exact: pi [r_in² L_in + frustums + arc sections], arc section = integral of (r_t + R_c - sqrt(R_c² - u²))² du in closed form; Rcu = 1.5 r_t, Rcd = 0.4 r_t
 
+## 3D geometry workspace: volumes, areas, STEP round trip, stable face ids: PASS
+
+Case: `aeroflowsim/geometry_model`, references: `validation/geometry_3d/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Box 0.2 x 0.3 x 0.5 m: volume | 0.03 m³ | 0.03 m³ | 0.000 | 1e-06 | PASS |
+| Box 0.2 x 0.3 x 0.5 m: surface area | 0.62 m² | 0.62 m² | 0.000 | 1e-06 | PASS |
+| Cylinder r = 0.1 m, h = 0.4 m: volume | 0.0125664 m³ | 0.0125664 m³ | 1.4e-14 | 1e-06 | PASS |
+| Cylinder r = 0.1 m, h = 0.4 m: surface area | 0.314159 m² | 0.314159 m² | 0.000 | 1e-06 | PASS |
+| Sphere r = 0.25 m: volume | 0.0654498 m³ | 0.0654498 m³ | 2.1e-14 | 1e-06 | PASS |
+| Sphere r = 0.25 m: surface area | 0.785398 m² | 0.785398 m² | 0.000 | 1e-06 | PASS |
+| Truncated cone r = 0.1 -> 0.05 m, h = 0.3 m: volume | 0.00549779 m³ | 0.00549779 m³ | 1.6e-14 | 1e-06 | PASS |
+| Truncated cone r = 0.1 -> 0.05 m, h = 0.3 m: surface area | 0.182592 m² | 0.182592 m² | 0.000 | 1e-06 | PASS |
+| Unit box minus sphere r = 0.4 m on a corner: volume | 0.96649 m³ | 0.96649 m³ | 0.000 | 1e-06 | PASS |
+| Unit box minus sphere r = 0.4 m on a corner: surface area | 5.87434 m² | 5.87434 m² | 1.5e-14 | 1e-06 | PASS |
+| Unit box united with sphere r = 0.3 m on its top face: volume | 1.05655 m³ | 1.05655 m³ | 0.000 | 1e-06 | PASS |
+| Unit box united with sphere r = 0.3 m on its top face: surface area | 6.28274 m² | 6.28274 m² | 0.000 | 1e-06 | PASS |
+| Unit sphere intersected with the half space x >= 0: volume | 2.0944 m³ | 2.0944 m³ | 0.000 | 1e-06 | PASS |
+| Unit sphere intersected with the half space x >= 0: surface area | 9.42478 m² | 9.42478 m² | 0.000 | 1e-06 | PASS |
+| Frustum revolved from its profile (r = 0.4 -> 0.2 m, L = 1 m): volume | 0.293215 m³ | 0.293215 m³ | 0.000 | 1e-06 | PASS |
+| Frustum revolved from its profile: surface area | 2.5506 m² | 2.5506 m² | 1.7e-14 | 1e-06 | PASS |
+| Triangle 0.3 x 0.4 m extruded by 0.5 m: volume | 0.03 m³ | 0.03 m³ | 0.000 | 1e-06 | PASS |
+| Triangle 0.3 x 0.4 m extruded by 0.5 m: surface area | 0.72 m² | 0.72 m² | 0.000 | 1e-06 | PASS |
+| Box enclosure (5 L up, 10 L down, 5 L sides) around a sphere D = 1 m: fluid volume | 1935.48 m³ | 1935.48 m³ | 5.9e-14 | 1e-06 | PASS |
+| STEP round trip (box + half sphere): volume read back | 0.00605655 m³ | 0.00605655 m³ | 2e-13 | 1e-06 | PASS |
+| STEP round trip (box + half sphere): surface area read back | 0.222827 m² | 0.222827 m² | 8.7e-13 | 1e-06 | PASS |
+| STEP round trip (box + half sphere): number of faces read back | 7 | 7 | 0.000 | 1e-09 | PASS |
+| STEP round trip: volume before writing the file | 0.00605655 m³ | 0.00605655 m³ | 1.4e-14 | 1e-06 | PASS |
+| Named faces still on the right face after upstream edits (of 3) | 3 | 3 | 0.000 | 1e-09 | PASS |
+
+Sources:
+
+- Exact: a b c
+- Exact: 2 (ab + ac + bc)
+- Exact: pi r² h
+- Exact: 2 pi r h + 2 pi r²
+- Exact: 4/3 pi r³
+- Exact: 4 pi r²
+- Exact: pi h/3 (R² + R r + r²)
+- Exact: pi (R + r) s + pi (R² + r²), s = slant height
+- Exact: 1 - (1/8) 4/3 pi r³
+- Exact: 6 - 3 pi r²/4 + (1/8) 4 pi r²
+- Exact: 1 + 2/3 pi r³
+- Exact: 6 - pi r² + 2 pi r²
+- Exact: 2/3 pi
+- Exact: 2 pi + pi = 3 pi
+- Exact: pi L/3 (R² + R r + r²)
+- Exact: pi (R + r) s + pi (R² + r²)
+- Exact: (1/2) a b L
+- Exact: a b + (a + b + c) L
+- Exact: 16 x 11 x 11 - 4/3 pi (D/2)³
+- Exact: a b c + 2/3 pi r³
+- Exact: 2 (ab + ac + bc) + pi r²
+- Exact: 6 box faces + 1 sphere cap
+- Exact: all 3 names survive (resized box, smaller sphere, inserted move)
+
 ## Geometry workspace: sketched, enclosed and plume geometries: PASS
 
 Case: `cases/geometry_2d`, references: `validation/geometry_workspace/reference.toml`
@@ -352,6 +409,47 @@ Sources:
 - Exact: circumference pi D
 - Exact: pi R²/2 + 2 R (x_out - x_c) - A_NACA0012, A = 0.081706 c²
 - Exact: nozzle volume 6.345769169 mm³ + pi (5 D_e)² (10 D_e)
+
+## 3D mesh study: sphere in a box, tetrahedra + prism layers: PASS
+
+Case: `aeroflowsim/workspace_mesh3d.py`, references: `validation/mesh_3d/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Fluid volume (sum of cell volumes), coarse mesh | 1935.48 m³ | 1935.48 m³ | 0.00027 | 0.1 | PASS |
+| Wall area (sphere patch), coarse mesh | 3.14159 m² | 3.12431 m² | 0.550 | 1 | PASS |
+| First prism layer height on the wall (volume / face area), coarse mesh | 0.002 m | 0.00200869 m | 0.435 | 3 | PASS |
+| Share of cells with a positive volume, coarse mesh | 1 | 1 | 0.000 | 1e-09 | PASS |
+| No error-level mesh check (1 = none), coarse mesh | 1 | 1 | 0.000 | 1e-09 | PASS |
+| Fluid volume (sum of cell volumes), medium mesh | 1935.48 m³ | 1935.48 m³ | 7.2e-05 | 0.1 | PASS |
+| Wall area (sphere patch), medium mesh | 3.14159 m² | 3.13695 m² | 0.148 | 1 | PASS |
+| First prism layer height on the wall (volume / face area), medium mesh | 0.002 m | 0.00200818 m | 0.409 | 3 | PASS |
+| Share of cells with a positive volume, medium mesh | 1 | 1 | 0.000 | 1e-09 | PASS |
+| No error-level mesh check (1 = none), medium mesh | 1 | 1 | 0.000 | 1e-09 | PASS |
+| Fluid volume (sum of cell volumes), fine mesh | 1935.48 m³ | 1935.48 m³ | 2.1e-05 | 0.1 | PASS |
+| Wall area (sphere patch), fine mesh | 3.14159 m² | 3.14027 m² | 0.042 | 1 | PASS |
+| First prism layer height on the wall (volume / face area), fine mesh | 0.002 m | 0.00200806 m | 0.403 | 3 | PASS |
+| Share of cells with a positive volume, fine mesh | 1 | 1 | 0.000 | 1e-09 | PASS |
+| No error-level mesh check (1 = none), fine mesh | 1 | 1 | 0.000 | 1e-09 | PASS |
+
+Sources:
+
+- Exact: 16 x 11 x 11 - 4/3 pi (D/2)³
+- Exact: 4 pi (D/2)² (faceted surface: slightly less)
+- Requested first-layer height
+- Every cell must be valid
+- The mesh checks run before any solver
+
+### Mesh levels (sphere D = 1 m in a 16 x 11 x 11 m box, 5 prism layers from 2 mm)
+
+| Level | Wall cell size [mm] | Cells | Tetrahedra | Prisms | Time [s] | Max skewness | Min dihedral [deg] | Max non-orth. [deg] | Max volume ratio |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| coarse | 80 | 29,012 | 23,402 | 5,610 | 0.5 | 0.873 | 12.5 | 67.1 | 14.72 |
+| medium | 40 | 125,853 | 105,043 | 20,810 | 3.8 | 0.989 | 9.8 | 66.6 | 8.18 |
+| fine | 20 | 718,770 | 645,910 | 72,860 | 30.2 | 0.910 | 9.4 | 69.9 | 7.09 |
+
+- Halving every cell size multiplied the number of cells by 4.34, 5.71: cells that fill a fixed volume uniformly grow 8 times, the prism layers 4 times (wall area / size²), so the growth rises towards 8 as the volume cells dominate (the coarsest quick level has very few cells).
+- Skewness: equivolume for the tetrahedra, equiangle for the prisms.
 
 ## Method of Manufactured Solutions: order of accuracy of the 2D Euler solver: PASS
 

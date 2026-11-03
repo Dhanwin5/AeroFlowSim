@@ -183,3 +183,41 @@ def test_gmsh_prism_order_gives_positive_volumes(ball_meshes, tmp_path):
         if started:
             gmsh.finalize()
     assert jac.min() > 0.0
+
+
+# ---- 3D quality metrics and mesh checks ---------------------------------------------------------
+
+def _one_tet(points):
+    from aeroflowsim.mesh import Mesh
+    nodes = np.asarray(points, dtype=float)
+    return Mesh.from_cells(nodes, TETRA, [[0, 1, 2, 3]], {"w": ("wall", [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])})
+
+
+def test_tetrahedron_quality_metrics():
+    from aeroflowsim.mesh_quality import equivolume_skewness, min_dihedral_angle, skewness
+    regular = _one_tet([[1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]])
+    assert equivolume_skewness(regular)[0] == pytest.approx(0.0, abs=1e-12)
+    assert min_dihedral_angle(regular)[0] == pytest.approx(math.degrees(math.acos(1 / 3)), abs=1e-9)   # 70.53 deg
+    corner = _one_tet([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    assert min_dihedral_angle(corner)[0] == pytest.approx(54.7356, abs=1e-3)       # the face x+y+z=1 to a side
+    sliver = _one_tet([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 1e-3]])
+    assert equivolume_skewness(sliver)[0] > 0.99 and min_dihedral_angle(sliver)[0] < 1.0
+    assert skewness(sliver)[0] == equivolume_skewness(sliver)[0]
+
+
+def test_3d_mesh_checks(ball_meshes):
+    from aeroflowsim.checks import run_mesh_checks
+    _, mesh = ball_meshes
+    checks = {c.name: c for c in run_mesh_checks(None, {}, mesh)}
+    assert checks["Cell volumes"].level == "info"
+    assert checks["First layer height"].value == pytest.approx(0.005, rel=0.03)
+    assert "Dihedral angle" in checks and "equivolume" in checks["Skewness"].message
+    assert not [c for c in checks.values() if c.level == "error"]
+
+
+def test_inverted_cell_is_an_error():
+    from aeroflowsim.checks import run_mesh_checks
+    inverted = _one_tet([[0, 0, 0], [0, 1, 0], [1, 0, 0], [0, 0, 1]])           # negative volume
+    assert inverted.cell_volumes[0] < 0.0
+    checks = {c.name: c for c in run_mesh_checks(None, {}, inverted)}
+    assert checks["Cell volumes"].level == "error"

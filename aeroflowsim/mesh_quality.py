@@ -19,10 +19,21 @@ They work for any cell type, in 2D and 3D, because they only use faces, owner an
     equiangle_skewness  how far the corner angles are from the perfect shape's, 0 (perfect) to 1 (flat).
                         These two use the cell's corners (2D) or the corners of its faces (3D).
 
+Tetrahedra (3D) have two more, the measures 3D meshers report for them:
+    equivolume_skewness 1 - V / V_ideal, with V_ideal the volume of the regular tetrahedron that has the same
+                        circumsphere (radius R): V_ideal = 8 / (9 sqrt 3) R³. 0 = regular, 1 = flat "sliver".
+                        (The skewness Fluent reports for tetrahedra.)
+    min_dihedral_angle  smallest angle between two faces of the tetrahedron [deg] (70.5 for a regular one);
+                        a sliver has all four corners almost in one plane and a dihedral angle near 0.
+    skewness            equivolume skewness for tetrahedra, equiangle skewness for every other cell (so in 2D it
+                        is the equiangle skewness).
+
 The validity checks (aeroflowsim/checks.py) and the GUI's Mesh tab use these numbers.
 """
 
 import numpy as np
+
+from aeroflowsim.mesh import TETRA
 
 
 def _per_cell_max(mesh, face_values, interior_only=False):
@@ -138,17 +149,67 @@ def equiangle_skewness(mesh) -> np.ndarray:
     return _per_cell_max(mesh, skew)
 
 
+def _tetrahedra(mesh):
+    """(indices of the tetrahedra, their corner points (n, 4, 3))."""
+    ids = np.flatnonzero(mesh.cell_types == TETRA)
+    return ids, mesh.nodes[mesh.cell_nodes[ids, :4]]
+
+
+def equivolume_skewness(mesh) -> np.ndarray:
+    """(C,) equivolume skewness of the tetrahedra [-] (NaN for other cells): 1 - V / V_ideal(circumradius)."""
+    out = np.full(mesh.n_cells, np.nan)
+    ids, p = _tetrahedra(mesh)
+    if len(ids):
+        u, v, w = p[:, 1] - p[:, 0], p[:, 2] - p[:, 0], p[:, 3] - p[:, 0]
+        six_v = np.einsum("ij,ij->i", u, np.cross(v, w))                    # 6 x signed volume [m³]
+        centre = (np.einsum("ij,ij->i", u, u)[:, None] * np.cross(v, w) + np.einsum("ij,ij->i", v, v)[:, None] *
+                  np.cross(w, u) + np.einsum("ij,ij->i", w, w)[:, None] * np.cross(u, v))
+        radius = np.linalg.norm(centre, axis=1) / np.where(six_v != 0.0, 2.0 * np.abs(six_v), np.inf)   # [m]
+        ideal = 8.0 / (9.0 * np.sqrt(3.0)) * radius ** 3                     # regular tetrahedron in that sphere
+        out[ids] = np.clip(1.0 - np.abs(six_v) / 6.0 / np.where(ideal > 0.0, ideal, np.inf), 0.0, 1.0)
+    return out
+
+
+def min_dihedral_angle(mesh) -> np.ndarray:
+    """(C,) smallest dihedral angle of the tetrahedra [deg] (NaN for other cells)."""
+    out = np.full(mesh.n_cells, np.nan)
+    ids, p = _tetrahedra(mesh)
+    if len(ids):
+        faces = ((1, 2, 3), (0, 3, 2), (0, 1, 3), (0, 2, 1))                 # face k lies opposite corner k
+        normals = []
+        for k, (a, b, c) in enumerate(faces):
+            n = np.cross(p[:, b] - p[:, a], p[:, c] - p[:, a])
+            n *= -np.sign(np.einsum("ij,ij->i", n, p[:, k] - p[:, a]))[:, None]   # point away from corner k
+            normals.append(n / np.maximum(np.linalg.norm(n, axis=1), 1e-300)[:, None])
+        angles = [np.pi - np.arccos(np.clip(np.einsum("ij,ij->i", normals[i], normals[j]), -1.0, 1.0))
+                  for i in range(4) for j in range(i + 1, 4)]
+        out[ids] = np.degrees(np.min(angles, axis=0))
+    return out
+
+
+def skewness(mesh) -> np.ndarray:
+    """(C,) equivolume skewness for tetrahedra, equiangle skewness for the other cells [-]."""
+    skew = equiangle_skewness(mesh)
+    tets = mesh.cell_types == TETRA
+    if np.any(tets):
+        skew[tets] = equivolume_skewness(mesh)[tets]
+    return skew
+
+
 def quality_summary(mesh) -> dict:
     """The key quality numbers of the whole mesh {name: value}."""
-    return {
+    out = {
         "min_volume": float(mesh.cell_volumes.min()),                    # [m³]
         "max_aspect_ratio": float(np.nanmax(aspect_ratio(mesh))),        # [-]
         "max_non_orthogonality": float(non_orthogonality(mesh).max()),   # [deg]
         "max_volume_ratio": float(np.nanmax(volume_ratio(mesh))),        # [-]
         "min_cell_size": float(cell_size(mesh).min()),                   # [m]
         "min_angle": float(np.nanmin(min_angle(mesh))),                  # [deg]
-        "max_skewness": float(np.nanmax(equiangle_skewness(mesh))),      # [-]
+        "max_skewness": float(np.nanmax(skewness(mesh))),                # [-] (2D: equiangle, as before)
     }
+    if np.any(mesh.cell_types == TETRA):
+        out["min_dihedral_angle"] = float(np.nanmin(min_dihedral_angle(mesh)))   # [deg]
+    return out
 
 
 # Per-cell quality fields a GUI can colour the cells by: {name: (function(mesh) -> values, unit)}
@@ -160,3 +221,13 @@ QUALITY_COLORINGS = {
     "Smallest angle": (min_angle, "deg"),
     "Equiangle skewness": (equiangle_skewness, "-"),
 }
+# ... and the extra ones of 3D meshes with tetrahedra
+QUALITY_COLORINGS_3D = {
+    "Skewness (equivolume for tetrahedra)": (skewness, "-"),
+    "Smallest dihedral angle": (min_dihedral_angle, "deg"),
+}
+
+
+def colorings(mesh) -> dict:
+    """The quality fields that apply to this mesh (2D: QUALITY_COLORINGS; 3D: also QUALITY_COLORINGS_3D)."""
+    return {**QUALITY_COLORINGS, **(QUALITY_COLORINGS_3D if mesh.dim == 3 else {})}

@@ -1,0 +1,275 @@
+{
+ "name": "mesh_3d",
+ "title": "3D mesh study: sphere in a box, tetrahedra + prism layers",
+ "case": "aeroflowsim/workspace_mesh3d.py",
+ "date": "2026-11-03",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "volume_coarse",
+    "quantity": "Fluid volume (sum of cell volumes), coarse mesh",
+    "value": 1935.4764012244018,
+    "unit": "m\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: 16 x 11 x 11 - 4/3 pi (D/2)\u00b3",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1935.481621826138
+  },
+  {
+   "reference": {
+    "id": "area_coarse",
+    "quantity": "Wall area (sphere patch), coarse mesh",
+    "value": 3.141592653589793,
+    "unit": "m\u00b2",
+    "tolerance_percent": 1.0,
+    "source": "Exact: 4 pi (D/2)\u00b2 (faceted surface: slightly less)",
+    "tolerance_percent_quick": 3.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.124307922759427
+  },
+  {
+   "reference": {
+    "id": "first_layer_coarse",
+    "quantity": "First prism layer height on the wall (volume / face area), coarse mesh",
+    "value": 0.002,
+    "unit": "m",
+    "tolerance_percent": 3.0,
+    "source": "Requested first-layer height",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.002008692795810061
+  },
+  {
+   "reference": {
+    "id": "positive_coarse",
+    "quantity": "Share of cells with a positive volume, coarse mesh",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-09,
+    "source": "Every cell must be valid",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "no_errors_coarse",
+    "quantity": "No error-level mesh check (1 = none), coarse mesh",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-09,
+    "source": "The mesh checks run before any solver",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "volume_medium",
+    "quantity": "Fluid volume (sum of cell volumes), medium mesh",
+    "value": 1935.4764012244018,
+    "unit": "m\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: 16 x 11 x 11 - 4/3 pi (D/2)\u00b3",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1935.4778016427626
+  },
+  {
+   "reference": {
+    "id": "area_medium",
+    "quantity": "Wall area (sphere patch), medium mesh",
+    "value": 3.141592653589793,
+    "unit": "m\u00b2",
+    "tolerance_percent": 1.0,
+    "source": "Exact: 4 pi (D/2)\u00b2 (faceted surface: slightly less)",
+    "tolerance_percent_quick": 3.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.136949420537942
+  },
+  {
+   "reference": {
+    "id": "first_layer_medium",
+    "quantity": "First prism layer height on the wall (volume / face area), medium mesh",
+    "value": 0.002,
+    "unit": "m",
+    "tolerance_percent": 3.0,
+    "source": "Requested first-layer height",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.0020081793726309835
+  },
+  {
+   "reference": {
+    "id": "positive_medium",
+    "quantity": "Share of cells with a positive volume, medium mesh",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-09,
+    "source": "Every cell must be valid",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "no_errors_medium",
+    "quantity": "No error-level mesh check (1 = none), medium mesh",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-09,
+    "source": "The mesh checks run before any solver",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "volume_fine",
+    "quantity": "Fluid volume (sum of cell volumes), fine mesh",
+    "value": 1935.4764012244018,
+    "unit": "m\u00b3",
+    "tolerance_percent": 0.1,
+    "source": "Exact: 16 x 11 x 11 - 4/3 pi (D/2)\u00b3",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1935.476800667293
+  },
+  {
+   "reference": {
+    "id": "area_fine",
+    "quantity": "Wall area (sphere patch), fine mesh",
+    "value": 3.141592653589793,
+    "unit": "m\u00b2",
+    "tolerance_percent": 1.0,
+    "source": "Exact: 4 pi (D/2)\u00b2 (faceted surface: slightly less)",
+    "tolerance_percent_quick": 3.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.140266589473391
+  },
+  {
+   "reference": {
+    "id": "first_layer_fine",
+    "quantity": "First prism layer height on the wall (volume / face area), fine mesh",
+    "value": 0.002,
+    "unit": "m",
+    "tolerance_percent": 3.0,
+    "source": "Requested first-layer height",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.002008059226553785
+  },
+  {
+   "reference": {
+    "id": "positive_fine",
+    "quantity": "Share of cells with a positive volume, fine mesh",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-09,
+    "source": "Every cell must be valid",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "no_errors_fine",
+    "quantity": "No error-level mesh check (1 = none), fine mesh",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1e-09,
+    "source": "The mesh checks run before any solver",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  }
+ ],
+ "study": {
+  "title": "Mesh levels (sphere D = 1 m in a 16 x 11 x 11 m box, 5 prism layers from 2 mm)",
+  "columns": [
+   "Level",
+   "Wall cell size [mm]",
+   "Cells",
+   "Tetrahedra",
+   "Prisms",
+   "Time [s]",
+   "Max skewness",
+   "Min dihedral [deg]",
+   "Max non-orth. [deg]",
+   "Max volume ratio"
+  ],
+  "rows": [
+   [
+    "coarse",
+    "80",
+    "29,012",
+    "23,402",
+    "5,610",
+    "0.5",
+    "0.873",
+    "12.5",
+    "67.1",
+    "14.72"
+   ],
+   [
+    "medium",
+    "40",
+    "125,853",
+    "105,043",
+    "20,810",
+    "3.8",
+    "0.989",
+    "9.8",
+    "66.6",
+    "8.18"
+   ],
+   [
+    "fine",
+    "20",
+    "718,770",
+    "645,910",
+    "72,860",
+    "30.2",
+    "0.910",
+    "9.4",
+    "69.9",
+    "7.09"
+   ]
+  ],
+  "notes": [
+   "Halving every cell size multiplied the number of cells by 4.34, 5.71: cells that fill a fixed volume uniformly grow 8 times, the prism layers 4 times (wall area / size\u00b2), so the growth rises towards 8 as the volume cells dominate (the coarsest quick level has very few cells).",
+   "Skewness: equivolume for the tetrahedra, equiangle for the prisms."
+  ]
+ }
+}
