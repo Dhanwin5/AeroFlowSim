@@ -238,3 +238,21 @@ def mesh1d_figure(mesh, edges=True):
     ax.set_title(f"1D mesh: {mesh.n_nodes} nodes, {mesh.n_cells} cells (colour = cell width)")
     style_axes(ax)
     return fig
+
+
+def quality_histogram_figure(values, title, unit=""):
+    """Histogram of a per-cell mesh quality field (share of the cells in each bin, logarithmic, so the few bad cells
+    a mesher reports are visible next to the many good ones)."""
+    fig, ax = _figure(2.4)
+    v = np.asarray(values, dtype=float)
+    v = v[np.isfinite(v)]
+    if not len(v):
+        ax.text(0.5, 0.5, "No values for this mesh", ha="center", va="center", transform=ax.transAxes)
+        ax.set_axis_off()
+        return fig
+    ax.hist(v, bins=40, weights=np.full(len(v), 100.0 / len(v)), color=COLOR_NUMERICAL, log=True)
+    ax.set_xlabel(f"{title} [{unit}]" if unit and unit != "-" else title)
+    ax.set_ylabel("cells [%]")
+    ax.set_title(f"{title}: {len(v):,} cells, min {v.min():.3g}, max {v.max():.3g}")
+    style_axes(ax)
+    return fig

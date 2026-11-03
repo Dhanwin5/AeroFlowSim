@@ -154,3 +154,38 @@ The stage was done as ONE session (prompt 9, all 8 parts) instead of the 4 sessi
 - Verified: 3 more tests in `tests/test_workspace_mesh3d.py` (regular / corner / sliver tetrahedron metrics, 3D mesh
   checks, inverted cell = error): 13 pass; tests/test_checks.py passes (2D unchanged).
 - Next: part 5 (Geometry step in 3D).
+
+### Part 5 - Geometry step in 3D (done)
+- New: `gui/steps/geometry3d.py` (Geometry3DPage: tool bar Select / Box select, Bodies, Import STEP/IGES, Edit,
+  Enclosure, Name boundary, Refinement, Hide / Isolate / Show all, Section x/y/z + slider, Suggestions; History,
+  Boundaries and Dimensions tabs; right-click menu), `gui/geometry3d_view.py` (Geometry3DView: faces in boundary
+  colours, edges, regions, axes, standard views, vtkCellPicker face picking, rubber-band box selection with the CAD
+  rule left-to-right inside / right-to-left touching). `gui/steps/geometry.py` shows it in a QStackedWidget for 3D
+  templates. Logic without Qt appended to `gui/geometry_logic.py` (FIELDS for every 3D operation incl. point lists in
+  mm, operation_for_3d, boundary rows / rename / type / prism layers, suggestions_3d, Visibility, section_plane,
+  faces_in_rectangle, toggle_selection, texts). 3D smart rules `smart_rules.suggestions_3d` (wall size L/40 and 1/4 of
+  the shortest wall edge, largest size, y+ first layer). 3D geometry checks (`checks.GEOMETRY_CHECKS_3D`).
+  New icons (body, box_select, hide, show, isolate, section).
+- Decisions: hide / isolate / section are view settings (not undone), as in SpaceClaim / Fluent Meshing; an imported
+  solid replaces the template body (and its far field when imported as fluid); suggested walls get the prism tick so
+  the template's inflation input switches them.
+- Verified: `tests/test_geometry_logic_3d.py` (9 tests, no Qt), `tests/gui/test_geometry3d_gui.py` (7 tests in the real
+  window: face click, hide then pick the face behind, box select of everything, isolate, section then pick the inner
+  sphere, add box + union, name by stable id, undo / redo, upstream diameter change keeps the name, save + reopen,
+  rename / type / prism layers, theme switch, units, a 2D project afterwards and back). Whole GUI suite: 86 passed.
+- Next: part 6 (Mesh step in 3D, template).
+
+### Part 6 - Mesh step in 3D, template external_3d (done)
+- `cases/external_3d` (mesh only: solver = false + message; body sphere / cylinder / nose cone / box, far field box /
+  cylinder / sphere, half domain, mesh and prism inputs in L, free stream for the y+ rule), discovered automatically;
+  case contract documents workspace_settings_3d / body_3d / domain_3d. Example STEP `examples/conical_nozzle.step`.
+- Mesh step: `MeshView.show_mesh_3d` (boundary faces in patch colours or by the field of their cells; cut x / y / z
+  shows the whole cells the plane passes through, far-side faces see-through), 3D cell / face picking, worst cell
+  (zoom), colour list per mesh (3D adds equivolume skewness and dihedral angle), log histogram of the field, 3D rows in
+  the summary. *Export mesh…* writes .vtu / .msh / .su2 / .cgns (`mesh_io.write_mesh`), CLI `export <project> --mesh`.
+- Fix found here: a cone's apex made Gmsh's curvature rule ask for cells of size 0 (37 s, then "identical points"):
+  minimum cell size = 1/10 of the smallest requested size (`MIN_SIZE_FRACTION`).
+- Verified: `cases/external_3d/test_case.py` (8 tests: every body with the exact fluid volume, prisms + half domain,
+  estimate, y+ suggestion, the nozzle STEP tutorial), GUI test of the 3D Mesh step (cut, histogram, worst cell, checks)
+  and of Cancel during a long 3D Gmsh job; CLI `run` of a 3D project and `export --mesh` to four formats.
+- Next: part 7 (docs, tutorials, gap register, CHANGELOG, next stage plan).

@@ -369,3 +369,54 @@ def diagnose(case, params, result) -> list:
 
 
 RULES.append(first_layer)
+
+
+# ==================================================================================================
+# 3D geometry (BuiltGeometry3D): suggested sizes (3D geometry and meshing stage)
+# ==================================================================================================
+#
+# In 3D a mesh grows with (L / h)^2 on the walls and (L / h)^3 in the volume, so the rules aim lower than in 2D:
+#   wall cell size   at most L / CELLS_PER_L_3D and a quarter of the shortest wall edge (every wall feature gets cells);
+#   largest size     about 2 L far from the body (external flow), at most 1/20 of the domain;
+#   first layer      the same y+ = 1 rule as in 2D (first_layer above), when prism layers are on.
+
+CELLS_PER_L_3D = 40.0        # wall cells per reference length in 3D (at most this size) [-]
+
+
+def surface_size_3d(built, context):
+    walls = {f for f in built.boundary_faces() if f in built.names and built.names[f].type == "wall"}
+    edges = [e.length for e in built.edges.values() if walls & set(e.faces) and e.length > 1e-9 * built.size]
+    if not edges:
+        return []
+    L = built.reference_length()
+    feature = min(edges)
+    h = min(L / CELLS_PER_L_3D, feature / CELLS_PER_FEATURE)
+    limit = "the shortest wall edge" if feature / CELLS_PER_FEATURE < L / CELLS_PER_L_3D else "the reference length"
+    reason = (f"Shortest wall edge {length_text(feature)} and L = {length_text(L)}: at least {CELLS_PER_FEATURE:g} "
+              f"cells along every edge and {CELLS_PER_L_3D:g} along L (set by {limit}); in 3D the wall cells grow with "
+              "(L / h)², so this is coarser than the 2D rule.")
+    return _input(context, "surface", h, "Wall cell size", reason)
+
+
+def largest_size_3d(built, context):
+    box = built.bbox()
+    if box is None or not built.bodies:
+        return []
+    domain = math.dist(box[:3], box[3:])
+    h = min(2.0 * built.reference_length(), domain / 20.0)
+    reason = "Cells up to about 2 L far from the body, and at least 20 across the domain."
+    return _input(context, "max", h, "Largest cell size", reason)
+
+
+RULES_3D = [surface_size_3d, largest_size_3d, first_layer]
+
+
+def suggestions_3d(built, context) -> list[Suggestion]:
+    """Every 3D rule's suggestions (a rule that fails is skipped)."""
+    out = []
+    for rule in RULES_3D:
+        try:
+            out += rule(built, context)
+        except Exception:
+            continue
+    return out

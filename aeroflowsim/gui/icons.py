@@ -98,6 +98,14 @@ DRAWINGS = {
     "view3d": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" stroke="ACCENT"/>',
     "revolve": '<ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M3 12h18" stroke="ACCENT" stroke-dasharray="3 2"/>'
                '<path d="M12 6v-3l3 1.5" stroke="ACCENT"/>',
+    "body": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="ACCENT" fill-opacity="0.25"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
+    "box_select": '<rect x="4" y="5" width="16" height="13" stroke-dasharray="3 2"/><path d="M14 13l6 5-3 .5 1.5 3-1 .5'
+                  '-1.5-3-2 2z" fill="ACCENT" stroke="ACCENT"/>',
+    "hide": '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><path d="M4 20L20 4" stroke="ACCENT"/>',
+    "show": '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3" stroke="ACCENT"/>',
+    "isolate": '<rect x="3" y="3" width="18" height="18" stroke-dasharray="3 2"/><circle cx="12" cy="12" r="4" '
+               'fill="ACCENT" stroke="ACCENT"/>',
+    "section": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M3 13l18-4" stroke="ACCENT"/>',
 }
 
 

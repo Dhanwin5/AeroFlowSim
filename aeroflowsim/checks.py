@@ -788,7 +788,8 @@ def geometry_3d_feature_size(built, settings):
     if settings is None:
         return None
     walls = {f for f in built.boundary_faces() if f in built.names and built.names[f].type == "wall"}
-    edges = [e for e in built.edges.values() if walls & set(e.faces)]
+    edges = [e for e in built.edges.values() if walls & set(e.faces) and e.length > 1e-9 * built.size]   # (not the
+    # degenerate edges at the poles of a sphere or the tip of a cone)
     if not edges:
         return None
     feature = min(e.length for e in edges)                      # [m]

@@ -221,3 +221,12 @@ def test_inverted_cell_is_an_error():
     assert inverted.cell_volumes[0] < 0.0
     checks = {c.name: c for c in run_mesh_checks(None, {}, inverted)}
     assert checks["Cell volumes"].level == "error"
+
+
+def test_write_mesh_by_file_ending(ball_meshes, tmp_path):
+    from aeroflowsim.mesh_io import write_mesh
+    _, mesh = ball_meshes
+    for name in ("m.msh", "m.su2", "m.cgns", "m.vtu"):
+        assert write_mesh(mesh, tmp_path / name).stat().st_size > 1000
+    with pytest.raises(ValueError, match="not a mesh format"):
+        write_mesh(mesh, tmp_path / "m.stl")

@@ -222,6 +222,8 @@ def main(argv=None):
     export.add_argument("--definitions", action="store_true", help="the report definitions table (CSV)")
     export.add_argument("--snapshot", default=None, help="export a snapshot instead of the current result")
     export.add_argument("--out", default=None, help="output file (default: in the project's results/exports/)")
+    export.add_argument("--mesh", default=None, metavar="FILE",
+                        help="write the project's mesh as FILE: .msh (Gmsh 2.2), .su2, .cgns or .vtu (2D or 3D)")
     export.add_argument("--animation", default=None, metavar="FILE",
                         help="save the recorded flow animation as FILE (.gif, or .mp4 when ffmpeg is installed)")
     export.add_argument("--field", default=None, help="animation: the field shown (default: M for 2D, rho for 1D)")
@@ -351,6 +353,8 @@ def command_export(args):
     from aeroflowsim.post.surfaces import default_surfaces, surfaces_from
     if args.animation:
         return command_export_animation(args)
+    if getattr(args, "mesh", None):
+        return command_export_mesh(args)
     try:
         project = _open_project(args.project)
         sol = Solution.from_project(project, snapshot=args.snapshot)
@@ -380,6 +384,24 @@ def command_export(args):
         print(f"Error: {error}")
         return 1
     print(f"Exported: {path}")
+    return 0
+
+
+def command_export_mesh(args):
+    """export <project> --mesh FILE: the project's mesh in another program's format (the boundary names stay)."""
+    from pathlib import Path
+
+    from aeroflowsim import mesh_io
+    try:
+        project = _open_project(args.project)
+        mesh = project.load_mesh()
+        if mesh is None:
+            raise ValueError("The project has no mesh yet: run it (or press Generate mesh in the GUI) first.")
+        path = mesh_io.write_mesh(mesh, Path(args.mesh))
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"{mesh.n_cells} cells ({mesh.dim}D), patches {', '.join(p.name for p in mesh.patches)} written to {path}")
     return 0
 
 

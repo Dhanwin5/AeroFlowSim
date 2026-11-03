@@ -44,6 +44,8 @@ def test_command_line_and_projects_work_without_qt():
         "    sys.modules[name] = None\n"
         "import aeroflowsim, aeroflowsim.cli, aeroflowsim.project, aeroflowsim.tasks, aeroflowsim.result_io\n"
         "import aeroflowsim.geometry_preview, aeroflowsim.gui.panel_model, aeroflowsim.gui.logic\n"
+        "import aeroflowsim.gui.geometry_logic, aeroflowsim.workspace_mesh3d, aeroflowsim.prism_layers\n"
+        "import aeroflowsim.geometry_model.kernel3d, aeroflowsim.geometry_model.operations3d\n"
         "print('ok')\n")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=PROJECT_DIR)
     assert out.stdout.strip() == "ok", out.stderr

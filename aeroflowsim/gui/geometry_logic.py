@@ -735,3 +735,438 @@ def constraint_text(c) -> str:
     if kind == "fix":
         return f"point {c['p'] + 1} fixed"
     return f"{kind} entity {c['e'] + 1}"
+
+
+
+# =================================================================================================
+# The 3D workspace (geometry_model/operations3d.py): the logic of gui/steps/geometry3d.py
+# =================================================================================================
+#
+# Selection: [(kind, id)] with kind "face", "body" or "edge" (stable ids, see geometry_model/built3d.py).
+# Visibility (hide / show / isolate) and the section plane are VIEW settings, like the camera: not in the history
+# and not undone (as in SpaceClaim and Fluent Meshing); every geometry edit is a history operation.
+
+from aeroflowsim.geometry_model.operations3d import (  # noqa: E402  (the 3D section of this module)
+    TEMPLATE_TYPES_3D, Boolean3D, Box, Cone, Cylinder, Delete3D, Enclosure3D, Extrude, ImportSolid, NameFaces,
+    Refinement3D, Revolve, SetRole3D, Sphere, Transform3D)
+
+POINT_KIND = "points"       # a Field kind: a list of [x, y] points, typed in mm as "x y; x y; ..."
+_XYZ = ("x", "y", "z")
+
+FIELDS.update({
+    "box": (Field("x0", "Corner x", "length"), Field("y0", "Corner y", "length"), Field("z0", "Corner z", "length"),
+            Field("dx", "Length x", "length"), Field("dy", "Length y", "length"), Field("dz", "Length z", "length"),
+            Field("role", "The body is", "choice", ROLE_CHOICES)),
+    "cylinder": (Field("x", "Base centre x", "length"), Field("y", "Base centre y", "length"),
+                 Field("z", "Base centre z", "length"), Field("ax", "Axis x (its length)", "length"),
+                 Field("ay", "Axis y (its length)", "length"), Field("az", "Axis z (its length)", "length"),
+                 Field("radius", "Radius", "length"), Field("role", "The body is", "choice", ROLE_CHOICES)),
+    "cone": (Field("x", "Base centre x", "length"), Field("y", "Base centre y", "length"),
+             Field("z", "Base centre z", "length"), Field("ax", "Axis x (its length)", "length"),
+             Field("ay", "Axis y (its length)", "length"), Field("az", "Axis z (its length)", "length"),
+             Field("r1", "Base radius", "length"), Field("r2", "Top radius (0 = a tip)", "length"),
+             Field("role", "The body is", "choice", ROLE_CHOICES)),
+    "sphere": (Field("xc", "Centre x", "length"), Field("yc", "Centre y", "length"), Field("zc", "Centre z", "length"),
+               Field("radius", "Radius", "length"), Field("role", "The body is", "choice", ROLE_CHOICES)),
+    "import_solid": (
+        Field("unit", "Unit of the numbers", "choice", (("file", "As the file says"),) + _choices(UNITS)),
+        Field("role", "The solids are", "choice", ROLE_CHOICES)),
+    "revolve": (
+        Field("profile", "Profile", "choice", (("points", "Points (x, r)"), ("wall", "Nozzle wall file (x_mm,r_mm)"))),
+        Field("points", "Points x r (mm), closed", POINT_KIND, show_if=("profile", ("points",)),
+              help="The profile in the x-r plane, e.g. 0 0; 100 0; 100 20; 0 40 (closed automatically). It is "
+                   "turned about the x axis."),
+        Field("angle", "Angle of revolution", "angle"),
+        Field("role", "The body is", "choice", ROLE_CHOICES)),
+    "extrude": (
+        Field("points", "Outline x y (mm), closed", POINT_KIND,
+              help="The outline in the x-y plane, e.g. 0 0; 100 0; 100 50; 0 50 (closed automatically)."),
+        Field("z0", "Plane z", "length"), Field("length", "Extrude by (along z)", "length"),
+        Field("role", "The body is", "choice", ROLE_CHOICES)),
+    "transform_3d": (
+        Field("kind", "Transform", "choice", _choices(Transform3D.KINDS)),
+        Field("dx", "Move x", "length", show_if=("kind", ("move",))),
+        Field("dy", "Move y", "length", show_if=("kind", ("move",))),
+        Field("dz", "Move z", "length", show_if=("kind", ("move",))),
+        Field("cx", "Centre x", "length", show_if=("kind", ("rotate", "scale", "mirror"))),
+        Field("cy", "Centre y", "length", show_if=("kind", ("rotate", "scale", "mirror"))),
+        Field("cz", "Centre z", "length", show_if=("kind", ("rotate", "scale", "mirror"))),
+        Field("ax", "Axis / normal x", "number", show_if=("kind", ("rotate", "mirror"))),
+        Field("ay", "Axis / normal y", "number", show_if=("kind", ("rotate", "mirror"))),
+        Field("az", "Axis / normal z", "number", show_if=("kind", ("rotate", "mirror"))),
+        Field("angle", "Angle", "angle", show_if=("kind", ("rotate",))),
+        Field("factor", "Factor", "number", show_if=("kind", ("scale",))),
+        Field("copy", "Transform a copy (keep the original)", "bool")),
+    "boolean_3d": (Field("kind", "Boolean", "choice", _choices(Boolean3D.KINDS)),),
+    "set_role_3d": (Field("role", "Mark as", "choice", ROLE_CHOICES),),
+    "enclosure_3d": (
+        Field("kind", "Shape", "choice", _choices(Enclosure3D.KINDS)),
+        Field("upstream", "Upstream", "ratio", show_if=("kind", ("box", "cylinder"))),
+        Field("downstream", "Downstream", "ratio", show_if=("kind", ("box", "cylinder"))),
+        Field("lateral", "To the sides", "ratio", show_if=("kind", ("box",))),
+        Field("radius", "Radius", "ratio", show_if=("kind", ("cylinder", "sphere"))),
+        Field("half", "Half domain (symmetry plane y = 0)", "bool")),
+    "name_faces": (
+        Field("name", "Boundary name", "text"),
+        Field("kind", "Type", "choice", tuple((k, v[0]) for k, v in BOUNDARY_TYPES.items())),
+        Field("inflation", "Prism layers on this wall", "bool")),
+    "refinement_3d": (
+        Field("shape", "Shape", "choice", _choices(Refinement3D.SHAPES)),
+        Field("x0", "x min / axis start x", "length", show_if=("shape", ("box", "cylinder"))),
+        Field("y0", "y min / axis start y", "length", show_if=("shape", ("box", "cylinder"))),
+        Field("z0", "z min / axis start z", "length", show_if=("shape", ("box", "cylinder"))),
+        Field("x1", "x max / axis end x", "length", show_if=("shape", ("box", "cylinder"))),
+        Field("y1", "y max / axis end y", "length", show_if=("shape", ("box", "cylinder"))),
+        Field("z1", "z max / axis end z", "length", show_if=("shape", ("box", "cylinder"))),
+        Field("xc", "Centre x", "length", show_if=("shape", ("sphere",))),
+        Field("yc", "Centre y", "length", show_if=("shape", ("sphere",))),
+        Field("zc", "Centre z", "length", show_if=("shape", ("sphere",))),
+        Field("radius", "Radius", "length", show_if=("shape", ("sphere", "cylinder"))),
+        Field("size", "Cell size", "length")),
+})
+
+_plain_to_text, _plain_from_text = to_text, from_text
+
+
+def to_text(field, value) -> str:  # noqa: F811  (the 2D version, plus point lists)
+    """The value as shown in a field (lengths in mm; point lists as x y; x y ... in mm)."""
+    if field.kind == POINT_KIND:
+        return "; ".join(f"{x / MM:.8g} {y / MM:.8g}" for x, y in value)
+    return _plain_to_text(field, value)
+
+
+def from_text(field, text):  # noqa: F811
+    """The typed text as a value (lengths and point lists back to metres); ValueError naming the problem."""
+    if field.kind != POINT_KIND:
+        return _plain_from_text(field, text)
+    points = []
+    parts = [p.strip() for p in str(text).replace(",", " ").split(";") if p.strip()]
+    for k, part in enumerate(parts, start=1):
+        numbers = part.split()
+        try:
+            if len(numbers) != 2:
+                raise ValueError
+            points.append([float(numbers[0]) * MM, float(numbers[1]) * MM])
+        except ValueError:
+            raise ValueError(f"{field.label}: point {k} ({part}) must be two numbers, x and y") from None
+    if len(points) < 3:
+        raise ValueError(f"{field.label}: at least three points are needed")
+    return points
+
+
+# The 3D tool bar: (operation kind, button text, tooltip); the bodies go into one menu button.
+BODIES_3D = (("box", "Box…", "A box"), ("cylinder", "Cylinder…", "A cylinder"), ("sphere", "Sphere…", "A sphere"),
+             ("cone", "Cone…", "A cone or truncated cone"),
+             ("revolve", "Revolve…", "A body of revolution about the x axis, from a profile or a nozzle wall file"),
+             ("extrude", "Extrude…", "A prism: an outline in the x-y plane pulled along z"))
+TOOLS_3D = (("transform_3d", "Transform…", "Move, rotate, scale or mirror the selected bodies (or everything)"),
+            ("boolean_3d", "Boolean…", "Union, subtract or intersect the selected bodies (first = the one kept)"),
+            ("set_role_3d", "Fluid / solid…", "Mark the selected bodies as fluid (meshed) or solid (cut out)"),
+            ("delete_3d", "Delete", "Delete the selected bodies (Del)"),
+            ("enclosure_3d", "Enclosure…", "Put a fluid domain (box, cylinder, sphere) round the solid bodies"),
+            ("name_faces", "Name boundary…", "Give the selected faces a boundary name and type (a mesh patch)"),
+            ("refinement_3d", "Refinement…", "A box, sphere or cylinder with smaller cells"))
+NEEDS_BODIES = ("boolean_3d", "set_role_3d", "delete_3d")
+NO_DIALOG_3D = ("delete_3d",)     # added at once (no settings to ask for)
+SECTION_AXES = ("none", "x", "y", "z")
+
+
+def bodies_of(selection, built) -> list:
+    """Body ids of the selection (a face or edge counts as the bodies it belongs to), in selection order."""
+    out = []
+    for kind, entity in selection:
+        if kind == "body":
+            found = [entity]
+        elif kind == "face" and entity in built.faces:
+            found = built.faces[entity].bodies
+        elif kind == "edge" and entity in built.edges:
+            found = [b for f in built.edges[entity].faces for b in built.faces[f].bodies]
+        else:
+            found = []
+        out += [b for b in found if b not in out]
+    return out
+
+
+def faces_of_3d(selection, built) -> list:
+    """Face ids of the selection (a body counts as all its faces)."""
+    out = []
+    for kind, entity in selection:
+        if kind == "face":
+            found = [entity]
+        elif kind == "body" and entity in built.bodies:
+            found = built.bodies[entity].faces
+        else:
+            found = []
+        out += [f for f in found if f not in out and f in built.faces]
+    return out
+
+
+def selection_centre_3d(selection, built):
+    """The centre of the selected faces (area-weighted), or of the bounding box of everything [m]."""
+    faces = faces_of_3d(selection, built)
+    if faces:
+        areas = np.array([built.faces[f].area for f in faces])
+        return np.average([built.faces[f].centroid for f in faces], axis=0, weights=np.maximum(areas, 1e-300))
+    box = built.bbox()
+    return np.zeros(3) if box is None else 0.5 * (np.array(box[:3]) + np.array(box[3:]))
+
+
+def operation_for_3d(kind, selection, built):
+    """A new 3D operation of `kind`, pre-filled from the selection and the size of the geometry; ValueError if the
+    selection does not fit (e.g. a boolean needs two bodies)."""
+    empty = built is None or built.empty
+    L = 0.1 if empty else built.reference_length()                      # [m]
+    c = np.zeros(3) if empty else selection_centre_3d(selection, built)
+    bodies = [] if built is None else bodies_of(selection, built)
+    r = 0.5 * L
+    if kind == "box":
+        return Box(x0=float(c[0] - r), y0=float(c[1] - r), z0=float(c[2] - r), dx=L, dy=L, dz=L)
+    if kind == "cylinder":
+        return Cylinder(x=float(c[0] - r), y=float(c[1]), z=float(c[2]), ax=L, radius=0.25 * L)
+    if kind == "cone":
+        return Cone(x=float(c[0] - r), y=float(c[1]), z=float(c[2]), ax=L, r1=0.25 * L, r2=0.0)
+    if kind == "sphere":
+        return Sphere(xc=float(c[0]), yc=float(c[1]), zc=float(c[2]), radius=r)
+    if kind == "revolve":
+        return Revolve(points=[[0.0, 0.0], [L, 0.0], [L, 0.2 * L], [0.0, 0.2 * L]])
+    if kind == "extrude":
+        return Extrude(points=[[0.0, 0.0], [L, 0.0], [L, 0.5 * L], [0.0, 0.5 * L]], length=L)
+    if kind == "import_solid":
+        return ImportSolid()
+    if kind == "transform_3d":
+        return Transform3D(targets=bodies, cx=float(c[0]), cy=float(c[1]), cz=float(c[2]))
+    if kind == "enclosure_3d":
+        return Enclosure3D()
+    if kind == "refinement_3d":
+        return Refinement3D(shape="sphere", xc=float(c[0]), yc=float(c[1]), zc=float(c[2]), radius=L,
+                            x0=float(c[0] - L), y0=float(c[1] - L), z0=float(c[2] - L), x1=float(c[0] + L),
+                            y1=float(c[1] + L), z1=float(c[2] + L), size=L / 50.0)
+    if kind in NEEDS_BODIES and not bodies:
+        raise ValueError("Select the bodies first (click a face of each; Shift or Ctrl adds).")
+    if kind == "boolean_3d":
+        if len(bodies) < 2:
+            raise ValueError("A boolean needs two bodies: click a face of the body to keep, then (Shift) one of the tool.")
+        return Boolean3D(kind="subtract", objects=bodies[:1], tools=bodies[1:])
+    if kind == "set_role_3d":
+        return SetRole3D(bodies=bodies, role=SOLID)
+    if kind == "delete_3d":
+        return Delete3D(bodies=bodies)
+    if kind == "name_faces":
+        faces = [] if built is None else faces_of_3d(selection, built)
+        if not faces:
+            raise ValueError("Select the faces to name first (click them; Shift or Ctrl adds; or drag a box in Box mode).")
+        first = built.names.get(faces[0])
+        return NameFaces(faces=faces, name=first.name if first else "wall", kind=first.type if first else "wall",
+                         inflation=bool(first.inflation) if first else False)
+    raise ValueError(f"unknown 3D operation '{kind}'")
+
+
+# ---- names of the faces (Boundaries tab) ------------------------------------------------------------
+
+UNNAMED = "(no name)"
+
+
+def boundary_rows_3d(built) -> list:
+    """[(name, type, number of faces, prism layers, how named)] of the fluid's boundary; unnamed faces last."""
+    rows = []
+    for name, (kind, faces) in built.patches().items():
+        origins = {built.names[f].origin for f in faces}
+        rows.append((name, kind, len(faces), "yes" if any(built.names[f].inflation for f in faces) else "",
+                     "you" if "user" in origins else "automatic"))
+    unnamed = [f for f in built.boundary_faces() if f not in built.names]
+    if unnamed:
+        rows.append((UNNAMED, "", len(unnamed), "", "name them"))
+    return rows
+
+
+def faces_named_3d(built, name) -> list:
+    """The boundary faces called `name` (UNNAMED: those without a name)."""
+    if name == UNNAMED:
+        return [f for f in built.boundary_faces() if f not in built.names]
+    return [f for f in built.boundary_faces() if f in built.names and built.names[f].name == name]
+
+
+def rename_boundary_3d(document, built, old, new):
+    """A new document in which the boundary `old` is called `new` on all its faces (same type and layers)."""
+    faces = faces_named_3d(built, old)
+    if not faces or old == UNNAMED:
+        raise ValueError(f"There is no boundary called '{old}'.")
+    first = built.names[faces[0]]
+    doc = document.copy()
+    doc.add(NameFaces(faces=faces, name=new, kind=first.type, inflation=first.inflation))
+    return doc
+
+
+def set_boundary_type_3d(document, built, name, kind, inflation=None):
+    """A new document in which the boundary `name` has the type `kind` (and prism layers on/off, if given)."""
+    faces = faces_named_3d(built, name)
+    if not faces or name == UNNAMED:
+        raise ValueError(f"There is no boundary called '{name}'.")
+    keep = any(built.names[f].inflation for f in faces) if inflation is None else bool(inflation)
+    doc = document.copy()
+    doc.add(NameFaces(faces=faces, name=name, kind=kind, inflation=keep and kind == "wall"))
+    return doc
+
+
+def suggestions_3d(built) -> dict:
+    """{face id: Boundary} suggested for the boundary faces without a name (the user accepts or changes them):
+    a flat face across the flow (normal along x) at the smallest x of the geometry -> inlet, at the largest x ->
+    outlet; a flat face on y = 0 -> symmetry; every other face -> wall."""
+    from aeroflowsim.geometry_model.built3d import Boundary
+    unnamed = [built.faces[f] for f in built.boundary_faces() if f not in built.names]
+    box = built.bbox()
+    if not unnamed or box is None:
+        return {}
+    tol = 1e-9 * built.size
+
+    def flat(f, k):
+        return f.kind == "plane" and f.box is not None and f.box[k + 3] - f.box[k] <= tol
+
+    out = {}
+    for f in unnamed:
+        if flat(f, 0) and abs(f.centroid[0] - box[0]) <= tol:
+            out[f.id] = Boundary("inlet", "inlet")
+        elif flat(f, 0) and abs(f.centroid[0] - box[3]) <= tol:
+            out[f.id] = Boundary("outlet", "outlet")
+        elif flat(f, 1) and abs(f.centroid[1]) <= tol:
+            out[f.id] = Boundary("symmetry", "symmetry")
+        else:
+            out[f.id] = Boundary("wall", "wall")
+    return out
+
+
+def accept_suggestions_3d(document, built):
+    """A new document with one Name boundary operation per suggested name; None if there is nothing to accept.
+    Suggested walls have their prism-layer tick on, so the template's prism-layer input switches layers on them."""
+    groups = {}
+    for face_id, b in suggestions_3d(built).items():
+        groups.setdefault((b.name, b.type), []).append(face_id)
+    if not groups:
+        return None
+    doc = document.copy()
+    for (name, kind), faces in sorted(groups.items()):
+        doc.add(NameFaces(faces=sorted(faces), name=name, kind=kind, inflation=kind == "wall"))
+    return doc
+
+
+# ---- view settings: visibility, section plane, box selection -----------------------------------------
+
+class Visibility:
+    """Which faces are hidden (a view setting: not in the history, not undone). Ids that no longer exist after an
+    edit are simply ignored."""
+
+    def __init__(self):
+        self.hidden = set()
+
+    def hide(self, faces):
+        self.hidden |= set(faces)
+
+    def show_all(self):
+        self.hidden = set()
+
+    def isolate(self, faces, built):
+        """Show only these faces (nothing changes if none are given)."""
+        keep = set(faces)
+        if keep:
+            self.hidden = {f for f in built.faces if f not in keep}
+
+    def visible(self, built) -> list:
+        return [f for f in built.faces if f not in self.hidden]
+
+
+def section_plane(built, axis, fraction):
+    """(origin (3,), normal (3,)) of a section plane across the geometry: normal along `axis` ("x", "y" or "z"), at
+    `fraction` (0 .. 1) of the bounding box; None for "none". The view cuts away the part on the + side."""
+    if axis not in _XYZ or built is None or built.bbox() is None:
+        return None
+    box = np.asarray(built.bbox(), dtype=float)
+    k = _XYZ.index(axis)
+    origin = 0.5 * (box[:3] + box[3:])
+    origin[k] = box[k] + float(np.clip(fraction, 0.0, 1.0)) * (box[k + 3] - box[k])
+    normal = np.zeros(3)
+    normal[k] = 1.0
+    return origin, normal
+
+
+def faces_in_rectangle(projected, rect, touching=False) -> list:
+    """Faces inside a screen rectangle (box selection). projected: {face id: (n, 2) screen points of its drawing};
+    rect: (x0, y0, x1, y1) [px]. A face is taken when ALL its points are inside (a box dragged left to right, as in
+    CAD programs) or, with touching=True (dragged right to left), when ANY point is."""
+    x0, x1 = sorted((rect[0], rect[2]))
+    y0, y1 = sorted((rect[1], rect[3]))
+    out = []
+    for face_id, pts in projected.items():
+        pts = np.asarray(pts, dtype=float).reshape(-1, 2)
+        if not len(pts):
+            continue
+        inside = (pts[:, 0] >= x0) & (pts[:, 0] <= x1) & (pts[:, 1] >= y0) & (pts[:, 1] <= y1)
+        if inside.any() if touching else inside.all():
+            out.append(face_id)
+    return out
+
+
+def toggle_selection(selection, item, add) -> list:
+    """The selection after a click on `item` ((kind, id), or None for empty space): add=True (Shift / Ctrl) adds or
+    removes it; otherwise it becomes the only selected item (a click on empty space clears)."""
+    if item is None:
+        return list(selection) if add else []
+    if not add:
+        return [item]
+    return [s for s in selection if s != item] if item in selection else list(selection) + [item]
+
+
+# ---- texts ----------------------------------------------------------------------------------------
+
+def selection_rows_3d(built, selection, prefs=None) -> list:
+    """(property, value, unit) rows of the selection for the Properties panel (in the user's units)."""
+    if not selection:
+        return []
+    u = Shown(prefs)
+    length, unit = u.len, u.length.name
+    if len(selection) > 1:
+        faces = faces_of_3d(selection, built)
+        return [("Selected faces", str(len(faces)), ""),
+                ("Total area", *u.area_text(sum(built.faces[f].area for f in faces))),
+                ("Bodies", ", ".join(bodies_of(selection, built)), "")]
+    kind, entity = selection[0]
+    if kind == "edge" and entity in built.edges:
+        e = built.edges[entity]
+        return [("Edge", e.id, ""), ("Length", length(e.length), unit), ("Between faces", ", ".join(e.faces), "")]
+    if kind == "body" and entity in built.bodies:
+        b = built.bodies[entity]
+        return [("Body", b.id, ""), ("Role", b.role, ""), ("Volume", *u.volume_text(b.volume)),
+                ("Surface area", *u.area_text(b.area)), ("Faces", str(len(b.faces)), ""),
+                ("Centroid x, y, z", ", ".join(length(v) for v in b.centroid), unit)]
+    if entity not in built.faces:
+        return []
+    f = built.faces[entity]
+    b = built.names.get(f.id)
+    where = "no name yet" if f.id in built.boundary_faces() else "not on the fluid's boundary"
+    return [("Face", f.id, ""), ("Kind", f.kind, ""), ("Area", *u.area_text(f.area)),
+            ("Centroid x, y, z", ", ".join(length(v) for v in f.centroid), unit),
+            ("Body", ", ".join(f.bodies), ""), ("Boundary", f"{b.name} ({b.type})" if b else where, ""),
+            ("Prism layers", "yes" if b and b.inflation else "no", "")]
+
+
+def summary_rows_3d(built, prefs=None) -> list:
+    """The Dimensions tab of a 3D geometry: bodies, volumes, areas, size (in the user's units)."""
+    u = Shown(prefs)
+    rows = [("Bodies", str(len(built.bodies)), ""),
+            ("Fluid bodies", str(len(built.bodies_with_role(FLUID))), ""),
+            ("Solid bodies", str(len(built.bodies_with_role(SOLID))), ""),
+            ("Fluid volume", *u.volume_text(built.fluid_volume())), ("Faces", str(len(built.faces)), "")]
+    walls = [f for f in built.boundary_faces() if f in built.names and built.names[f].type == "wall"]
+    if walls:
+        rows.append(("Wall area", *u.area_text(sum(built.faces[f].area for f in walls))))
+    box = built.bbox()
+    if box is not None:
+        rows += [(f"Size in {a}", u.len(box[k + 3] - box[k]), u.length.name) for k, a in enumerate(_XYZ)]
+        rows.append(("Reference length L", u.len(built.reference_length()), u.length.name))
+    return rows
+
+
+def history_rows_3d(document, built) -> list:
+    """As history_rows, with the 3D template steps marked "template"."""
+    types = {op.id: op.type for op in document.operations}
+    return [(i, text, "template" if state == "ok" and types[i] in TEMPLATE_TYPES_3D else state)
+            for i, text, state in history_rows(document, built)]

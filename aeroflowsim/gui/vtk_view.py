@@ -52,6 +52,22 @@ def patch_lines(mesh) -> pv.PolyData:
     return poly
 
 
+def patch_surface(mesh, faces=None) -> pv.PolyData:
+    """3D: the boundary faces (triangles, quads) as a surface; cell data 'patch' (index into mesh.patches) and 'face'
+    (face number). faces: only these boundary faces (default: all)."""
+    if faces is None:
+        faces = np.concatenate([pt.faces for pt in mesh.patches])
+    index = mesh.face_patch_index()
+    nodes = mesh.face_nodes[faces]
+    counts = (nodes >= 0).sum(axis=1)
+    table = np.column_stack([counts, nodes])
+    keep = np.column_stack([np.ones(len(faces), bool), nodes >= 0])
+    poly = pv.PolyData(mesh.nodes, table[keep].astype(np.int64))
+    poly.cell_data["patch"] = index[faces].astype(np.int32)
+    poly.cell_data["face"] = np.asarray(faces, dtype=np.int64)
+    return poly
+
+
 def _polyline(points) -> pv.PolyData:
     pts = np.column_stack([points, np.zeros(len(points))])
     return pv.lines_from_points(pts)
@@ -69,6 +85,9 @@ class MeshView(QWidget):
         self.mesh_actor = self.highlight = None
         self.body_bounds = None          # (xmin, xmax, ymin, ymax) of a body, for "Zoom to body"
         self._press = None
+        self.pick_cells = None           # 3D: mesh cell of every drawn cell (cut cells, or the owners of boundary faces)
+        self.surface = self.surface_actor = None   # 3D: the drawn boundary faces
+        self.cut_cells = 0               # 3D: number of cells shown in the cut
 
         self.plotter = QtInteractor(self)
         self.plotter.iren.add_observer("LeftButtonPressEvent", self._on_press)
@@ -105,6 +124,8 @@ class MeshView(QWidget):
             return
         p = self.plotter
         p.clear()
+        self.pick_cells = self.surface = self.surface_actor = None
+        self.cut_cells = 0
         colours = view_colours(self.dark)
         p.set_background(colours["background"])
         if message:
@@ -130,6 +151,8 @@ class MeshView(QWidget):
         camera = self.plotter.camera_position if keep_camera and self.mesh is not None else None
         if self.closed:
             return
+        if mesh.dim == 3:
+            return self.show_mesh_3d(mesh, values, title, edges, cmap=cmap, clim=clim, keep_camera=keep_camera)
         self.clear()
         colours = view_colours(self.dark)
         p = self.plotter
@@ -157,6 +180,72 @@ class MeshView(QWidget):
             self.plotter.render()
         else:
             self.fit()
+
+    def show_mesh_3d(self, mesh, values=None, title="", edges=True, cut=None, cmap="viridis", clim=None,
+                     keep_camera=False):
+        """Draw a 3D Mesh: its boundary faces in the patch colours (or coloured by `values` of their cells), or, with
+        cut = (origin, normal), the whole cells the plane passes through (coloured by `values`) and, see-through,
+        the boundary faces on the far side of the plane (the near side is cut away)."""
+        from aeroflowsim.gui.logic import cells_cut_by_plane
+        camera = self.plotter.camera_position if keep_camera and self.mesh is not None else None
+        self.clear()
+        colours = view_colours(self.dark)
+        p = self.plotter
+        p.disable_parallel_projection()
+        p.enable_trackball_style()
+        self.mesh = mesh
+        faces = np.concatenate([pt.faces for pt in mesh.patches])
+        self.bar_room = False
+        scalar_bar = {"title": title, "color": colours["text"], "vertical": False, "position_x": 0.25,
+                      "position_y": 0.05, "width": 0.5, "height": 0.05, "n_labels": 3, "fmt": "%.3g",
+                      "title_font_size": 12, "label_font_size": 11}
+        style = dict(show_edges=edges, edge_color=colours["edges"], line_width=0.5, reset_camera=False)
+        if cut is not None:
+            origin, normal = cut
+            cells = cells_cut_by_plane(mesh, origin, normal)
+            self.cut_cells = len(cells)
+            behind = faces[(mesh.face_centres[faces] - origin) @ normal < 0.0]
+            surface = patch_surface(mesh, behind)
+            self.grid = mesh_to_grid(mesh).extract_cells(cells) if len(cells) else None
+            self.pick_cells = cells
+            if self.grid is not None:
+                if values is not None:
+                    self.grid.cell_data[title or "value"] = np.asarray(values, dtype=float)[cells]
+                    self.mesh_actor = p.add_mesh(self.grid, scalars=title or "value", cmap=cmap, clim=clim,
+                                                 nan_color="gray", scalar_bar_args=scalar_bar, **style)
+                else:
+                    self.mesh_actor = p.add_mesh(self.grid, color="#c7d7ea" if not self.dark else "#3b4a5c", **style)
+            opacity = 0.35
+        else:
+            surface = patch_surface(mesh, faces)
+            self.cut_cells = 0
+            self.grid = surface
+            self.pick_cells = mesh.owner[faces]
+            opacity = 1.0
+        self.surface = surface
+        if surface.n_cells:
+            if values is not None and cut is None:
+                owners = mesh.owner[surface.cell_data["face"]]
+                surface.cell_data[title or "value"] = np.asarray(values, dtype=float)[owners]
+                self.surface_actor = p.add_mesh(surface, scalars=title or "value", cmap=cmap, clim=clim,
+                                                nan_color="gray", scalar_bar_args=scalar_bar, **style)
+            else:
+                rgb = np.array([pv.Color(PATCH_COLOURS.get(pt.type, "gray")).int_rgb for pt in mesh.patches],
+                               dtype=np.uint8)
+                surface.cell_data["rgb"] = rgb[surface.cell_data["patch"]]
+                self.surface_actor = p.add_mesh(surface, scalars="rgb", rgb=True, opacity=opacity, **style)
+            if cut is None:
+                self.mesh_actor = self.surface_actor
+        self.lines = None
+        self._legend([(pt.name, pt.type) for pt in mesh.patches])
+        p.add_axes(color=colours["text"], line_width=2)
+        if camera is not None:
+            p.camera_position = camera
+            p.render()
+        else:
+            p.view_isometric()
+            p.reset_camera()
+            p.render()
 
     def show_curves(self, preview):
         """Draw a GeometryPreview: each named boundary curve in its patch colour."""
@@ -215,6 +304,10 @@ class MeshView(QWidget):
 
     def fit(self):
         if self.closed:
+            return
+        if self.mesh is not None and getattr(self.mesh, "dim", 2) == 3:     # 3D: keep the direction, show everything
+            self.plotter.reset_camera()
+            self.plotter.render()
             return
         b = self.plotter.renderer.ComputeVisiblePropBounds()
         if b[0] > b[1]:                       # nothing drawn
@@ -277,6 +370,9 @@ class MeshView(QWidget):
 
     def pick(self, x, y):
         """Pick at screen pixel (x, y) (VTK display coordinates: origin bottom left)."""
+        if self.mesh.dim == 3:
+            self._pick_3d(x, y)
+            return
         if self.pick_mode == "edge":
             line = self.nearest_edge(x, y)
             if line is not None:
@@ -298,6 +394,44 @@ class MeshView(QWidget):
         if cell >= 0:
             self._highlight(self.grid.extract_cells([cell]), "magenta", 4)
             self.cell_picked.emit(cell)
+
+    def _pick_3d(self, x, y):
+        """3D: a click picks the cell under the cursor (in the cut, or the cell behind a boundary face) or, in edge
+        mode, the boundary face."""
+        boundary = self.pick_mode == "edge" or self.mesh_actor is None or self.mesh_actor is self.surface_actor
+        actor = self.surface_actor if boundary else self.mesh_actor
+        if actor is None:
+            return
+        picker = vtkCellPicker()
+        picker.SetTolerance(0.0005)
+        picker.PickFromListOn()
+        picker.AddPickList(actor)
+        if not picker.Pick(x, y, 0, self.plotter.renderer) or picker.GetCellId() < 0:
+            return
+        k = picker.GetCellId()
+        if self.pick_mode == "edge":
+            face = int(self.surface.cell_data["face"][k])
+            patch = int(self.surface.cell_data["patch"][k])
+            self._highlight(self.surface.extract_cells([k]), "yellow", 4)
+            self.edge_picked.emit(patch, face)
+            return
+        cell = int(self.mesh.owner[int(self.surface.cell_data["face"][k])]) if boundary else int(self.pick_cells[k])
+        self.highlight_cell(cell)
+        self.cell_picked.emit(cell)
+
+    def highlight_cell(self, cell, zoom=False):
+        """Outline one cell; zoom=True also brings the camera close to it (e.g. the worst cell of a 3D mesh)."""
+        self._highlight(mesh_to_grid(self.mesh).extract_cells([int(cell)]), "magenta", 4)
+        if zoom and self.mesh.dim == 3:
+            centre = self.mesh.cell_centres[int(cell)]
+            size = max(float(np.cbrt(abs(self.mesh.cell_volumes[int(cell)]))) * 15.0, 1e-12)
+            cam = self.plotter.camera
+            direction = np.asarray(cam.position) - np.asarray(cam.focal_point)
+            direction /= max(np.linalg.norm(direction), 1e-300)
+            cam.focal_point = centre
+            cam.position = centre + 3.0 * size * direction
+            self.plotter.renderer.ResetCameraClippingRange()
+            self.plotter.render()
 
     def world_point(self, x, y):
         c = vtkCoordinate()

@@ -455,7 +455,7 @@ class MainWindow(QMainWindow):
 
     def fit_view(self):
         page = self.pages.get(self.current_step)
-        view = getattr(page, "view", None)
+        view = page.view3d if getattr(page, "is_3d", False) else getattr(page, "view", None)
         if hasattr(view, "fit"):
             view.fit()
 
@@ -1122,7 +1122,8 @@ class MainWindow(QMainWindow):
         self.auto_mesh_timer.stop()
         self.runner.shutdown()
         for page in self.pages.values():
-            for view in (getattr(page, "view", None), getattr(page, "flow_view", None), getattr(page, "grid", None)):
+            for view in (getattr(page, "view", None), getattr(page, "flow_view", None), getattr(page, "grid", None),
+                         getattr(page, "view3d", None)):
                 if hasattr(view, "close_view"):
                     view.close_view()
                 elif hasattr(view, "close_views"):

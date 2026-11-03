@@ -25,11 +25,12 @@ import numpy as np
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QInputDialog, QLabel, QListWidget, QListWidgetItem,
-                               QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTabWidget, QToolBar,
+                               QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QStackedWidget, QTabWidget,
+                               QToolBar,
                                QToolButton, QVBoxLayout,
                                QWidget)
 
-from aeroflowsim.geometry_model import has_workspace, replay, template_document
+from aeroflowsim.geometry_model import has_workspace, has_workspace_3d, replay, template_document
 from aeroflowsim.geometry_model.boundaries import BOUNDARY_TYPES
 from aeroflowsim.geometry_model.importers import file_format, read_coordinate_points, read_wall_profile_points
 from aeroflowsim.geometry_model import FLUID, SOLID, picking
@@ -151,17 +152,38 @@ class GeometryPage(QWidget):
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
         self.sketch_bar = self._build_sketch_bar()
-        layout = QVBoxLayout(self)
+        self.page2d = QWidget()                        # the 2D workspace; 3D templates show self.page3d instead
+        layout = QVBoxLayout(self.page2d)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.sketch_bar)
         layout.addWidget(self.banner)
         layout.addWidget(splitter, 1)
-        QShortcut(QKeySequence.Delete, self, activated=lambda: self.add_operation("delete"),
+        QShortcut(QKeySequence.Delete, self.page2d, activated=lambda: self.add_operation("delete"),
                   context=Qt.WidgetWithChildrenShortcut)
-        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self.escape, context=Qt.WidgetWithChildrenShortcut)
+        QShortcut(QKeySequence(Qt.Key_Escape), self.page2d, activated=self.escape,
+                  context=Qt.WidgetWithChildrenShortcut)
         for key, slot in ((Qt.Key_Return, self._enter), (Qt.Key_Enter, self._enter),
                           (Qt.Key_Backspace, self.undo_sketch_point), (Qt.Key_A, self.toggle_arc)):
             QShortcut(QKeySequence(key), self.view, activated=slot, context=Qt.WidgetWithChildrenShortcut)
+
+        from aeroflowsim.gui.steps.geometry3d import Geometry3DPage
+        self.page3d = Geometry3DPage(window)           # the 3D workspace (templates with workspace_settings_3d)
+        self.view3d = self.page3d.view                 # (closed by the window like the other views)
+        self.pages = QStackedWidget()
+        self.pages.addWidget(self.page2d)
+        self.pages.addWidget(self.page3d)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.pages)
+
+    @property
+    def is_3d(self) -> bool:
+        """True while the page shows the 3D workspace."""
+        return self.pages.currentWidget() is self.page3d
+
+    def set_dark(self, dark):
+        self.view.set_dark(dark)
+        self.page3d.set_dark(dark)
 
     def _enter(self):
         if self.tool is not None and not self.sketch_entry.hasFocus():
@@ -263,6 +285,8 @@ class GeometryPage(QWidget):
         for target, name in self.icon_targets:
             target.setIcon(icon(name))
         self.view.update_icons()
+        if hasattr(self, "page3d"):
+            self.page3d.update_icons()
 
     def _build_sketch_bar(self):
         """The bar shown while drawing: what to do, a box for typed values, options, Finish, Stop."""
@@ -303,6 +327,15 @@ class GeometryPage(QWidget):
 
     def refresh(self):
         project = self.project
+        if project is not None and has_workspace_3d(project.case):
+            self.pages.setCurrentWidget(self.page3d)
+            self.page3d.refresh()
+            self.built, self.document, self._key = self.page3d.built, self.page3d.document, None
+            return
+        self.pages.setCurrentWidget(self.page2d)
+        if self.page3d.built is not None:
+            self.page3d.forget()
+            self.built, self._key = None, None
         if project is None:
             self.view.clear()
             return

@@ -666,6 +666,19 @@ def write_cgns_3d(mesh: Mesh, path) -> Path:
     return path
 
 
+def write_mesh(mesh: Mesh, path, gmsh_version="2.2") -> Path:
+    """Write a mesh in the format of the file name's ending: .msh (Gmsh), .su2, .cgns or .vtu (ParaView)."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".vtu":
+        from aeroflowsim.vtk import mesh_cell_data, write_vtu
+        return write_vtu(path, mesh, mesh_cell_data(mesh))
+    writers = {".msh": lambda m, p: write_gmsh(m, p, gmsh_version), ".su2": write_su2, ".cgns": write_cgns}
+    if suffix not in writers:
+        raise ValueError(f"'{suffix}' is not a mesh format AeroFlowSim writes. Use .msh, .su2, .cgns or .vtu.")
+    return writers[suffix](mesh, path)
+
+
 EXPORTERS = {"Gmsh 2.2 (.msh)": (".msh", lambda m, p: write_gmsh(m, p, "2.2")),
              "Gmsh 4.1 (.msh)": (".msh", lambda m, p: write_gmsh(m, p, "4.1")),
              "SU2 (.su2)": (".su2", write_su2), "CGNS (.cgns)": (".cgns", write_cgns)}

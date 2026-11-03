@@ -192,7 +192,52 @@ def mesh_summary_rows(mesh, quality, prefs=None):
         if key in mesh.info:
             unit = "m" if key == "reference_length" else "m²"
             rows.append((key.replace("_", " "), " ".join(readable(mesh.info[key], unit, prefs=prefs))))
+    if mesh.dim == 3:                               # 3D: cells of every type, tetrahedron quality, prism layers
+        from aeroflowsim.mesh import CELL_TYPES
+        kinds, counts = np.unique(mesh.cell_types, return_counts=True)
+        rows += [(f"{CELL_TYPES[int(k)].name}s", f"{int(n):,}") for k, n in zip(kinds, counts)]
+        if "min_dihedral_angle" in quality:
+            rows.append(("smallest dihedral angle", f"{quality['min_dihedral_angle']:.3g}°"))
+        if mesh.info.get("first_layer_height"):
+            rows += [("first prism layer", " ".join(readable(mesh.info["first_layer_height"], "m", prefs=prefs))),
+                     ("prism layers", str(mesh.info.get("n_layers", "")))]
     return rows
+
+
+# ---- 3D meshes in the Mesh step: a cut through the volume, the worst cell --------------------------------
+
+LOWER_IS_WORSE = ("Cell size", "Smallest angle", "Smallest dihedral angle")   # the others: higher is worse
+
+
+def mesh_section(mesh, axis, fraction):
+    """(origin (3,), normal (3,)) of a plane through a mesh, normal along axis "x" / "y" / "z", at `fraction` (0..1)
+    of its bounding box; None for any other axis (no cut)."""
+    if axis not in ("x", "y", "z"):
+        return None
+    k = "xyz".index(axis)
+    lo, hi = mesh.nodes.min(axis=0), mesh.nodes.max(axis=0)
+    origin = 0.5 * (lo + hi)
+    origin[k] = lo[k] + float(np.clip(fraction, 0.0, 1.0)) * (hi[k] - lo[k])
+    normal = np.zeros(3)
+    normal[k] = 1.0
+    return origin, normal
+
+
+def cells_cut_by_plane(mesh, origin, normal) -> np.ndarray:
+    """Indices of the cells the plane passes through (some corner on each side): one layer of whole cells, which is
+    how a cut through a volume mesh is shown (the cells keep their real shapes, unlike a smooth slice)."""
+    nodes = mesh.cell_nodes
+    d = (mesh.nodes - np.asarray(origin)) @ np.asarray(normal)              # signed distance of every node [m]
+    dist = np.where(nodes >= 0, d[np.maximum(nodes, 0)], np.nan)
+    return np.flatnonzero((np.nanmin(dist, axis=1) <= 0.0) & (np.nanmax(dist, axis=1) >= 0.0))
+
+
+def worst_cell(values, name) -> int:
+    """The index of the worst cell for a quality field (largest value, or smallest for sizes and angles)."""
+    v = np.asarray(values, dtype=float)
+    if not np.isfinite(v).any():
+        return -1
+    return int(np.nanargmin(v) if name in LOWER_IS_WORSE else np.nanargmax(v))
 
 
 def mesh_1d_rows(mesh, prefs=None):
