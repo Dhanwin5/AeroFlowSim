@@ -9,7 +9,7 @@
 # (residual drop of 8 orders: value 1 = converged).
 
 title = "30 deg ramp at Mach 2 on tetrahedra vs hexahedra (detached shock)"
-case = "tools/robustness_cases.py"
+case = "aeroflowsim/simple_meshes.py"     # box_mesh_3d; the run itself: tools/robustness_cases.py (ramp)
 
 [[reference]]
 id = "standoff_ratio"
@@ -24,5 +24,6 @@ id = "converged"
 quantity = "Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no"
 value = 1.0
 unit = "-"
-tolerance_percent = 0.0
+tolerance_percent = 0.01      # registered as 0; the framework needs > 0. For a yes / no value (1 or 0) any tolerance
+                              # below 100 % gives the same verdict, so this changes nothing (5 Nov 2026, after the run)
 source = "The convergence criterion of the solver"

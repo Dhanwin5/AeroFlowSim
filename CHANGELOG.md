@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased - Robust second order on triangles and tetrahedra (November 2026)
+
+- New gradient **Green-Gauss (node values)**: a vertex-neighbour stencil, exact for linear fields on any cell type
+  (Numba kernel). Shock regions on tetrahedra no longer stall: a 30 deg ramp went from a stall at 0.26 to 4e-8, and
+  the 10 deg cone converges. 3D MMS order on tetrahedra rose from 1.75 to 1.86.
+- New Numerics input **Implicit update limit** (default 0 = off): no cell's density, energy or pressure changes by more
+  than this fraction per LU-SGS iteration. Runs on triangles and tetrahedra no longer diverge in the near-vacuum wake
+  behind blunt bodies. Counted in the run info.
+- 3D template defaults: node-value gradients and an update limit of 0.2. For 2D meshes with more than half triangles,
+  *Suggested numerics* proposes the same. 2D defaults are unchanged.
+- The run log and the command line name the active numerics at every run start.
+- Old projects stay up to date: an input added later is left out of the fingerprint while it holds its old value.
+- Validation:
+  - pass: cone Cp (+1.7 %, converged), tetrahedral ramp convergence;
+  - shortfalls: bow-shock stand-off on simplex meshes (3D sphere +10.7 %, 2D cylinder on triangles +8.4 %), cone shock
+    angle (+7 %, +5 % on a finer mesh), ramp tet/hex stand-off on a 16-cell box (pre-registered tolerance too tight).
+- Measurement fixes: the stand-off of the sphere and cylinder cases is read from the interpolated field along the
+  stagnation line (the cell-band method interpolated across gaps).
+- `tools/robustness_cases.py`: the reproduction set with a worst-cell diagnosis.
+
 ## Unreleased - 3D Euler solver (November 2026)
 
 ### 3D flow solver
