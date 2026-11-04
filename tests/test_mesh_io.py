@@ -194,13 +194,15 @@ def test_unreadable_files_give_clear_messages(tmp_path):
         mesh_io.read_mesh_file(odd)
     three_d = tmp_path / "cube.su2"
     three_d.write_text("NDIME= 3\nNELEM= 0\nNPOIN= 0\nNMARK= 0\n")
-    with pytest.raises(ValueError, match="3D SU2 mesh"):
+    with pytest.raises(ValueError, match="not a complete SU2 mesh"):     # 3D files are read since the 3D Euler stage
         mesh_io.read_mesh_file(three_d)
     tet = tmp_path / "tet.msh"
     tet.write_text("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n$Nodes\n4\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n$EndNodes\n"
                    "$Elements\n1\n1 4 2 1 1 1 2 3 4\n$EndElements\n")
-    with pytest.raises(ValueError, match="3D mesh"):
-        mesh_io.read_mesh_file(tet)
+    raw = mesh_io.read_mesh_file(tet)                                       # a 3D mesh without boundary tags
+    assert raw.dim == 3
+    with pytest.raises(ValueError, match=r"4 boundary face\(s\) of the mesh have no tag"):
+        mesh_io.mesh_from_raw(raw)
     broken = tmp_path / "x.cgns"
     broken.write_text("not hdf5")
     with pytest.raises(ValueError, match="not a CGNS/HDF5"):

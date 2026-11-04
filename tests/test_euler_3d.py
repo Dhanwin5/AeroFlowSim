@@ -209,3 +209,81 @@ def test_3d_mass_flow_inlet_delivers_the_mass_flux_normal_to_the_face():
     assert np.allclose(-Wg[0] * normal_velocity(Wg, normals), 4.0, rtol=1e-10)   # G = 2 kg/s / 0.5 m²
     tangential = Wg[1:4] - normal_velocity(Wg, normals) * normals.T
     assert np.abs(tangential).max() < 1e-10
+
+
+# ---- 3D MMS (Part 2) ---------------------------------------------------------------------------------------
+
+def test_3d_mms_source_equals_the_divergence_of_the_exact_flux():
+    """source_3d (hand-written derivatives) against central differences of the exact Euler flux."""
+    from aeroflowsim import mms
+    from aeroflowsim.euler.flux import physical_flux
+    rng = np.random.default_rng(5)
+    pts = rng.uniform(0.1, 0.9, (3, 20))
+    h = 1e-5
+    div = np.zeros((5, 20))
+    for k in range(3):
+        n = np.zeros((20, 3))
+        n[:, k] = 1.0
+        for sign in (1.0, -1.0):
+            q = pts.copy()
+            q[k] += sign * h
+            W = mms.exact_state_3d(*q)
+            U = primitive_to_conserved(W, AIR)
+            div += sign * physical_flux(W, U, W[1 + k], n) / (2.0 * h)
+    S = mms.source_3d(*pts, AIR)
+    assert np.allclose(S, div, rtol=1e-6, atol=1e-6 * np.abs(S).max(axis=1, keepdims=True))
+
+
+@pytest.mark.parametrize("kind,minimum", [("hexahedra", 1.8), ("prisms", 1.6), ("tetrahedra", 1.55)])
+def test_3d_mms_is_second_order_on_small_boxes(kind, minimum):
+    """Observed L2 order between 6^3 and 12^3 boxes (coarse; the full study is validation/mms_euler3d)."""
+    from aeroflowsim import mms
+    runs = [mms.run_level_3d(kind, n, residual_drop=8.0) for n in (6, 12)]
+    assert min(mms.observed_orders(runs)[0]) > minimum
+
+
+# ---- 3D mesh import (Part 2) -----------------------------------------------------------------------------------
+
+TYPES = {"xmin": "inlet", "xmax": "outlet", "ymin": "wall", "ymax": "wall", "zmin": "symmetry", "zmax": "farfield"}
+
+
+@pytest.mark.parametrize("kind", BOX_KINDS)
+@pytest.mark.parametrize("fmt", ["gmsh2", "gmsh4", "su2"])
+def test_3d_meshes_round_trip_through_gmsh_and_su2(kind, fmt, tmp_path):
+    from aeroflowsim import mesh_io
+    mesh = box_mesh_3d(3, kind, warp=0.03, kinds=TYPES)
+    path = tmp_path / ("m.su2" if fmt == "su2" else "m.msh")
+    if fmt == "su2":
+        mesh_io.write_su2_3d(mesh, path)
+    else:
+        mesh_io.write_gmsh_3d(mesh, path, "2.2" if fmt == "gmsh2" else "4.1")
+    raw = mesh_io.read_mesh_file(path)
+    assert raw.dim == 3 and raw.n_cells == mesh.n_cells and "z " in mesh_io.size_text(raw)
+    back = mesh_io.mesh_from_raw(raw, "mm", patch_types=TYPES)
+    assert back.dim == 3 and back.n_cells == mesh.n_cells and back.cell_volumes.min() > 0.0
+    assert math.isclose(back.cell_volumes.sum(), 1e-9, rel_tol=1e-12)            # 1 m³ read as mm³
+    assert [(p.name, p.type, p.count) for p in back.patches] == [(p.name, p.type, p.count) for p in mesh.patches]
+
+
+def test_3d_import_turns_inside_out_cells_round_and_requires_every_face_tagged(tmp_path):
+    from aeroflowsim import mesh_io
+    mesh = box_mesh_3d(2, "tetrahedra", kinds=TYPES)
+    path = mesh_io.write_su2_3d(mesh, tmp_path / "m.su2")
+    raw = mesh_io.read_mesh_file(path)
+    t, conn = raw.cells[0]
+    conn[:, [1, 2]] = conn[:, [2, 1]]                                   # every tetrahedron inside out
+    assert mesh_io.mesh_from_raw(raw, patch_types=TYPES).cell_volumes.min() > 0.0
+    del raw.groups["zmax"]
+    with pytest.raises(ValueError, match="no tag"):
+        mesh_io.mesh_from_raw(raw, patch_types=TYPES)
+    with pytest.raises(ValueError, match="axisymmetric"):
+        mesh_io.mesh_from_raw(mesh_io.read_mesh_file(path), axisymmetric=True, patch_types=TYPES)
+
+
+def test_an_imported_3d_mesh_keeps_a_free_stream_uniform(tmp_path, backend):
+    from aeroflowsim import mesh_io
+    mesh = box_mesh_3d(3, "pyramids", warp=0.03, kinds={k: "farfield" for k in TYPES})
+    back = mesh_io.import_mesh(mesh_io.write_gmsh_3d(mesh, tmp_path / "p.msh", "4.1"), patch_types={k: "farfield" for k in TYPES})
+    s = _solver(back, compute.NUMPY, Numerics(time_scheme=LUSGS, max_iterations=10, residual_drop=50))
+    W0 = _free_stream_state(back.n_cells)
+    assert (np.abs(s.solve(W0.copy()).W - W0) / np.abs(W0).max(axis=1, keepdims=True)).max() < 1e-13

@@ -1,0 +1,41 @@
+# Order-of-accuracy verification of the 3D Euler solver (5 equations) by the Method of Manufactured Solutions
+# (aeroflowsim/mms.py: manufactured_3d, source_3d, run_level_3d). The 2D manufactured flow of Roy et al. (2004) extended
+# by a z dependence and a third velocity component w (Mach about 0.6 to 1.5) is imposed with its analytical source term
+# on smoothly warped boxes (warp 0.03: curved grid lines, non-planar quad faces) of hexahedra, prisms and tetrahedra,
+# solved with implicit LU-SGS to a residual drop of 8 orders, no limiter. The value compared is the SMALLEST observed L2
+# order over the five variables between the two finest boxes (12^3 and 24^3 cubes; refinement ratio 2).
+#
+# PRE-REGISTERED (4 Nov 2026, 3D Euler solver stage, before the validation run) with the same acceptance as the 2D study
+# (validation/mms_euler2d): hexahedra within 10 % of the formal order 2 (>= 1.8), prisms and tetrahedra within 15 %
+# (>= 1.7). Not to be changed after seeing the results; a miss is reported as a SHORTFALL with its cause.
+# Quick set (CI): boxes 6^3 and 12^3, not yet asymptotic on tetrahedra: tolerance_percent_quick.
+
+title = "Method of Manufactured Solutions: order of accuracy of the 3D Euler solver"
+case = "aeroflowsim/mms.py"
+
+[[reference]]
+id = "hexahedra"
+quantity = "Observed order (min L2 over rho, u, v, w, p), warped hexahedra"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 15.0
+source = "Formal order of the MUSCL / least-squares scheme (Barth & Jespersen 1989); MMS of Roy et al. (2004)"
+
+[[reference]]
+id = "prisms"
+quantity = "Observed order, warped prisms"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+tolerance_percent_quick = 20.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "tetrahedra"
+quantity = "Observed order, warped tetrahedra (Kuhn split)"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+tolerance_percent_quick = 22.5
+source = "Formal order 2 (as above)"

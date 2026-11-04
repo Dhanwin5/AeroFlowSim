@@ -93,7 +93,7 @@ def cylinder_front_mesh(n_r=60, n_theta=80, radius=0.5, outer=3.5, stretch=1.0):
 
 # ---- 3D boxes (solver verification: free-stream preservation, MMS) -------------------------------------
 
-BOX_KINDS = ("hexahedra", "prisms", "tetrahedra", "hex-prism")
+BOX_KINDS = ("hexahedra", "prisms", "tetrahedra", "hex-prism", "pyramids")
 
 
 def box_mesh_3d(n=4, kind="hexahedra", lo=(0.0, 0.0, 0.0), hi=(1.0, 1.0, 1.0), warp=0.0, kinds=None, ny=None,
@@ -103,12 +103,13 @@ def box_mesh_3d(n=4, kind="hexahedra", lo=(0.0, 0.0, 0.0), hi=(1.0, 1.0, 1.0), w
     kind: "hexahedra"; "prisms" (each cube cut along the diagonal of its xy face, extruded in z);
           "tetrahedra" (Kuhn's split of each cube into 6 tetrahedra along its main diagonal: the same split in
           every cube, so neighbouring cubes share their face triangles); "hex-prism" (hexahedra for x < half the
-          box, prisms beyond: they meet on quad faces, so the mesh is conformal - a mixed mesh).
+          box, prisms beyond: they meet on quad faces, so the mesh is conformal - a mixed mesh); "pyramids" (each cube
+          cut into 6 pyramids from an extra node at its centre).
     warp: smooth distortion: interior nodes move by warp x (box size) x sin(2 pi s) sin(2 pi t) sin(2 pi w), the
           same curved grid on every level (MMS studies; quad faces then are non-planar, as in real meshes).
     Patches: xmin, xmax, ymin, ymax, zmin, zmax; types from kinds (default xmin inlet, xmax outlet, others wall).
     """
-    from aeroflowsim.mesh import HEXAHEDRON, TETRA, WEDGE
+    from aeroflowsim.mesh import HEXAHEDRON, PYRAMID, TETRA, WEDGE
     if kind not in BOX_KINDS:
         raise ValueError(f"Unknown box kind '{kind}'; use one of {', '.join(BOX_KINDS)}.")
     nx, ny, nz = n, ny or n, nz or n
@@ -120,6 +121,7 @@ def box_mesh_3d(n=4, kind="hexahedra", lo=(0.0, 0.0, 0.0), hi=(1.0, 1.0, 1.0), w
         bump = np.sin(2.0 * np.pi * S) * np.sin(2.0 * np.pi * T) * np.sin(2.0 * np.pi * Q)
         X, Y, Z = (A + warp * (hi[k] - lo[k]) * bump for k, A in enumerate((X, Y, Z)))
     nodes = np.column_stack([X.ravel(), Y.ravel(), Z.ravel()])
+    extra = []                    # cube centres (pyramids only)
 
     def nid(i, j, k):
         return (i * (ny + 1) + j) * (nz + 1) + k
@@ -135,6 +137,12 @@ def box_mesh_3d(n=4, kind="hexahedra", lo=(0.0, 0.0, 0.0), hi=(1.0, 1.0, 1.0), w
                 if cell_kind == "hexahedra":
                     cells.append(c)
                     types.append(HEXAHEDRON)
+                elif cell_kind == "pyramids":
+                    centre = len(nodes) + len(extra)
+                    extra.append(nodes[c].mean(axis=0))
+                    for face in ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)):
+                        cells.append([c[f] for f in face] + [centre, -1, -1, -1])
+                        types.append(PYRAMID)
                 elif cell_kind == "prisms":
                     # two triangles of the bottom face along the diagonal 0-2, each extruded to the top face
                     for a, b, d in ((0, 1, 2), (0, 2, 3)):
@@ -153,6 +161,8 @@ def box_mesh_3d(n=4, kind="hexahedra", lo=(0.0, 0.0, 0.0), hi=(1.0, 1.0, 1.0), w
                         cells.append(tet + [-1] * 4)
                         types.append(TETRA)
     cells, types = np.array(cells), np.array(types)
+    if extra:
+        nodes = np.vstack([nodes, extra])
     _orient_cells(nodes, types, cells)
 
     kinds = {"xmin": "inlet", "xmax": "outlet", "ymin": "wall", "ymax": "wall", "zmin": "wall", "zmax": "wall",
@@ -182,14 +192,18 @@ def _all_boundary_faces(types, cells):
 
 def _orient_cells(nodes, types, cells):
     """Reorder the nodes of any cell whose VTK ordering gives a negative volume (in place)."""
-    from aeroflowsim.mesh import HEXAHEDRON, TETRA, WEDGE
-    for t, flip in ((TETRA, [0, 2, 1, 3]), (WEDGE, [0, 2, 1, 3, 5, 4]), (HEXAHEDRON, [0, 3, 2, 1, 4, 7, 6, 5])):
+    from aeroflowsim.mesh import HEXAHEDRON, PYRAMID, TETRA, WEDGE
+    for t, flip in ((TETRA, [0, 2, 1, 3]), (WEDGE, [0, 2, 1, 3, 5, 4]), (HEXAHEDRON, [0, 3, 2, 1, 4, 7, 6, 5]),
+                    (PYRAMID, [0, 3, 2, 1, 4])):
         sel = np.flatnonzero(types == t)
         if not len(sel):
             continue
         k = len(flip)
         p = nodes[cells[sel, :k]]
-        if t == TETRA:
+        if t == PYRAMID:     # VTK pyramid: the right-hand normal of the base 0-1-2(-3) points to the apex 4
+            n = np.cross(p[:, 2] - p[:, 0], p[:, 3] - p[:, 1])
+            bad = np.einsum("ij,ij->i", n, p[:, 4] - p[:, :4].mean(axis=1)) < 0.0
+        elif t == TETRA:
             vol = np.einsum("ij,ij->i", np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), p[:, 3] - p[:, 0])
             bad = vol < 0.0      # VTK tetrahedron: (1-0) x (2-0) points towards node 3
         else:

@@ -11,8 +11,9 @@ IMPORT in three steps, so a GUI or script can look at the file before it builds 
     mesh = mesh_from_raw(raw, unit, axisymmetric, patch_types)    the face-based Mesh (aeroflowsim/mesh.py), quality
                                             checks run afterwards as for every mesh (aeroflowsim/checks.py)
 
-Only 2D meshes of triangles and quadrilaterals are read (the solver is 2D / axisymmetric now); 3D files give a message that
-says so. Every boundary edge of the mesh must carry a tag; tagged edges inside the mesh (internal zones) are ignored.
+2D meshes (triangles, quadrilaterals; tagged boundary edges) and, from Gmsh and SU2 files, 3D meshes (tetrahedra, pyramids,
+prisms, hexahedra; tagged boundary triangles and quadrilaterals) are read; RawMesh.dim says which. Every boundary edge (2D) or
+face (3D) must carry a tag; tagged edges or faces inside the mesh (internal zones) are ignored. CGNS and Fluent: 2D only.
 
 EXPORT: write_gmsh (version 2.2 or 4.1, ASCII), write_su2, write_cgns (HDF5, boundary edges as BAR_2 sections named by
 patch, plus a ZoneBC) take a Mesh; the patch names become the physical groups / markers / section names, so importing the
@@ -52,6 +53,7 @@ class RawMesh:
     format: str = ""                                    # "Gmsh", "SU2", "CGNS", "Fluent"
     source: str = ""                                    # file name
     hints: dict = field(default_factory=dict)           # {tag name: boundary type read from the file, if it says}
+    dim: int = 2                                        # 2, or 3: points (N, 3), groups (m, 4) faces (triangles: -1)
 
     @property
     def n_cells(self) -> int:
@@ -113,6 +115,8 @@ def read_gmsh(path) -> RawMesh:
         m = meshio.read(str(path), file_format="gmsh")
     except Exception as error:
         raise ValueError(f"{Path(path).name} is not a Gmsh .msh file AeroFlowSim can read: {error}") from None
+    if any(b.type in GMSH_VOLUME for b in m.cells):
+        return _read_gmsh_3d(m, Path(path).name)
     names = {int(v[0]): k for k, v in m.field_data.items() if int(v[1]) == 1}
     physical = m.cell_data.get("gmsh:physical")
     cells, groups = [], {}
@@ -127,11 +131,42 @@ def read_gmsh(path) -> RawMesh:
         elif block.type in ("vertex", "line3", "triangle6", "quad8", "quad9"):
             continue
         else:
-            raise ValueError(f"{Path(path).name} contains {block.type} cells: it is a 3D mesh. AeroFlowSim reads only 2D "
-                             "meshes (triangles and quadrilaterals) now.")
+            raise ValueError(f"{Path(path).name} contains {block.type} cells, which AeroFlowSim does not read (linear "
+                             "triangles and quadrilaterals in 2D; tetrahedra, pyramids, prisms, hexahedra in 3D).")
     if not cells:
         raise ValueError(f"{Path(path).name} has no 2D cells (triangles or quadrilaterals).")
     return RawMesh(_flat_2d(m.points, Path(path).name), cells, {k: np.vstack(v) for k, v in groups.items()}, "Gmsh")
+
+
+GMSH_VOLUME = {"tetra": TETRA, "pyramid": PYRAMID, "wedge": WEDGE, "hexahedron": HEXAHEDRON}   # meshio names
+
+
+def _read_gmsh_3d(m, name) -> RawMesh:
+    """The 3D part of read_gmsh: volume cells, and the tagged surface triangles / quadrilaterals as boundary faces.
+
+    meshio returns the cells in VTK node order for these four types (it converts Gmsh's prism order; tested by a round
+    trip through write_gmsh_3d), and mesh_from_raw still turns any inside-out cell round."""
+    names = {int(v[0]): k for k, v in m.field_data.items() if int(v[1]) == 2}
+    physical = m.cell_data.get("gmsh:physical")
+    cells, groups = [], {}
+    for k, block in enumerate(m.cells):
+        data = np.asarray(block.data, dtype=np.int64)
+        if block.type in GMSH_VOLUME:
+            cells.append((GMSH_VOLUME[block.type], data))
+        elif block.type in ("triangle", "quad"):
+            tags = physical[k] if physical is not None else np.zeros(len(data), dtype=int)
+            faces = np.full((len(data), 4), -1, dtype=np.int64)
+            faces[:, :data.shape[1]] = data
+            for tag in np.unique(tags):
+                tag_name = names.get(int(tag), f"tag_{int(tag)}" if int(tag) else "untagged")
+                groups.setdefault(tag_name, []).append(faces[tags == tag])
+        elif block.type in ("vertex", "line", "line3"):
+            continue
+        else:
+            raise ValueError(f"{name} contains {block.type} cells (high-order or unknown). AeroFlowSim reads linear "
+                             "tetrahedra, pyramids, prisms and hexahedra.")
+    return RawMesh(np.asarray(m.points, dtype=float)[:, :3], cells, {k: np.vstack(v) for k, v in groups.items()},
+                   "Gmsh", dim=3)
 
 
 def _clean_lines(path):
@@ -142,10 +177,11 @@ def _clean_lines(path):
 
 
 def read_su2(path) -> RawMesh:
-    """SU2 native .su2 (NDIME, NELEM, NPOIN, NMARK / MARKER_TAG / MARKER_ELEMS)."""
+    """SU2 native .su2 (NDIME, NELEM, NPOIN, NMARK / MARKER_TAG / MARKER_ELEMS), 2D or 3D (SU2 uses VTK numbers and
+    node orders, so the cells need no reordering)."""
     lines = list(_clean_lines(path))
     name = Path(path).name
-    i, ndime, cells, points, groups = 0, 2, {TRIANGLE: [], QUAD: []}, None, {}
+    i, ndime, cells, points, groups = 0, 2, {}, None, {}
 
     def value(line):
         return line.split("=", 1)[1].split()
@@ -155,19 +191,18 @@ def read_su2(path) -> RawMesh:
         key = line.split("=", 1)[0].strip().upper()
         if key == "NDIME":
             ndime = int(value(line)[0])
-            if ndime != 2:
-                raise ValueError(f"{name} is a {ndime}D SU2 mesh. AeroFlowSim reads only 2D meshes now.")
+            if ndime not in (2, 3):
+                raise ValueError(f"{name}: NDIME = {ndime}; a mesh is 2D or 3D.")
         elif key == "NELEM":
             n = int(value(line)[0])
+            allowed = SU2_CELLS[ndime]
             for row in lines[i + 1:i + 1 + n]:
                 v = [int(x) for x in row.split()]
-                if v[0] == 5:
-                    cells[TRIANGLE].append(v[1:4])
-                elif v[0] == 9:
-                    cells[QUAD].append(v[1:5])
-                else:
-                    raise ValueError(f"{name} has an element of VTK type {v[0]}; only triangles (5) and quadrilaterals "
-                                     "(9) are read.")
+                if v[0] not in allowed:
+                    kinds = ("triangles (5) and quadrilaterals (9)" if ndime == 2
+                             else "tetrahedra (10), hexahedra (12), prisms (13) and pyramids (14)")
+                    raise ValueError(f"{name} has an element of VTK type {v[0]}; in a {ndime}D mesh only {kinds} are read.")
+                cells.setdefault(v[0], []).append(v[1:1 + SU2_NODES[v[0]]])
             i += n
         elif key == "NPOIN":
             n = int(value(line)[0])
@@ -176,18 +211,25 @@ def read_su2(path) -> RawMesh:
         elif key == "MARKER_TAG":
             tag = value(line)[0]
             count = int(value(lines[i + 1])[0])
-            edges = []
+            rows = []
+            boundary_types = (3,) if ndime == 2 else (5, 9)
             for row in lines[i + 2:i + 2 + count]:
                 v = [int(x) for x in row.split()]
-                if v[0] != 3:
-                    raise ValueError(f"{name}: marker '{tag}' has an element that is not a line (VTK type {v[0]}).")
-                edges.append(v[1:3])
-            groups[tag] = np.array(edges, dtype=np.int64).reshape(-1, 2)
+                if v[0] not in boundary_types:
+                    raise ValueError(f"{name}: marker '{tag}' has an element of VTK type {v[0]}, not a boundary "
+                                     f"{'line' if ndime == 2 else 'triangle or quadrilateral'}.")
+                nodes = v[1:1 + SU2_NODES[v[0]]]
+                rows.append(nodes if ndime == 2 else nodes + [-1] * (4 - len(nodes)))
+            groups[tag] = np.array(rows, dtype=np.int64).reshape(-1, 2 if ndime == 2 else 4)
             i += 1 + count
         i += 1
-    if points is None or not (cells[TRIANGLE] or cells[QUAD]):
+    if points is None or not cells:
         raise ValueError(f"{name} is not a complete SU2 mesh (no points or no elements).")
-    return RawMesh(points, [(t, np.array(c, dtype=np.int64)) for t, c in cells.items() if c], groups, "SU2")
+    return RawMesh(points, [(t, np.array(c, dtype=np.int64)) for t, c in cells.items()], groups, "SU2", dim=ndime)
+
+
+SU2_CELLS = {2: (TRIANGLE, QUAD), 3: (TETRA, HEXAHEDRON, WEDGE, PYRAMID)}     # VTK numbers SU2 uses
+SU2_NODES = {TRIANGLE: 3, QUAD: 4, TETRA: 4, HEXAHEDRON: 8, WEDGE: 6, PYRAMID: 5, 3: 2}
 
 
 def read_fluent(path) -> RawMesh:
@@ -695,7 +737,8 @@ def tag_table(raw: RawMesh) -> list:
 def size_text(raw: RawMesh) -> str:
     """Extent of the mesh in the file's unit, to help choosing the unit: 'x -1 to 3, y 0 to 2'."""
     lo, hi = raw.points.min(axis=0), raw.points.max(axis=0)
-    return f"x {lo[0]:.6g} to {hi[0]:.6g}, y {lo[1]:.6g} to {hi[1]:.6g}"
+    text = f"x {lo[0]:.6g} to {hi[0]:.6g}, y {lo[1]:.6g} to {hi[1]:.6g}"
+    return text + (f", z {lo[2]:.6g} to {hi[2]:.6g}" if raw.points.shape[1] == 3 else "")
 
 
 def parse_tag_map(text) -> dict:
@@ -724,6 +767,10 @@ def mesh_from_raw(raw: RawMesh, unit="m", axisymmetric=False, patch_types=None) 
     if unit not in LENGTH_UNITS:
         raise ValueError(f"Unknown length unit '{unit}'. Use one of {', '.join(LENGTH_UNITS)}.")
     patch_types = dict(patch_types or {})
+    if raw.dim == 3:
+        if axisymmetric:
+            raise ValueError("A 3D mesh cannot be axisymmetric: choose 'Planar' (the 3D mesh is used as it is).")
+        return _mesh_from_raw_3d(raw, unit, patch_types)
     nodes = raw.points * LENGTH_UNITS[unit]
     width = 4
     cell_types = np.concatenate([np.full(len(c), t) for t, c in raw.cells])
@@ -796,6 +843,55 @@ def mesh_from_raw(raw: RawMesh, unit="m", axisymmetric=False, patch_types=None) 
     info = {"generator": "imported", "source": raw.source, "format": raw.format, "file_unit": unit,
             "axisymmetric": bool(axisymmetric)}
     return Mesh.from_cells(nodes, cell_types, cells, boundary, dim=2, axisymmetric=axisymmetric, info=info)
+
+
+def _mesh_from_raw_3d(raw: RawMesh, unit, patch_types) -> Mesh:
+    """The 3D part of mesh_from_raw: orientation check, boundary faces matched to the tags, unused points dropped."""
+    from aeroflowsim.mesh import MAX_CELL_NODES, _find_faces
+    from aeroflowsim.simple_meshes import _orient_cells
+    nodes = np.asarray(raw.points, dtype=float)[:, :3] * LENGTH_UNITS[unit]
+    cell_types = np.concatenate([np.full(len(c), t, dtype=np.int32) for t, c in raw.cells])
+    cells = np.full((len(cell_types), MAX_CELL_NODES), -1, dtype=np.int64)
+    k = 0
+    for t, c in raw.cells:
+        cells[k:k + len(c), :c.shape[1]] = c
+        k += len(c)
+    if cells.max() >= len(nodes) or cells.min() < -1:
+        raise ValueError("A cell refers to a node that does not exist: the file is damaged.")
+    _orient_cells(nodes, cell_types, cells)          # inside-out cells (mirrored node order) are turned round
+    face_nodes, _owner, neighbour = _find_faces(cell_types, cells)
+
+    def key(row):
+        return tuple(sorted(int(v) for v in row if v >= 0))
+    boundary_keys = {key(row) for row in face_nodes[neighbour < 0]}
+    tagged, missing = {}, set(boundary_keys)
+    for name, group in raw.groups.items():
+        rows = [key(r) for r in group]
+        on_boundary = np.array([r in boundary_keys for r in rows], dtype=bool)
+        if on_boundary.any():
+            tagged[name] = np.asarray(group)[on_boundary]
+            missing -= {r for r, ok in zip(rows, on_boundary) if ok}
+    if missing:
+        raise ValueError(f"{len(missing)} boundary face(s) of the mesh have no tag (named boundary). Tag every boundary "
+                         f"surface in the mesher. Tags found: {', '.join(raw.groups) or 'none'}.")
+    types, unknown = {}, []
+    for name in tagged:
+        kind = patch_types.get(name) or guess_patch_type(name, raw.hints.get(name))
+        if kind is None:
+            unknown.append(name)
+        elif kind not in PATCH_TYPES:
+            raise ValueError(f"Tag '{name}': '{kind}' is not a boundary type ({', '.join(PATCH_TYPES)}).")
+        else:
+            types[name] = kind
+    if unknown:
+        raise ValueError(f"Choose a boundary type ({', '.join(PATCH_TYPES)}) for the tag(s): {', '.join(unknown)}.")
+    used = np.unique(cells[cells >= 0])
+    renumber = np.full(len(nodes), -1, dtype=np.int64)
+    renumber[used] = np.arange(len(used))
+    cells = np.where(cells >= 0, renumber[np.maximum(cells, 0)], -1)
+    boundary = {name: (types[name], np.where(g >= 0, renumber[np.maximum(g, 0)], -1)) for name, g in tagged.items()}
+    info = {"generator": "imported", "source": raw.source, "format": raw.format, "file_unit": unit, "axisymmetric": False}
+    return Mesh.from_cells(nodes[used], cell_types, cells, boundary, dim=3, info=info)
 
 
 def import_mesh(path, unit="m", axisymmetric=False, patch_types=None) -> Mesh:

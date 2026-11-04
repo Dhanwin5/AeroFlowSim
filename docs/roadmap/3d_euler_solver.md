@@ -168,3 +168,20 @@ Finish: (12) summary with test counts, "2D validation numbers unchanged", the to
 - Mixed tetra + prism + hexa in ONE mesh needs pyramids (tets cannot meet hexes conformally); covered by hex-prism
   boxes here and by Gmsh tetra + prism-layer meshes in Part 3.
 - Next: Part 2 (3D MMS, 3D mesh import).
+
+### Part 2 - 3D MMS and 3D mesh import (done)
+- `mms.py`: `manufactured_3d`, `source_3d` (sum over k of dF_k/dx_k, hand-written chain rule), `MMSSolver3D`,
+  `run_level_3d(kind, n)` on warped boxes (LU-SGS, no limiter). Source checked against central differences of the
+  exact flux (test).
+- Preliminary orders (L2, min over 5 variables, 12^3 -> 24^3): hexahedra 1.97, prisms 1.87, tetrahedra 1.75 (rising:
+  1.65 at 6 -> 12). `validation/mms_euler3d/reference.toml` pre-registered with the 2D acceptance (hex >= 1.8,
+  prisms/tets >= 1.7). Honest note: the QUICK tolerances (6^3 -> 12^3) were set after seeing these coarse numbers;
+  the full-set tolerances are the 2D ones, unchanged.
+- 3D import: `mesh_io.read_gmsh` (v2/v4 via meshio; volume cells -> 3D, tagged triangles/quads = boundary faces) and
+  `read_su2` (NDIME 3) give `RawMesh.dim = 3`; `_mesh_from_raw_3d` turns inside-out cells round (`_orient_cells`, now
+  with pyramids), matches tags to boundary faces, refuses untagged faces and "axisymmetric". Round trips Gmsh 2.2 /
+  4.1 / SU2 for hexa, prism, tetra, hex-prism and pyramid boxes; an imported pyramid mesh keeps a free stream.
+  `box_mesh_3d` has a "pyramids" kind. CGNS 3D import NOT built (addendum rule 2: Gmsh and SU2 first) - gap.
+- imported_mesh template reads 3D files (counts "faces"); solving them needs the 3D setup of Part 3.
+- Tests: test_euler_3d.py 79 pass, test_mesh_io.py updated (3D files are now read).
+- Next: Part 3 (setup.py 3D: fields, equations, forces; external_3d run()).

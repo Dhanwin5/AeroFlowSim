@@ -47,7 +47,7 @@ def derived(params):
     rows = {}
     for row in mesh_io.tag_table(raw):
         kind = mapping.get(row["name"]) or row["guess"] or "NOT SET: choose a type"
-        rows[f"Boundary '{row['name']}'"] = (f"{kind} ({row['edges']} edges)", "")
+        rows[f"Boundary '{row['name']}'"] = (f"{kind} ({row['edges']} {'faces' if raw.dim == 3 else 'edges'})", "")
     return {"File format": (raw.format, ""), "Cells": (f"{raw.n_cells:,}", ""),
             "Size in the file's unit": (mesh_io.size_text(raw), ""), **rows}
 
