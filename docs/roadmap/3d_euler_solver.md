@@ -312,3 +312,11 @@ Pre-registered tolerances (commit ab89a0b, unchanged since - checked with git di
   tolerance for them).
 - Timing (validation/timing.md): the 126k sphere target NOT MET (robustness, not speed); memory 3.0-4.2 kB per cell.
 - Not done: slice timing on the 719k mesh; multiple zones (gap).
+
+### Part 8 - docs and finish (done)
+- Docs: theory manual 13h, user guide "3D runs and 3D results", developer guide "3D results", tutorial
+  sphere_mach3.md, external_3d README, gap register, CHANGELOG, next stage plan (low_mach_preconditioning.md).
+- Final checks: fast + GUI suite 1,167 passed, 1 skipped (one GUI test fixed: it expected "1020" where the app writes
+  "1,020" when Stop lands after iteration 999); quick validation: every 2D number identical to before the stage; full
+  3D set as in Part 7 (nozzle, MMS pass; sphere 3D and cone SHORTFALLS).
+- Pushed to origin/main. No tag, no release (addendum rule 13).

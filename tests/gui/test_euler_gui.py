@@ -168,7 +168,7 @@ def test_stop_keeps_the_flow_of_that_moment(qtbot, window, tmp_path):
     # Run again: it carries on from the next iteration (not from 1), and the plot keeps the earlier part
     stopped_at = result.iterations
     window.go_to("run")
-    assert window.pages["run"].run_button.text() == f"Continue (from iteration {stopped_at + 1})"
+    assert window.pages["run"].run_button.text() == f"Continue (from iteration {stopped_at + 1:,})"
     window.run_case()
     qtbot.waitUntil(lambda: len(window.runner.task.iterations) >= 5, timeout=60_000)
     assert window.runner.task.iterations[0] == stopped_at + 1
