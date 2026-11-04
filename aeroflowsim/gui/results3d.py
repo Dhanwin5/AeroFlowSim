@@ -163,7 +163,7 @@ class Results3DPanel(QWidget):
         for s in surfaces:
             if s.n_triangles:
                 self.view.add_mesh(_poly(s), scalars="value", cmap="turbo", clim=clim, show_scalar_bar=True,
-                                   scalar_bar_args={"title": title})
+                                   scalar_bar_args={"title": title, "color": colours["text"]})
         for line in lines:
             if len(line) > 1:
                 self.view.add_mesh(pv.lines_from_points(line), color=colours["outline"], line_width=2)

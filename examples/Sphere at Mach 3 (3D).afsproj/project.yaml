@@ -1,0 +1,61 @@
+format_version: 1
+aeroflowsim_version: 0.2.0a3
+template: external_3d
+template_title: Body in free stream (3D Euler)
+template_fingerprint: 92ba946f9b787278ccc46bbe742110e7eb954e3078fe25de5e2afecee36f358d
+created: '2026-11-04T14:09:02'
+modified: '2026-11-04T14:09:02'
+inputs:
+  body_shape: Sphere
+  diameter: 0.1
+  length: 0.2
+  domain_shape: Box
+  upstream: 2.0
+  downstream: 3.0
+  lateral: 2.0
+  domain_radius: 10.0
+  half_domain: true
+  quarter_domain: true
+  surface_size: 0.04
+  farfield_size: 0.5
+  size_growth: 1.25
+  curvature_cells: 24
+  inflation: false
+  first_layer_height: 0.0005
+  n_layers: 5
+  growth_rate: 1.2
+  gas: air
+  mach: 3.0
+  p_inf: 101325.0
+  T_inf: 288.15
+  alpha: 0.0
+  beta: 0.0
+  initialisation: Uniform (free stream)
+  reference_area: 0.0
+  reference_length: 0.0
+  mesh_only: false
+  boundaries: {}
+  cfl: 0.8
+  order: Second order (MUSCL)
+  first_order_iterations: 100
+  limiter: Venkatakrishnan
+  venkat_k: 1.0
+  freeze_limiter: 4.0
+  gradient: Green-Gauss
+  time_scheme: Implicit LU-SGS
+  max_iter: 8000
+  tol: 1.0e-06
+  monitor_tol: 0.0001
+  monitor_window: 300
+  carbuncle_fix: true
+steps: {}
+surfaces: []
+report_definitions: []
+custom_fields: {}
+scenes: {}
+xy_plots: {}
+init_patches: []
+interpolate_new_mesh: true
+animation:
+  record: false
+  every: 0

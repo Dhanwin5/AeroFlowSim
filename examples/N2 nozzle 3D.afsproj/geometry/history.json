@@ -1,0 +1,61 @@
+{
+ "format": 2,
+ "dimension": 3,
+ "axisymmetric": false,
+ "next_number": 7,
+ "operations": [
+  {
+   "id": "op1",
+   "type": "template_body",
+   "suppressed": true
+  },
+  {
+   "id": "op2",
+   "type": "template_enclosure_3d",
+   "suppressed": true
+  },
+  {
+   "id": "op3",
+   "type": "import_solid",
+   "suppressed": false,
+   "file": "geometry/conical_nozzle.step",
+   "unit": "file",
+   "role": "fluid"
+  },
+  {
+   "id": "op4",
+   "type": "name_faces",
+   "suppressed": false,
+   "faces": [
+    "op3:face1"
+   ],
+   "name": "inlet",
+   "kind": "inlet",
+   "inflation": false
+  },
+  {
+   "id": "op5",
+   "type": "name_faces",
+   "suppressed": false,
+   "faces": [
+    "op3:face5"
+   ],
+   "name": "outlet",
+   "kind": "outlet",
+   "inflation": false
+  },
+  {
+   "id": "op6",
+   "type": "name_faces",
+   "suppressed": false,
+   "faces": [
+    "op3:face2",
+    "op3:face3",
+    "op3:face4"
+   ],
+   "name": "wall",
+   "kind": "wall",
+   "inflation": true
+  }
+ ]
+}

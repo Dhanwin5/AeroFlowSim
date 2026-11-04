@@ -262,3 +262,24 @@ Finish: (12) summary with test counts, "2D validation numbers unchanged", the to
 - Not built: report-definition / surface tools of the 2D workspace for 3D (lines, planes as named surfaces), flux
   balance table check in 3D, slice timing on the 719k mesh (Part 7).
 - Next: Part 6 (examples, screenshots).
+
+### Part 6 - projects, command line, examples, screenshots (done) + the real cause of the Part 3 shortfall
+- ROOT CAUSE FOUND (supersedes Part 3 finding 3): the weighted least-squares gradient on TETRAHEDRA (only 4 face
+  neighbours; the nearby boundary-face point dominates the 1/d^2 weights) makes second-order runs oscillate or blow up
+  near detached shocks and in slow (plenum) regions. With Green-Gauss gradients and Venkatakrishnan K = 1, implicit
+  LU-SGS converges on every case that failed: 30 deg tet ramp 0.25 -> 2.1e-6; Mach 3 sphere (quarter, 2,370 cells)
+  converged 1e-6 in 1,250 iterations; STEP N2 nozzle (9,234 tets) residual 2.4e-6, mass in = out to 1.5e-6, thrust
+  two ways to 7e-6 (with least squares: inlet mass flow oscillating 49-77 mg/s). So external_3d defaults: LU-SGS (the
+  stage decision holds), Green-Gauss, K = 1, 100 first-order iterations. The 2D defaults are unchanged (bit for bit).
+  Gap: try Green-Gauss / an extended (vertex-neighbour) least-squares stencil on 2D triangles (the M3 cylinder on Gmsh
+  triangles diverges with the defaults); needs a re-validation of the 2D numbers.
+- Examples (tools/make_examples.py, now with a name filter so other examples are not rebuilt): "Sphere at Mach 3 (3D)"
+  (quarter domain, set up) and "N2 nozzle 3D" (example STEP nozzle imported as fluid, names accepted, solved: converged
+  in 10,474 iterations, 34 s, 4.2 MB; animation off and CSV/VTU copies removed - they were 21 MB of the first 25 MB).
+  N2 nozzle 3D vs the 2D axisymmetric example's coarse run: mass flow 68.09 vs 67.63 mg/s (+0.7 %; STEP mesh, not
+  the same discretisation).
+- CLI: run / report / export checked on a 3D project (Part 5). Screenshots: docs/screenshots/3d_euler (every page,
+  light and dark); fixed the dark-theme colour bar labels of the 3D view.
+- Seen in the screenshots, not fixed: the free-stream inputs (Mach, p, T, angles) stay visible for a nozzle project
+  where they do nothing (gap).
+- Next: Part 7 (validation, background, one job at a time).
