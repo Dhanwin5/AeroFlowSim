@@ -50,3 +50,17 @@ def test_patch_surface_probe_and_streamline():
     vel[0] = 100.0
     line = view3d.streamlines(mesh, vel, [(0.05, 0.5, 0.5)])[0]
     assert np.allclose(line[:, 1:], 0.5) and line[-1, 0] > 1.0
+
+
+def test_3d_node_values_of_pressure_use_the_pressure_on_the_boundary():
+    """Bug found in the 3D validation: boundary node values of p took row 3 (w in 3D) of the face states."""
+    from aeroflowsim.euler.boundary import BoundaryCondition
+    from aeroflowsim.gases import gas_model
+    from aeroflowsim.post.fields import node_values
+    from aeroflowsim.post.solution import Solution
+    mesh = box_mesh_3d(3, "tetrahedra", kinds={k: "wall" for k in ("xmin", "xmax", "ymin", "ymax", "zmin", "zmax")})
+    n = mesh.n_cells
+    fields = {"rho": np.full(n, 1.2), "u": np.full(n, 10.0), "v": np.zeros(n), "w": np.full(n, 3.0),
+              "p": np.full(n, 1e5)}
+    sol = Solution(mesh, fields, gas_model("air"), {p.name: BoundaryCondition("slip_wall") for p in mesh.patches})
+    assert np.allclose(node_values(sol, "p"), 1e5) and np.allclose(node_values(sol, "rho"), 1.2)

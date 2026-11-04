@@ -1168,6 +1168,75 @@ Checks before any run: a cell with V <= 0 is an **error** (the solver does not s
 angle below 5°, and a neighbour volume ratio above 10 (tetrahedra of equal edge length differ up to about 5 times in
 volume at a skewness of 0.8, and the prism / tetrahedron transition adds about 2) are warnings.
 
+## 13h. The 3D Euler solver (3D Euler solver stage)
+
+**One solver for 2D, axisymmetric and 3D.** The finite-volume code of section 12 was written with vectors of any length
+(the face normal n, the velocity u), so in 3D it solves five equations, U = (rho, rho u, rho v, rho w, rho E), with the
+same residual (`euler/solver.py`), the same rotated HLLC / HLLE flux (`euler/flux.py`), the same least-squares or
+Green-Gauss gradients, limiters and kernels. 2D keeps four equations and gives bit-for-bit the results it gave before.
+
+    V_i dU_i/dt = - sum_f F(W_L, W_R; n_f) A_f,      F = [rho u_n, rho u u_n + p n, (E + p) u_n]
+
+A 3D cell has 4 (tetrahedron), 5 (pyramid, prism) or 6 (hexahedron) faces; its centroid and volume come from the
+pyramid decomposition of section 7, the face area vector from the triangles round the face centre, which closes every
+cell exactly (sum of the outward area vectors = 0 to round-off) - the condition for **free-stream preservation**:
+a uniform flow at 10 deg incidence and 5 deg sideslip stays uniform to 1e-13 on warped boxes of every cell type
+(`tests/test_euler_3d.py`).
+
+**Boundary conditions in 3D** (`euler/boundary.py`) are written with the face normal and work unchanged: slip wall and
+symmetry mirror the normal velocity, u_g = u - 2 (u.n) n; the far field uses the Riemann invariants along n. The free
+stream has an angle of attack alpha (towards +y) and a sideslip beta (towards +z):
+
+    u = V cos(alpha) cos(beta),   v = V sin(alpha) cos(beta),   w = V sin(beta).
+
+Two 3D-only corrections (2D unchanged, so its validated numbers stay exact):
+1. **Far field at near-sonic outflow.** The Riemann state and the extrapolated state do not meet at normal Mach 1, so
+   faces whose normal Mach number hovers near 1 switch between them each iteration and the residual stalls (99.9 % of
+   a stalled residual sat in such cells). In 3D the two are blended over 0.9 <= u_n / c <= 1.1:
+   W_b = (1 - w) W_Riemann + w W_inside, w = clip((M_n - 0.9) / 0.2, 0, 1).
+2. **Residual normalisation.** Each equation's residual is divided by its largest value in the first five iterations.
+   A momentum component that is zero by symmetry starts at round-off and could never "drop"; in 3D each momentum norm is
+   at least 1e-3 times the largest momentum norm.
+
+**Gradients on tetrahedra** (the key finding of the stage). The weighted least-squares gradient uses the 4 face
+neighbours of a tetrahedron with weights 1/d^2; next to a boundary the boundary face centre, very close to the cell
+centre, dominates. Second-order runs then oscillated or blew up near detached shocks and in slow plenum regions (a
+30 deg ramp at Mach 2 stalled at 0.25 on tetrahedra but converged on hexahedra and prisms; a STEP nozzle's inlet mass
+flow oscillated by 25 %). The Green-Gauss gradient (face values = mean of the two cells; section 12) does not have
+this weakness: with it every such case converges with implicit LU-SGS (residual 1e-6, mass balance 1e-6). Also the
+classic Venkatakrishnan eps^2 = (K h / L)^3 scale^2 grows with the cell size h; 3D far-field cells are as large as the
+body, so K = 5 hardly limits there: the 3D template uses K = 1. 3D defaults: LU-SGS, Green-Gauss, Venkatakrishnan K = 1.
+
+**Verification.** MMS (`mms.py`, section 13.1) extended with a z dependence and a third velocity (source
+S = sum_k dF_k/dx_k by the chain rule, checked against central differences of the exact flux). Observed L2 order
+between 12^3 and 24^3 warped boxes: hexahedra 1.97, prisms 1.87, tetrahedra 1.75 (rising with refinement).
+A one-layer extrusion of a 2D mesh with symmetry sides gives the 2D residual to 1e-10 (first and second order).
+
+**Forces in 3D** (`euler/forces.py`, `body_forces_3d`). Over the wall faces: F = sum (p - p_inf) n A,
+M = sum r x (p - p_inf) n A about the moment point. Wind axes: drag direction d = (cos a cos b, sin a cos b, sin b),
+lift l = (-sin a, cos a, 0), side s = d x l; Cd, Cl, Cy = F.d, F.l, F.s / (q A_ref); CMx,y,z = M / (q A_ref L_ref) and
+the pitching moment Cm = -CMz (nose-up positive, as in 2D). **Symmetry planes**: a plane through the moment point with
+normal along axis k mirrors the body. F is a vector: F_k cancels, the other components double. M is an axial vector
+(it changes sign under a reflection differently): M_k doubles and the other components cancel. Applied once per plane
+(quarter domain: drag x 4). A closed body in uniform pressure gets F = M = 0 to round-off (test).
+Reference values (smart rule `reference_values_3d`): frontal area = sum over upstream-facing wall faces of n_x A
+(the shadow on the y-z plane; exact when x crosses the surface once per side) x 2 per symmetry plane; length = the
+largest extent of the walls across the planes; moments about a quarter of the length behind the front.
+
+**Nozzles in 3D** (`setup.nozzle_problem_3d`): mass flow and thrust exactly as in section 12 (exit plane, and wall +
+inlet), times 2 per symmetry plane; the wall radius r(x) = sqrt(y^2 + z^2) of the wall nodes gives the throat and the
+quasi-1D start. A 2D axisymmetric mesh revolved by 90 deg (`simple_meshes.revolve_axisymmetric`) has cross-sections
+smaller than the circle by the polygon factor n/(2 pi) sin(2 pi/n) for n segments round the axis (16 per quarter:
+-0.16 %).
+
+**3D post-processing** (`post/view3d.py`): slices and iso-surfaces by marching tetrahedra (each cell split into
+tetrahedra; in a tetrahedron the scalar s is linear, the surface crosses an edge at t = s_a / (s_a - s_b); one node on
+the other side gives a triangle, two a quadrilateral), only on the cells whose nodes straddle zero; 3D streamlines by
+Heun's method through the inverse-distance velocity.
+
+References: Blazek (2015) ch. 4, 6, 8; Barth & Jespersen (1989); Venkatakrishnan (1995); Roy et al. (2004);
+Sims (1964); Billig (1967); Anderson (2003) sec. 10.4.
+
 ## 14. New shapes, nozzle contours and intakes (Shapes, grids and mesh import stage, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,

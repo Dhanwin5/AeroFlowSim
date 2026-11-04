@@ -199,7 +199,7 @@ Export writes Gmsh (2.2 or 4.1), SU2 and CGNS, with the patch names as the bound
 
 ## 3D geometry and meshing
 
-The template **Body in free stream (3D, mesh only)** makes 3D meshes: tetrahedra in the volume and, if you want them,
+The template **Body in free stream (3D Euler)** makes 3D meshes: tetrahedra in the volume and, if you want them,
 prism layers on the walls. Its Geometry step is the **3D workspace**. The 3D flow solver comes in the next development
 stage; until then you can check the mesh here and export it for another solver.
 
@@ -249,6 +249,41 @@ SU2, CGNS), with the boundary names (2D and 3D meshes). From the command line,
 `python -m aeroflowsim export "<project>.afsproj" --mesh out.su2` writes its mesh (.msh, .su2, .cgns or .vtu).
 
 Tutorials: `docs/tutorials/sphere_in_a_box.md`, `docs/tutorials/nozzle_step_to_mesh.md`.
+
+## 3D runs and 3D results
+
+The template **Body in free stream (3D Euler)** (`external_3d`) solves the steady 3D Euler equations. Its Setup step
+has the free stream (gas, Mach, p, T, angle of attack, **sideslip**), the reference values (0 = taken from the walls:
+the frontal area and the body length, shown under the inputs), the boundary-condition table (filled from the face
+names of the 3D workspace) and the Numerics. The 3D defaults differ from 2D on purpose: implicit LU-SGS with
+**Green-Gauss** gradients and Venkatakrishnan K = 1 (measured: the least-squares gradient on tetrahedra makes
+second-order runs oscillate near strong shocks; see the theory manual, section 13h).
+
+- **Half and quarter domains.** *Half domain* keeps y >= 0 (symmetry plane y = 0); *Quarter domain* also z >= 0. Forces,
+  mass flows and thrust are always reported for the **whole** body or nozzle (the Key numbers show the symmetry factor).
+  Use the quarter domain for a body of revolution or a nozzle at zero incidence: 4 x fewer cells.
+- **Nozzles.** A fluid body whose faces are named inlet / outlet (STEP import, tutorial `nozzle_step_to_mesh.md`) is
+  solved as an internal flow: set p0 and T0 of the inlet and the back pressure in the boundary table. Results: mass flow,
+  thrust two ways, Isp, Cf, discharge coefficient.
+- **Prism layers** are off by default: an Euler (inviscid) run needs none.
+- **Memory.** Before every 3D run the check *Run memory* estimates what the run needs (about 4 GB per million cells)
+  and warns if that is more than 70 % of the free memory. Use a coarser mesh or a quarter domain then.
+- **Stop, Continue, Cancel.** Stop ends the run cleanly after the current iteration; Run then carries on from it
+  (iterations numbered on). 3D runs also **autosave** a restart file every 15 minutes (`results/autosave/`); after
+  Cancel, a crash or a power cut, Run carries on from the last autosave. A finished run removes it.
+- **Mesh only.** For very large meshes meant for another solver, tick *Mesh only (do not solve)* (Solver group) and
+  export the mesh from the Mesh step.
+- **Meshes from other programs.** *Start from an existing mesh* (`imported_mesh`) reads 3D Gmsh (.msh v2 / v4) and SU2
+  files too (CGNS and Fluent: 2D only); every boundary surface needs a tag; choose its type in *Boundary types*.
+
+**The Results step in 3D** shows the walls coloured by a field, and on the right: *Display* = Walls, Slice plane (normal
+x, y or z, moved with the slider), Iso-surface (type the level; empty = the middle of the range) or Streamlines (12
+seeds across the inflow); *Show walls*; right-click a point to probe the cell there. *Save .vtu* (ParaView: every field,
+velocity vector, node values) and *Save CSV* (x, y, z and the fields per cell). The automatic report shows slices of
+Mach number and pressure. Command line: `run`, `report` and `export` work for 3D projects as for 2D.
+
+Not yet in 3D: the report-definition, surface and XY-plot panels of the 2D Results workspace, patch (initialisation)
+regions, multiple fluid zones (gap register).
 
 ## Solver speed and Preferences
 

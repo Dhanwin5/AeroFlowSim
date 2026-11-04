@@ -111,7 +111,8 @@ Last updated: 3D geometry and meshing (2026-11-03).
 | Structured grid far-field cells in the wake are very flat (aspect ratio about 1,300-4,800 along the wake, first layer 1e-3 c) | partial | P3 | normal for a C-grid with a thin first layer; irrelevant for Euler flow, revisit for viscous flow (Phase 4) |
 | Mesh import (Gmsh .msh v2/v4, SU2, CGNS unstructured 2D, Fluent ASCII 2D) with unit, planar / axisymmetric choice and boundary-type map; export to Gmsh 2.2 / 4.1, SU2, CGNS; template "Start from an existing mesh"; `mesh-info` / `mesh-convert` | done | P2 | shapes, grids and mesh import part 3: `aeroflowsim/mesh_io.py`, `cases/imported_mesh`; round trips exact for all four writers (`tests/test_mesh_io.py`) |
 | Import dialog with a boundary-type TABLE (one row per tag, drop-down) in the GUI | later | P2 | now the map is a text input (`name: type, ...`) with the list of found names and their types shown under the inputs; a Qt table dialog and Tools > Convert mesh are not built |
-| Mesh import: 3D meshes, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | later | P2 | refused with a message. Found 2026-11-03: the 3D stage plan said `mesh_io` already reads 3D files; it does not (2D only). 3D import belongs to the 3D Euler solver stage |
+| Mesh import: 3D meshes (Gmsh v2/v4, SU2: tetrahedra, pyramids, prisms, hexahedra) | done | P2 | 3D Euler solver part 2: `mesh_io._read_gmsh_3d`, `read_su2` NDIME 3, `_mesh_from_raw_3d` (orientation fix, every face tagged); round trips on every cell type |
+| Mesh import: CGNS 3D, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | later | P2 | CGNS 3D not built in the 3D Euler stage (addendum: Gmsh and SU2 first) |
 | 3D mesh export: Gmsh 2.2 / 4.1, SU2, CGNS (TETRA / PENTA / sections per patch), .vtu; GUI *Export mesh…* and `export <project> --mesh FILE` | done | P2 | 3D geometry and meshing: `mesh_io.write_mesh` and the 3D writers (VTK -> Gmsh / CGNS prism order); Gmsh reads the files back with positive Jacobians (`tests/test_workspace_mesh3d.py`); not yet opened in SU2 itself |
 | CGNS export checked with an external CGNS reader | later | P2 | only our own reader was available; open an exported file in SU2 / ParaView once |
 | Planar nozzle template (for the MOC nozzle) | later | P2 | `tools/nozzle_flow_checks.py moc` solves the planar nozzle directly; no template runs planar internal flow of a wall profile |
@@ -158,7 +159,13 @@ Last updated: 3D geometry and meshing (2026-11-03).
 | Low-Mach preconditioning | planned low-Mach preconditioning | P2 | |
 | Parametric studies and batch runs | planned parametric studies | P2 | |
 | Unsteady flow (dual time stepping) | planned unsteady flow | P2 | |
-| 3D Euler, multiple zones | later | P2 | Phase 3 |
+| 3D Euler solver (5 equations, every BC through the face normal, LU-SGS, forces with symmetry planes, 3D nozzles, 3D Results, autosave, memory check) | done | P1 | 3D Euler solver stage: free stream 1e-13 on every cell type, MMS order 1.75-1.97, validation/euler3d_* (see report.md); docs/roadmap/3d_euler_solver.md ledger |
+| Multiple fluid zones (Fragment / shared topology, cell zones, per-zone settings) | later | P2 | not built in the 3D Euler stage (addendum rule 1); moved to the plan of the viscous stage |
+| Least-squares gradients on tetrahedra oscillate near detached shocks and in slow regions | partial | P1 | 3D Euler stage: 3D template uses Green-Gauss + K = 1 (converges). Next: an extended (vertex-neighbour) least-squares stencil, and the same question on 2D triangles (M3 cylinder on Gmsh triangles diverges with the 2D defaults) with a re-validation |
+| Far-field near-sonic outflow blend (normal Mach 0.9-1.1) in 2D | later | P2 | 3D only (2D bit for bit); adopt in 2D with a re-validation |
+| 3D Results: report definitions, surfaces, XY plots, patch regions, snapshots compare in 3D | later | P2 | the 2D Results workspace panels are not wired to 3D (walls / slices / iso-surfaces / streamlines / probe / export are) |
+| Free-stream inputs shown for nozzle projects of external_3d | later | P3 | they do nothing for an internal flow; hide them when the mesh has an inlet |
+| Low-Mach preconditioning | planned | P1 | next stage: docs/roadmap/low_mach_preconditioning.md |
 | Laminar NS (+ slip wall for micro-nozzles), Spalart-Allmaras, k-omega SST, wall heat flux | later | P2 | Phase 4 |
 | Constant-density liquids (preconditioned) | later | P3 | Phase 4 |
 | Real gas (Peng-Robinson), multi-species, combustion, high-temperature gas | partial | P3 | Phase 5; gas library and units: Peng-Robinson Z used by the ideal-gas check (about 1 % at 50 bar N2, but |Z - 1| 9 % instead of 14 % at 300 bar: a better EOS is needed for computing) |

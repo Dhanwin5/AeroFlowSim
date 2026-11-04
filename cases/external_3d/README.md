@@ -1,7 +1,18 @@
-# Body in free stream (3D, mesh only)
+# Body in free stream (3D Euler)
 
 A 3D body with its axis along x (the flow direction) inside a far field, meshed with **tetrahedra** and, on the
-walls, **prism layers**. Mesh only for now: the 3D Euler solver comes in the next development stage.
+walls, optional **prism layers** (off by default: Euler runs need none), solved with the 3D Euler solver.
+
+## Flow
+- Steady inviscid 3D Euler (5 equations), implicit LU-SGS, Green-Gauss gradients, Venkatakrishnan K = 1 (the 3D
+  defaults, see docs/theory_manual.md section 13h); far field (Riemann invariants) round the body, slip walls,
+  symmetry planes (half / quarter domain); free stream with angle of attack (towards +y) and sideslip (towards +z).
+- Forces and moments of the WHOLE body (mirrored across the symmetry planes): Cd, Cl, Cy, CMx, CMy, CMz, Cm = -CMz;
+  reference area / length typed, or 0 = frontal area / body length from the walls (smart rule).
+- A mesh with an inlet boundary (a STEP fluid nozzle, faces named inlet / outlet) is an internal flow: total-pressure
+  inlet, pressure outlet; mass flow, thrust two ways, Isp, Cf (whole nozzle).
+- Mesh only option (Solver group) for meshes meant for another solver.
+- Validation: validation/euler3d_cone (Taylor-Maccoll), euler3d_sphere (Billig), euler3d_nozzle (vs 2D axisymmetric).
 
 ## Geometry
 - Template body: sphere (diameter), cylinder (diameter, length), nose cone (base diameter, length; tip upstream at

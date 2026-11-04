@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased - 3D Euler solver (November 2026)
+
+### 3D flow solver
+- The Euler solver runs on 3D meshes (tetrahedra, pyramids, prisms, hexahedra; 5 equations), with every boundary
+  condition through the face normal, implicit LU-SGS, local time steps, CFL back-off and positivity fallback as in 2D.
+  2D and axisymmetric results are bit for bit unchanged.
+- Template **Body in free stream (3D Euler)** (`external_3d`, was mesh only): angle of attack and sideslip, half and
+  quarter domains (forces of the whole body), Cd / Cl / Cy, moment vector and Cm, Cp on the walls, reference area and
+  length from the walls (smart rule) or typed, a *Mesh only* option. A fluid nozzle (faces inlet / outlet) is solved
+  as an internal flow: mass flow, thrust two ways, Isp, Cf.
+- 3D defaults: LU-SGS with Green-Gauss gradients and Venkatakrishnan K = 1 (measured: least squares on tetrahedra
+  oscillates near strong shocks and in slow inlet regions). Prism layers off by default.
+- 3D runs autosave a restart file every 15 minutes; Run continues from it after Cancel or a crash. A *Run memory* check
+  estimates the memory (about 4 GB per million cells) and warns above 70 % of the free memory.
+- 3D mesh import: Gmsh .msh v2 / v4 and SU2 (*Start from an existing mesh*, `mesh-info`, `mesh-convert`).
+
+### 3D results
+- The Results step shows 3D results: walls coloured by any field, a moveable slice plane, iso-surfaces, 3D
+  streamlines, probe by right-click, key numbers, .vtu and CSV export; the report has slice pictures; `run`, `report`
+  and `export` work for 3D projects.
+
+### Examples, verification and validation
+- Examples *Sphere at Mach 3 (3D)* and *N2 nozzle 3D* (the example STEP nozzle, solved).
+- 3D MMS (order 2 on hexahedra, prisms, tetrahedra), free-stream preservation on every cell type, 2D extrusion and
+  closed-body checks; validation `euler3d_cone` (Taylor-Maccoll), `euler3d_sphere` (Billig, with the 2D axisymmetric
+  twin and Mach 6), `euler3d_nozzle` (3D vs 2D axisymmetric), `mms_euler3d`; tolerances pre-registered.
+
+### Fixed
+- 3D: residual normalisation of a momentum component that is zero by symmetry; far-field chatter at near-sonic
+  outflow; animation frames of 3D runs.
+
 ## Unreleased - 3D geometry and meshing (November 2026)
 
 ### 3D geometry workspace

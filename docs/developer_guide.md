@@ -274,6 +274,22 @@ the quality histogram (`figures.quality_histogram_figure`) and *Worst cell* (`gu
 selection, hide / isolate / section, booleans, names, undo / redo, reopen, mesh with prism layers, cancel, theme, a 2D
 project afterwards), `cases/external_3d/test_case.py`; validation `validation/geometry_3d/`, `validation/mesh_3d/`.
 
+## 3D results (3D Euler solver stage)
+
+- The solver is dimension-generic (`mesh.dim == 3`: 5 equations); `euler/setup.py` builds 3D problems
+  (`external_problem` with sideslip, `nozzle_problem_3d`), `euler/forces.py` has `body_forces_3d` and
+  `symmetry_planes`. Test meshes without Gmsh: `simple_meshes.box_mesh_3d` (hexahedra, prisms, Kuhn tetrahedra,
+  hex-prism, pyramids), `extrude_2d` (one layer, the 2D-consistency check), `revolve_axisymmetric` (3D twin of a 2D
+  axisymmetric mesh).
+- `post/view3d.py` (no Qt / VTK) makes every 3D picture as a triangle `Surface` (points, triangles, values): slices and
+  iso-surfaces by marching tetrahedra on the straddling cells only, wall surfaces, probes, streamlines.
+- `gui/results3d.py` (`Results3DPanel`) draws those surfaces with PyVista; `steps/results.py` shows it instead of the 2D
+  workspace when the mesh is 3D (`_refresh_3d`). The Run step needs no 3D code (residual names from
+  `info["equations"]`).
+- Autosave: `setup.solve` writes `results/autosave/run.npz` when `extras["autosave"]` is set (Project.run_extras does
+  it for 3D meshes); `Project.continuation` prefers it when newer. Memory: `compute.run_memory_estimate`,
+  `compute.free_memory_bytes`, check `checks.run_memory` (3D only).
+
 ## 9. Tests
 
 - `tests/test_panel_model.py`, `tests/test_gui_logic.py`, `tests/test_project.py`,

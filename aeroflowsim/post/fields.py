@@ -233,7 +233,9 @@ def boundary_face_values(sol, name, values=None) -> np.ndarray:
     boundary condition's face state; for other fields the value of the cell next to the face."""
     g = sol.geom
     Wb = sol.boundary_values
-    pointwise = {"rho": lambda: Wb[0], "u": lambda: Wb[1], "v": lambda: Wb[2], "p": lambda: Wb[3]}
+    pointwise = {"rho": lambda: Wb[0], "u": lambda: Wb[1], "v": lambda: Wb[2], "p": lambda: Wb[-1]}
+    if Wb.shape[0] == 5:                         # 3D: w, and p is the last row (bug fixed in the 3D Euler stage)
+        pointwise["w"] = lambda: Wb[3]
     if name in pointwise:
         return pointwise[name]()
     if name in ("T", "M", "p0", "T0", "s", "speed", "h", "h0", "Cp"):
