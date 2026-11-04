@@ -218,3 +218,23 @@ Finish: (12) summary with test counts, "2D validation numbers unchanged", the to
   1e-10, first/second order, BJ and unlimited); cases/external_3d tests (quarter domain volume and planes, reference
   values, short M3 sphere run: Cd in range, Cl = Cy = 0, factor 4, mesh-only refusal). 91 pass.
 - Next: Part 4 (3D nozzle run, compare with 2D axisymmetric).
+
+### Part 4 - 3D internal flow (done; multiple zones deferred)
+- `setup.nozzle_problem_3d`: total-pressure inlet, pressure/supersonic outlet, slip walls, symmetry planes; whole-nozzle
+  mass flow / thrust two ways / Isp / Cf (x 2 per flat symmetry plane); quasi-1D start (`quasi1d_state_3d`).
+  `mesh_wall_profile_3d`: r of every wall node (each lies on the wall), grouped by x (first version binned x and took
+  the slice maximum: it overestimated the throat by 33 % - fixed). external_3d `run()` picks it when the mesh has an
+  inlet (STEP fluid nozzle with faces named inlet/outlet).
+- `simple_meshes.revolve_axisymmetric(mesh2d, 90, n_theta)`: the 2D axisymmetric structured nozzle revolved to a 3D
+  quarter (hexahedra + prisms on the axis, patch "symmetry" = the two cut planes) - the exact 3D twin of the 2D run.
+- Measured (coarse N2 nozzle, 2,000 quads; 3D 16,000 cells, 8 segments per quarter, same LU-SGS numerics): mass flow
+  -0.61 %, vacuum thrust -0.62 % vs 2D axisymmetric; the faceting alone reduces the throat area by 0.64 %
+  (polygon factor n/(2 pi) sin(2 pi/n)), so the discretisation difference beyond faceting is < 0.05 %. Thrust exit vs
+  wall+inlet agree to 2e-6. The 3D run hit max_iterations (20,000, 134 s): monitors settled, residual stalled - noted
+  for Part 7.
+- Multiple zones (Fragment, cell zones): NOT built (addendum rule 1: last, after Parts 1-7) - gap, moved to the plan of
+  the viscous stage unless time remains at the end.
+- Tests: revolve (quarter volume = polygon x 2D axisymmetric volume, two symmetry planes), short 3D nozzle run (factor
+  4, throat = 2D profile throat, Cd / polygon 0.93-0.96 vs 2D 0.946, thrust two ways and mass balance within 2 %).
+- Fast suite: started in the background after Part 3 (one GUI test updated: the 3D Run step now exists).
+- Next: Part 5 (GUI Run/Results 3D).

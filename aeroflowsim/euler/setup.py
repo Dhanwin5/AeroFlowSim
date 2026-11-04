@@ -407,10 +407,10 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
                    monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
 
 
-def mesh_wall_profile_3d(mesh, wall_names, n_bins=None):
-    """The wall radius r(x) of a 3D nozzle with its axis along x, from the nodes of its wall patches: r = sqrt(y^2 + z^2),
-    the largest r of the wall nodes in each slice of x. Works for full, half and quarter domains (only the distance
-    from the axis is used)."""
+def mesh_wall_profile_3d(mesh, wall_names):
+    """The wall radius r(x) of a 3D nozzle with its axis along x, from the nodes of its wall patches: every wall node lies
+    on the wall surface, so its distance from the axis r = sqrt(y^2 + z^2) IS the wall radius at its x. Nodes with the
+    same x (a revolved mesh) are averaged. Works for full, half and quarter domains."""
     nodes = []
     for p in mesh.patches:
         if p.name in wall_names:
@@ -420,19 +420,10 @@ def mesh_wall_profile_3d(mesh, wall_names, n_bins=None):
         raise ValueError("The mesh has no wall: the nozzle profile (for the quasi-1D start and the throat area) cannot "
                          "be found.")
     xyz = mesh.nodes[np.unique(np.concatenate(nodes))]
-    x, r = xyz[:, 0], np.hypot(xyz[:, 1], xyz[:, 2])
-    if n_bins is None:
-        n_bins = int(max(20, min(400, round(math.sqrt(len(x)) / 2))))
-    edges = np.linspace(x.min(), x.max(), n_bins + 1)
-    which = np.clip(np.searchsorted(edges, x, side="right") - 1, 0, n_bins - 1)
-    r_max = np.full(n_bins, -1.0)
-    np.maximum.at(r_max, which, r)
-    x_mid = 0.5 * (edges[:-1] + edges[1:])
-    keep = r_max > 0.0
-    # the end values sit on the inlet and exit planes, so the profile spans the whole nozzle
-    xs = np.concatenate([[x.min()], x_mid[keep], [x.max()]])
-    rs = np.concatenate([[r_max[keep][0]], r_max[keep], [r_max[keep][-1]]])
-    return WallProfile(xs, rs)
+    size = max(float(np.ptp(xyz[:, 0])), 1e-300)
+    x, inverse = np.unique(np.round(xyz[:, 0] / size, 9), return_inverse=True)
+    r = np.bincount(inverse, np.hypot(xyz[:, 1], xyz[:, 2])) / np.bincount(inverse)
+    return WallProfile(x * size, r)
 
 
 def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:

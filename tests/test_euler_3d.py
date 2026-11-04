@@ -348,3 +348,51 @@ def test_a_one_layer_extrusion_reproduces_the_2d_residual():
             assert np.abs(R3[3]).max() < 1e-9 * np.abs(R3).max()             # no z-momentum
             assert _rel(np.delete(R3, 3, axis=0), R2) < 1e-10, (limiter, order)
     compute.set_backend(compute.AUTO)
+
+
+# ---- 3D internal flow (Part 4) -----------------------------------------------------------------------------------
+
+def _nozzle_meshes(n_theta=4):
+    pytest.importorskip("gmsh")
+    from aeroflowsim.discovery import load_case
+    from aeroflowsim.parameters import defaults, validate
+    from aeroflowsim.simple_meshes import revolve_axisymmetric
+    from aeroflowsim.workspace_mesh import mesh_for
+    case = load_case("cases/nozzle_axi")
+    p = validate(case.parameters(), {**defaults(case.parameters()), "mesh_preset": "Coarse"})
+    m2 = mesh_for(case, p)
+    return case, p, m2, revolve_axisymmetric(m2, 90.0, n_theta)
+
+
+def test_revolved_nozzle_is_a_closed_quarter_with_symmetry_planes():
+    from aeroflowsim.euler.forces import symmetry_planes
+    _case, _p, m2, m3 = _nozzle_meshes(n_theta=6)
+    assert {p.name for p in m3.patches} == {"inlet", "outlet", "wall", "symmetry"}
+    assert symmetry_planes(m3, ["symmetry"]) == (1, 2) and m3.cell_volumes.min() > 0.0
+    n = 4 * 6                                        # polygon of 24 sides round the axis instead of a circle
+    polygon = n / (2 * math.pi) * math.sin(2 * math.pi / n)
+    assert 4 * m3.cell_volumes.sum() == pytest.approx(2 * math.pi * m2.axi_cell_volumes.sum() * polygon, rel=1e-3)
+
+
+def test_a_short_3d_nozzle_run_reports_whole_nozzle_numbers():
+    from aeroflowsim.discovery import load_case
+    from aeroflowsim.parameters import defaults, validate
+    from aeroflowsim.euler.setup import mesh_wall_profile
+    case2, p2, m2, m3 = _nozzle_meshes()
+    ext = load_case("cases/external_3d")
+    bnd = {"inlet": {"type": "total_pressure_inlet", "p0": p2["p0"], "T0": p2["T0"]},
+           "outlet": {"type": "pressure_outlet", "p": p2["p_back"]}}
+    p = validate(ext.parameters(), {**defaults(ext.parameters()), "gas": p2["gas"], "boundaries": bnd,
+                                    "time_scheme": "Implicit LU-SGS", "venkat_k": 5.0, "first_order_iterations": 0,
+                                    "max_iter": 1500})
+    assert ext.is_internal(m3)
+    r = ext.run(p, m3, lambda *a: False)
+    k = r.key_numbers
+    assert k["symmetry_factor"][0] == 4.0 and r.info["kind"] == "nozzle"
+    n = 16
+    polygon = n / (2 * math.pi) * math.sin(2 * math.pi / n)
+    r_t = float(mesh_wall_profile(m2, ["wall"]).r.min())                         # the 2D profile's throat radius
+    assert k["A_throat"][0] == pytest.approx(math.pi * r_t ** 2, rel=1e-9)
+    assert 0.93 < k["discharge_coefficient"][0] / polygon < 0.96        # coarse 2D axisymmetric: 0.946
+    assert k["F_vacuum"][0] == pytest.approx(k["F_vacuum_wall"][0], rel=0.02)
+    assert k["mdot_inlet"][0] == pytest.approx(k["mdot"][0], rel=0.02)
