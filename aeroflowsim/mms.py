@@ -293,14 +293,15 @@ WARP_3D = 0.03          # smooth distortion of the 3D MMS boxes (curved grid lin
 
 
 def run_level_3d(kind, n, order=2, limiter=NO_LIMITER, gas="air", residual_drop=9.0, max_iterations=20000,
-                 cfl=0.8, time_scheme=None):
+                 cfl=0.8, time_scheme=None, gradient=None):
     """Solve the 3D MMS problem on an n x n x n box of `kind` cells and measure the discretisation error."""
     from aeroflowsim.euler.solver import LUSGS
     from aeroflowsim.simple_meshes import box_mesh_3d
     mesh = box_mesh_3d(n, kind, warp=WARP_3D)
     model = gas_model(gas)
     num = Numerics(cfl=cfl, order=order, limiter=limiter, max_iterations=max_iterations, residual_drop=residual_drop,
-                   carbuncle_fix=False, time_scheme=time_scheme or LUSGS, cfl_max=50.0)
+                   carbuncle_fix=False, time_scheme=time_scheme or LUSGS, cfl_max=50.0,
+                   **({"gradient": gradient} if gradient else {}))
     solver = MMSSolver3D(mesh, model, num)
     cc = solver.geom.cell_centres
     W_exact = exact_state_3d(cc[:, 0], cc[:, 1], cc[:, 2])

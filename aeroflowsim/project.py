@@ -50,7 +50,7 @@ from aeroflowsim.discovery import CASES_DIR, PROJECT_DIR, load_case
 from aeroflowsim.gases import PROJECT_GAS_DIR, builtin_gas, is_builtin
 from aeroflowsim.mesh import Mesh, Mesh1D
 from aeroflowsim.parameters import STEPS as INPUT_STEPS
-from aeroflowsim.parameters import check_values, defaults, validate
+from aeroflowsim.parameters import FINGERPRINT_NEUTRAL, check_values, defaults, validate
 from aeroflowsim.result_io import RUN_FILE, load_run, save_run
 
 SUFFIX = ".afsproj"
@@ -441,6 +441,8 @@ class Project:
         for p in self.case.parameters():
             if p.step not in DEPENDS_ON[product]:
                 continue
+            if p.name in FINGERPRINT_NEUTRAL and self.values.get(p.name) == FINGERPRINT_NEUTRAL[p.name]:
+                continue                          # an input added later, at its old-behaviour value (parameters.py)
             h.update(json.dumps([p.name, self.values.get(p.name)], sort_keys=True, default=str).encode())
             if p.type == "file":
                 path = Path(str(resolved.get(p.name, "")))

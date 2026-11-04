@@ -30,6 +30,10 @@ Some choice options need an optional package (e.g. "Triangles (Gmsh)" needs Gmsh
 saying how to install it.
 """
 
+# Inputs added after projects existed whose old behaviour is one value: while an input holds that value it is left out
+# of the project fingerprints (aeroflowsim/project.py), so old projects (which get it as their default) stay up to date.
+FINGERPRINT_NEUTRAL = {"update_limit": 0.0}
+
 import importlib.util
 import re
 from dataclasses import dataclass, field

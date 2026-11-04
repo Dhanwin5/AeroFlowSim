@@ -108,6 +108,23 @@ def gradients(X, slot_other, coef_other, coef_self, grad):
                 grad[v, k, i] = acc
 
 
+@_jit()
+def gradients_csr(X, indptr, indices, data, grad):
+    """grad[v, k, i] = row (k C + i) of a sparse gradient matrix (CSR) times X = [cell values, boundary values]:
+    any linear gradient operator (used for the vertex-neighbour Green-Gauss with node values). One cell per loop
+    iteration, a gather over its row: thread independent, GPU-ready."""
+    nv = X.shape[0]
+    dim, C = grad.shape[1], grad.shape[2]
+    for i in prange(C):
+        for k in range(dim):
+            r = k * C + i
+            for v in range(nv):
+                acc = 0.0
+                for j in range(indptr[r], indptr[r + 1]):
+                    acc += data[j] * X[v, indices[j]]
+                grad[v, k, i] = acc
+
+
 # ---- limiter -------------------------------------------------------------------------------------------
 
 @_jit()
@@ -390,8 +407,18 @@ class KernelData:
         g = solver.geom
         nv = g.dim + 2
         self.R, self.cv, self.gamma = float(R), float(cv), float(gamma)
-        self.coef_other, coef_self = slot_gradient_coefficients(g, solver.numerics.gradient)
-        self.coef_self = np.ascontiguousarray(coef_self.sum(axis=1))      # (C, dim): the cell's own weight
+        from aeroflowsim.euler.gradients import GREEN_GAUSS_NODES
+        self.csr = solver.numerics.gradient == GREEN_GAUSS_NODES   # vertex-neighbour stencil: the gradient matrix (CSR)
+        if self.csr:
+            M = solver.grad.matrix.tocsr()
+            M.sort_indices()
+            self.indptr, self.indices = M.indptr.astype(np.int64), M.indices.astype(np.int64)
+            self.data = np.ascontiguousarray(M.data, dtype=float)
+            self.coef_other = np.zeros((g.n_cells, 1, g.dim))
+            self.coef_self = np.zeros((g.n_cells, g.dim))
+        else:
+            self.coef_other, coef_self = slot_gradient_coefficients(g, solver.numerics.gradient)
+            self.coef_self = np.ascontiguousarray(coef_self.sum(axis=1))  # (C, dim): the cell's own weight
         C, F, nI, B = g.n_cells, g.n_faces, g.n_interior, g.n_boundary
         self.X = np.empty((nv, C + B))                                     # [cell values, boundary values]
         self.grad = np.zeros((nv, g.dim, C))

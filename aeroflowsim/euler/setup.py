@@ -112,6 +112,11 @@ def solver_parameters(overrides=None) -> list:
                 "Cd, ...) have settled when they change less than this fraction over the monitor window."),
         _number("monitor_window", "Monitor window", "-", 500, 2, 1_000_000, "Number of iterations over which the "
                 "monitors must have settled.", "int"),
+        _number("update_limit", "Implicit update limit", "-", 0.0, 0.0, 1.0, "Implicit LU-SGS: the largest change of "
+                "density, energy and pressure of a cell in one iteration, as a fraction of its value (0.2 = 20 %); a cell "
+                "whose step would be larger has its whole step scaled down (a positivity guard in strong expansions, "
+                "e.g. the near-vacuum wake of a blunt body). 0 = off (as before). The converged solution does not depend "
+                "on it. Default 0.2 for 3D; suggested for triangle meshes."),
         Parameter("carbuncle_fix", "Carbuncle fix (HLLE near strong shocks)", "", True, help="Blend the flux "
                   "towards the more dissipative HLLE only near strong shocks, which prevents the 'carbuncle' "
                   "shock instability.", type="bool", group="Numerics", step="setup"),
@@ -125,14 +130,26 @@ def solver_parameters(overrides=None) -> list:
 
 
 def numerics(params, steady=True) -> Numerics:
-    """The Numerics of the template inputs."""
+    """The Numerics of the template inputs (+ the developer knob AEROFLOWSIM_NUMERICS: a JSON object of Numerics fields
+    set on top, for solver experiments; never set in normal use)."""
+    num = _numerics(params, steady)
+    extra = os.environ.get("AEROFLOWSIM_NUMERICS")
+    if extra:
+        import json
+        for key, value in json.loads(extra).items():
+            setattr(num, key, value)
+    return num
+
+
+def _numerics(params, steady=True) -> Numerics:
     return Numerics(cfl=params["cfl"], order=2 if params["order"] == SECOND_ORDER else 1,
                     gradient=params["gradient"], limiter=params["limiter"], venkat_k=params["venkat_k"],
                     freeze_limiter_orders=params["freeze_limiter"],
                     first_order_iterations=params["first_order_iterations"], time_scheme=params["time_scheme"],
                     local_time_stepping=steady, max_iterations=params["max_iter"],
                     residual_drop=-math.log10(params["tol"]), monitor_tolerance=params["monitor_tol"],
-                    monitor_window=params["monitor_window"], carbuncle_fix=params["carbuncle_fix"])
+                    monitor_window=params["monitor_window"], carbuncle_fix=params["carbuncle_fix"],
+                    update_limit=float(params.get("update_limit", 0.0) or 0.0))
 
 
 # ---- boundary conditions ------------------------------------------------------------------------------
@@ -675,6 +692,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "continued_from": None if previous is None else previous.iterations,
             "residual_norm": None if out.norm is None else [float(v) for v in out.norm], "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
             "positivity_events": int(out.positivity_events), "positivity_last": int(out.positivity_last),
+            "limited_updates": int(out.limited_updates),
             "cfl_reductions": int(out.cfl_reductions), "cfl_final": float(out.cfl_final),
             "wall_time_s": float(out.wall_time_s), "limiter_frozen_at": out.limiter_frozen_at,
             "backend": out.backend, "threads": int(out.threads), "backend_note": solver.backend_note,

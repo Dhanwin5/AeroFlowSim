@@ -83,6 +83,8 @@ class Numerics:
     end_time: float | None = None           # time-accurate runs: stop at this time [s]
     carbuncle_fix: bool = True              # HLLE blend near strong shocks
     cfl_max: float = 100.0                  # implicit LU-SGS: the CFL ramp goes from cfl up to this [-]
+    update_limit: float = 0.0               # implicit LU-SGS: largest relative change of rho, E and p of a cell per
+                                            # iteration (its update is scaled down to it); 0 = off (old behaviour)
 
     def __post_init__(self):
         if self.time_scheme not in TIME_SCHEMES:
@@ -114,6 +116,7 @@ class SolveResult:
     first_iteration: int = 1          # number of the first iteration of THIS part of the run (159 when continued)
     backend: str = "numpy"            # "numba" (compiled kernels) or "numpy" (reference implementation)
     threads: int = 1                  # CPU threads of the Numba kernels
+    limited_updates: int = 0          # cell updates scaled down by the positivity guard (Numerics.update_limit)
 
 
 @dataclass
@@ -157,6 +160,7 @@ class EulerSolver:
         self.boundary_normals = g.normals[nI:]
         self.full_circle = full_circle
         self.psi_frozen = None
+        self.last_limited = 0           # cells whose implicit update was scaled down (Numerics.update_limit)
         self.last_positivity = 0
         self.boundary_flux = None       # (n_vars, B) flux x flux area of the last residual evaluation
         self.source = None              # optional (n_vars, C) source integrated over each cell (MMS); None = none
@@ -263,7 +267,10 @@ class EulerSolver:
         if second_order:
             K.X[:, :g.n_cells] = W
             K.X[:, g.n_cells:] = Wb_face
-            kn.gradients(K.X, K.slot_other, K.coef_other, K.coef_self, K.grad)
+            if K.csr:
+                kn.gradients_csr(K.X, K.indptr, K.indices, K.data, K.grad)
+            else:
+                kn.gradients(K.X, K.slot_other, K.coef_other, K.coef_self, K.grad)
             if self.psi_frozen is not None:
                 psi = self.psi_frozen
             else:
@@ -313,6 +320,29 @@ class EulerSolver:
                  b["slot_face"], b["slot_sign"], b["slot_other"], b["normals"], g.flux_areas, b["source_size"], R, gamma, cv,
                  LUSGS_OMEGA, b["lam"], b["D"], b["work"], b["dU"])
         return b["dU"].copy()
+
+    def _limit_update(self, U, dU, limit):
+        """Per-cell positivity guard of an implicit update (SU2's local under-relaxation): where the step would change
+        rho, E or p of a cell by more than `limit` of its value (or make them negative), that cell's whole update is
+        scaled down so the largest relative change is `limit`. Counted in self.last_limited. Where no cell exceeds the
+        limit the update is unchanged (factor exactly 1). The steady solution does not depend on it (dU -> 0)."""
+        W_old = self._primitive(U)
+        W_new = self._primitive(U + dU)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.maximum(np.abs(dU[0]) / U[0], np.abs(dU[-1]) / U[-1])
+            ratio = np.maximum(ratio, np.where(W_new[-1] > 0.0, np.abs(W_new[-1] - W_old[-1]) / W_old[-1], np.inf))
+        over = ratio > limit
+        self.last_limited = int(np.count_nonzero(over))
+        if not self.last_limited:
+            return dU
+        factor = np.where(over, limit / np.where(over, ratio, 1.0), 1.0)
+        for _ in range(40):            # p is not linear in U: halve until p changes by at most `limit` too
+            p = self._primitive(U + dU * factor)[-1]
+            bad = over & ~(np.abs(p - W_old[-1]) <= limit * W_old[-1] * (1.0 + 1e-12))
+            if not bad.any():
+                break
+            factor = np.where(bad, 0.5 * factor, factor)
+        return dU * factor
 
     def boundary_face_values(self, Wb_in, ghost_c):
         """Value at each boundary face centre for the gradients: the mean of inside and ghost state.
@@ -397,7 +427,7 @@ class EulerSolver:
         good_U, good_it, good_t = U.copy(), 0, 0.0
         res_hist, norm = [], None
         mon_hist = {}
-        positivity_total = cfl_reductions = 0
+        positivity_total = cfl_reductions = limited_total = 0
         status, message = MAX_ITERATIONS, ""
         t_phys = 0.0
         it = 0
@@ -469,6 +499,7 @@ class EulerSolver:
                 U = U_new
                 it += 1
                 positivity_total += self.last_positivity
+                limited_total += self.last_limited
                 if not steady:
                     t_phys += float(dt[0])
                 if recorder is not None and recorder.due(it):
@@ -532,14 +563,17 @@ class EulerSolver:
                            wall_time_s=time.perf_counter() - t_start, time=t_phys, limiter_frozen_at=frozen_at,
                            diverged_at=failed_at, message=message, norm=norm, limiter=self.psi_frozen,
                            first_iteration=(continuation.iterations if continuation is not None else 0) + 1,
-                           backend=self.backend, threads=n_threads)
+                           backend=self.backend, threads=n_threads, limited_updates=limited_total)
 
     def _step(self, U, W, dt, second):
         """One multistage step; returns (new U, residual dU/dt of the first stage)."""
         R0, _ = self.residual(U, second, W)
         self.stage0_boundary_flux = self.boundary_flux     # fluxes of the state W, for the monitors
         if self.numerics.time_scheme == LUSGS and self.numerics.end_time is None:
-            return U + self._lusgs(U, W, R0, dt), R0
+            dU = self._lusgs(U, W, R0, dt)
+            if self.numerics.update_limit > 0.0:
+                dU = self._limit_update(U, dU, self.numerics.update_limit)
+            return U + dU, R0
         if self.numerics.time_scheme == SSP_RK3:
             U1 = U + dt * R0
             U2 = 0.75 * U + 0.25 * (U1 + dt * self.residual(U1, second)[0])
