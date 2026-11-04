@@ -1,0 +1,26 @@
+# Sphere at Mach 3 (and Mach 6, reported), air (gamma = 1.4), 3D Euler on tetrahedra (external_3d, quarter domain).
+# Reference: Billig's (1967) correlation of the bow-shock stand-off distance of spheres, Delta / R = 0.143 exp(3.24 / M^2)
+# (0.2050 at Mach 3). Consistency check (addendum rule 5a): the same sphere as a 2D axisymmetric run (external_2d) must
+# give the same stand-off within the same tolerance.
+# PRE-REGISTERED 4 Nov 2026 (addendum rule 4) before any 3D validation run: stand-off within 5 %. Never changed after
+# seeing results; a miss is reported as a SHORTFALL. The Mach 6 run (positivity fallback and carbuncle behaviour,
+# rule 6) is reported in the study table, without a tolerance.
+
+title = "Sphere at Mach 3 (3D Euler, tetrahedra): bow-shock stand-off vs Billig"
+case = "cases/external_3d"
+
+[[reference]]
+id = "standoff"
+quantity = "Bow-shock stand-off distance / sphere radius on the stagnation line, Mach 3 (3D quarter domain)"
+value = 0.204966
+unit = "-"
+tolerance_percent = 5.0
+source = "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.143 exp(3.24/M^2) for spheres"
+
+[[reference]]
+id = "standoff_2d"
+quantity = "The same from the 2D axisymmetric run (external_2d, shape Sphere): consistency 2D vs 3D"
+value = 0.204966
+unit = "-"
+tolerance_percent = 5.0
+source = "Billig (1967), as above"

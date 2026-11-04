@@ -1,0 +1,24 @@
+# Circular cone, half-angle 10 deg, at Mach 2 and zero incidence, air (gamma = 1.4), solved in 3D (external_3d, quarter
+# domain with two symmetry planes, tetrahedra). Exact inviscid solution: the conical Taylor-Maccoll flow
+# (aeroflowsim.gasdynamics.taylor_maccoll), which agrees with Sims (1964), NASA SP-3004 (beta 31.2 deg, Cp 0.1045).
+# PRE-REGISTERED 4 Nov 2026 (3D Euler solver stage addendum, rule 4) before any 3D validation run: Cp within 2 %,
+# shock angle within 3 %. Never changed after seeing results; a miss is reported as a SHORTFALL.
+
+title = "10 deg cone at Mach 2 (3D Euler, quarter domain) vs Taylor-Maccoll"
+case = "cases/external_3d"
+
+[[reference]]
+id = "beta"
+quantity = "Conical shock angle (shock position in the plane z = 0+ at 6 stations, line through the tip)"
+value = 31.2061
+unit = "deg"
+tolerance_percent = 3.0
+source = "Taylor-Maccoll (aeroflowsim.gasdynamics.taylor_maccoll), M = 2, theta_s = 10 deg, gamma = 1.4; Sims (1964) NASA SP-3004"
+
+[[reference]]
+id = "Cp"
+quantity = "Surface pressure coefficient (mean over the wall faces between 30 % and 80 % of the cone length)"
+value = 0.104471
+unit = "-"
+tolerance_percent = 2.0
+source = "Taylor-Maccoll, as above (Sims 1964: 0.1045)"

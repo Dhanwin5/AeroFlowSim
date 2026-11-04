@@ -1,0 +1,27 @@
+# The default N2 conical nozzle (p0 = 5 bar, T0 = 293.15 K, back pressure 1 kPa) solved twice on the SAME profile: 2D
+# axisymmetric (nozzle_axi, structured mesh) and 3D (the same 2D mesh revolved by 90 deg into a quarter: hexahedra +
+# prisms on the axis, two symmetry planes; aeroflowsim.simple_meshes.revolve_axisymmetric), same numerics (LU-SGS).
+# The compared values are the 3D result divided by the 2D result (1 = equal). The revolved quarter has n segments
+# round the axis, which shrinks every cross-section by the polygon factor n/(2 pi) sin(2 pi/n) (16 segments per
+# quarter: -0.16 %): part of the "discretisation difference" the tolerance allows.
+# PRE-REGISTERED 4 Nov 2026 (addendum rule 4) before any 3D validation run: mass flow within 1 %, vacuum thrust within
+# 2 %. Never changed after seeing results; a miss is reported as a SHORTFALL.
+
+title = "N2 nozzle in 3D (revolved quarter) vs 2D axisymmetric"
+case = "cases/external_3d"
+
+[[reference]]
+id = "mdot_ratio"
+quantity = "Mass flow, 3D / 2D axisymmetric"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.0
+source = "2D axisymmetric run of the same nozzle on the same profile (validated: validation/euler2d_nozzle)"
+
+[[reference]]
+id = "thrust_ratio"
+quantity = "Vacuum thrust (exit plane), 3D / 2D axisymmetric"
+value = 1.0
+unit = "-"
+tolerance_percent = 2.0
+source = "2D axisymmetric run, as above"
