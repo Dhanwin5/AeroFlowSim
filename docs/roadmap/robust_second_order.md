@@ -295,3 +295,21 @@ K 1, update limit 0.2) and for the 2D cylinder the suggested triangle numerics:
 - 126k-cell sphere wall-clock target: NOT MET as defined - the residual criterion is never reached (the inviscid wake keeps
   moving; forces settle). 60k cells: 20,000 iterations in 635 s; the 126k run would need about 1,300 s for 20,000
   iterations without converging, so it was not run.
+- Two format fixes to the ramp reference after the run (validation/test_validation.py rules), values and the ratio
+  tolerance untouched: `case` names aeroflowsim/simple_meshes.py (the tools script is not a template), and the yes/no
+  tolerance registered as 0 is 0.01 (the framework needs > 0; for a 1-or-0 value any tolerance below 100 % gives the
+  same verdict).
+
+### Part 6 - docs and finish
+- Theory manual 13i (the two causes, the node-value gradient with its equations, the update limit, what did not help,
+  what remains), user guide "Triangle and tetrahedron meshes: robust numerics" (the two inputs, the run-log line, the
+  wake note), developer guide (gradient matrices and the CSR kernel, `_limit_update`, FINGERPRINT_NEUTRAL, the
+  reproduction tool), gap register (P1 restated with evidence; wake row; 2D far-field blend), CHANGELOG, roadmap README
+  (this stage done; laminar viscous next, then low-Mach preconditioning), docs/roadmap/laminar_viscous.md (next plan),
+  low_mach_preconditioning.md updated with this stage's findings.
+- Fast + GUI tests: 1,193 passed, 1 skipped (one validation-format test failed on the ramp reference, fixed above).
+- Full validation: 174 checks pass; the only failures are the four recorded SHORTFALLS (sphere 3D stand-off, cone
+  shock angle, ramp tet/hex ratio, 2D triangle cylinder stand-off). Every 2D number of report.md is identical to
+  before the stage (diff of the 2D rows: only the ramp's yes/no tolerance shown as 0.01). Quick set: 2D rows
+  identical; the 3D / new cases show the same shortfalls on their coarser meshes (cone Cp passes, 1.8 %).
+- Pushed to main. No tag, no release.

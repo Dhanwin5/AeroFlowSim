@@ -2,7 +2,7 @@
  "name": "bmg_nozzle",
  "title": "Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi)",
  "case": "cases/nozzle_axi",
- "date": "2026-11-03",
+ "date": "2026-11-04",
  "comparisons": [
   {
    "reference": {

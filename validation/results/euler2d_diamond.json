@@ -2,7 +2,7 @@
  "name": "euler2d_diamond",
  "title": "Diamond airfoil t/c = 0.1 at Mach 2, alpha 0 and 2 deg (2D Euler, external_2d)",
  "case": "cases/external_2d",
- "date": "2026-11-03",
+ "date": "2026-11-04",
  "comparisons": [
   {
    "reference": {

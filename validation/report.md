@@ -1,6 +1,6 @@
 # AeroFlowSim validation report
 
-AeroFlowSim 0.2.0a3, generated 2026-11-04 by `python validation/run_all.py`.
+AeroFlowSim 0.2.0a3, generated 2026-11-05 by `python validation/run_all.py`.
 
 **Validation set: full** (all meshes of every case; run weekly and on version tags).
 
@@ -75,7 +75,7 @@ Sources:
 
 | Cells | Iterations | Converged | Time [s] | beta [deg] | beta Taylor-Maccoll [deg] | Cp | Cp Taylor-Maccoll |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 5,823 | 1,990 | yes | 2 | 34.206 | 33.915 | 0.2019 | 0.2022 |
+| 5,823 | 1,990 | yes | 3 | 34.206 | 33.915 | 0.2019 | 0.2022 |
 
 - Taylor-Maccoll (aeroflowsim.gasdynamics.taylor_maccoll) agrees with Sims (1964, NASA SP-3004, Tables 9 and 11) to 7e-5 in Cp and 2e-6 rad in the shock angle (tests/test_gasdynamics.py).
 
@@ -97,7 +97,7 @@ Sources:
 | Run | Cells | Iterations | Converged | Final residual | Time [s] | Stand-off / D | Shock roughness | Carbuncle metric | Positivity events |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | polar grid, carbuncle fix on | 4,800 | 2,706 | yes | 9.7e-07 | 3 | 0.2249 | 0.77 | 3.06e-06 | 0 |
-| polar grid, carbuncle fix OFF | 4,800 | 12,000 | NO | 3.3e-01 | 14 | 0.2244 | 1.51 | 1.05e-03 | 0 |
+| polar grid, carbuncle fix OFF | 4,800 | 12,000 | NO | 3.3e-01 | 15 | 0.2244 | 1.51 | 1.05e-03 | 0 |
 | Gmsh quad-dominant, fix on | 1,329 | 501 | NO | 6.4e-02 | 0 | 0.2296 | - | 1.12e+00 | 0 |
 
 - Billig correlation: stand-off / D = 0.2197.
@@ -122,7 +122,7 @@ Sources:
 
 | Cells | Iterations | Status | Final residual | Time [s] | Stand-off / R | Billig | Cd | Cd range, last 1,000 it | Limited updates |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 11,435 | 20,000 | max_iterations | 1.1e-03 | 52 | 0.7027 | 0.6485 | 1.3449 | 0.049 % | 325,560 |
+| 11,435 | 20,000 | max_iterations | 1.1e-03 | 57 | 0.7027 | 0.6485 | 1.3449 | 0.049 % | 325,560 |
 
 - The residual of an inviscid blunt-body wake on triangles does not reach 1e-6 (the wake keeps moving); the forebody quantities settle (Cd range in the table).
 
@@ -177,11 +177,11 @@ Sources:
 | Condition | Mesh | Cells | Iterations | Converged | Time [s] | Cl | Cd | Cm |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Mach 0.8 | wall 0.01 c | 14,523 | 7,307 | yes | 21 | 0.33489 | 0.022000 | -0.03438 |
-| Mach 0.8 | wall 0.005 c | 40,388 | 40,000 | NO | 306 | 0.33248 | 0.021658 | -0.03388 |
-| Mach 0.8 | wall 0.0025 c | 136,920 | 25,964 | yes | 1100 | 0.33522 | 0.021737 | -0.03432 |
-| Mach 0.5 | wall 0.01 c | 14,523 | 7,151 | yes | 19 | 0.17430 | 0.000475 | -0.00150 |
-| Mach 0.5 | wall 0.005 c | 40,388 | 10,118 | yes | 84 | 0.17556 | 0.000287 | -0.00172 |
-| Mach 0.5 | wall 0.0025 c | 136,920 | 14,133 | yes | 649 | 0.17779 | 0.000191 | -0.00221 |
+| Mach 0.8 | wall 0.005 c | 40,388 | 40,000 | NO | 358 | 0.33248 | 0.021658 | -0.03388 |
+| Mach 0.8 | wall 0.0025 c | 136,920 | 25,964 | yes | 1124 | 0.33522 | 0.021737 | -0.03432 |
+| Mach 0.5 | wall 0.01 c | 14,523 | 7,151 | yes | 28 | 0.17430 | 0.000475 | -0.00150 |
+| Mach 0.5 | wall 0.005 c | 40,388 | 10,118 | yes | 116 | 0.17556 | 0.000287 | -0.00172 |
+| Mach 0.5 | wall 0.0025 c | 136,920 | 14,133 | yes | 656 | 0.17779 | 0.000191 | -0.00221 |
 
 - Reference (Vassberg & Jameson 2010, Table 11, p. 1165): Mach 0.8, alpha 1.25 deg: continuum Cl 0.3482 (CFL3D) to 0.3562 (FLO82), Cd 0.02245 to 0.02268; Table 10: Mach 0.5, alpha 1.25 deg: Cl 0.17978 to 0.18035, Cd -> 0 (FLO82 4.5e-8).
 - Cm here is about the quarter chord (template convention); the reference's Cm is about the quarter chord as well.
@@ -212,14 +212,14 @@ Sources:
 
 | Mesh | Cells | Iterations | Converged | Time [s] | Mass flow [mg/s] | Cd | F exit [mN] | F wall [mN] | Isp [s] | Isp / Isp 1D | p0 loss [%] |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| structured 50 x 10 | 500 | 4,457 | yes | 2 | 68.4750 | 0.9581 | 47.9974 | 47.9969 | 71.477 | 0.9855 | 2.609 |
-| structured 100 x 20 | 2,000 | 7,908 | yes | 5 | 67.6312 | 0.9463 | 47.3907 | 47.3907 | 71.454 | 0.9852 | 2.902 |
-| structured 200 x 40 | 8,000 | 13,771 | yes | 26 | 67.2131 | 0.9404 | 47.1116 | 47.1115 | 71.475 | 0.9855 | 2.542 |
-| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 17 | 67.5774 | 0.9455 | 47.3359 | 47.3604 | 71.428 | 0.9849 | 4.745 |
-| triangles, wall 0.08 D_t | 2,350 | 30,000 | NO | 23 | 67.2126 | 0.9404 | 47.0971 | 47.0557 | 71.453 | 0.9852 | 4.052 |
-| triangles, wall 0.04 D_t | 5,505 | 30,000 | NO | 39 | 67.0779 | 0.9386 | 47.0192 | 47.2436 | 71.478 | 0.9856 | 3.487 |
-| rounded throat, structured 100 x 20 | 2,000 | 10,111 | yes | 7 | 71.0768 | 0.9945 | 49.7479 | 49.7478 | 71.372 | 0.9841 | 0.046 |
-| rounded throat, structured 200 x 40 | 8,000 | 19,244 | yes | 37 | 71.0594 | 0.9943 | 49.7270 | 49.7270 | 71.359 | 0.9839 | 0.100 |
+| structured 50 x 10 | 500 | 4,457 | yes | 3 | 68.4750 | 0.9581 | 47.9974 | 47.9969 | 71.477 | 0.9855 | 2.609 |
+| structured 100 x 20 | 2,000 | 7,908 | yes | 7 | 67.6312 | 0.9463 | 47.3907 | 47.3907 | 71.454 | 0.9852 | 2.902 |
+| structured 200 x 40 | 8,000 | 13,771 | yes | 28 | 67.2131 | 0.9404 | 47.1116 | 47.1115 | 71.475 | 0.9855 | 2.542 |
+| triangles, wall 0.16 D_t | 1,098 | 30,000 | NO | 21 | 67.5774 | 0.9455 | 47.3359 | 47.3604 | 71.428 | 0.9849 | 4.745 |
+| triangles, wall 0.08 D_t | 2,350 | 30,000 | NO | 28 | 67.2126 | 0.9404 | 47.0971 | 47.0557 | 71.453 | 0.9852 | 4.052 |
+| triangles, wall 0.04 D_t | 5,505 | 30,000 | NO | 45 | 67.0779 | 0.9386 | 47.0192 | 47.2436 | 71.478 | 0.9856 | 3.487 |
+| rounded throat, structured 100 x 20 | 2,000 | 10,111 | yes | 9 | 71.0768 | 0.9945 | 49.7479 | 49.7478 | 71.372 | 0.9841 | 0.046 |
+| rounded throat, structured 200 x 40 | 8,000 | 19,244 | yes | 40 | 71.0594 | 0.9943 | 49.7270 | 49.7270 | 71.359 | 0.9839 | 0.100 |
 
 - Quasi-1D template (cases/quasi1d_nozzle, defaults): vacuum Isp 72.509 s, mass flow 71.6005 mg/s; ideal quasi-1D theory of the same wall 72.526 s.
 - Conical divergence estimate: 72.53 s x (1 + cos 15 deg)/2 = 71.29 s (point-source flow).
@@ -279,8 +279,8 @@ Sources:
 
 | Run | Cells | Wall-clock time [s] |
 |---:|---:|---:|
-| along x, quads | 800 | 0.2 |
-| diagonal, triangles | 20,000 | 0.5 |
+| along x, quads | 800 | 0.5 |
+| diagonal, triangles | 20,000 | 0.8 |
 
 - Second order (least-squares gradients, Venkatakrishnan limiter), SSP-RK3, CFL 0.8, one global time step; time-accurate to t = 0.2 s.
 
@@ -305,7 +305,7 @@ Sources:
 | Mesh | Cells | Iterations | Converged | Time [s] | beta [deg] | p2/p1 | M2 | Cd (incl. base) |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | wall 0.02 L | 3,553 | 1,159 | yes | 1 | 39.351 | 1.7072 | 1.6316 | 0.1965 |
-| wall 0.01 L | 11,958 | 1,695 | yes | 4 | 39.244 | 1.7067 | 1.6328 | 0.1980 |
+| wall 0.01 L | 11,958 | 1,695 | yes | 5 | 39.244 | 1.7067 | 1.6328 | 0.1980 |
 
 - Theory: beta = 39.314 deg, p2/p1 = 1.7066, M2 = 1.6405.
 - Cd includes the base drag of the flat base (the base pressure is not part of the oblique-shock theory).
@@ -328,8 +328,8 @@ Sources:
 
 | Run | Cells | Iterations | Converged | Time [s] | Shock stations | beta [deg] | beta Taylor-Maccoll [deg] | Cp | Cp Taylor-Maccoll |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| cone | 30,825 | 1,221 | yes | 18 | 6 | 33.392 | 31.206 | 0.1063 | 0.1045 |
-| finer | 72,150 | 1,014 | yes | 38 | 6 | 32.780 | 31.206 | 0.1058 | 0.1045 |
+| cone | 30,825 | 1,221 | yes | 20 | 6 | 33.392 | 31.206 | 0.1063 | 0.1045 |
+| finer | 72,150 | 1,014 | yes | 43 | 6 | 32.780 | 31.206 | 0.1058 | 0.1045 |
 
 - 3D quarter domain with two symmetry planes, tetrahedra, the external_3d defaults.
 
@@ -351,19 +351,19 @@ Sources:
 
 | Run | Cells | Iterations | Converged | Time [s] | mdot [mg/s] | F exit [mN] | F wall+inlet [mN] | Isp [s] |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 2D | 8,000 | 13,771 | yes | 27 | 67.2131 | 47.1116 | 47.1115 | 71.475 |
-| 3D | 128,000 | 30,000 | NO | 1692 | 67.1108 | 47.0392 | 47.0392 | 71.474 |
+| 2D | 8,000 | 13,771 | yes | 28 | 67.2131 | 47.1116 | 47.1115 | 71.475 |
+| 3D | 128,000 | 30,000 | NO | 1787 | 67.1108 | 47.0392 | 47.0392 | 71.474 |
 
 - Polygon factor of the revolved cross-sections: 0.99839 (the 3D throat area is this times the circle's).
 
 ## 30 deg ramp at Mach 2 on tetrahedra vs hexahedra (detached shock): FAIL
 
-Case: `tools/robustness_cases.py`, references: `validation/euler3d_ramp/reference.toml`
+Case: `aeroflowsim/simple_meshes.py`, references: `validation/euler3d_ramp/reference.toml`
 
 | Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
 |---|---:|---:|---:|---:|:---:|
 | Shock stand-off ahead of the ramp corner on the wall, tetrahedra / hexahedra | 1 | 1.82633 | 82.633 | 2 | FAIL |
-| Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no | 1 | 1 | 0.000 | 0 | PASS |
+| Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no | 1 | 1 | 0.000 | 0.01 | PASS |
 
 Sources:
 
@@ -374,8 +374,8 @@ Sources:
 
 | Kind | Cells | Iterations | Converged | Time [s] | Stand-off [m] | Limited updates |
 |---:|---:|---:|---:|---:|---:|---:|
-| tetrahedra | 6,144 | 3,108 | yes | 8 | 0.1478 | 203 |
-| hexahedra | 1,024 | 1,230 | yes | 1 | 0.0809 | 108 |
+| tetrahedra | 6,144 | 3,108 | yes | 11 | 0.1478 | 203 |
+| hexahedra | 1,024 | 1,230 | yes | 2 | 0.0809 | 108 |
 
 - Before the robust-second-order stage the tetrahedral run stalled at a residual of 0.26.
 
@@ -397,9 +397,9 @@ Sources:
 
 | Run | Cells | Iterations | Converged | Time [s] | Stand-off / R | Stand-off / R (old cell method) | Billig | Cd | Positivity fallbacks | CFL reductions |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 3D Mach 3 | 59,998 | 20,000 | NO | 635 | 0.2269 | 0.2230 | 0.2050 | 0.9686 | 665,290 | 0 |
+| 3D Mach 3 | 59,998 | 20,000 | NO | 792 | 0.2269 | 0.2230 | 0.2050 | 0.9686 | 665,290 | 0 |
 | 2D axisymmetric Mach 3 | 4,800 | 3,062 | yes | 4 | 0.2142 | nan | 0.2050 | 0.9526 | 404 | 3 |
-| 3D Mach 6 | 59,998 | 20,000 | NO | 628 | 0.1516 | 0.1530 | 0.1565 | 0.8873 | 133,999 | 0 |
+| 3D Mach 6 | 59,998 | 20,000 | NO | 663 | 0.1516 | 0.1530 | 0.1565 | 0.8873 | 133,999 | 0 |
 
 - Mach 6 on tetrahedra (full set): reported for the positivity fallback and the carbuncle; a converged run with a stand-off near Billig means no carbuncle bulge on the stagnation line.
 
@@ -557,9 +557,9 @@ Sources:
 
 | Level | Wall cell size [mm] | Cells | Tetrahedra | Prisms | Time [s] | Max skewness | Min dihedral [deg] | Max non-orth. [deg] | Max volume ratio |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| coarse | 80 | 29,012 | 23,402 | 5,610 | 0.8 | 0.873 | 12.5 | 67.1 | 14.72 |
-| medium | 40 | 125,853 | 105,043 | 20,810 | 4.0 | 0.989 | 9.8 | 66.6 | 8.18 |
-| fine | 20 | 718,770 | 645,910 | 72,860 | 32.5 | 0.910 | 9.4 | 69.9 | 7.09 |
+| coarse | 80 | 29,012 | 23,402 | 5,610 | 0.7 | 0.873 | 12.5 | 67.1 | 14.72 |
+| medium | 40 | 125,853 | 105,043 | 20,810 | 3.2 | 0.989 | 9.8 | 66.6 | 8.18 |
+| fine | 20 | 718,770 | 645,910 | 72,860 | 24.1 | 0.910 | 9.4 | 69.9 | 7.09 |
 
 - Halving every cell size multiplied the number of cells by 4.34, 5.71: cells that fill a fixed volume uniformly grow 8 times, the prism layers 4 times (wall area / size²), so the growth rises towards 8 as the volume cells dominate (the coarsest quick level has very few cells).
 - Skewness: equivolume for the tetrahedra, equiangle for the prisms.
@@ -588,22 +588,22 @@ Sources:
 
 | Scheme | Mesh | L2 error finest (rho / u / v / p) | Order L1 | Order L2 | Order Linf | GCI p (L2 of p) | GCI asympt. ratio | Iterations | Time [s] |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| planar, order 2 (16-128) | quads | 2.17e-05 / 7.15e-03 / 7.11e-03 / 4.48e+00 | 1.98 / 2.01 / 2.01 / 2.00 | 1.98 / 1.99 / 2.01 / 2.00 | 1.95 / 1.74 / 1.94 / 1.94 | 2.01 | 0.25 | 20,367 | 88 |
-| planar, order 2 (16-128) | distorted quads | 3.94e-05 / 1.35e-02 / 9.66e-03 / 7.41e+00 | 2.01 / 2.03 / 1.98 / 2.01 | 1.98 / 1.99 / 1.98 / 1.99 | 1.73 / 1.61 / 1.93 / 1.60 | 1.96 | 0.25 | 19,189 | 82 |
-| planar, order 2 (16-128) | triangles | 5.50e-05 / 1.21e-02 / 1.24e-02 / 6.16e+00 | 2.06 / 2.04 / 2.02 / 2.01 | 2.12 / 2.05 / 2.03 / 2.00 | 1.97 / 2.05 / 1.84 / 1.77 | 2.01 | 0.25 | 29,216 | 186 |
-| planar, order 2 (16-128) | mixed | 3.86e-05 / 9.89e-03 / 8.37e-03 / 4.99e+00 | 2.01 / 2.01 / 2.02 / 2.01 | 2.01 / 2.00 / 2.02 / 1.99 | 1.85 / 2.03 / 2.00 / 1.86 | 2.01 | 0.25 | 19,378 | 114 |
-| axisymmetric, order 2 (16-128) | quads | 2.43e-05 / 5.96e-03 / 5.64e-03 / 3.47e+00 | 2.05 / 2.04 / 2.02 / 2.03 | 2.07 / 2.06 / 2.02 / 2.03 | 2.04 / 1.80 / 1.97 / 1.99 | 2.06 | 0.25 | 11,257 | 50 |
-| axisymmetric, order 2 (16-128) | distorted quads | 3.09e-05 / 8.43e-03 / 6.82e-03 / 4.37e+00 | 2.03 / 2.04 / 2.03 / 2.02 | 2.08 / 2.04 / 2.03 / 2.02 | 2.15 / 1.88 / 1.97 / 1.95 | 2.02 | 0.25 | 10,338 | 44 |
-| axisymmetric, order 2 (16-128) | triangles | 5.93e-05 / 1.21e-02 / 1.36e-02 / 5.55e+00 | 2.04 / 2.08 / 2.01 / 2.02 | 2.05 / 2.08 / 2.02 / 2.02 | 1.69 / 1.69 / 1.97 / 1.78 | 2.02 | 0.25 | 17,315 | 106 |
-| axisymmetric, order 2 (16-128) | mixed | 4.80e-05 / 1.02e-02 / 9.95e-03 / 4.25e+00 | 2.03 / 2.04 / 1.99 / 2.02 | 2.03 / 2.04 / 2.00 / 2.02 | 1.71 / 1.73 / 1.92 / 1.86 | 1.99 | 0.25 | 15,442 | 78 |
-| planar, order 1 (8-64) | quads | 6.13e-03 / 1.47e+00 / 2.79e+00 / 8.16e+02 | 0.91 / 0.86 / 0.96 / 0.89 | 0.90 / 0.84 / 0.95 / 0.87 | 0.75 / 0.79 / 0.94 / 0.72 | 0.74 | 0.55 | 9,055 | 7 |
-| planar, order 1 (8-64) | distorted quads | 8.71e-03 / 2.41e+00 / 3.20e+00 / 1.23e+03 | 0.80 / 0.73 / 0.89 / 0.76 | 0.77 / 0.66 / 0.89 / 0.71 | 0.61 / 0.51 / 0.80 / 0.57 | 0.47 | 0.61 | 8,736 | 6 |
-| planar, order 1 (8-64) | triangles | 4.94e-03 / 1.37e+00 / 1.52e+00 / 4.22e+02 | 0.95 / 0.95 / 1.00 / 0.93 | 0.96 / 0.94 / 0.98 / 0.91 | 0.99 / 0.78 / 0.89 / 0.89 | 0.90 | 0.53 | 11,585 | 10 |
-| planar, order 1 (8-64) | mixed | 4.56e-03 / 1.05e+00 / 1.87e+00 / 5.62e+02 | 0.98 / 0.93 / 1.00 / 0.97 | 0.97 / 0.94 / 0.98 / 0.96 | 1.00 / 0.97 / 0.97 / 0.94 | 0.94 | 0.51 | 9,036 | 7 |
-| planar, order 2, Venkatakrishnan (8-64) | quads | 2.32e-04 / 4.42e-02 / 7.71e-02 / 2.40e+01 | 1.34 / 1.60 / 1.64 / 1.72 | 1.01 / 1.58 / 1.21 / 1.67 | 0.55 / 1.05 / 0.62 / 1.27 | 1.98 | 0.31 | 9,503 | 12 |
-| planar, order 2, Venkatakrishnan (8-64) | distorted quads | 2.87e-04 / 5.63e-02 / 9.24e-02 / 3.09e+01 | 1.58 / 1.82 / 1.71 / 1.89 | 1.24 / 1.83 / 1.27 / 1.84 | 0.77 / 1.37 / 0.50 / 1.39 | 1.96 | 0.28 | 9,044 | 11 |
-| planar, order 2, Venkatakrishnan (8-64) | triangles | 7.15e-04 / 1.69e-01 / 1.38e-01 / 5.40e+01 | 1.27 / 1.07 / 1.19 / 1.15 | 1.34 / 1.12 / 1.18 / 1.08 | 0.96 / 0.97 / 0.95 / 1.07 | 2.20 | 0.47 | 13,681 | 24 |
-| planar, order 2, Venkatakrishnan (8-64) | mixed | 5.41e-04 / 1.22e-01 / 1.12e-01 / 4.28e+01 | 1.12 / 1.11 / 1.14 / 1.35 | 1.07 / 1.07 / 1.09 / 1.29 | 0.92 / 0.96 / 0.91 / 0.81 | 1.98 | 0.41 | 9,948 | 15 |
+| planar, order 2 (16-128) | quads | 2.17e-05 / 7.15e-03 / 7.11e-03 / 4.48e+00 | 1.98 / 2.01 / 2.01 / 2.00 | 1.98 / 1.99 / 2.01 / 2.00 | 1.95 / 1.74 / 1.94 / 1.94 | 2.01 | 0.25 | 20,367 | 125 |
+| planar, order 2 (16-128) | distorted quads | 3.94e-05 / 1.35e-02 / 9.66e-03 / 7.41e+00 | 2.01 / 2.03 / 1.98 / 2.01 | 1.98 / 1.99 / 1.98 / 1.99 | 1.73 / 1.61 / 1.93 / 1.60 | 1.96 | 0.25 | 19,189 | 119 |
+| planar, order 2 (16-128) | triangles | 5.50e-05 / 1.21e-02 / 1.24e-02 / 6.16e+00 | 2.06 / 2.04 / 2.02 / 2.01 | 2.12 / 2.05 / 2.03 / 2.00 | 1.97 / 2.05 / 1.84 / 1.77 | 2.01 | 0.25 | 29,216 | 226 |
+| planar, order 2 (16-128) | mixed | 3.86e-05 / 9.89e-03 / 8.37e-03 / 4.99e+00 | 2.01 / 2.01 / 2.02 / 2.01 | 2.01 / 2.00 / 2.02 / 1.99 | 1.85 / 2.03 / 2.00 / 1.86 | 2.01 | 0.25 | 19,378 | 142 |
+| axisymmetric, order 2 (16-128) | quads | 2.43e-05 / 5.96e-03 / 5.64e-03 / 3.47e+00 | 2.05 / 2.04 / 2.02 / 2.03 | 2.07 / 2.06 / 2.02 / 2.03 | 2.04 / 1.80 / 1.97 / 1.99 | 2.06 | 0.25 | 11,257 | 60 |
+| axisymmetric, order 2 (16-128) | distorted quads | 3.09e-05 / 8.43e-03 / 6.82e-03 / 4.37e+00 | 2.03 / 2.04 / 2.03 / 2.02 | 2.08 / 2.04 / 2.03 / 2.02 | 2.15 / 1.88 / 1.97 / 1.95 | 2.02 | 0.25 | 10,338 | 56 |
+| axisymmetric, order 2 (16-128) | triangles | 5.93e-05 / 1.21e-02 / 1.36e-02 / 5.55e+00 | 2.04 / 2.08 / 2.01 / 2.02 | 2.05 / 2.08 / 2.02 / 2.02 | 1.69 / 1.69 / 1.97 / 1.78 | 2.02 | 0.25 | 17,315 | 132 |
+| axisymmetric, order 2 (16-128) | mixed | 4.80e-05 / 1.02e-02 / 9.95e-03 / 4.25e+00 | 2.03 / 2.04 / 1.99 / 2.02 | 2.03 / 2.04 / 2.00 / 2.02 | 1.71 / 1.73 / 1.92 / 1.86 | 1.99 | 0.25 | 15,442 | 104 |
+| planar, order 1 (8-64) | quads | 6.13e-03 / 1.47e+00 / 2.79e+00 / 8.16e+02 | 0.91 / 0.86 / 0.96 / 0.89 | 0.90 / 0.84 / 0.95 / 0.87 | 0.75 / 0.79 / 0.94 / 0.72 | 0.74 | 0.55 | 9,055 | 12 |
+| planar, order 1 (8-64) | distorted quads | 8.71e-03 / 2.41e+00 / 3.20e+00 / 1.23e+03 | 0.80 / 0.73 / 0.89 / 0.76 | 0.77 / 0.66 / 0.89 / 0.71 | 0.61 / 0.51 / 0.80 / 0.57 | 0.47 | 0.61 | 8,736 | 10 |
+| planar, order 1 (8-64) | triangles | 4.94e-03 / 1.37e+00 / 1.52e+00 / 4.22e+02 | 0.95 / 0.95 / 1.00 / 0.93 | 0.96 / 0.94 / 0.98 / 0.91 | 0.99 / 0.78 / 0.89 / 0.89 | 0.90 | 0.53 | 11,585 | 16 |
+| planar, order 1 (8-64) | mixed | 4.56e-03 / 1.05e+00 / 1.87e+00 / 5.62e+02 | 0.98 / 0.93 / 1.00 / 0.97 | 0.97 / 0.94 / 0.98 / 0.96 | 1.00 / 0.97 / 0.97 / 0.94 | 0.94 | 0.51 | 9,036 | 12 |
+| planar, order 2, Venkatakrishnan (8-64) | quads | 2.32e-04 / 4.42e-02 / 7.71e-02 / 2.40e+01 | 1.34 / 1.60 / 1.64 / 1.72 | 1.01 / 1.58 / 1.21 / 1.67 | 0.55 / 1.05 / 0.62 / 1.27 | 1.98 | 0.31 | 9,503 | 19 |
+| planar, order 2, Venkatakrishnan (8-64) | distorted quads | 2.87e-04 / 5.63e-02 / 9.24e-02 / 3.09e+01 | 1.58 / 1.82 / 1.71 / 1.89 | 1.24 / 1.83 / 1.27 / 1.84 | 0.77 / 1.37 / 0.50 / 1.39 | 1.96 | 0.28 | 9,044 | 18 |
+| planar, order 2, Venkatakrishnan (8-64) | triangles | 7.15e-04 / 1.69e-01 / 1.38e-01 / 5.40e+01 | 1.27 / 1.07 / 1.19 / 1.15 | 1.34 / 1.12 / 1.18 / 1.08 | 0.96 / 0.97 / 0.95 / 1.07 | 2.20 | 0.47 | 13,681 | 35 |
+| planar, order 2, Venkatakrishnan (8-64) | mixed | 5.41e-04 / 1.22e-01 / 1.12e-01 / 4.28e+01 | 1.12 / 1.11 / 1.14 / 1.35 | 1.07 / 1.07 / 1.09 / 1.29 | 0.92 / 0.96 / 0.91 / 0.81 | 1.98 | 0.41 | 9,948 | 21 |
 
 - Orders listed per variable rho / u / v / p. Errors in SI units (kg/m³, m/s, m/s, Pa).
 - The GCI columns apply the three-mesh GCI procedure (aeroflowsim/gci.py) to the L2 error of p: its observed order should match and the asymptotic ratio be near 1.
@@ -628,14 +628,14 @@ Sources:
 
 | Cells | Box | Count | Iterations | Time [s] | L2 error / order |
 |---:|---:|---:|---:|---:|---:|
-| hexahedra | 12^3 | 1,728 | 613 | 0.5 | 3.233e-03 9.148e-01 8.630e-01 4.519e-01 4.438e+02 |
-| hexahedra | 24^3 | 13,824 | 962 | 5.1 | 7.817e-04 2.222e-01 2.060e-01 1.026e-01 1.136e+02 |
+| hexahedra | 12^3 | 1,728 | 613 | 0.9 | 3.233e-03 9.148e-01 8.630e-01 4.519e-01 4.438e+02 |
+| hexahedra | 24^3 | 13,824 | 962 | 4.9 | 7.817e-04 2.222e-01 2.060e-01 1.026e-01 1.136e+02 |
 | hexahedra | order |  |  |  | 2.048 2.042 2.067 2.139 1.966 |
 | prisms | 12^3 | 3,456 | 564 | 0.7 | 1.986e-03 5.474e-01 5.157e-01 4.107e-01 2.635e+02 |
-| prisms | 24^3 | 27,648 | 855 | 8.9 | 5.169e-04 1.416e-01 1.231e-01 9.296e-02 7.208e+01 |
+| prisms | 24^3 | 27,648 | 855 | 9.2 | 5.169e-04 1.416e-01 1.231e-01 9.296e-02 7.208e+01 |
 | prisms | order |  |  |  | 1.942 1.951 2.067 2.143 1.870 |
-| tetrahedra | 12^3 | 10,368 | 832 | 2.5 | 3.723e-03 9.438e-01 8.011e-01 5.994e-01 2.819e+02 |
-| tetrahedra | 24^3 | 82,944 | 1,551 | 39.8 | 1.091e-03 2.802e-01 2.253e-01 1.671e-01 8.400e+01 |
+| tetrahedra | 12^3 | 10,368 | 832 | 2.6 | 3.723e-03 9.438e-01 8.011e-01 5.994e-01 2.819e+02 |
+| tetrahedra | 24^3 | 82,944 | 1,551 | 37.9 | 1.091e-03 2.802e-01 2.253e-01 1.671e-01 8.400e+01 |
 | tetrahedra | order |  |  |  | 1.771 1.752 1.830 1.843 1.747 |
 
 - Hexahedra, Kuhn tetrahedra (6 per cube) and prisms (2 per cube), warp 0.03.

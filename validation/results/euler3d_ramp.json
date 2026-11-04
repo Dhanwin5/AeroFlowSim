@@ -1,7 +1,7 @@
 {
  "name": "euler3d_ramp",
  "title": "30 deg ramp at Mach 2 on tetrahedra vs hexahedra (detached shock)",
- "case": "tools/robustness_cases.py",
+ "case": "aeroflowsim/simple_meshes.py",
  "date": "2026-11-04",
  "comparisons": [
   {
@@ -24,7 +24,7 @@
     "quantity": "Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no",
     "value": 1.0,
     "unit": "-",
-    "tolerance_percent": 0.0,
+    "tolerance_percent": 0.01,
     "source": "The convergence criterion of the solver",
     "tolerance_percent_quick": null,
     "pending": "",
@@ -50,7 +50,7 @@
     "6,144",
     "3,108",
     "yes",
-    "8",
+    "11",
     "0.1478",
     "203"
    ],
@@ -59,7 +59,7 @@
     "1,024",
     "1,230",
     "yes",
-    "1",
+    "2",
     "0.0809",
     "108"
    ]
