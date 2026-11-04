@@ -174,7 +174,7 @@ class RunPage(QWidget):
         from aeroflowsim.smart_rules import numerics_suggestions
         project = self.window.project
         try:
-            found = numerics_suggestions(project.case, project.params())
+            found = numerics_suggestions(project.case, project.params(), self.window.mesh)
         except ValueError as error:
             found = []
             self.window.log(f"No numerics suggestions: {error}", "warning")

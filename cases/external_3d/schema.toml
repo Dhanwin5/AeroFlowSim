@@ -11,11 +11,11 @@ description = "Steady inviscid 3D flow around a body (sphere, cylinder, nose con
 steady = true
 requires = ["gmsh"]
 euler_solver = true          # adds the Numerics inputs and the boundary-condition table (aeroflowsim/euler/setup.py)
-# 3D defaults, measured in the 3D Euler stage (docs/roadmap/3d_euler_solver.md, ledger parts 3 and 6): on tetrahedra the
-# weighted least-squares gradient (4 face neighbours) makes second-order runs oscillate or blow up near detached shocks
-# and in slow inlet regions; Green-Gauss gradients with Venkatakrishnan K = 1 converge with implicit LU-SGS (sphere
-# Mach 3, 30 deg ramp, STEP nozzle: residual 1e-6, mass balance 1e-6). K = 5 under-limits the large 3D cells.
-solver_defaults = { gradient = "Green-Gauss", venkat_k = 1.0, first_order_iterations = 100, monitor_window = 300 }
+# 3D defaults, measured in the 3D Euler and robust-second-order stages (docs/roadmap/robust_second_order.md): on
+# tetrahedra the gradient needs the vertex neighbours (Green-Gauss with node values: no stall at shocks, MMS order 1.86)
+# and the implicit update a per-cell limit in the near-vacuum wake of blunt bodies (no divergence). Venkatakrishnan
+# K = 5 under-limits the large 3D cells, K = 1 is used.
+solver_defaults = { gradient = "Green-Gauss (node values)", update_limit = 0.2, venkat_k = 1.0, first_order_iterations = 100, monitor_window = 300 }
 
 # ---- body ------------------------------------------------------------------------------------------
 

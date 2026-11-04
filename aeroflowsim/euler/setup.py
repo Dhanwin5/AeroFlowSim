@@ -152,6 +152,18 @@ def _numerics(params, steady=True) -> Numerics:
                     update_limit=float(params.get("update_limit", 0.0) or 0.0))
 
 
+def numerics_note(params) -> str:
+    """One line for the run log: the numerics that are active (time scheme, gradient, limiter, update limit), or ""
+    for templates without the Euler solver inputs."""
+    if "time_scheme" not in params or "gradient" not in params:
+        return ""
+    limit = float(params.get("update_limit", 0.0) or 0.0)
+    parts = [params["time_scheme"], f"gradients {params['gradient']}", f"limiter {params['limiter']}"
+             + (f" (K = {params['venkat_k']:g})" if params["limiter"] == "Venkatakrishnan" else ""),
+             f"update limit {limit:g}" if limit > 0 else "no update limit"]
+    return "Numerics: " + ", ".join(parts) + "."
+
+
 # ---- boundary conditions ------------------------------------------------------------------------------
 
 def conditions(params, mesh, defaults) -> dict:

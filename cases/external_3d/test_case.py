@@ -30,7 +30,8 @@ def params(**values):
 def test_template_has_the_3d_solver_and_its_defaults():
     assert CASE.has_solver
     p = params()
-    assert p["time_scheme"] == "Implicit LU-SGS" and p["gradient"] == "Green-Gauss" and p["venkat_k"] == 1.0
+    assert p["time_scheme"] == "Implicit LU-SGS" and p["gradient"] == "Green-Gauss (node values)" and p["venkat_k"] == 1.0
+    assert p["update_limit"] == 0.2
     assert p["alpha"] == 0.0 and p["beta"] == 0.0 and not p["inflation"]          # prism layers off for Euler runs
     doc = template_document(CASE)
     assert doc.dimension == 3 and [op.type for op in doc.operations] == ["template_body", "template_enclosure_3d"]

@@ -103,6 +103,9 @@ def command_run(args):
         return 1
 
     print_inputs(case, params)
+    from aeroflowsim.euler.setup import numerics_note
+    if numerics_note(params):
+        print(numerics_note(params))
     try:
         out = run_case(case, params, progress=print_progress_every(args.print_every),
                        out_dir=args.out or RESULTS_DIR / case.name)
@@ -130,6 +133,13 @@ def command_run_project(args):
         print(f"Error: {error}")
         return 1
     print(f"Project: {project.folder}")
+    from aeroflowsim.euler.setup import numerics_note
+    try:
+        note = numerics_note(project.params())
+    except ValueError:
+        note = ""
+    if note:
+        print(note)
     print_inputs(project.case, params)
     try:
         if not project.case.has_solver:          # mesh-only template: make the mesh, nothing to solve

@@ -948,6 +948,10 @@ class MainWindow(QMainWindow):
             patches = len((extras or {}).get("init_patches") or [])
             extra = f" with {patches} patch region(s)" if patches else ""
             self.log(f"Run started from the initial solution{extra}{reason} ({project.case.title})")
+        from aeroflowsim.euler.setup import numerics_note
+        note = numerics_note(params)
+        if note:
+            self.log(note)
         self.go_to("run")
         self.refresh_all()
 

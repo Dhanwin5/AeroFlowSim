@@ -246,3 +246,20 @@ stage: do all 6 parts in order, in this one session, without waiting for me betw
   (SSP-RK3 and LU-SGS), thread independence, MMS order, the update limit: no change where inactive (bit for bit),
   bounds every change, counted; old-project fingerprint unchanged. 232 related tests pass.
 - Next: Part 4 (defaults by mesh type, smart rule, run log).
+
+### Part 4 - defaults, suggestion, run log, old projects (done)
+- external_3d solver_defaults: gradient "Green-Gauss (node values)", update_limit 0.2 (K 1, 100 first-order it. kept).
+  2D defaults unchanged (least squares, K 5, no update limit): their validated numbers stay bit for bit.
+- Smart rule (`numerics_suggestions(case, params, mesh)`, Run step "Suggested numerics"): a mesh with more than half
+  triangles / tetrahedra gets "Gradients Green-Gauss (node values), update limit 0.2" with the measured reason; gone
+  once applied, never for quads.
+- Run log: `setup.numerics_note(params)` ("Numerics: Implicit LU-SGS, gradients ..., limiter ... (K = ...), update limit
+  ...") logged by the GUI at every run start and printed by the command line (template runs and project runs).
+- Old projects: the new input is fingerprint-neutral at 0 (Part 3 test); the gradient choice is a new option of an
+  existing input. Only external_3d projects change: its schema.toml (solver defaults) is part of their template
+  fingerprint, so existing 3D projects show "needs update" (results of the old defaults).
+- Far-field near-sonic blend in 2D: NOT adopted (it changes the far-field state wherever 0.9 < M_n < 1.1 at an outflow,
+  so the 2D numbers cannot be guaranteed identical) - stays a gap.
+- Tests (27 in test_robust_second_order.py): suggestion on triangles only and gone when applied; run-log note; walk-through:
+  an old 2D project switched to the new options runs from the command line (note printed), results current, continued
+  40 -> 60 with the same options.

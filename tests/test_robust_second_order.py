@@ -168,3 +168,53 @@ def test_new_input_at_its_old_value_keeps_old_project_fingerprints(tmp_path):
     assert again.values["update_limit"] == 0.0 and again.fingerprint("run") == before
     again.values["update_limit"] = 0.2                  # switching it on makes the result out of date
     assert again.fingerprint("run") != before
+
+
+# ---- defaults, suggestion, run log (Part 4) -----------------------------------------------------------------------
+
+def test_simplex_meshes_get_the_gradient_and_update_limit_suggestion():
+    from aeroflowsim.discovery import load_case
+    from aeroflowsim.parameters import defaults
+    from aeroflowsim.smart_rules import numerics_suggestions
+    case = load_case("cases/external_2d")
+    p = defaults(case.parameters())
+    tips = numerics_suggestions(case, p, rectangle_mesh(6, 4, triangles=True))
+    tip = next(t for t in tips if t.title == "Triangle / tetrahedron mesh")
+    assert tip.inputs == {"gradient": GREEN_GAUSS_NODES, "update_limit": 0.2}
+    applied = {**p, **tip.inputs}
+    assert not any(t.title == "Triangle / tetrahedron mesh" for t in numerics_suggestions(case, applied,
+                                                                                         rectangle_mesh(6, 4, triangles=True)))
+    assert not any(t.title == "Triangle / tetrahedron mesh" for t in numerics_suggestions(case, p, rectangle_mesh(6, 4)))
+
+
+def test_run_log_note_names_the_active_numerics():
+    from aeroflowsim.euler.setup import numerics_note
+    from aeroflowsim.discovery import load_case
+    from aeroflowsim.parameters import defaults
+    p3 = defaults(load_case("cases/external_3d").parameters())
+    note = numerics_note(p3)
+    assert "Green-Gauss (node values)" in note and "update limit 0.2" in note
+    p2 = defaults(load_case("cases/external_2d").parameters())
+    assert "least squares" in numerics_note(p2) and "no update limit" in numerics_note(p2)
+
+
+def test_switching_the_options_on_in_an_old_2d_project_and_running_from_the_command_line(tmp_path, capsys):
+    """Walk-through: an old 2D project switched to the new options runs, the log says so, continuing keeps them."""
+    from aeroflowsim.cli import main
+    from aeroflowsim.project import Project
+    project = Project.create("cases/external_2d", tmp_path / "w.afsproj",
+                             values={"shape": "Wedge", "mach": 2.0, "surface_size": 0.08, "farfield_size": 0.3,
+                                     "max_iter": 40})
+    project.values.update({"gradient": GREEN_GAUSS_NODES, "update_limit": 0.2})
+    project.save()
+    assert main(["run", str(project.folder)]) in (0, 2)          # 2: validity warnings (40 iterations only)
+    out = capsys.readouterr().out
+    assert "Green-Gauss (node values)" in out and "update limit 0.2" in out
+    again = Project.open(project.folder)
+    assert again.status("results") == "ok"
+    result = again.load_results()["result"]
+    assert result.iterations == 40 and "limited_updates" in result.info
+    again.values["max_iter"] = 60                     # continue: Run carries on with the same options
+    again.save()
+    assert main(["run", str(project.folder)]) in (0, 2)          # 2: validity warnings (40 iterations only)
+    assert Project.open(project.folder).load_results()["result"].iterations == 60
