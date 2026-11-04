@@ -1237,6 +1237,65 @@ Heun's method through the inverse-distance velocity.
 References: Blazek (2015) ch. 4, 6, 8; Barth & Jespersen (1989); Venkatakrishnan (1995); Roy et al. (2004);
 Sims (1964); Billig (1967); Anderson (2003) sec. 10.4.
 
+## 13i. Robust second order on triangles and tetrahedra (robust-second-order stage)
+
+**The problem.** Second-order runs on simplex meshes (triangles, tetrahedra) at strong shocks stalled or diverged
+(Mach 3 sphere on 60k tetrahedra, 10 deg cone, a 30 deg ramp on tetrahedra, the Mach 3 cylinder on Gmsh triangles)
+while the same flows converged on hexahedra and prisms. One hypothesis at a time was tested on a fixed reproduction set
+(`tools/robustness_cases.py`; the before/after tables are in `docs/roadmap/robust_second_order.md`). The cause turned
+out to be two separate things.
+
+**1. The gradient stencil.** A tetrahedron has 4 face neighbours, a triangle 3. A gradient from so few points (least
+squares with 1/d^2 weights, or Green-Gauss with face values = mean of two cells) is noisy on irregular cells, and
+next to boundaries the boundary-face point dominates. At shocks the limiter then switches on and off from iteration to
+iteration and the residual stalls. The cure is a **vertex-neighbour stencil: Green-Gauss with node values**
+(Barth 1991; Mavriplis 2003):
+
+    grad phi_i = (1 / V_i) sum_faces sum_triangles t of the face  (mean of phi on t) S_t
+
+The faces are split into the same triangles round their node mean m that define their area vector (section 7). The
+mean of phi on a triangle (p, q, m) is (phi_p + phi_q + phi_m) / 3, with phi_m the mean of the face's node values.
+Each triangle uses its own area vector S_t, so the formula is exact for linear fields even on non-planar quad faces.
+A node value is the constant term a of the weighted linear fit
+
+    phi ~ a + b . (x - x_node)   through the cells (and, at boundary nodes, the boundary faces) round the node,
+
+with weights 1/d. That is the pseudo-Laplacian idea of Holmes & Connell (1989), exact for linear fields; a node with
+too few or coplanar points falls back to the weighted mean. Every cell sharing a node with cell i enters its gradient:
+about 20 cells for a tetrahedron instead of 4. The operator is one sparse matrix; the Numba kernel `gradients_csr`
+multiplies it row by row (a gather, so the result does not depend on the thread count).
+Results: the tetrahedral ramp's residual went from a stall at 0.26 to 4e-8; the cone now converges. The MMS order on
+tetrahedra rose from 1.75 to 1.86 (prisms 1.82, hexahedra 1.93).
+
+**2. The implicit update in near-vacuum expansions.** Behind a blunt body the flow expands to a small fraction of the
+free-stream pressure. A large implicit (LU-SGS) step can make a cell's pressure negative in ONE update. No
+reconstruction fallback sees this (it acts on face states only), so the whole solution is rolled back and the CFL
+number halved, until the run gives up ("diverged"). The cure is the **per-cell update limit**, SU2's local
+under-relaxation:
+
+    dU_i -> theta_i dU_i,   theta_i = limit / max(|d rho| / rho, |d E| / E, |d p| / p)   where that ratio > limit,
+
+with theta halved further until the pressure change is within the limit (p is not linear in U). Where no cell exceeds
+the limit the update is unchanged bit for bit, and the steady solution never depends on it (dU -> 0). With 0.2 no case
+of the set diverges any more.
+
+**What did not help (recorded).** A ramp into second order only delayed the divergence. Limiter variants (freezing,
+K, Barth-Jespersen) and a smooth positivity scaling of the reconstruction changed nothing. Explicit SSP-RK3 shows the
+same wake behaviour, so a better implicit operator (Roe Jacobian, GMRES) was not built.
+
+**What remains.** The inviscid wake behind a sphere or cylinder on an unstructured mesh keeps moving: about 1 % of the
+cells, implicit or explicit alike, keep the residual near 1e-4. Meanwhile the forces settle (cylinder Cd constant to
+5 digits, oscillation 0.06 %). The forebody quantities (shock, stand-off, Cd) are judged with the monitors settled;
+the residual criterion is not met there.
+
+**Defaults.** The 3D template uses node-value gradients, Venkatakrishnan K = 1 and an update limit of 0.2. For 2D
+meshes with more than half triangles a smart rule suggests the same; the 2D defaults are unchanged (their validated
+numbers stay bit for bit). The run log names the active numerics. The new input "Implicit update limit" is left out of
+the project fingerprint at its old value 0 (`parameters.FINGERPRINT_NEUTRAL`), so old projects stay up to date.
+
+References: Barth (1991), AIAA 91-0721; Mavriplis (2003), AIAA 2003-3986; Holmes & Connell (1989), AIAA 89-1932;
+Economon et al. (2016), SU2, AIAA J. 54(3).
+
 ## 14. New shapes, nozzle contours and intakes (Shapes, grids and mesh import stage, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,

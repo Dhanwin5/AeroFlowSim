@@ -1,0 +1,54 @@
+{
+ "name": "euler2d_cylinder_triangles",
+ "title": "Cylinder at Mach 3 on triangles (2D Euler, node-value gradients) vs Billig",
+ "case": "cases/external_2d",
+ "date": "2026-11-04",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "standoff",
+    "quantity": "Bow-shock stand-off distance / cylinder radius on the stagnation line (Gmsh triangles)",
+    "value": 0.648542,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.7027136988872391
+  }
+ ],
+ "study": {
+  "title": "Run",
+  "columns": [
+   "Cells",
+   "Iterations",
+   "Status",
+   "Final residual",
+   "Time [s]",
+   "Stand-off / R",
+   "Billig",
+   "Cd",
+   "Cd range, last 1,000 it",
+   "Limited updates"
+  ],
+  "rows": [
+   [
+    "11,435",
+    "20,000",
+    "max_iterations",
+    "1.1e-03",
+    "52",
+    "0.7027",
+    "0.6485",
+    "1.3449",
+    "0.049 %",
+    "325,560"
+   ]
+  ],
+  "notes": [
+   "The residual of an inviscid blunt-body wake on triangles does not reach 1e-6 (the wake keeps moving); the forebody quantities settle (Cd range in the table)."
+  ]
+ }
+}

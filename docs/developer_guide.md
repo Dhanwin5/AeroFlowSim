@@ -290,6 +290,17 @@ project afterwards), `cases/external_3d/test_case.py`; validation `validation/ge
   it for 3D meshes); `Project.continuation` prefers it when newer. Memory: `compute.run_memory_estimate`,
   `compute.free_memory_bytes`, check `checks.run_memory` (3D only).
 
+## Robust second order (robust-second-order stage)
+
+- Gradient methods are sparse matrices (`euler/gradients.py`): least squares and face-average Green-Gauss also have
+  slot-coefficient Numba kernels (`kernels.gradients`); the vertex-stencil "Green-Gauss (node values)" uses the generic
+  CSR kernel `kernels.gradients_csr` (any linear gradient operator works with it).
+- `EulerSolver._limit_update` is the per-cell update limit (`Numerics.update_limit`), counted in `limited_updates`.
+- `parameters.FINGERPRINT_NEUTRAL`: an input added after projects existed is left out of the fingerprint while it holds
+  its old-behaviour value; add every such new solver input there.
+- Reproduction set for robustness work: `python tools/robustness_cases.py [cases] '{numerics JSON}'` (worst-cell
+  diagnosis); the developer knob `AEROFLOWSIM_NUMERICS` sets Numerics fields that are not inputs.
+
 ## 9. Tests
 
 - `tests/test_panel_model.py`, `tests/test_gui_logic.py`, `tests/test_project.py`,

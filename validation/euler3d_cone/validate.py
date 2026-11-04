@@ -66,14 +66,19 @@ def _measure(out):
 
 def measure():
     RUNS["cone"] = _measure(aeroflowsim.run_case("cases/external_3d", {**BASE, **_sizes()}))
+    if not is_quick():      # reported only (not scored): cells / sqrt(2) on the wall and in the field
+        RUNS["finer"] = _measure(aeroflowsim.run_case("cases/external_3d", {**BASE, "surface_size": 0.0106,
+                                                                           "farfield_size": 0.0424}))
     return {"beta": RUNS["cone"]["beta"], "Cp": RUNS["cone"]["Cp"]}
 
 
 def study():
-    m, tm = RUNS["cone"], RUNS["cone"]["theory"]
-    return {"title": "Run", "columns": ["Cells", "Iterations", "Converged", "Time [s]", "Shock stations", "beta [deg]",
-                                        "beta Taylor-Maccoll [deg]", "Cp", "Cp Taylor-Maccoll"],
-            "rows": [[f"{m['cells']:,}", f"{m['iterations']:,}", "yes" if m["converged"] else "NO", f"{m['time']:.0f}",
-                      str(m["stations"]), f"{m['beta']:.3f}", f"{math.degrees(tm['beta']):.3f}", f"{m['Cp']:.4f}",
-                      f"{tm['Cp']:.4f}"]],
-            "notes": ["3D quarter domain with two symmetry planes, tetrahedra, LU-SGS with Green-Gauss gradients."]}
+    tm = RUNS["cone"]["theory"]
+    rows = [[name, f"{m['cells']:,}", f"{m['iterations']:,}", "yes" if m["converged"] else "NO", f"{m['time']:.0f}",
+             str(m["stations"]), f"{m['beta']:.3f}", f"{math.degrees(tm['beta']):.3f}", f"{m['Cp']:.4f}",
+             f"{tm['Cp']:.4f}"] for name, m in RUNS.items()]
+    return {"title": "Runs (the scored run is 'cone'; 'finer' is reported only)",
+            "columns": ["Run", "Cells", "Iterations", "Converged", "Time [s]", "Shock stations", "beta [deg]",
+                        "beta Taylor-Maccoll [deg]", "Cp", "Cp Taylor-Maccoll"],
+            "rows": rows,
+            "notes": ["3D quarter domain with two symmetry planes, tetrahedra, the external_3d defaults."]}

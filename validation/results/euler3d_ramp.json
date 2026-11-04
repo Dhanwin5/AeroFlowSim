@@ -1,0 +1,71 @@
+{
+ "name": "euler3d_ramp",
+ "title": "30 deg ramp at Mach 2 on tetrahedra vs hexahedra (detached shock)",
+ "case": "tools/robustness_cases.py",
+ "date": "2026-11-04",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "standoff_ratio",
+    "quantity": "Shock stand-off ahead of the ramp corner on the wall, tetrahedra / hexahedra",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "The same flow on a hexahedral mesh of the same box (cell-type consistency)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.8263348577114353
+  },
+  {
+   "reference": {
+    "id": "converged",
+    "quantity": "Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.0,
+    "source": "The convergence criterion of the solver",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Kind",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "Stand-off [m]",
+   "Limited updates"
+  ],
+  "rows": [
+   [
+    "tetrahedra",
+    "6,144",
+    "3,108",
+    "yes",
+    "8",
+    "0.1478",
+    "203"
+   ],
+   [
+    "hexahedra",
+    "1,024",
+    "1,230",
+    "yes",
+    "1",
+    "0.0809",
+    "108"
+   ]
+  ],
+  "notes": [
+   "Before the robust-second-order stage the tetrahedral run stalled at a residual of 0.26."
+  ]
+ }
+}

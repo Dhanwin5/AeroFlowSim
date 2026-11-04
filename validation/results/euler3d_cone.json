@@ -16,7 +16,7 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 33.39011910459023
+   "measured": 33.39190810061613
   },
   {
    "reference": {
@@ -30,12 +30,13 @@
     "pending": "",
     "shortfall": ""
    },
-   "measured": 0.10821983345115505
+   "measured": 0.10626495498875245
   }
  ],
  "study": {
-  "title": "Run",
+  "title": "Runs (the scored run is 'cone'; 'finer' is reported only)",
   "columns": [
+   "Run",
    "Cells",
    "Iterations",
    "Converged",
@@ -48,19 +49,32 @@
   ],
   "rows": [
    [
+    "cone",
     "30,825",
-    "20,000",
-    "NO",
-    "257",
+    "1,221",
+    "yes",
+    "18",
     "6",
-    "33.390",
+    "33.392",
     "31.206",
-    "0.1082",
+    "0.1063",
+    "0.1045"
+   ],
+   [
+    "finer",
+    "72,150",
+    "1,014",
+    "yes",
+    "38",
+    "6",
+    "32.780",
+    "31.206",
+    "0.1058",
     "0.1045"
    ]
   ],
   "notes": [
-   "3D quarter domain with two symmetry planes, tetrahedra, LU-SGS with Green-Gauss gradients."
+   "3D quarter domain with two symmetry planes, tetrahedra, the external_3d defaults."
   ]
  }
 }

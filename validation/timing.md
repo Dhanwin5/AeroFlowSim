@@ -129,3 +129,16 @@ miss but a robustness one: on the 60k quarter mesh the second-order run diverges
 6,000 explicit iterations, so the 126k run was not attempted (see the stage ledger, Part 7). Slice / iso-surface
 timing on the 719k mesh (rule 11): not measured this session; a slice touches only the straddling cells
 (`post/view3d._straddling`, tested), so its cost grows with the slice, not the volume.
+
+## Robust-second-order stage (5 Nov 2026, this PC, Numba, all cores, external_3d defaults)
+
+| Run | Cells | Iterations | Wall clock | Result |
+|---|---:|---:|---:|---|
+| Sphere Mach 3 quarter | 59,998 | 20,000 | 635 s | no divergence, residual ~1e-4 (wake), stand-off 0.227 R |
+| Sphere Mach 6 quarter | 59,998 | 20,000 | 628 s | no divergence, stand-off 0.152 R |
+| Cone 10 deg Mach 2 | 30,825 / 72,150 | 1,221 / 1,014 | 18 / 38 s | converged |
+| 30 deg ramp, tetrahedra / hexahedra | 6,144 / 1,024 | 3,108 / 1,230 | 8 / 1 s | converged |
+| Cylinder Mach 3, 2D triangles | 11,435 | 20,000 | 52 s | no divergence, residual 1e-3 (wake), Cd settled 0.05 % |
+
+The node-value gradient (CSR kernel) costs about the same per iteration as least squares (sphere 3,000 it: 104 s).
+Target "126k sphere converged in under 30 min": not met (the residual criterion is not reached; see the stage ledger).

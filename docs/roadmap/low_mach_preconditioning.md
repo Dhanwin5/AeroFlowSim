@@ -49,10 +49,15 @@ preconditioning stage: do all parts below in order, in this one session, without
     switch). A preconditioned far field needs its own characteristic treatment (Turkel; Darmofal & Siu).
   - Residual normalisation: 3D floors each momentum norm at 1e-3 of the largest.
   - LU-SGS stays the default; its implicit operator must use the preconditioned spectral radius.
-  - OPEN P1 from the 3D stage (validation SHORTFALLS): second-order runs on finer tetrahedral meshes at strong shocks do
-    not converge (Mach 3 sphere, 60k cells: LU-SGS diverges after the first-order start, SSP-RK3 stalls; 10 deg cone,
-    31k cells: not converged, shock angle +7 %). Consider doing this first (or as Part 0) if it blocks: the
-    preconditioned implicit operator is the natural place for a better Jacobian (Roe / Newton-Krylov).
+  - The robust-second-order stage (docs/roadmap/robust_second_order.md) found and fixed the simplex-mesh problem of
+    the 3D stage: the gradient stencil (now "Green-Gauss (node values)", vertex neighbours, MMS tet order 1.86) and
+    large implicit updates in near-vacuum expansions (per-cell update limit, Numerics.update_limit). Keep both working
+    with the preconditioned operator: the update limit must act on the preconditioned update, and the node-value
+    gradient is the recommended gradient for preconditioned runs on triangles / tetrahedra.
+  - Inviscid blunt-body wakes on unstructured meshes do not settle to round-off (residual ~1e-4 in about 1 % of the
+    cells) while the forces do; at low Mach the wake is subsonic everywhere - check whether preconditioning makes it
+    steady (a likely side benefit), and judge low-Mach validation cases by residual AND monitors.
+  - New solver inputs must be listed in aeroflowsim/parameters.py FINGERPRINT_NEUTRAL at their old value.
 
 ## Decisions (made: follow them)
 

@@ -285,6 +285,28 @@ Mach number and pressure. Command line: `run`, `report` and `export` work for 3D
 Not yet in 3D: the report-definition, surface and XY-plot panels of the 2D Results workspace, patch (initialisation)
 regions, multiple fluid zones (gap register).
 
+## Triangle and tetrahedron meshes: robust numerics
+
+Two Numerics inputs make second-order runs on triangles and tetrahedra robust at strong shocks:
+
+- **Gradients: Green-Gauss (node values).** Each gradient uses every cell that shares a node with the cell (about 20 for
+  a tetrahedron instead of its 4 face neighbours). It is smoother on irregular cells and exact for linear fields.
+  Shock regions no longer stall. Default for 3D; for 2D, *Suggested numerics* in the Run step proposes it when more
+  than half of the cells are triangles.
+- **Implicit update limit** (0.2 = 20 %). In one LU-SGS iteration no cell's density, energy or pressure changes by more
+  than this fraction; larger steps are scaled down. This keeps the pressure positive in strong expansions (the
+  near-vacuum wake behind a blunt body), where runs used to diverge. 0 = off (as before). The converged solution does
+  not depend on it. The run info counts how often it acted.
+
+The run log (Messages panel, command line) shows the active numerics at every run start, e.g. "Numerics: Implicit LU-SGS,
+gradients Green-Gauss (node values), limiter Venkatakrishnan (K = 1), update limit 0.2."
+
+Old projects keep their numerics and their results stay current. Switching an option on marks the results out of date;
+Run then continues from the current solution with the new option.
+
+Note: behind a sphere or cylinder the inviscid wake keeps moving a little, so the residual may stop near 1e-4 while
+the forces have settled. Look at the Cd / Cl monitors: when they are flat, the forebody result is converged.
+
 ## Solver speed and Preferences
 
 The 2D solver uses compiled kernels (Numba) on several CPU cores. **Tools > Preferences > Solver threads**: the default

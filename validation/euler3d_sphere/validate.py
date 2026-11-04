@@ -52,6 +52,33 @@ def _crossing(x, p, level):
 
 
 def standoff_3d(out, mach):
+    """Stand-off / R from the pressure field on a slice just inside the symmetry plane z = 0, sampled along the
+    stagnation line y = 0+ (node values, linear interpolation, 4,000 points). (Until the robust-second-order stage only
+    the cells within 0.1 R of the axis were used; on the coarse cells ahead of the shock that interpolated across gaps
+    of several cells: the same flaw as found in the 2D cylinder-on-triangles case. `standoff_3d_cells` keeps the old
+    method for the record.)"""
+    from scipy.interpolate import LinearNDInterpolator
+    from aeroflowsim.post.fields import node_values
+    from aeroflowsim.post.solution import Solution
+    from aeroflowsim.post.view3d import slice_plane
+    mesh, r = out.mesh, out.result
+    sol = Solution.from_result(mesh, r, out.params)
+    s = slice_plane(mesh, node_values(sol, "p"), (0.0, 0.0, 1e-6 * D), (0.0, 0.0, 1.0))
+    near = (s.points[:, 0] < 0.0) & (s.points[:, 1] < 0.5 * D)
+    interp = LinearNDInterpolator(s.points[near, :2], s.values[near])
+    x = np.linspace(-R - 1.5 * D, -R - 1e-6, 4000)
+    p = interp(x, np.full_like(x, 1e-6 * D))
+    level = _level(mach, out.params["p_inf"])
+    ok = np.isfinite(p)
+    i = np.flatnonzero(ok[:-1] & ok[1:] & (p[:-1] < level) & (p[1:] >= level))
+    if not len(i):
+        return float("nan")
+    k = i[-1]
+    return (-R - float(x[k] + (level - p[k]) * (x[k + 1] - x[k]) / (p[k + 1] - p[k]))) / R
+
+
+def standoff_3d_cells(out, mach):
+    """The first method (cells within 0.1 R of the axis), kept to report what it gave."""
     mesh, r = out.mesh, out.result
     c = mesh.cell_centres
     near = (np.hypot(c[:, 1], c[:, 2]) < 0.1 * R) & (c[:, 0] < -R)
@@ -75,7 +102,8 @@ def _run3d(mach, extra=None):
     r = out.result
     # a diverged run has no valid flow: no stand-off is read from it (it fails instead of passing by chance)
     standoff = float("nan") if r.info["status"] == "diverged" else standoff_3d(out, mach)
-    return {"standoff": standoff, "cells": out.mesh.n_cells, "iterations": r.iterations,
+    old = float("nan") if r.info["status"] == "diverged" else standoff_3d_cells(out, mach)
+    return {"standoff": standoff, "standoff_cells": old, "cells": out.mesh.n_cells, "iterations": r.iterations,
             "converged": r.converged, "time": r.key_numbers["wall_time"][0], "Cd": r.key_numbers["Cd"][0],
             "positivity": r.info["positivity_events"], "cfl_reductions": r.info["cfl_reductions"]}
 
@@ -103,10 +131,11 @@ def study():
     for name, m in RUNS.items():
         mach = 6.0 if "6" in name else 3.0
         rows.append([name, f"{m['cells']:,}", f"{m['iterations']:,}", "yes" if m["converged"] else "NO",
-                     f"{m['time']:.0f}", f"{m['standoff']:.4f}", f"{billig(mach):.4f}", f"{m['Cd']:.4f}",
+                     f"{m['time']:.0f}", f"{m['standoff']:.4f}", f"{m.get('standoff_cells', float('nan')):.4f}",
+                     f"{billig(mach):.4f}", f"{m['Cd']:.4f}",
                      f"{m['positivity']:,}", f"{m['cfl_reductions']}"])
     return {"title": "Runs", "columns": ["Run", "Cells", "Iterations", "Converged", "Time [s]", "Stand-off / R",
-                                         "Billig", "Cd", "Positivity fallbacks", "CFL reductions"],
+                                         "Stand-off / R (old cell method)", "Billig", "Cd", "Positivity fallbacks", "CFL reductions"],
             "rows": rows,
             "notes": ["Mach 6 on tetrahedra (full set): reported for the positivity fallback and the carbuncle; a "
                       "converged run with a stand-off near Billig means no carbuncle bulge on the stagnation line."]}

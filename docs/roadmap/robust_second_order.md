@@ -263,3 +263,35 @@ stage: do all 6 parts in order, in this one session, without waiting for me betw
 - Tests (27 in test_robust_second_order.py): suggestion on triangles only and gone when applied; run-log note; walk-through:
   an old 2D project switched to the new options runs from the command line (note printed), results current, continued
   40 -> 60 with the same options.
+
+### Part 5 - validation (done; SHORTFALLS recorded)
+Pre-registered (commits 24ade42 and the 3D stage's ab89a0b, unchanged), full set, external_3d defaults (node gradient,
+K 1, update limit 0.2) and for the 2D cylinder the suggested triangle numerics:
+
+| Case | Quantity | Reference | Result | Error | Tol. | Status | Before this stage |
+|---|---|---:|---:|---:|---:|---|---|
+| euler3d_cone | Cp | 0.10447 | 0.10627 | 1.7 % | 2 % | PASS | 3.6 %, not converged |
+| euler3d_cone | shock angle | 31.21 deg | 33.39 deg | 7.0 % | 3 % | SHORTFALL | 7.0 % |
+| euler3d_ramp | tet run converged | 1 | 1 | - | - | PASS | stall at 0.26 |
+| euler3d_ramp | stand-off tet / hex | 1 | 1.83 | 83 % | 2 % | SHORTFALL | - |
+| euler3d_sphere | stand-off M3 (3D) | 0.2050 | 0.2269 | 10.7 % | 5 % | SHORTFALL | diverged |
+| euler3d_sphere | stand-off 2D axi twin | 0.2050 | 0.2142 | 4.5 % | 5 % | PASS | 4.5 % |
+| euler2d_cylinder_triangles | stand-off | 0.6485 | 0.7027 | 8.4 % | 5 % | SHORTFALL | diverged |
+
+- Every case now runs to the end without diverging (sphere M3 / M6 20,000 iterations, cylinder 20,000); the cone and the
+  tet ramp CONVERGE (residual 1e-6 / 8 orders). Sphere Mach 6 on tetrahedra (reported): stand-off 0.1516 vs Billig
+  0.1565 (-3.1 %), no carbuncle bulge on the stagnation line, 134k reconstruction fallbacks, 0 CFL reductions.
+- Measurement bugs found and fixed while scoring (stated in the scripts): the 2D cylinder's first stand-off (1.042) came
+  from interpolating across a 0.46 m gap with no cells in the 0.01 D band (now: the field interpolated along the line ->
+  0.703); the same flaw in the sphere script (old method 0.2230, new 0.2269, both reported). Tolerances not changed.
+- SHORTFALL causes: (1) cone shock angle: resolution - 30.8k cells 33.39 deg, 72k cells 32.78 deg (converged both); a
+  first-order extrapolation in h (ratio 1.33) gives about 30.9 deg: the weak conical shock (p2/p1 = 1.085) smeared over a
+  few cells biases the half-way crossing upstream. (2) ramp tet / hex: on the 16-cell box the stand-off is 2.4 cells
+  (tet) vs 1.3 cells (hex): the 2 % tolerance asked for a sub-cell precision this box cannot give (a poor choice of the
+  pre-registered case, not of the numerics). (3) sphere and 2D-triangle cylinder stand-off 8-11 % too large while the 2D
+  structured twin is within 4.5 %: the shock layer on simplex meshes is resolved by about 5 cells and the bow shock
+  sits further out; not separated from the unsettled wake (residual 1e-3 - 1e-4) within this session. Next step: a
+  refinement study of the sphere (60k / 150k / 400k) - gap register.
+- 126k-cell sphere wall-clock target: NOT MET as defined - the residual criterion is never reached (the inviscid wake keeps
+  moving; forces settle). 60k cells: 20,000 iterations in 635 s; the 126k run would need about 1,300 s for 20,000
+  iterations without converging, so it was not run.

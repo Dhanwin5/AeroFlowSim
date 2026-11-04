@@ -82,7 +82,7 @@ def ramp(kind, numerics):
     opts = {"time_scheme": LUSGS, "max_iterations": CAP["ramp_tet"], "residual_drop": 8.0,
             "freeze_limiter_orders": 4.0}
     names = {"cfl", "order", "gradient", "limiter", "venkat_k", "first_order_iterations", "time_scheme", "carbuncle_fix",
-             "cfl_max", "update_limit"}
+             "cfl_max", "update_limit", "max_iterations", "freeze_limiter_orders"}
     opts.update({k: v for k, v in numerics.items() if k in names})
     s = EulerSolver(mesh, gas, bcs, Numerics(**opts), L_ref=1.0, scales=(rho, 700, 700, 700, 1e5))
     out = s.solve(uniform_state(mesh.n_cells, rho, vel, 1e5))

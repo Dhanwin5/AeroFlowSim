@@ -4,7 +4,7 @@ AeroFlowSim 0.2.0a3, generated 2026-11-04 by `python validation/run_all.py`.
 
 **Validation set: full** (all meshes of every case; run weekly and on version tags).
 
-**Overall: FAIL** (20 of 22 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
+**Overall: FAIL** (20 of 24 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
 
 ## Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi): PASS
 
@@ -105,6 +105,26 @@ Sources:
 - Carbuncle metric: peak-to-peak change of the volume-weighted pressure in the shock layer (box x = -0.45 to 0 D, y = 0 to 0.35 D) over the last 1,000 iterations, divided by its mean. It separates the runs clearly; the shock roughness above does not.
 - Without the fix (pure HLLC) the bow shock never settles on the shock-aligned grid: the residual stalls high; with the HLLE blend near the shock the run converges.
 - Inviscid, calorically perfect air (gamma = 1.4): a numerics test, not real Mach 6 air.
+
+## Cylinder at Mach 3 on triangles (2D Euler, node-value gradients) vs Billig: FAIL
+
+Case: `cases/external_2d`, references: `validation/euler2d_cylinder_triangles/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Bow-shock stand-off distance / cylinder radius on the stagnation line (Gmsh triangles) | 0.648542 | 0.702714 | 8.353 | 5 | FAIL |
+
+Sources:
+
+- Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.386 exp(4.67/M^2) for cylinders
+
+### Run
+
+| Cells | Iterations | Status | Final residual | Time [s] | Stand-off / R | Billig | Cd | Cd range, last 1,000 it | Limited updates |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 11,435 | 20,000 | max_iterations | 1.1e-03 | 52 | 0.7027 | 0.6485 | 1.3449 | 0.049 % | 325,560 |
+
+- The residual of an inviscid blunt-body wake on triangles does not reach 1e-6 (the wake keeps moving); the forebody quantities settle (Cd range in the table).
 
 ## Diamond airfoil t/c = 0.1 at Mach 2, alpha 0 and 2 deg (2D Euler, external_2d): PASS
 
@@ -296,21 +316,22 @@ Case: `cases/external_3d`, references: `validation/euler3d_cone/reference.toml`
 
 | Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
 |---|---:|---:|---:|---:|:---:|
-| Conical shock angle (shock position in the plane z = 0+ at 6 stations, line through the tip) | 31.2061 deg | 33.3901 deg | 6.999 | 3 | FAIL |
-| Surface pressure coefficient (mean over the wall faces between 30 % and 80 % of the cone length) | 0.104471 | 0.10822 | 3.588 | 2 | FAIL |
+| Conical shock angle (shock position in the plane z = 0+ at 6 stations, line through the tip) | 31.2061 deg | 33.3919 deg | 7.004 | 3 | FAIL |
+| Surface pressure coefficient (mean over the wall faces between 30 % and 80 % of the cone length) | 0.104471 | 0.106265 | 1.717 | 2 | PASS |
 
 Sources:
 
 - Taylor-Maccoll (aeroflowsim.gasdynamics.taylor_maccoll), M = 2, theta_s = 10 deg, gamma = 1.4; Sims (1964) NASA SP-3004
 - Taylor-Maccoll, as above (Sims 1964: 0.1045)
 
-### Run
+### Runs (the scored run is 'cone'; 'finer' is reported only)
 
-| Cells | Iterations | Converged | Time [s] | Shock stations | beta [deg] | beta Taylor-Maccoll [deg] | Cp | Cp Taylor-Maccoll |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 30,825 | 20,000 | NO | 257 | 6 | 33.390 | 31.206 | 0.1082 | 0.1045 |
+| Run | Cells | Iterations | Converged | Time [s] | Shock stations | beta [deg] | beta Taylor-Maccoll [deg] | Cp | Cp Taylor-Maccoll |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| cone | 30,825 | 1,221 | yes | 18 | 6 | 33.392 | 31.206 | 0.1063 | 0.1045 |
+| finer | 72,150 | 1,014 | yes | 38 | 6 | 32.780 | 31.206 | 0.1058 | 0.1045 |
 
-- 3D quarter domain with two symmetry planes, tetrahedra, LU-SGS with Green-Gauss gradients.
+- 3D quarter domain with two symmetry planes, tetrahedra, the external_3d defaults.
 
 ## N2 nozzle in 3D (revolved quarter) vs 2D axisymmetric: PASS
 
@@ -335,13 +356,36 @@ Sources:
 
 - Polygon factor of the revolved cross-sections: 0.99839 (the 3D throat area is this times the circle's).
 
+## 30 deg ramp at Mach 2 on tetrahedra vs hexahedra (detached shock): FAIL
+
+Case: `tools/robustness_cases.py`, references: `validation/euler3d_ramp/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Shock stand-off ahead of the ramp corner on the wall, tetrahedra / hexahedra | 1 | 1.82633 | 82.633 | 2 | FAIL |
+| Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no | 1 | 1 | 0.000 | 0 | PASS |
+
+Sources:
+
+- The same flow on a hexahedral mesh of the same box (cell-type consistency)
+- The convergence criterion of the solver
+
+### Runs
+
+| Kind | Cells | Iterations | Converged | Time [s] | Stand-off [m] | Limited updates |
+|---:|---:|---:|---:|---:|---:|---:|
+| tetrahedra | 6,144 | 3,108 | yes | 8 | 0.1478 | 203 |
+| hexahedra | 1,024 | 1,230 | yes | 1 | 0.0809 | 108 |
+
+- Before the robust-second-order stage the tetrahedral run stalled at a residual of 0.26.
+
 ## Sphere at Mach 3 (3D Euler, tetrahedra): bow-shock stand-off vs Billig: FAIL
 
 Case: `cases/external_3d`, references: `validation/euler3d_sphere/reference.toml`
 
 | Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
 |---|---:|---:|---:|---:|:---:|
-| Bow-shock stand-off distance / sphere radius on the stagnation line, Mach 3 (3D quarter domain) | 0.204966 | nan | nan | 5 | FAIL |
+| Bow-shock stand-off distance / sphere radius on the stagnation line, Mach 3 (3D quarter domain) | 0.204966 | 0.226894 | 10.698 | 5 | FAIL |
 | The same from the 2D axisymmetric run (external_2d, shape Sphere): consistency 2D vs 3D | 0.204966 | 0.214171 | 4.491 | 5 | PASS |
 
 Sources:
@@ -351,11 +395,11 @@ Sources:
 
 ### Runs
 
-| Run | Cells | Iterations | Converged | Time [s] | Stand-off / R | Billig | Cd | Positivity fallbacks | CFL reductions |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 3D Mach 3 | 59,998 | 133 | NO | 4 | nan | 0.2050 | 1.0007 | 0 | 4 |
-| 2D axisymmetric Mach 3 | 4,800 | 3,062 | yes | 4 | 0.2142 | 0.2050 | 0.9526 | 404 | 3 |
-| 3D Mach 6 | 59,998 | 107 | NO | 3 | nan | 0.1565 | 0.8957 | 0 | 4 |
+| Run | Cells | Iterations | Converged | Time [s] | Stand-off / R | Stand-off / R (old cell method) | Billig | Cd | Positivity fallbacks | CFL reductions |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 3D Mach 3 | 59,998 | 20,000 | NO | 635 | 0.2269 | 0.2230 | 0.2050 | 0.9686 | 665,290 | 0 |
+| 2D axisymmetric Mach 3 | 4,800 | 3,062 | yes | 4 | 0.2142 | nan | 0.2050 | 0.9526 | 404 | 3 |
+| 3D Mach 6 | 59,998 | 20,000 | NO | 628 | 0.1516 | 0.1530 | 0.1565 | 0.8873 | 133,999 | 0 |
 
 - Mach 6 on tetrahedra (full set): reported for the positivity fallback and the carbuncle; a converged run with a stand-off near Billig means no carbuncle bulge on the stagnation line.
 
