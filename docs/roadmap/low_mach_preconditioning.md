@@ -49,6 +49,10 @@ preconditioning stage: do all parts below in order, in this one session, without
     switch). A preconditioned far field needs its own characteristic treatment (Turkel; Darmofal & Siu).
   - Residual normalisation: 3D floors each momentum norm at 1e-3 of the largest.
   - LU-SGS stays the default; its implicit operator must use the preconditioned spectral radius.
+  - OPEN P1 from the 3D stage (validation SHORTFALLS): second-order runs on finer tetrahedral meshes at strong shocks do
+    not converge (Mach 3 sphere, 60k cells: LU-SGS diverges after the first-order start, SSP-RK3 stalls; 10 deg cone,
+    31k cells: not converged, shock angle +7 %). Consider doing this first (or as Part 0) if it blocks: the
+    preconditioned implicit operator is the natural place for a better Jacobian (Roe / Newton-Krylov).
 
 ## Decisions (made: follow them)
 

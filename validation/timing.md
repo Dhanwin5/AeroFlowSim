@@ -109,3 +109,23 @@ Numba backend, ms per iteration (SSP-RK3, three residuals per iteration):
 Iterations, LU-SGS vs SSP-RK3 (converged, same solution): MMS 32 x 32 triangles 1,212 vs 5,217 (CFL ramp of the
 first version; the final SER ramp needs about 2 x fewer than SSP-RK3 on small MMS meshes, 2.7 x on 128 x 128 quads);
 Mach 2 wedge 924-988 vs 1,935; N2 nozzle Medium reaches 3e-6 in 8,000 vs 24,688 to 1e-6.
+
+## 3D Euler solver stage (4 Nov 2026, this PC, Numba, all cores)
+
+| Run | Cells | Scheme | Iterations | Wall clock | Result |
+|---|---:|---|---:|---:|---|
+| N2 nozzle, revolved quarter (validation full) | 128,000 | LU-SGS, least squares | 30,000 max | 1,723 s incl. the 2D run | mass flow / thrust within 0.15 % of 2D |
+| N2 nozzle 3D example (STEP, tetrahedra) | 9,234 | LU-SGS, Green-Gauss, K 1 | 10,474 | 34 s | converged 1e-6 |
+| Cone 10 deg Mach 2, quarter (validation full) | 30,825 | LU-SGS, Green-Gauss, K 1 | 20,000 | 257 s | NOT converged |
+| Sphere Mach 3, quarter (validation full) | 59,998 | LU-SGS, Green-Gauss, K 1 | 133 | 5 s | DIVERGED |
+| same, explicit SSP-RK3 | 59,998 | SSP-RK3 | 6,000 | 151 s | not converged |
+| 3D MMS 12^3 + 24^3, three cell types | up to 82,944 | LU-SGS | 564-1,551 | 61 s total | converged 1e-8 |
+
+Memory (tracemalloc, LU-SGS run incl. mesh): 3.0 kB per cell (tetrahedra), 4.2 kB per cell (hexahedra): about
+4 GB per million cells; the Run memory check uses 4.5 kB per cell.
+
+Target "sphere at Mach 3 on the 126k-cell mesh converged in under 30 min" (addendum rule 9): NOT MET - not a speed
+miss but a robustness one: on the 60k quarter mesh the second-order run diverges with LU-SGS and does not converge in
+6,000 explicit iterations, so the 126k run was not attempted (see the stage ledger, Part 7). Slice / iso-surface
+timing on the 719k mesh (rule 11): not measured this session; a slice touches only the straddling cells
+(`post/view3d._straddling`, tested), so its cost grows with the slice, not the volume.

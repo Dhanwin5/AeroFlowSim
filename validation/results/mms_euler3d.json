@@ -1,0 +1,138 @@
+{
+ "name": "mms_euler3d",
+ "title": "Method of Manufactured Solutions: order of accuracy of the 3D Euler solver",
+ "case": "aeroflowsim/mms.py",
+ "date": "2026-11-04",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "hexahedra",
+    "quantity": "Observed order (min L2 over rho, u, v, w, p), warped hexahedra",
+    "value": 2.0,
+    "unit": "-",
+    "tolerance_percent": 10.0,
+    "source": "Formal order of the MUSCL / least-squares scheme (Barth & Jespersen 1989); MMS of Roy et al. (2004)",
+    "tolerance_percent_quick": 15.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.9661132083950972
+  },
+  {
+   "reference": {
+    "id": "prisms",
+    "quantity": "Observed order, warped prisms",
+    "value": 2.0,
+    "unit": "-",
+    "tolerance_percent": 15.0,
+    "source": "Formal order 2 (as above)",
+    "tolerance_percent_quick": 20.0,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.869952657136938
+  },
+  {
+   "reference": {
+    "id": "tetrahedra",
+    "quantity": "Observed order, warped tetrahedra (Kuhn split)",
+    "value": 2.0,
+    "unit": "-",
+    "tolerance_percent": 15.0,
+    "source": "Formal order 2 (as above)",
+    "tolerance_percent_quick": 22.5,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.746864466568105
+  }
+ ],
+ "study": {
+  "title": "Levels (L2 errors of rho, u, v, w, p)",
+  "columns": [
+   "Cells",
+   "Box",
+   "Count",
+   "Iterations",
+   "Time [s]",
+   "L2 error / order"
+  ],
+  "rows": [
+   [
+    "hexahedra",
+    "12^3",
+    "1,728",
+    "613",
+    "0.5",
+    "3.233e-03 9.148e-01 8.630e-01 4.519e-01 4.438e+02"
+   ],
+   [
+    "hexahedra",
+    "24^3",
+    "13,824",
+    "962",
+    "5.1",
+    "7.817e-04 2.222e-01 2.060e-01 1.026e-01 1.136e+02"
+   ],
+   [
+    "hexahedra",
+    "order",
+    "",
+    "",
+    "",
+    "2.048 2.042 2.067 2.139 1.966"
+   ],
+   [
+    "prisms",
+    "12^3",
+    "3,456",
+    "564",
+    "0.7",
+    "1.986e-03 5.474e-01 5.157e-01 4.107e-01 2.635e+02"
+   ],
+   [
+    "prisms",
+    "24^3",
+    "27,648",
+    "855",
+    "8.9",
+    "5.169e-04 1.416e-01 1.231e-01 9.296e-02 7.208e+01"
+   ],
+   [
+    "prisms",
+    "order",
+    "",
+    "",
+    "",
+    "1.942 1.951 2.067 2.143 1.870"
+   ],
+   [
+    "tetrahedra",
+    "12^3",
+    "10,368",
+    "832",
+    "2.5",
+    "3.723e-03 9.438e-01 8.011e-01 5.994e-01 2.819e+02"
+   ],
+   [
+    "tetrahedra",
+    "24^3",
+    "82,944",
+    "1,551",
+    "39.8",
+    "1.091e-03 2.802e-01 2.253e-01 1.671e-01 8.400e+01"
+   ],
+   [
+    "tetrahedra",
+    "order",
+    "",
+    "",
+    "",
+    "1.771 1.752 1.830 1.843 1.747"
+   ]
+  ],
+  "notes": [
+   "Hexahedra, Kuhn tetrahedra (6 per cube) and prisms (2 per cube), warp 0.03."
+  ]
+ }
+}

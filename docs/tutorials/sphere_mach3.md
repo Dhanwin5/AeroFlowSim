@@ -32,7 +32,8 @@ frontal area of the whole sphere, 7,854 mm², and 100 mm). Boundary table: *wall
 ## 5. Run
 
 *Run*. The residual plot shows five equations (mass, three momentum, energy) and the Cd monitor. Expect a few thousand
-iterations. Try *Stop*, then *Run* again: it carries on from the same iteration.
+iterations on this coarse mesh. Known limit (gap register): on much finer tetrahedral meshes (60,000+ cells) the
+second-order run at Mach 3 does not converge yet; if it diverges, lower the CFL number or use SSP-RK3. Try *Stop*, then *Run* again: it carries on from the same iteration.
 
 ## 6. Results
 

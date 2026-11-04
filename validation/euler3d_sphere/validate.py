@@ -73,7 +73,9 @@ def standoff_2d(out, mach):
 def _run3d(mach, extra=None):
     out = aeroflowsim.run_case("cases/external_3d", {**SPHERE_3D, **_sizes_3d(), "mach": mach, **(extra or {})})
     r = out.result
-    return {"standoff": standoff_3d(out, mach), "cells": out.mesh.n_cells, "iterations": r.iterations,
+    # a diverged run has no valid flow: no stand-off is read from it (it fails instead of passing by chance)
+    standoff = float("nan") if r.info["status"] == "diverged" else standoff_3d(out, mach)
+    return {"standoff": standoff, "cells": out.mesh.n_cells, "iterations": r.iterations,
             "converged": r.converged, "time": r.key_numbers["wall_time"][0], "Cd": r.key_numbers["Cd"][0],
             "positivity": r.info["positivity_events"], "cfl_reductions": r.info["cfl_reductions"]}
 

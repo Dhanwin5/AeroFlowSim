@@ -25,7 +25,8 @@
 - Examples *Sphere at Mach 3 (3D)* and *N2 nozzle 3D* (the example STEP nozzle, solved).
 - 3D MMS (order 2 on hexahedra, prisms, tetrahedra), free-stream preservation on every cell type, 2D extrusion and
   closed-body checks; validation `euler3d_cone` (Taylor-Maccoll), `euler3d_sphere` (Billig, with the 2D axisymmetric
-  twin and Mach 6), `euler3d_nozzle` (3D vs 2D axisymmetric), `mms_euler3d`; tolerances pre-registered.
+  twin and Mach 6), `euler3d_nozzle` (3D vs 2D axisymmetric), `mms_euler3d`; tolerances pre-registered. Nozzle and
+  MMS pass; the 3D sphere (diverges on 60k tetrahedra) and the cone (shock angle +7 %, Cp +3.6 %) are SHORTFALLS.
 
 ### Fixed
 - 3D: residual normalisation of a momentum component that is zero by symmetry; far-field chatter at near-sonic

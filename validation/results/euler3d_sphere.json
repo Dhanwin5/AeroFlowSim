@@ -1,0 +1,92 @@
+{
+ "name": "euler3d_sphere",
+ "title": "Sphere at Mach 3 (3D Euler, tetrahedra): bow-shock stand-off vs Billig",
+ "case": "cases/external_3d",
+ "date": "2026-11-04",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "standoff",
+    "quantity": "Bow-shock stand-off distance / sphere radius on the stagnation line, Mach 3 (3D quarter domain)",
+    "value": 0.204966,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.143 exp(3.24/M^2) for spheres",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": NaN
+  },
+  {
+   "reference": {
+    "id": "standoff_2d",
+    "quantity": "The same from the 2D axisymmetric run (external_2d, shape Sphere): consistency 2D vs 3D",
+    "value": 0.204966,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Billig (1967), as above",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.21417084530749586
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "Stand-off / R",
+   "Billig",
+   "Cd",
+   "Positivity fallbacks",
+   "CFL reductions"
+  ],
+  "rows": [
+   [
+    "3D Mach 3",
+    "59,998",
+    "133",
+    "NO",
+    "4",
+    "nan",
+    "0.2050",
+    "1.0007",
+    "0",
+    "4"
+   ],
+   [
+    "2D axisymmetric Mach 3",
+    "4,800",
+    "3,062",
+    "yes",
+    "4",
+    "0.2142",
+    "0.2050",
+    "0.9526",
+    "404",
+    "3"
+   ],
+   [
+    "3D Mach 6",
+    "59,998",
+    "107",
+    "NO",
+    "3",
+    "nan",
+    "0.1565",
+    "0.8957",
+    "0",
+    "4"
+   ]
+  ],
+  "notes": [
+   "Mach 6 on tetrahedra (full set): reported for the positivity fallback and the carbuncle; a converged run with a stand-off near Billig means no carbuncle bulge on the stagnation line."
+  ]
+ }
+}

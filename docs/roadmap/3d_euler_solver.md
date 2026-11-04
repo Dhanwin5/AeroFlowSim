@@ -283,3 +283,32 @@ Finish: (12) summary with test counts, "2D validation numbers unchanged", the to
 - Seen in the screenshots, not fixed: the free-stream inputs (Mach, p, T, angles) stay visible for a nozzle project
   where they do nothing (gap).
 - Next: Part 7 (validation, background, one job at a time).
+
+### Part 7 - validation (done; SHORTFALLS recorded)
+Pre-registered tolerances (commit ab89a0b, unchanged since - checked with git diff), full set:
+
+| Case | Quantity | Reference | Result | Error | Tol. | Status |
+|---|---|---:|---:|---:|---:|---|
+| euler3d_nozzle | mass flow 3D / 2D (128k revolved quarter) | 1 | 0.99848 | 0.15 % | 1 % | PASS |
+| euler3d_nozzle | vacuum thrust 3D / 2D | 1 | 0.99847 | 0.15 % | 2 % | PASS |
+| mms_euler3d | order, hexahedra / prisms / tetrahedra | 2 | 1.966 / 1.870 / 1.747 | 1.7 / 6.5 / 12.7 % | 10 / 15 / 15 % | PASS |
+| euler3d_sphere | stand-off 2D axisymmetric twin | 0.2050 | 0.2142 | 4.5 % | 5 % | PASS |
+| euler3d_sphere | stand-off 3D quarter (60k tets) | 0.2050 | diverged | - | 5 % | SHORTFALL |
+| euler3d_cone | shock angle | 31.21 deg | 33.39 deg | 7.0 % | 3 % | SHORTFALL |
+| euler3d_cone | surface Cp | 0.10447 | 0.10822 | 3.6 % | 2 % | SHORTFALL |
+
+- SHORTFALL causes: the 3D sphere run DIVERGED at iteration 133 (4 CFL reductions; also with CFL 0.5 + 500 first-order
+  iterations, at 605, right after the switch to second order); the first scoring read a stand-off of 0.2028 from the
+  diverged state and called it a PASS - caught in the run table and fixed: a diverged run now scores no value. Mach 6
+  diverged at 107 (no positivity fallbacks; the carbuncle cannot be judged on a diverged run). Explicit SSP-RK3 is
+  stable on the same mesh but not converged after 6,000 iterations (stand-off 0.240, still moving). The cone ran
+  20,000 iterations without converging; its shock is 7 % steeper and Cp 3.6 % high. The Green-Gauss / K = 1 defaults
+  that converged on the coarse meshes (Part 6) are not robust on finer tetrahedral meshes at strong shocks: second-
+  order robustness on tetrahedra remains the open problem of the stage (gap register, P1). Not retuned.
+- Measurement fixes before scoring (not tolerance changes): cone shock stations moved away from the tip (0.10-0.35 L,
+  as the 2D cone case) after the first quick run gave NaN / tip-dominated values; a bug in 3D node values (boundary
+  p took the w row) found through the cone slice and fixed (`post/fields.boundary_face_values`, test).
+- Quick set (coarse): nozzle 0.59 %, MMS pass, cone and 3D sphere miss (the quick set has no wider registered
+  tolerance for them).
+- Timing (validation/timing.md): the 126k sphere target NOT MET (robustness, not speed); memory 3.0-4.2 kB per cell.
+- Not done: slice timing on the 719k mesh; multiple zones (gap).

@@ -4,7 +4,7 @@ AeroFlowSim 0.2.0a3, generated 2026-11-04 by `python validation/run_all.py`.
 
 **Validation set: full** (all meshes of every case; run weekly and on version tags).
 
-**Overall: PASS** (18 of 18 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
+**Overall: FAIL** (20 of 22 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
 
 ## Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi): PASS
 
@@ -290,6 +290,75 @@ Sources:
 - Theory: beta = 39.314 deg, p2/p1 = 1.7066, M2 = 1.6405.
 - Cd includes the base drag of the flat base (the base pressure is not part of the oblique-shock theory).
 
+## 10 deg cone at Mach 2 (3D Euler, quarter domain) vs Taylor-Maccoll: FAIL
+
+Case: `cases/external_3d`, references: `validation/euler3d_cone/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Conical shock angle (shock position in the plane z = 0+ at 6 stations, line through the tip) | 31.2061 deg | 33.3901 deg | 6.999 | 3 | FAIL |
+| Surface pressure coefficient (mean over the wall faces between 30 % and 80 % of the cone length) | 0.104471 | 0.10822 | 3.588 | 2 | FAIL |
+
+Sources:
+
+- Taylor-Maccoll (aeroflowsim.gasdynamics.taylor_maccoll), M = 2, theta_s = 10 deg, gamma = 1.4; Sims (1964) NASA SP-3004
+- Taylor-Maccoll, as above (Sims 1964: 0.1045)
+
+### Run
+
+| Cells | Iterations | Converged | Time [s] | Shock stations | beta [deg] | beta Taylor-Maccoll [deg] | Cp | Cp Taylor-Maccoll |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 30,825 | 20,000 | NO | 257 | 6 | 33.390 | 31.206 | 0.1082 | 0.1045 |
+
+- 3D quarter domain with two symmetry planes, tetrahedra, LU-SGS with Green-Gauss gradients.
+
+## N2 nozzle in 3D (revolved quarter) vs 2D axisymmetric: PASS
+
+Case: `cases/external_3d`, references: `validation/euler3d_nozzle/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Mass flow, 3D / 2D axisymmetric | 1 | 0.998479 | 0.152 | 1 | PASS |
+| Vacuum thrust (exit plane), 3D / 2D axisymmetric | 1 | 0.998465 | 0.154 | 2 | PASS |
+
+Sources:
+
+- 2D axisymmetric run of the same nozzle on the same profile (validated: validation/euler2d_nozzle)
+- 2D axisymmetric run, as above
+
+### Runs (same profile, same numerics)
+
+| Run | Cells | Iterations | Converged | Time [s] | mdot [mg/s] | F exit [mN] | F wall+inlet [mN] | Isp [s] |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2D | 8,000 | 13,771 | yes | 27 | 67.2131 | 47.1116 | 47.1115 | 71.475 |
+| 3D | 128,000 | 30,000 | NO | 1692 | 67.1108 | 47.0392 | 47.0392 | 71.474 |
+
+- Polygon factor of the revolved cross-sections: 0.99839 (the 3D throat area is this times the circle's).
+
+## Sphere at Mach 3 (3D Euler, tetrahedra): bow-shock stand-off vs Billig: FAIL
+
+Case: `cases/external_3d`, references: `validation/euler3d_sphere/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Bow-shock stand-off distance / sphere radius on the stagnation line, Mach 3 (3D quarter domain) | 0.204966 | nan | nan | 5 | FAIL |
+| The same from the 2D axisymmetric run (external_2d, shape Sphere): consistency 2D vs 3D | 0.204966 | 0.214171 | 4.491 | 5 | PASS |
+
+Sources:
+
+- Billig, F. S. (1967), J. Spacecraft Rockets 4(6): Delta/R = 0.143 exp(3.24/M^2) for spheres
+- Billig (1967), as above
+
+### Runs
+
+| Run | Cells | Iterations | Converged | Time [s] | Stand-off / R | Billig | Cd | Positivity fallbacks | CFL reductions |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 3D Mach 3 | 59,998 | 133 | NO | 4 | nan | 0.2050 | 1.0007 | 0 | 4 |
+| 2D axisymmetric Mach 3 | 4,800 | 3,062 | yes | 4 | 0.2142 | 0.2050 | 0.9526 | 404 | 3 |
+| 3D Mach 6 | 59,998 | 107 | NO | 3 | nan | 0.1565 | 0.8957 | 0 | 4 |
+
+- Mach 6 on tetrahedra (full set): reported for the positivity fallback and the carbuncle; a converged run with a stand-off near Billig means no carbuncle bulge on the stagnation line.
+
 ## Gmsh mesh geometry: external domains and rounded-throat nozzle: PASS
 
 Case: `cases/external_2d`, references: `validation/external_geometry/reference.toml`
@@ -495,6 +564,37 @@ Sources:
 - Orders listed per variable rho / u / v / p. Errors in SI units (kg/m³, m/s, m/s, Pa).
 - The GCI columns apply the three-mesh GCI procedure (aeroflowsim/gci.py) to the L2 error of p: its observed order should match and the asymptotic ratio be near 1.
 - First order and the Venkatakrishnan limiter are reported for information (not pass/fail): Finding (Post-processing and alpha release stage): with Venkatakrishnan's limiter the order does NOT approach 2 on finer meshes; on triangles and mixed meshes it falls towards 1. Its threshold eps² = (K h / L)³ scale² shrinks faster than the cell-to-cell differences of a smooth field (h^1.5 against h), so the limiter clips the smooth extrema more and more as the mesh is refined. Smooth flows on fine meshes therefore keep full second order only with 'None' or a larger K; an order-preserving limiter (e.g. Michalak and Ollivier-Gooch 2008) is in the gap register.
+
+## Method of Manufactured Solutions: order of accuracy of the 3D Euler solver: PASS
+
+Case: `aeroflowsim/mms.py`, references: `validation/mms_euler3d/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Observed order (min L2 over rho, u, v, w, p), warped hexahedra | 2 | 1.96611 | 1.694 | 10 | PASS |
+| Observed order, warped prisms | 2 | 1.86995 | 6.502 | 15 | PASS |
+| Observed order, warped tetrahedra (Kuhn split) | 2 | 1.74686 | 12.657 | 15 | PASS |
+
+Sources:
+
+- Formal order of the MUSCL / least-squares scheme (Barth & Jespersen 1989); MMS of Roy et al. (2004)
+- Formal order 2 (as above)
+
+### Levels (L2 errors of rho, u, v, w, p)
+
+| Cells | Box | Count | Iterations | Time [s] | L2 error / order |
+|---:|---:|---:|---:|---:|---:|
+| hexahedra | 12^3 | 1,728 | 613 | 0.5 | 3.233e-03 9.148e-01 8.630e-01 4.519e-01 4.438e+02 |
+| hexahedra | 24^3 | 13,824 | 962 | 5.1 | 7.817e-04 2.222e-01 2.060e-01 1.026e-01 1.136e+02 |
+| hexahedra | order |  |  |  | 2.048 2.042 2.067 2.139 1.966 |
+| prisms | 12^3 | 3,456 | 564 | 0.7 | 1.986e-03 5.474e-01 5.157e-01 4.107e-01 2.635e+02 |
+| prisms | 24^3 | 27,648 | 855 | 8.9 | 5.169e-04 1.416e-01 1.231e-01 9.296e-02 7.208e+01 |
+| prisms | order |  |  |  | 1.942 1.951 2.067 2.143 1.870 |
+| tetrahedra | 12^3 | 10,368 | 832 | 2.5 | 3.723e-03 9.438e-01 8.011e-01 5.994e-01 2.819e+02 |
+| tetrahedra | 24^3 | 82,944 | 1,551 | 39.8 | 1.091e-03 2.802e-01 2.253e-01 1.671e-01 8.400e+01 |
+| tetrahedra | order |  |  |  | 1.771 1.752 1.830 1.843 1.747 |
+
+- Hexahedra, Kuhn tetrahedra (6 per cube) and prisms (2 per cube), warp 0.03.
 
 ## Axisymmetric nozzle mesh geometry (default conical nozzle): PASS
 

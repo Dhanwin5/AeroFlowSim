@@ -1,0 +1,77 @@
+{
+ "name": "euler3d_nozzle",
+ "title": "N2 nozzle in 3D (revolved quarter) vs 2D axisymmetric",
+ "case": "cases/external_3d",
+ "date": "2026-11-04",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "mdot_ratio",
+    "quantity": "Mass flow, 3D / 2D axisymmetric",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "2D axisymmetric run of the same nozzle on the same profile (validated: validation/euler2d_nozzle)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9984786174165537
+  },
+  {
+   "reference": {
+    "id": "thrust_ratio",
+    "quantity": "Vacuum thrust (exit plane), 3D / 2D axisymmetric",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "2D axisymmetric run, as above",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9984646116145774
+  }
+ ],
+ "study": {
+  "title": "Runs (same profile, same numerics)",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "mdot [mg/s]",
+   "F exit [mN]",
+   "F wall+inlet [mN]",
+   "Isp [s]"
+  ],
+  "rows": [
+   [
+    "2D",
+    "8,000",
+    "13,771",
+    "yes",
+    "27",
+    "67.2131",
+    "47.1116",
+    "47.1115",
+    "71.475"
+   ],
+   [
+    "3D",
+    "128,000",
+    "30,000",
+    "NO",
+    "1692",
+    "67.1108",
+    "47.0392",
+    "47.0392",
+    "71.474"
+   ]
+  ],
+  "notes": [
+   "Polygon factor of the revolved cross-sections: 0.99839 (the 3D throat area is this times the circle's)."
+  ]
+ }
+}
