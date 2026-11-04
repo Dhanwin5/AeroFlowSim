@@ -620,7 +620,13 @@ def solve(problem, params, mesh, progress=None) -> Result:
     solver = EulerSolver(mesh, problem.gas, problem.conditions, numerics(params), L_ref=problem.L_ref,
                          scales=problem.scales)
 
+    autosave = _extras().get("autosave")
+    last_save = [__import__("time").perf_counter()]
+
     def forward(it, res, info):
+        if autosave and "U" in info and __import__("time").perf_counter() - last_save[0] >= float(autosave["every_s"]):
+            _autosave(autosave["path"], solver, problem, params, mesh, it, info)
+            last_save[0] = __import__("time").perf_counter()
         if progress is not None:
             return progress(it, res, info)      # True = the user pressed Stop (keep the flow as it is)
         return False
@@ -681,10 +687,36 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "boundaries": {name: bc.to_dict() for name, bc in problem.conditions.items()},
             "gamma": float(problem.gas.gamma(float(np.median(temperature(W, problem.gas)))))}
     residual_level = out.residuals.max(axis=1) if len(out.residuals) else np.zeros(0)
+    if autosave:                                 # the run finished normally: its result replaces the autosave
+        import shutil
+        shutil.rmtree(autosave["path"], ignore_errors=True)
     return Result(fields=flow_fields(W, problem.gas), residuals=residual_level.tolist(), key_numbers=numbers,
                   iterations=out.iterations, converged=out.status == CONVERGED, series=series, info=info,
                   animation=solver.animation)
 
+
+
+def _autosave(folder, solver, problem, params, mesh, it, info):
+    """Write the state of iteration `it` as a run file <folder>/run.npz (status "autosaved"), so a run that is killed
+    or cancelled can be continued from it (Project.continuation prefers it when it is newer than the saved result)."""
+    from aeroflowsim.result_io import save_run
+    W = solver._primitive(info["U"])
+    residuals = np.array(info["residual_history"])
+    names = equations(W.shape[0])
+    series = {f"residual_{e}": residuals[:, i] for i, e in enumerate(names)}
+    series.update({f"monitor_{k}": np.array(v) for k, v in info["monitor_history"].items()})
+    series["cell_centres"] = mesh.cell_centres[:, :mesh.dim].copy()
+    if solver.psi_frozen is not None:
+        series["limiter_frozen"] = solver.psi_frozen.copy()
+    norm = info.get("norm")
+    run_info = {"status": "autosaved", "mesh_signature": mesh_signature(mesh), "kind": problem.kind,
+                "residual_norm": None if norm is None else [float(v) for v in norm], "equations": list(names),
+                "cfl_final": float(info.get("cfl", params["cfl"])), "dim": int(mesh.dim),
+                "boundaries": {name: bc.to_dict() for name, bc in problem.conditions.items()},
+                "message": f"Autosaved at iteration {it:,} (the run was still going)."}
+    result = Result(fields=flow_fields(W, problem.gas), residuals=residuals.max(axis=1).tolist(), key_numbers={},
+                    iterations=int(it), converged=False, series=series, info=run_info)
+    save_run(folder, {"result": result, "params": dict(params)})
 
 
 __all__ = ["solver_parameters", "numerics", "conditions", "table_rows", "nozzle_problem", "nozzle_problem_3d",

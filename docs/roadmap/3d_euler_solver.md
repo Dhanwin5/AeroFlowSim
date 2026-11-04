@@ -238,3 +238,27 @@ Finish: (12) summary with test counts, "2D validation numbers unchanged", the to
   4, throat = 2D profile throat, Cd / polygon 0.93-0.96 vs 2D 0.946, thrust two ways and mass balance within 2 %).
 - Fast suite: started in the background after Part 3 (one GUI test updated: the 3D Run step now exists).
 - Next: Part 5 (GUI Run/Results 3D).
+
+### Part 5 - GUI Run/Results 3D, report, export, memory, autosave (done)
+- `post/view3d.py` (no Qt/VTK): marching-tetrahedra slices and iso-surfaces on only the cells that straddle them,
+  wall surfaces, nearest-cell probe, 3D streamlines (Heun RK2, inverse-distance velocity). Tests: exact slice areas
+  on every cell type (incl. a tilted plane), one layer of cells split, iso-surface of a linear field is a plane.
+- `gui/results3d.py`: Results3DPanel (field, Walls / Slice plane / Iso-surface / Streamlines, slice normal + position
+  slider, iso level, show walls, right-click probe, key numbers, Save .vtu / CSV); the Results page switches to it
+  for 3D meshes. The Run step needed no change (residual names come from info["equations"]).
+- 3D-aware post: Solution needs w in 3D, speed/h0/vorticity magnitude/divergence in 3D, pressure gradient index,
+  node operator distances in 3D (identical in 2D: z = 0), CSV with z and w, VTU velocity with w, animation frames
+  with 5 variables (bug: 3D frames would have stored w as "p"; found by the GUI continue test).
+- Report: 3D mesh table and slice pictures (`pictures.slice_picture`, matplotlib).
+- Memory: measured 3.0 kB (tetrahedra) - 4.2 kB (hexahedra) per cell incl. mesh (tracemalloc, 64k cells, LU-SGS):
+  about 4 GB per million cells. `compute.run_memory_estimate` (4.5 kB/cell) and `free_memory_bytes` (ctypes / sysconf,
+  no new dependency); validity check "Run memory" (3D only) warns above 70 % of free memory, shown in GUI and CLI.
+- Autosave: 3D runs write results/autosave/run.npz every `autosave_minutes` (project post setting, default 15);
+  Project.continuation prefers it when newer than run.npz; a finished run deletes it. Test: run killed after the
+  autosave of iteration 20, continued to 40 = uninterrupted 40 to 1e-10 (W -> U round-off, as every continue).
+- CLI checked on a 3D project: run (checks incl. memory), report (HTML + PDF), export csv / vtu.
+- GUI test tests/gui/test_results3d_gui.py: mesh + run from the window, every display mode, probe, continue 25 -> 40,
+  export, reopen (results current). 89 related tests pass.
+- Not built: report-definition / surface tools of the 2D workspace for 3D (lines, planes as named surfaces), flux
+  balance table check in 3D, slice timing on the 719k mesh (Part 7).
+- Next: Part 6 (examples, screenshots).

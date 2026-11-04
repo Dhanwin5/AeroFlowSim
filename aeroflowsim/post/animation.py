@@ -31,6 +31,12 @@ import numpy as np
 
 ANIMATION_FILE = "animation.npz"
 PRIMITIVES = ("rho", "u", "v", "p")
+PRIMITIVES_3D = ("rho", "u", "v", "w", "p")     # frames of a 3D run have 5 rows
+
+
+def keys_for(n_rows) -> tuple:
+    """Field names of a frame with n_rows variables (4 in 2D, 5 in 3D)."""
+    return PRIMITIVES_3D if n_rows == 5 else PRIMITIVES
 MAX_AUTO_FRAMES = 100         # automatic mode keeps between 50 and 100 frames
 MAX_FRAMES = 1000             # a fixed "every N" is thinned beyond this many frames
 MAX_BYTES = 400e6             # ... or beyond this much memory [bytes] (float32 frames of a large mesh)
@@ -74,7 +80,8 @@ class FrameRecorder:
             self.every = max(int(previous.every), self.every if not self.auto else 1)
             self.its = [int(i) for i in previous.iterations]
             self.times = [float(t) for t in previous.times]
-            self.frames = [np.stack([previous.fields[k][j] for k in PRIMITIVES]).astype(np.float32)
+            keys = PRIMITIVES_3D if "w" in previous.fields else PRIMITIVES
+            self.frames = [np.stack([previous.fields[k][j] for k in keys]).astype(np.float32)
                            for j in range(previous.n)]
 
     def due(self, it) -> bool:
@@ -108,9 +115,10 @@ class FrameRecorder:
     def animation(self, it, t, W) -> Animation:
         """The frames with the final state (iteration it) as the last one."""
         self.add(it, t, W)
-        stack = np.stack(self.frames) if self.frames else np.zeros((0, len(PRIMITIVES), np.shape(W)[1]), np.float32)
+        keys = keys_for(np.shape(W)[0])
+        stack = np.stack(self.frames) if self.frames else np.zeros((0, len(keys), np.shape(W)[1]), np.float32)
         return Animation(iterations=np.array(self.its, dtype=np.int64), times=np.array(self.times, dtype=float),
-                         fields={k: stack[:, j, :] for j, k in enumerate(PRIMITIVES)}, every=self.every,
+                         fields={k: stack[:, j, :] for j, k in enumerate(keys)}, every=self.every,
                          mesh_signature=self.signature, steady=self.steady)
 
 

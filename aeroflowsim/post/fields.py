@@ -111,6 +111,16 @@ def available_fields(sol) -> list:
     return [field_info(sol, n) for n in names]
 
 
+def field_choices_3d(sol) -> list:
+    """[(name, "label [unit]")] for the 3D Results view: the stored fields and the derived ones that hold in 3D."""
+    skip = {"aspect_ratio", "non_orthogonality", "volume_ratio"}
+    out = []
+    for info in available_fields(sol):
+        if info.name not in skip:
+            out.append((info.name, f"{info.label} [{info.unit or '-'}]"))
+    return out
+
+
 def field_values(sol, name) -> np.ndarray:
     """(C,) cell values of a field [SI]. Cached per solution."""
     cache = sol._cache.setdefault("fields", {})
@@ -123,18 +133,19 @@ def _compute(sol, name, stack):
     if name in sol.fields:
         return sol.fields[name]
     W, gas = sol.W, sol.gas
-    rho, u, v, p = W
+    rho, u, v, p = W[0], W[1], W[2], W[-1]
+    w = W[3] if W.shape[0] == 5 else 0.0           # 3D: the z velocity
     if name in ("T", "M", "p0", "T0", "s"):
         from aeroflowsim.euler import state
         fn = {"T": state.temperature, "M": state.mach_number, "p0": state.total_pressure,
               "T0": state.total_temperature, "s": state.entropy}[name]
         return fn(W, gas)
     if name == "speed":
-        return np.hypot(u, v)
+        return np.hypot(u, v) if W.shape[0] == 4 else np.sqrt(u * u + v * v + w * w)
     if name in ("h", "h0"):
         T = p / (rho * gas.R)
         h = gas.internal_energy(T) + p / rho
-        return h if name == "h" else h + 0.5 * (u * u + v * v)
+        return h if name == "h" else h + 0.5 * (u * u + v * v + w * w)
     if name == "Cp":
         p_ref, q_ref, _ = sol.reference_pressure()
         return (p - p_ref) / q_ref
@@ -147,6 +158,11 @@ def _compute(sol, name, stack):
         return np.exp(-SCHLIEREN_K * mag / top)
     if name in ("vorticity", "divergence"):
         gu, gv = sol.gradients[1], sol.gradients[2]
+        if W.shape[0] == 5:                        # 3D: |curl u| and du/dx + dv/dy + dw/dz
+            gw = sol.gradients[3]
+            if name == "vorticity":
+                return np.sqrt((gw[1] - gv[2]) ** 2 + (gu[2] - gw[0]) ** 2 + (gv[0] - gu[1]) ** 2)
+            return gu[0] + gv[1] + gw[2]
         if name == "vorticity":
             return gv[0] - gu[1]
         div = gu[0] + gv[1]
@@ -156,7 +172,7 @@ def _compute(sol, name, stack):
         return div
     if name == "mach_normal":
         from aeroflowsim.euler.state import sound_speed
-        gp = sol.gradients[3]
+        gp = sol.gradients[-1]                      # the pressure gradient (2D and 3D)
         mag = np.sqrt(np.sum(gp * gp, axis=0))
         c = sound_speed(W, gas)
         return np.where(mag > 0.0, (u * gp[0] + v * gp[1]) / (c * np.where(mag > 0.0, mag, 1.0)), 0.0)
@@ -193,14 +209,15 @@ def _node_operator(sol):
     cn = mesh.cell_nodes
     cells, slots = np.nonzero(cn >= 0)
     nodes = cn[cells, slots]
-    d = np.linalg.norm(mesh.nodes[nodes, :2] - g.cell_centres[cells, :2], axis=1)
+    k = 3 if mesh.dim == 3 else 2
+    d = np.linalg.norm(mesh.nodes[nodes, :k] - g.cell_centres[cells, :k], axis=1)
     w = 1.0 / np.maximum(d, 1e-300)
     A = sparse.csr_matrix((w, (nodes, cells)), shape=(N, g.n_cells))
     # boundary nodes: the mean of the boundary-face values around them (inverse distance to the face centres)
     fn = mesh.face_nodes[g.boundary_faces]
     bf, bs = np.nonzero(fn >= 0)
     bnodes = fn[bf, bs]
-    db = np.linalg.norm(mesh.nodes[bnodes, :2] - g.face_centres[g.boundary_faces[bf], :2], axis=1)
+    db = np.linalg.norm(mesh.nodes[bnodes, :k] - g.face_centres[g.boundary_faces[bf], :k], axis=1)
     wb = 1.0 / np.maximum(db, 1e-300)
     Bm = sparse.csr_matrix((wb, (bnodes, bf)), shape=(N, g.n_boundary))
     on_boundary = np.asarray(Bm.sum(axis=1)).ravel() > 0.0

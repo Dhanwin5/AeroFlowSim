@@ -84,3 +84,42 @@ def mesh_picture(mesh, size=(7.0, 3.2)):
     ax.set_ylabel("r [m]" if mesh.axisymmetric else "y [m]")
     ax.set_title(f"Mesh: {mesh.n_cells:,} cells")
     return fig
+
+
+def slice_picture(sol, name, axis=2, cmap="turbo", unit_convert=None, size=(7.0, 3.6)):
+    """3D results: the field on a plane through the middle of the walls (axis 2: the x-y plane at the walls' middle z,
+    or just inside a symmetry plane), drawn flat with matplotlib (report and command line; no VTK)."""
+    from matplotlib.figure import Figure
+    from matplotlib.tri import Triangulation
+    from aeroflowsim.post.fields import field_info, node_values
+    from aeroflowsim.post.view3d import slice_plane
+    mesh = sol.mesh
+    lo, hi = mesh.nodes[:, axis].min(), mesh.nodes[:, axis].max()
+    walls = [p for p in mesh.patches if p.type == "wall"]
+    if walls:
+        f = mesh.face_nodes[np.concatenate([p.faces for p in walls])]
+        mid = float(np.median(mesh.nodes[f[f >= 0], axis]))
+    else:
+        mid = 0.5 * (lo + hi)
+    level = min(max(mid, lo + 1e-6 * (hi - lo)), hi - 1e-6 * (hi - lo))   # never exactly on a boundary plane
+    origin = np.zeros(3)
+    origin[axis] = level
+    values = node_values(sol, name)
+    info = field_info(sol, name)
+    unit = info.unit
+    if unit_convert is not None:
+        values, unit = unit_convert(values, unit)
+    s = slice_plane(mesh, values, origin, np.eye(3)[axis])
+    a, b = [k for k in range(3) if k != axis]
+    fig = Figure(figsize=size, dpi=110, layout="constrained")
+    ax = fig.add_subplot()
+    if s.n_triangles:
+        art = ax.tripcolor(Triangulation(s.points[:, a], s.points[:, b], s.triangles), s.values, cmap=cmap,
+                           shading="gouraud")
+        fig.colorbar(art, ax=ax, label=f"{info.label} [{unit or '-'}]")
+    names = "xyz"
+    ax.set_xlabel(f"{names[a]} [m]")
+    ax.set_ylabel(f"{names[b]} [m]")
+    ax.set_aspect("equal")
+    ax.set_title(f"{info.label}: slice {names[axis]} = {level:.4g} m")
+    return fig

@@ -183,6 +183,8 @@ class ResultsPage(QWidget):
         layout.addWidget(self.card)
         layout.addWidget(splitter, 1)
         layout.addWidget(self.post_area, 1)
+        self.panel3d = None                      # the 3D Results view (gui/results3d.py), made on first use
+        self._layout = layout
         self.splitter = splitter
         self._shown = None
 
@@ -627,6 +629,11 @@ class ResultsPage(QWidget):
             self.post_area.setVisible(False)
             self.card.setVisible(False)
             return
+        if is_face_mesh(w.mesh) and w.mesh.dim == 3:
+            self._refresh_3d(status)
+            return
+        if self.panel3d is not None:
+            self.panel3d.setVisible(False)
         two_d = is_face_mesh(w.mesh)
         self.splitter.setVisible(not two_d)
         self.post_area.setVisible(two_d)
@@ -645,6 +652,38 @@ class ResultsPage(QWidget):
             self._fill()
             if two_d:
                 self._fill_post()
+
+    def _refresh_3d(self, status):
+        """3D results: the Results3DPanel instead of the 2D workspace."""
+        from aeroflowsim.gui.results3d import Results3DPanel
+        from aeroflowsim.post.solution import Solution
+        w = self.window
+        self.splitter.setVisible(False)
+        self.post_area.setVisible(False)
+        if self.panel3d is None:
+            self.panel3d = Results3DPanel(self)
+            self._layout.addWidget(self.panel3d, 1)
+        self.panel3d.setVisible(True)
+        self.card.setVisible(True)
+        self.card.set_outdated(status in ("outdated", "error"))
+        if status == "outdated":
+            self.banner.show_message("OUT OF DATE: these results were computed from older inputs (or an older "
+                                     "template). Run again to update them.", "warning")
+        else:
+            self.banner.hide_message()
+        if self._shown is w.results:
+            return
+        self._shown = w.results
+        payload = w.results
+        result = payload["result"]
+        mismatch = results_mesh_mismatch(result, w.mesh)
+        if mismatch is not None:
+            self.banner.show_message(mismatch, "warning")
+            return
+        tiles = key_result_tiles(result, w.units)
+        self.card.set_results(run_status_text(result, payload.get("run_s")), tiles)
+        sol = Solution.from_payload(w.mesh, payload, case=w.project.case, base=w.project.folder)
+        self.panel3d.set_solution(sol, key_number_rows(result, payload.get("reference"), payload.get("run_s"), w.units))
 
     def _fill(self):
         payload = self.window.results

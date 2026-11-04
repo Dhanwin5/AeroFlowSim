@@ -37,12 +37,16 @@ def fields_csv(sol, path, fields=DEFAULT_FIELDS, location="cell", convert=None) 
     convert: optional function (values, unit) -> (values, unit) to write display units (GUI exports)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    three_d = sol.mesh.dim == 3
+    if three_d and "v" in fields and "w" not in fields:
+        fields = tuple(fields[:fields.index("v") + 1]) + ("w",) + tuple(fields[fields.index("v") + 1:])
     if location == "node":
-        xy = sol.mesh.nodes[:, :2]
+        xyz = sol.mesh.nodes
         columns = [node_values(sol, f) for f in fields]
     else:
-        xy = sol.geom.cell_centres[:, :2]
+        xyz = sol.geom.cell_centres
         columns = [field_values(sol, f) for f in fields]
+    xy = xyz[:, :2]
     units = [field_info(sol, f).unit or "-" for f in fields]
     length_unit = "m"
     x, y = xy[:, 0], xy[:, 1]
@@ -51,8 +55,15 @@ def fields_csv(sol, path, fields=DEFAULT_FIELDS, location="cell", convert=None) 
         converted = [convert(c, u) for c, u in zip(columns, units)]
         columns, units = [c for c, _ in converted], [u for _, u in converted]
     header = [f"x [{length_unit}]", f"{'r' if sol.axisymmetric else 'y'} [{length_unit}]"]
+    coords = [x, y]
+    if three_d:                                   # 3D: the z coordinate too
+        z = xyz[:, 2]
+        if convert is not None:
+            z, _ = convert(z, "m")
+        header.append(f"z [{length_unit}]")
+        coords.append(z)
     header += [f"{f} [{u}]" for f, u in zip(fields, units)]
-    data = np.column_stack([x, y] + list(columns))
+    data = np.column_stack(coords + list(columns))
     with open(path, "w", newline="", encoding="utf-8") as fh:
         fh.write(f"# AeroFlowSim {__version__}: {'node' if location == 'node' else 'cell-centre'} values of "
                  f"{sol.name}\n")
@@ -66,13 +77,18 @@ def fields_csv(sol, path, fields=DEFAULT_FIELDS, location="cell", convert=None) 
 def fields_vtu(sol, path, fields=DEFAULT_FIELDS, node_data=True) -> Path:
     """ParaView .vtu with every field as cell data, the velocity vector, and (node_data) the node values."""
     from aeroflowsim.vtk import write_vtu
+    three_d = sol.mesh.dim == 3
+    if three_d and "w" not in fields:
+        fields = tuple(fields) + ("w",)
     cell = {f: field_values(sol, f) for f in fields}
     u, v = field_values(sol, "u"), field_values(sol, "v")
-    cell["velocity"] = np.column_stack([u, v, np.zeros_like(u)])
+    w = field_values(sol, "w") if three_d else np.zeros_like(u)
+    cell["velocity"] = np.column_stack([u, v, w])
     point = None
     if node_data:
         point = {f"{f}_node": node_values(sol, f) for f in fields}
-        point["velocity_node"] = np.column_stack([point["u_node"], point["v_node"], np.zeros(sol.mesh.n_nodes)])
+        wn = point["w_node"] if three_d else np.zeros(sol.mesh.n_nodes)
+        point["velocity_node"] = np.column_stack([point["u_node"], point["v_node"], wn])
     return write_vtu(path, sol.mesh, cell, point)
 
 

@@ -504,7 +504,11 @@ class EulerSolver:
                     self.psi_frozen = self.last_psi.copy()
                     frozen_at = it
                 if progress is not None and progress(it, level, {"residuals": res, "monitors": values,
-                                                                 "positivity": self.last_positivity, "cfl": cfl}):
+                                                                 "positivity": self.last_positivity, "cfl": cfl,
+                                                                 # for the autosave (setup.solve): the state now and
+                                                                 # the histories so far (references, no copies)
+                                                                 "U": U, "residual_history": res_hist,
+                                                                 "monitor_history": mon_hist, "norm": norm}):
                     status = STOPPED                     # the user pressed Stop: keep the flow as it is now
                     message = f"Stopped by the user after {it:,} iterations."
                     break

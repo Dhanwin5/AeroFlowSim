@@ -121,6 +121,10 @@ def template_fingerprint(case) -> str:
     return h.hexdigest()
 
 
+AUTOSAVE_DIR = "autosave"     # results/autosave/run.npz: the restart file of a running 3D job
+AUTOSAVE_MINUTES = 15.0       # default interval of the autosave (project post setting "autosave_minutes")
+
+
 class Project:
     """One project folder: inputs, step records and the files produced."""
 
@@ -527,6 +531,14 @@ class Project:
         results: the loaded payload if the caller has it (saves reading the file again)."""
         from aeroflowsim.result_io import can_continue
         path = self.results_dir / RUN_FILE
+        auto = self.results_dir / AUTOSAVE_DIR / RUN_FILE
+        if auto.is_file() and mesh is not None and (not path.is_file() or auto.stat().st_mtime > path.stat().st_mtime):
+            try:                                 # a killed or cancelled run: carry on from its last autosave
+                saved = load_run(auto)["result"]
+                if can_continue(saved, mesh):
+                    return auto, int(saved.iterations)
+            except (OSError, ValueError, KeyError):
+                pass
         if not path.is_file() or mesh is None:
             return None, 0
         try:
@@ -590,6 +602,9 @@ class Project:
             source = self.interpolation_source(mesh)
             if source is not None:
                 extras["interpolate"] = source
+        if mesh is not None and getattr(mesh, "dim", 2) == 3:      # 3D runs are long: autosave a restart file
+            minutes = float(self.post.get("autosave_minutes", AUTOSAVE_MINUTES))
+            extras["autosave"] = {"path": str(self.results_dir / AUTOSAVE_DIR), "every_s": 60.0 * minutes}
         return extras
 
     # ---- old settings files ----------------------------------------------------------------------

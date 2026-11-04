@@ -477,8 +477,29 @@ def mesh_smallest_cell(case, params, mesh, result):
 
 
 # Mesh-only checks: run before the solver, and shown with the other checks. Add new ones here.
+MEMORY_FRACTION = 0.7        # warn when a run needs more than this fraction of the free memory
+
+
+def run_memory(case, params, mesh, result):
+    """3D meshes: the memory the run will need (measured bytes per cell) against the free memory now; a warning above
+    70 % of it (the computer would start swapping, or the run would fail part-way). 2D meshes: no check (small)."""
+    if _face_mesh(mesh) is None or mesh.dim != 3:
+        return None
+    from aeroflowsim.compute import free_memory_bytes, run_memory_estimate
+    need = run_memory_estimate(mesh.n_cells, 3)
+    free = free_memory_bytes()
+    gb = need / 1e9
+    if free is not None and need > MEMORY_FRACTION * free:
+        return CheckResult("Run memory", "warning",
+                           f"The run needs about {gb:.1f} GB, more than 70 % of the {free / 1e9:.1f} GB free now: close "
+                           "other programs, use a coarser mesh, or a half / quarter domain.", gb, "GB")
+    note = "" if free is None else f" ({free / 1e9:.1f} GB free)"
+    return CheckResult("Run memory", "info", f"The run needs about {gb:.2f} GB of memory{note}.", gb, "GB")
+
+
 MESH_CHECKS = [mesh_cell_volumes, mesh_aspect_ratio, mesh_non_orthogonality, mesh_volume_ratio,
-               mesh_min_angle, mesh_skewness, mesh_dihedral_angle, mesh_inflation, mesh_first_layer, mesh_smallest_cell]
+               mesh_min_angle, mesh_skewness, mesh_dihedral_angle, mesh_inflation, mesh_first_layer, mesh_smallest_cell,
+               run_memory]
 
 
 # ---- 2D/3D flow solver checks (results with Result.info, aeroflowsim/euler/) -----------------------

@@ -396,3 +396,53 @@ def test_a_short_3d_nozzle_run_reports_whole_nozzle_numbers():
     assert 0.93 < k["discharge_coefficient"][0] / polygon < 0.96        # coarse 2D axisymmetric: 0.946
     assert k["F_vacuum"][0] == pytest.approx(k["F_vacuum_wall"][0], rel=0.02)
     assert k["mdot_inlet"][0] == pytest.approx(k["mdot"][0], rel=0.02)
+
+
+# ---- autosave and continue (addendum rule 10) ------------------------------------------------------------------------
+
+def test_a_killed_3d_run_continues_from_its_autosave_with_the_same_result(tmp_path):
+    from aeroflowsim.euler import setup
+    from aeroflowsim.result_io import continuation_data
+    case2, p2, m2, m3 = _nozzle_meshes()
+    from aeroflowsim.discovery import load_case
+    from aeroflowsim.parameters import defaults, validate
+    ext = load_case("cases/external_3d")
+    bnd = {"inlet": {"type": "total_pressure_inlet", "p0": p2["p0"], "T0": p2["T0"]},
+           "outlet": {"type": "pressure_outlet", "p": p2["p_back"]}}
+    p = validate(ext.parameters(), {**defaults(ext.parameters()), "gas": p2["gas"], "boundaries": bnd, "max_iter": 40})
+    whole = ext.run(p, m3, lambda *a: False)
+
+    class Killed(Exception):
+        pass
+
+    def kill_at_20(it, res, info):
+        if it == 20:
+            raise Killed                     # the helper process dies right after the autosave of iteration 20
+
+    folder = tmp_path / "autosave"
+    token = setup.RUN_EXTRAS.set({"autosave": {"path": str(folder), "every_s": 0.0}})
+    try:
+        with pytest.raises(Killed):
+            ext.run(p, m3, kill_at_20)
+        assert (folder / "run.npz").is_file()
+        restart = continuation_data(folder / "run.npz")
+        assert restart["iterations"] == 20
+        continued = ext.run(p, m3, lambda *a: False, restart=restart)
+    finally:
+        setup.RUN_EXTRAS.reset(token)
+    assert not folder.exists()                    # a finished run removes the autosave
+    assert continued.iterations == 40 and continued.info["continued_from"] == 20
+    for k in ("rho", "u", "v", "w", "p"):
+        # stored as primitive variables (W -> U round-off), as every continued run: equal to round-off
+        assert np.allclose(continued.fields[k].values, whole.fields[k].values, rtol=1e-10, atol=1e-10), k
+
+
+def test_memory_check_warns_only_for_large_3d_runs(monkeypatch):
+    from aeroflowsim import checks, compute
+    from aeroflowsim.simple_meshes import rectangle_mesh
+    assert checks.run_memory(None, {}, rectangle_mesh(), None) is None            # 2D: no check
+    mesh = box_mesh_3d(3)
+    monkeypatch.setattr(compute, "free_memory_bytes", lambda: 1e12)
+    assert checks.run_memory(None, {}, mesh, None).level == "info"
+    monkeypatch.setattr(compute, "free_memory_bytes", lambda: 1.2 * compute.run_memory_estimate(mesh.n_cells))
+    assert checks.run_memory(None, {}, mesh, None).level == "warning"

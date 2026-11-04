@@ -105,8 +105,18 @@ def build(project, prefs=None, snapshots=True):
         ("Results up to date", "yes" if project.status("run") == "ok" else "NO (inputs changed since the run)")])
     d.text(f"All numbers are in {units_text}.")
 
+    three_d = two_d and mesh.dim == 3
     d.section("Geometry and mesh")
-    if two_d:
+    if three_d:
+        counts = {}
+        from aeroflowsim.mesh import CELL_TYPES
+        for t in np.unique(mesh.cell_types).tolist():
+            counts[CELL_TYPES[t].name] = int(np.count_nonzero(mesh.cell_types == t))
+        rows = [("Cells", f"{mesh.n_cells:,}"), ("Nodes", f"{mesh.n_nodes:,}"), ("Faces", f"{mesh.n_faces:,}"),
+                ("Dimension", "3D")] + [(f"{k} cells", f"{v:,}") for k, v in counts.items()]
+        rows += [(f"Boundary '{p.name}'", f"{p.type}, {p.count:,} faces") for p in mesh.patches]
+        d.table(["Mesh", "Value"], rows)
+    elif two_d:
         d.figure(mesh_picture(mesh))
         q = quality_summary(mesh)
         rows = [("Cells", f"{mesh.n_cells:,}"), ("Nodes", f"{mesh.n_nodes:,}"), ("Faces", f"{mesh.n_faces:,}"),
@@ -187,7 +197,13 @@ def build(project, prefs=None, snapshots=True):
     d.table(["Level", "Check", "Message"], [(c.level.upper(), c.name, c.message) for c in checks] or [("-", "-", "-")])
 
     d.section("Flow pictures")
-    if sol is not None:
+    if three_d:
+        from aeroflowsim.post.pictures import slice_picture
+        for name, cmap in (("M", "turbo"), ("p", "viridis")):
+            d.figure(slice_picture(sol, name, 2, cmap, unit_convert=convert))
+        d.text("3D result: the pictures are slices through the domain; open the Results step for walls, moveable "
+               "slices, iso-surfaces and streamlines, or the .vtu file in ParaView.")
+    elif sol is not None:
         mirror = sol.axisymmetric
         for name, cmap in (("M", "turbo"), ("p", "viridis")):
             d.figure(field_picture(sol, name, cmap, mirror=mirror, unit_convert=convert))

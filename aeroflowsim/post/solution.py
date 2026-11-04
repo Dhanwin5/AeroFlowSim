@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 PRIMITIVES = ("rho", "u", "v", "p")
+PRIMITIVES_3D = ("rho", "u", "v", "w", "p")      # 3D meshes
 
 
 @dataclass
@@ -43,9 +44,10 @@ class Solution:
     labels: dict = field(default_factory=dict)       # {name: label} of the stored fields
 
     def __post_init__(self):
-        missing = [k for k in PRIMITIVES if k not in self.fields]
+        need = PRIMITIVES_3D if self.mesh.dim == 3 else PRIMITIVES
+        missing = [k for k in need if k not in self.fields]
         if missing:
-            raise ValueError(f"A 2D result needs the fields {', '.join(PRIMITIVES)}; missing: {', '.join(missing)}.")
+            raise ValueError(f"A {self.mesh.dim}D result needs the fields {', '.join(need)}; missing: {', '.join(missing)}.")
         self.fields = {k: np.asarray(v, dtype=float) for k, v in self.fields.items()}
         self._cache = {}
 
@@ -110,8 +112,8 @@ class Solution:
 
     @cached_property
     def W(self) -> np.ndarray:
-        """Primitive state (4, C)."""
-        return np.array([self.fields[k] for k in PRIMITIVES])
+        """Primitive state (4, C); 3D (5, C)."""
+        return np.array([self.fields[k] for k in (PRIMITIVES_3D if self.mesh.dim == 3 else PRIMITIVES)])
 
     @cached_property
     def _solver(self):

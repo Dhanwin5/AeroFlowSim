@@ -105,3 +105,36 @@ def set_threads(n):
 def threads() -> int:
     """The thread count in effect."""
     return _settings["threads"] or default_threads()
+
+
+# ---- memory (3D Euler stage) ------------------------------------------------------------------------------------
+
+RUN_BYTES_PER_CELL = {2: 2500.0, 3: 4500.0}   # measured peak of a run incl. mesh (3D: 3.0 kB tetrahedra, 4.2 kB hexa)
+
+
+def run_memory_estimate(n_cells, dim=3) -> float:
+    """Memory a steady Euler run needs [bytes] (measured with tracemalloc on 64k-cell meshes, LU-SGS, see
+    validation/timing.md; rounded up)."""
+    return float(n_cells) * RUN_BYTES_PER_CELL.get(dim, RUN_BYTES_PER_CELL[3])
+
+
+def free_memory_bytes():
+    """Physical memory available now [bytes], or None if it cannot be found (no extra package needed)."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class _Status(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            status = _Status()
+            status.dwLength = ctypes.sizeof(_Status)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return float(status.ullAvailPhys)
+            return None
+        return float(os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
+    except (AttributeError, OSError, ValueError):
+        return None
