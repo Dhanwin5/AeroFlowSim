@@ -1,0 +1,28 @@
+# 30 deg compression ramp at Mach 2 in a box (the shock detaches: a curved shock with a subsonic pocket at the corner),
+# 3D Euler on Kuhn TETRAHEDRA (tools/robustness_cases.py ramp) - the case that stalled at a residual of 0.26 before the
+# robust-second-order stage. There is no closed-form solution for the detached-shock position, so the reference is the
+# same box meshed with HEXAHEDRA (which always converged): the shock stand-off ahead of the ramp corner on the bottom
+# wall, tetrahedra / hexahedra, must be 1. Both with the 3D defaults of external_3d (node-value gradients, K 1,
+# update limit 0.2, LU-SGS).
+# PRE-REGISTERED 5 Nov 2026 (before the run): ratio within 2 % (about one cell of the 16-cell box at 0.33 L stand-off
+# is 19 %, so 2 % asks for the same shock to a small fraction of a cell), and the tetrahedral run must converge
+# (residual drop of 8 orders: value 1 = converged).
+
+title = "30 deg ramp at Mach 2 on tetrahedra vs hexahedra (detached shock)"
+case = "tools/robustness_cases.py"
+
+[[reference]]
+id = "standoff_ratio"
+quantity = "Shock stand-off ahead of the ramp corner on the wall, tetrahedra / hexahedra"
+value = 1.0
+unit = "-"
+tolerance_percent = 2.0
+source = "The same flow on a hexahedral mesh of the same box (cell-type consistency)"
+
+[[reference]]
+id = "converged"
+quantity = "Tetrahedral run converged (residual drop 8 orders): 1 = yes, 0 = no"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.0
+source = "The convergence criterion of the solver"
