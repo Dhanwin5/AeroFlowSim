@@ -63,13 +63,17 @@ def _direction(values, normals, dim):
     if values.get("direction", NORMAL_DIRECTION) == ANGLE_DIRECTION:
         a = values["flow_angle"] * DEG
         d = np.zeros((dim, normals.shape[0]))
-        d[0], d[1] = math.cos(a), math.sin(a)
+        d[0], d[1] = math.cos(a), math.sin(a)       # 3D: in the x-y plane (w = 0)
         return d
     return -normals.T
 
 
 def _free_stream(values, gas, dim, n):
-    """Primitive free-stream state from Mach, p, T and the angle (of attack) to the x axis."""
+    """Primitive free-stream state from Mach, p, T and the angle (of attack) to the x axis.
+
+    3D: x is the flow axis at zero incidence, y "up" (lift) and z sideways, as in the 2D plane. The angle of attack
+    alpha turns the flow towards +y, the sideslip angle beta (value "sideslip", set by a 3D template; 0 if absent)
+    towards +z:  u = V cos(alpha) cos(beta),  v = V sin(alpha) cos(beta),  w = V sin(beta)."""
     T, p = values["T"], values["p"]
     speed = values["mach"] * float(gas.sound_speed(T))          # [m/s]
     a = values.get("flow_angle", 0.0) * DEG
@@ -77,6 +81,9 @@ def _free_stream(values, gas, dim, n):
     W[0] = p / (gas.R * T)
     W[1:-1] = 0.0
     W[1], W[2] = speed * math.cos(a), speed * math.sin(a)
+    if dim == 3:
+        b = values.get("sideslip", 0.0) * DEG
+        W[1], W[2], W[3] = W[1] * math.cos(b), W[2] * math.cos(b), speed * math.sin(b)
     W[-1] = p
     return W
 

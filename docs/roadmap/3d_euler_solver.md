@@ -131,3 +131,40 @@ D. Validation and finish
 At the very end, give me a plain-language summary: what works now, what you decided and why (one sentence each), the
 walkthrough of the most important new module (CLAUDE.md rule 15), the gap register changes, and anything I should check
 by hand in the GUI.
+
+## Addendum (4 Nov 2026, review) - overrides anything above that conflicts
+
+Scope and order: (1) multiple zones (Fragment, cell zones) only after Parts 1-7; if no room, a gap moved to the
+viscous stage. (2) 3D mesh import: Gmsh v2/v4 and SU2 first, CGNS 3D only if time allows. (3) After Part 4: commit,
+ledger, fast tests, then Part 5.
+Solver and verification: (4) tolerances pre-registered in each reference.toml BEFORE running: cone Cp (Taylor-Maccoll)
+2 %, cone shock angle 3 %, sphere stand-off vs Billig 5 %, nozzle mass flow vs 2D axisymmetric 1 %, thrust 2 %; a miss
+is a SHORTFALL with its cause, never retuned. (5) Consistency: same body 2D axisymmetric vs 3D quarter domain; closed
+body in uniform pressure gives zero force; a one-layer extruded 3D mesh reproduces 2D Sod and wedge. (6) Sphere at
+Mach 3 and 6 on tetrahedra: positivity fallback and carbuncle behaviour reported. (7) Prism layers default OFF for
+Euler runs.
+Size, speed, safety: (8) 3D N2 nozzle as a quarter domain (two symmetry planes), Coarse first, estimate before finer.
+(9) validation/timing.md: sphere Mach 3 on the 126k mesh converged in under 30 min (report a miss), memory per million
+cells; memory estimate before a run, warn above ~70 % of free RAM (GUI and CLI). (10) 3D runs autosave a restart file
+about every 15 min (configurable); Continue uses it; test: kill, continue, same result. (11) Slices / iso-surfaces
+computed on the slice, not the volume; timing on the 719k mesh.
+Finish: (12) summary with test counts, "2D validation numbers unchanged", the tolerance table, every item not built.
+(13) no tag, release or repository-settings change.
+
+## Ledger (progress log)
+
+### Part 1 - 3D residual and LU-SGS (done)
+- Found: the solver, kernels, gradients, limiters and fluxes were already written for any number of velocity
+  components; what was missing was a 3D free stream (sideslip) and proof. `boundary._free_stream` now takes
+  `sideslip` (value set by 3D templates, absent = 0) in 3D: u = V cos a cos b, v = V sin a cos b, w = V sin b. The 2D
+  code path is unchanged (bit for bit). No new BC input (that would change old projects' fingerprints).
+- New `simple_meshes.box_mesh_3d(n, kind, warp)`: hexahedra, prisms, Kuhn tetrahedra (conformal), hex-prism mixed;
+  `_orient_cells` fixes VTK orientation.
+- Verified (`tests/test_euler_3d.py`, 46 tests): free stream at 10 deg incidence + 5 deg sideslip on warped boxes of
+  every kind stays uniform to < 1e-13 (SSP-RK3 and LU-SGS, NumPy and Numba); gas at rest stays at rest; Numba residual
+  = NumPy to 1e-12 on every kind with every limiter / gradient / order and a shock (HLLE blend active); whole 3D runs
+  agree; 3D runs bit-identical for 1, 2, 4 threads; every BC type gives a physical 3D ghost; slip wall zero mass flux;
+  mass-flow inlet flux and direction. 2D kernel/core/BC tests: 117 pass.
+- Mixed tetra + prism + hexa in ONE mesh needs pyramids (tets cannot meet hexes conformally); covered by hex-prism
+  boxes here and by Gmsh tetra + prism-layer meshes in Part 3.
+- Next: Part 2 (3D MMS, 3D mesh import).
