@@ -443,10 +443,14 @@ class Enclosure3D(Operation3D):
         cylinder   axis along x through the bodies' centre: upstream, downstream, radius
         sphere     about the bodies' centre: radius
     half: only y >= 0 is kept, with a symmetry plane at y = 0 (a body symmetric about y = 0 needs half the cells).
+    quarter (with half): also only z >= 0, a second symmetry plane at z = 0 (an axisymmetric body or a nozzle at zero
+    incidence: a quarter of the cells). Both planes are faces of the one "symmetry" boundary. Read with .get, so
+    documents written before the 3D Euler stage (no "quarter" key) replay as before.
     """
 
     type, title = "enclosure_3d", "Enclosure"
-    DEFAULTS = {"kind": "box", "upstream": 5.0, "downstream": 10.0, "lateral": 5.0, "radius": 10.0, "half": False}
+    DEFAULTS = {"kind": "box", "upstream": 5.0, "downstream": 10.0, "lateral": 5.0, "radius": 10.0, "half": False,
+                "quarter": False}
     KINDS = ("box", "cylinder", "sphere")
 
     def summary(self) -> str:
@@ -454,7 +458,8 @@ class Enclosure3D(Operation3D):
         size = {"box": f"{p['upstream']:g} L up, {p['downstream']:g} L down, {p['lateral']:g} L to the sides",
                 "cylinder": f"{p['upstream']:g} L up, {p['downstream']:g} L down, radius {p['radius']:g} L",
                 "sphere": f"radius {p['radius']:g} L"}.get(p["kind"], "")
-        return f"Enclosure: {p['kind']} ({size}){', half' if p['half'] else ''}"
+        part = (", quarter" if p.get("quarter") else ", half") if p["half"] else ""
+        return f"Enclosure: {p['kind']} ({size}){part}"
 
     def apply(self, kernel, context):
         p = self.params
@@ -496,6 +501,14 @@ class Enclosure3D(Operation3D):
             kernel.name_body(cutter, f"{self.id}:cutter", SOLID)
             kernel.boolean("subtract", [vol], [cutter], self.id, FLUID)
             vol = kernel.body_by_id(self.id)
+            if p.get("quarter"):
+                cutter = occ.addBox(-big, -big, -2.0 * big, 2.0 * big, 2.0 * big, 2.0 * big)   # everything with z < 0
+                kernel.sync()
+                label_box(kernel, cutter, f"{self.id}:z", ("cut1", "cut2", "cut3", "cut4", "cut5", "symmetry_z"),
+                          "symmetry", "symmetry")
+                kernel.name_body(cutter, f"{self.id}:zcutter", SOLID)
+                kernel.boolean("subtract", [vol], [cutter], self.id, FLUID)
+                vol = kernel.body_by_id(self.id)
         kernel.boolean("subtract", [vol], bodies, self.id, FLUID)
 
 

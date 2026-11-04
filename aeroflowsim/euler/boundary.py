@@ -126,8 +126,16 @@ def far_field(Wi, normals, values, gas, patch):
     Wg[1:-1] = src[1:-1] + (un_b - un_src) * normals.T
     Wg[-1] = rho_b * c_b**2 / g
     supersonic_in = un_f <= -c_f                                   # free stream enters supersonically
-    supersonic_out = un_i >= c_i
     Wg = np.where(supersonic_in, Winf, Wg)
+    if dim == 3:
+        # 3D: the two outflow branches do not meet at normal Mach 1 (the Riemann state differs from the inside state
+        # there), so faces near sonic outflow flip between them every iteration and the residual stalls (found on
+        # tetrahedra: 99.9 % of a stalled residual in outflow cells at M 1.1-1.2). Blend them smoothly over normal
+        # Mach numbers 0.9 to 1.1 (inside state). 2D keeps the sharp switch, so its validated results stay bit for bit.
+        w = np.clip((un_i / c_i - 0.9) / 0.2, 0.0, 1.0)
+        blended = (1.0 - w) * Wg + w * Wi
+        return np.where(supersonic_in, Wg, blended)
+    supersonic_out = un_i >= c_i
     return np.where(supersonic_out & ~supersonic_in, Wi, Wg)
 
 

@@ -287,3 +287,64 @@ def test_an_imported_3d_mesh_keeps_a_free_stream_uniform(tmp_path, backend):
     s = _solver(back, compute.NUMPY, Numerics(time_scheme=LUSGS, max_iterations=10, residual_drop=50))
     W0 = _free_stream_state(back.n_cells)
     assert (np.abs(s.solve(W0.copy()).W - W0) / np.abs(W0).max(axis=1, keepdims=True)).max() < 1e-13
+
+
+# ---- consistency checks of the addendum (Part 3) -------------------------------------------------------------------
+
+def test_a_closed_body_in_uniform_pressure_feels_no_force(backend):
+    """Gas at rest at uniform pressure around a closed body: the integral of p n A over the body is zero to round-off."""
+    from aeroflowsim.euler import forces
+    mesh = box_mesh_3d(4, "tetrahedra", warp=0.04, kinds={k: "wall" for k in TYPES})    # the box is the "body"
+    walls = {p.name: BoundaryCondition("slip_wall") for p in mesh.patches}
+    s = _solver(mesh, compute.NUMPY, Numerics(max_iterations=1, residual_drop=50), walls)
+    W = uniform_state(mesh.n_cells, 1.2, (0.0, 0.0, 0.0), 1e5)
+    s.residual(primitive_to_conserved(W, AIR), True, W)
+    s.stage0_boundary_flux = s.boundary_flux
+    f = forces.body_forces_3d(s, list(walls), 0.0, 1.0, 0.0, 0.0, 1.0, 1.0)
+    assert max(abs(f[k]) for k in ("Fx", "Fy", "Fz", "Mx", "My", "Mz")) < 1e-9 * 1e5
+
+
+def test_symmetry_mirroring_of_forces_and_moments():
+    """A force and moment on the meshed half: the mirror plane y = 0 doubles Fx, Fz, My and cancels Fy, Mx, Mz."""
+    from types import SimpleNamespace
+    from aeroflowsim.euler import forces
+    geom = SimpleNamespace(n_interior=0, flux_areas=np.array([1.0]), face_centres=np.array([[1.0, 2.0, 3.0]]))
+    s = SimpleNamespace(geom=geom, patches=[("w", None, np.array([0]), None)], boundary_normals=np.array([[0.0, 0, 1]]),
+                        stage0_boundary_flux=np.array([[0.0], [1.0], [2.0], [3.0], [0.0]]))
+    one = forces.body_forces_3d(s, ["w"], 0.0, 1.0, 0.0, 0.0, 1.0, 1.0)
+    half = forces.body_forces_3d(s, ["w"], 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, planes=(1,))
+    assert (half["Fx"], half["Fy"], half["Fz"]) == (2 * one["Fx"], 0.0, 2 * one["Fz"])
+    assert (half["Mx"], half["My"], half["Mz"]) == (0.0, 2 * one["My"], 0.0) and half["factor"] == 2.0
+    assert one["Cm"] == -one["CMz"]
+
+
+def test_a_one_layer_extrusion_reproduces_the_2d_residual():
+    """The 2D residual of a non-uniform flow and the 3D residual of its one-layer extrusion (symmetry sides) agree to
+    round-off, first and second order, with the limiter (Barth-Jespersen: no cell-size term) and without."""
+    from aeroflowsim.simple_meshes import extrude_2d, rectangle_mesh
+    m2 = rectangle_mesh(10, 8, triangles=True, distort=0.3, mixed=True,
+                        kinds={"left": "farfield", "right": "farfield", "bottom": "wall", "top": "farfield"})
+    m3 = extrude_2d(m2)
+    assert m3.n_cells == m2.n_cells and m3.cell_volumes.min() > 0
+    x, y = m2.cell_centres[:, 0], m2.cell_centres[:, 1]
+    W2 = np.array([1.2 + 0.3 * np.sin(3 * x) * np.cos(2 * y), 500 + 80 * np.cos(2 * x + y), 60 * np.sin(4 * y) - 30 * x,
+                   1e5 * (1 + 0.3 * np.cos(3 * x - y)) * np.where(x > 0.5, 2.5, 1.0)])
+    W3 = np.insert(W2, 3, 0.0, axis=0)
+    fs = {"mach": 1.6, "p": 9e4, "T": 280.0, "flow_angle": 10.0}
+    for limiter in ("Barth-Jespersen", "None"):
+        for order in (1, 2):
+            out = []
+            for m, W in ((m2, W2), (m3, W3)):
+                # supersonic inlet / outlet: the far field blends its outflow branches in 3D only (boundary.far_field)
+                kinds = {"left": ("supersonic_inlet", fs), "right": ("supersonic_outlet", {}),
+                         "top": ("supersonic_outlet", {}), "bottom": ("slip_wall", {})}
+                bcs = {p.name: BoundaryCondition(*kinds.get(p.name, ("symmetry", {}))) for p in m.patches}
+                compute.set_backend(compute.NUMPY)
+                s = EulerSolver(m, AIR, bcs, Numerics(order=order, limiter=limiter), L_ref=1.0,
+                                scales=(1.0,) + (500.0,) * m.dim + (1e5,))
+                R, _ = s.residual(primitive_to_conserved(W, AIR), order == 2, W)
+                out.append(R)
+            R2, R3 = out
+            assert np.abs(R3[3]).max() < 1e-9 * np.abs(R3).max()             # no z-momentum
+            assert _rel(np.delete(R3, 3, axis=0), R2) < 1e-10, (limiter, order)
+    compute.set_backend(compute.AUTO)

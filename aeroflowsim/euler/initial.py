@@ -20,6 +20,7 @@ import numpy as np
 from aeroflowsim import gasdynamics as gd
 
 UNIFORM, QUASI_1D = "Uniform (free stream)", "Quasi-1D solution"
+PRIMITIVE_KEYS = {2: ("rho", "u", "v", "p"), 3: ("rho", "u", "v", "w", "p")}   # result fields of W, by mesh dimension
 RESTART = "Previous result (restart)"   # an old option of the Initial solution input (projects are converted)
 
 
@@ -54,15 +55,32 @@ def quasi1d_state(mesh, profile, gas, p0, T0):
     return W
 
 
+def quasi1d_state_3d(mesh, profile, gas, p0, T0):
+    """Primitive state (5, C) of the isentropic quasi-1D nozzle flow on a 3D mesh of a nozzle with its axis along x:
+    the axisymmetric start above with r = sqrt(y^2 + z^2), the radial velocity split into its y and z parts."""
+    from types import SimpleNamespace
+    c = mesh.cell_centres
+    r = np.hypot(c[:, 1], c[:, 2])
+    plane = SimpleNamespace(cell_centres=np.column_stack([c[:, 0], r, np.zeros(len(r))]), axisymmetric=True,
+                            n_cells=mesh.n_cells)
+    W2 = quasi1d_state(plane, profile, gas, p0, T0)
+    W = np.empty((5, mesh.n_cells))
+    safe = np.where(r > 0.0, r, 1.0)
+    W[0], W[1], W[4] = W2[0], W2[1], W2[3]
+    W[2] = np.where(r > 0.0, W2[2] * c[:, 1] / safe, 0.0)
+    W[3] = np.where(r > 0.0, W2[2] * c[:, 2] / safe, 0.0)
+    return W
+
+
 def restart_state(fields, mesh):
-    """Primitive state from the fields of a previous result (keys rho, u, v, p), on the same mesh.
+    """Primitive state from the fields of a previous result (keys rho, u, v, p; 3D also w), on the same mesh.
 
     fields: {key: array}, or the continuation dict of aeroflowsim.result_io.continuation_data ({"fields": ...}).
     """
     if "fields" in fields:
         fields = fields["fields"]
     try:
-        W = np.array([fields[k] for k in ("rho", "u", "v", "p")], dtype=float)
+        W = np.array([fields[k] for k in PRIMITIVE_KEYS[3 if mesh.dim == 3 else 2]], dtype=float)
     except KeyError as error:
         raise ValueError(f"The previous result has no field {error}; it cannot be used to restart.") from None
     if W.shape[1] != mesh.n_cells:

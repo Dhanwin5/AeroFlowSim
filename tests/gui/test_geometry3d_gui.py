@@ -190,8 +190,8 @@ def test_3d_mesh_step_shows_the_mesh_quality_and_cut(qtbot, window, tmp_path):
     assert page.histogram.figure is not None
     names = {c.name for c in window.mesh_checks}
     assert {"Cell volumes", "First layer height", "Dihedral angle"} <= names
-    assert window.strip.chips["run"].status == "disabled"                # mesh only: no Run step yet
-    assert "3D Euler solver" in window.project.case.solver_message
+    assert window.strip.chips["run"].status != "disabled"                # 3D Euler stage: the Run step is there
+    assert window.project.case.has_solver
 
 
 def test_cancel_a_long_3d_mesh_job(qtbot, window, tmp_path):

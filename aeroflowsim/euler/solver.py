@@ -476,6 +476,11 @@ class EulerSolver:
                 rms = np.sqrt(np.mean(R0**2, axis=1))                   # per equation
                 if it <= NORM_ITERATIONS:
                     norm = rms if norm is None else np.maximum(norm, rms)
+                    if n_vars == 5:
+                        # 3D: a momentum component that is zero by symmetry (z in a flow that is really 2D, or a body
+                        # of revolution at zero incidence) starts at round-off, and normalised by it its residual could
+                        # never drop. Each momentum norm is at least 1e-3 x the largest one. (2D: unchanged.)
+                        norm[1:4] = np.maximum(norm[1:4], 1e-3 * norm[1:4].max())
                 res = rms / np.where(norm > 0.0, norm, 1.0)
                 res_hist.append(res)
                 values = monitor(self, W) if monitor is not None else {}

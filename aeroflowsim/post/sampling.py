@@ -194,9 +194,11 @@ def interpolate_cells(old_centres, old_values, new_centres, k=4) -> np.ndarray:
     """Cell values (n_vars, C_old) moved onto new cell centres (n_vars, C_new) by inverse-distance weighting of the
     k nearest old centres (Shepard). Used to start a run on a refined mesh from the old solution."""
     old_values = np.atleast_2d(np.asarray(old_values, dtype=float))
-    tree = cKDTree(np.asarray(old_centres, dtype=float)[:, :2])
+    old_centres = np.asarray(old_centres, dtype=float)
+    d = 3 if old_centres.shape[1] == 3 and np.asarray(new_centres).shape[1] == 3 else 2    # 3D meshes: x, y, z
+    tree = cKDTree(old_centres[:, :d])
     k = min(k, len(old_centres))
-    dist, idx = tree.query(np.asarray(new_centres, dtype=float)[:, :2], k=k)
+    dist, idx = tree.query(np.asarray(new_centres, dtype=float)[:, :d], k=k)
     dist, idx = dist.reshape(len(new_centres), k), idx.reshape(len(new_centres), k)
     exact = dist[:, 0] < 1e-14
     w = 1.0 / np.maximum(dist, 1e-300)

@@ -215,3 +215,113 @@ def _orient_cells(nodes, types, cells):
             bad = up < 0.0 if t == HEXAHEDRON else up > 0.0
         rows = sel[bad]
         cells[rows, :k] = cells[rows][:, flip]
+
+
+def extrude_2d(mesh2d, depth=None, side_type="symmetry"):
+    """A one-layer 3D mesh from a planar 2D mesh: every quad becomes a hexahedron, every triangle a prism, depth in z.
+
+    The 2D patches keep their names and types (each boundary edge becomes a quad face); the two new planes z = 0 and
+    z = depth form the patch "sides" of type side_type (symmetry: the flow stays two-dimensional). With symmetry sides
+    the 3D solver must reproduce the 2D solution to round-off (consistency check of the 3D solver, 3D Euler stage)."""
+    from aeroflowsim.mesh import HEXAHEDRON, QUAD, TRIANGLE, WEDGE
+    if mesh2d.dim != 2 or mesh2d.axisymmetric:
+        raise ValueError("Only planar 2D meshes can be extruded.")
+    xy = mesh2d.nodes[:, :2]
+    n = len(xy)
+    if depth is None:
+        depth = float(np.sqrt(np.median(mesh2d.cell_volumes)))        # about one cell width [m]
+    nodes = np.vstack([np.column_stack([xy, np.zeros(n)]), np.column_stack([xy, np.full(n, depth)])])
+    cells, types = [], []
+    for t, c in zip(mesh2d.cell_types, mesh2d.cell_nodes):
+        k = 4 if t == QUAD else 3
+        base = list(c[:k])
+        cells.append(base + [v + n for v in base] + [-1] * (8 - 2 * k))
+        types.append(HEXAHEDRON if t == QUAD else WEDGE)
+    cells, types = np.array(cells), np.array(types)
+    _orient_cells(nodes, types, cells)
+    boundary = {}
+    for p in mesh2d.patches:
+        e = mesh2d.face_nodes[p.faces][:, :2]
+        boundary[p.name] = (p.type, np.column_stack([e[:, 0], e[:, 1], e[:, 1] + n, e[:, 0] + n]))
+    caps = []
+    for t, c in zip(mesh2d.cell_types, mesh2d.cell_nodes):
+        k = 4 if t == QUAD else 3
+        row = list(c[:k]) + [-1] * (4 - k)
+        caps += [row, [v + n if v >= 0 else -1 for v in row]]
+    boundary["sides"] = (side_type, np.array(caps))
+    del TRIANGLE
+    return Mesh.from_cells(nodes, types, cells, boundary, dim=3)
+
+
+def revolve_axisymmetric(mesh2d, angle_deg=90.0, n_theta=8):
+    """A 3D mesh of an axisymmetric 2D mesh (x along the axis, y = r >= 0) revolved by angle_deg about the x axis.
+
+    The 2D node (x, r) at angle t goes to (x, r cos t, r sin t): t = 0 is the plane z = 0 (y >= 0), t = angle_deg the
+    other cut plane. A quad becomes a hexahedron; a quad with an edge on the axis (r = 0) a prism (its axis edge does not
+    move); a triangle a prism (or, with an axis edge, a pyramid... not supported: use quads next to the axis). Patches
+    keep their names and types; the axis patch disappears (its faces have zero area) and the two cut planes form the
+    patch "symmetry" (angle_deg < 360). With 90 deg: a quarter of the nozzle, the 3D twin of the 2D axisymmetric run."""
+    from aeroflowsim.mesh import HEXAHEDRON, QUAD, WEDGE
+    if mesh2d.dim != 2:
+        raise ValueError("Only 2D meshes can be revolved.")
+    if not 0.0 < angle_deg < 360.0:
+        raise ValueError("Revolve by an angle between 0 and 360 degrees (exclusive).")
+    xy = mesh2d.nodes[:, :2]
+    n2 = len(xy)
+    size = max(float(np.ptp(xy[:, 1])), 1e-300)
+    on_axis = np.abs(xy[:, 1]) < 1e-12 * size
+    angles = np.radians(np.linspace(0.0, angle_deg, n_theta + 1))
+    # node ids: an axis node exists once (layer 0); every other node once per angle
+    nid = np.full((n_theta + 1, n2), -1, dtype=np.int64)
+    coords = []
+    count = 0
+    for k, t in enumerate(angles):
+        for i in range(n2):
+            if on_axis[i] and k > 0:
+                nid[k, i] = nid[0, i]
+                continue
+            nid[k, i] = count
+            coords.append((xy[i, 0], xy[i, 1] * np.cos(t), xy[i, 1] * np.sin(t)))
+            count += 1
+    nodes = np.array(coords)
+    cells, types = [], []
+    for k in range(n_theta):
+        for t, c in zip(mesh2d.cell_types, mesh2d.cell_nodes):
+            if t != QUAD:
+                raise ValueError("revolve_axisymmetric needs a mesh of quadrilaterals (a structured nozzle mesh).")
+            q = list(c[:4])
+            axis = [v for v in q if on_axis[v]]
+            if not axis:
+                cells.append([nid[k, v] for v in q] + [nid[k + 1, v] for v in q])
+                types.append(HEXAHEDRON)
+            elif len(axis) == 2:
+                # rotate the quad so its axis edge is q[0]-q[1]; the off-axis edge q[2], q[3] sweeps a quad face
+                while not (on_axis[q[0]] and on_axis[q[1]]):
+                    q = q[1:] + q[:1]
+                a, b, cc, d = q
+                cells.append([nid[0, a], nid[k, d], nid[k + 1, d], nid[0, b], nid[k, cc], nid[k + 1, cc], -1, -1])
+                types.append(WEDGE)
+            else:
+                raise ValueError("A cell touches the axis at a single node: revolve needs cells with an axis edge.")
+    cells, types = np.array(cells), np.array(types)
+    _orient_cells(nodes, types, cells)
+    boundary = {}
+    for p in mesh2d.patches:
+        if p.type == "axis":
+            continue
+        e = mesh2d.face_nodes[p.faces][:, :2]
+        rows = []
+        for k in range(n_theta):
+            for a, b in e:
+                pts = [nid[k, a], nid[k, b], nid[k + 1, b], nid[k + 1, a]]
+                uniq = list(dict.fromkeys(pts))                  # an axis node appears once: a triangle
+                rows.append(uniq + [-1] * (4 - len(uniq)))
+        boundary[p.name] = (p.type, np.array(rows))
+    caps = []
+    for c in mesh2d.cell_nodes:
+        q = list(c[:4])
+        for k in (0, n_theta):
+            ids = list(dict.fromkeys(nid[k, v] for v in q))
+            caps.append(ids + [-1] * (4 - len(ids)))
+    boundary["symmetry"] = ("symmetry", np.array(caps))
+    return Mesh.from_cells(nodes, types, cells, boundary, dim=3)

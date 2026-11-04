@@ -1,16 +1,20 @@
 # Inputs of this case. The GUI builds its input panel from this file automatically.
 # A 3D body (sphere, cylinder, nose cone, box) in a 3D far field, meshed with tetrahedra and prism layers. Its geometry can be
 # edited in the 3D geometry workspace (bodies, STEP/IGES import, booleans, enclosure, face names, refinement regions).
-# Mesh only until the 3D Euler solver stage: the Run step shows solver_message. Lengths of the domain and the mesh are
-# multiples of the reference length L (the largest extent of the body), so the same settings fit any body size.
+# Solved with the 3D Euler solver (euler_solver = true: Numerics inputs + boundary-condition table); a fluid nozzle (faces named
+# inlet / outlet) is solved as an internal flow. Lengths of the domain and the mesh are multiples of the reference length L
+# (the largest extent of the body), so the same settings fit any body size.
 
 [case]
-name = "Body in free stream (3D, mesh only)"
-description = "A 3D body (sphere, cylinder, nose cone, box, or your own STEP/IGES solid in the geometry workspace) in a box, cylinder or sphere far field, meshed with tetrahedra and prism layers on the walls, with 3D mesh quality checks and export (Gmsh, SU2, CGNS, ParaView). The 3D flow solver follows in the next stage."
+name = "Body in free stream (3D Euler)"
+description = "Steady inviscid 3D flow around a body (sphere, cylinder, nose cone, box, or your own STEP/IGES solid in the geometry workspace) in a box, cylinder or sphere far field (half or quarter domain with symmetry planes), meshed with tetrahedra (prism layers optional): forces, Cd, Cl, Cy, moments and Cp on the walls. A fluid nozzle with faces named inlet and outlet is solved as an internal flow (mass flow, thrust, Isp). The mesh can also be exported (Gmsh, SU2, CGNS, ParaView)."
 steady = true
 requires = ["gmsh"]
-solver = false
-solver_message = "This template makes and checks 3D meshes; the 3D Euler solver comes in the next development stage. Export the mesh (Gmsh, SU2, CGNS, ParaView) from the Mesh step to use it in another solver."
+euler_solver = true          # adds the Numerics inputs and the boundary-condition table (aeroflowsim/euler/setup.py)
+# 3D defaults, measured in the 3D Euler stage (docs/roadmap/3d_euler_solver.md, ledger part 3): on tetrahedra with a
+# detached (bow) shock implicit LU-SGS stalls while explicit SSP-RK3 converges, and Venkatakrishnan K = 5 under-limits
+# the large 3D cells (the sphere diverged); K = 1 keeps it stable. LU-SGS stays available (hexahedra, prisms, nozzles).
+solver_defaults = { time_scheme = "SSP-RK3", venkat_k = 1.0, first_order_iterations = 100, monitor_window = 300 }
 
 # ---- body ------------------------------------------------------------------------------------------
 
@@ -122,6 +126,16 @@ group = "Far field"
 step = "geometry"
 help = "Keep only y >= 0, with a symmetry plane at y = 0: half the cells for a body that is symmetric about that plane (with the flow in the plane)."
 
+[[input]]
+key = "quarter_domain"
+label = "Quarter domain (also symmetry plane z = 0)"
+type = "bool"
+default = false
+group = "Far field"
+step = "geometry"
+show_if = { half_domain = true }
+help = "Also keep only z >= 0, with a second symmetry plane at z = 0: a quarter of the cells for a body of revolution (or a nozzle) at zero angle of attack and sideslip. Forces and coefficients are reported for the whole body."
+
 # ---- mesh ---------------------------------------------------------------------------------------
 
 [[input]]
@@ -220,7 +234,7 @@ step = "mesh"
 help = "Each layer is this many times thicker than the one below it."
 show_if = { inflation = true }
 
-# ---- free stream (for the first-layer suggestion now, and the 3D solver later) -----------------------
+# ---- free stream and reference values ---------------------------------------------------------------
 
 [[input]]
 key = "gas"
@@ -228,7 +242,7 @@ label = "Gas"
 type = "gas"
 default = "air"
 group = "Free stream"
-help = "The gas, from the gas library (used now for the Reynolds number of the first-layer suggestion)."
+help = "The gas, from the gas library."
 
 [[input]]
 key = "mach"
@@ -262,3 +276,64 @@ min = 1.0
 max = 10000.0
 group = "Free stream"
 help = "Free-stream static temperature."
+
+[[input]]
+key = "alpha"
+label = "Angle of attack"
+unit = "deg"
+type = "float"
+default = 0.0
+min = -90.0
+max = 90.0
+group = "Free stream"
+help = "Angle of the free stream to the x axis in the x-y plane (y is up; lift is normal to the free stream in that plane). With a half domain (symmetry plane y = 0) only 0 makes sense."
+
+[[input]]
+key = "beta"
+label = "Sideslip angle"
+unit = "deg"
+type = "float"
+default = 0.0
+min = -90.0
+max = 90.0
+group = "Free stream"
+help = "Angle of the free stream towards +z (sideways): u = V cos(alpha) cos(beta), v = V sin(alpha) cos(beta), w = V sin(beta). With a quarter domain (symmetry plane z = 0) only 0 makes sense."
+
+[[input]]
+key = "initialisation"
+label = "Initial solution"
+type = "choice"
+default = "Uniform (free stream)"
+options = ["Uniform (free stream)"]
+group = "Free stream"
+help = "How a run starts from scratch: the free stream everywhere (a nozzle: gas at rest at the back pressure, moving out slowly). Run carries on from the current solution when there is one on this mesh; Start from scratch uses this."
+
+[[input]]
+key = "reference_area"
+label = "Reference area (0 = frontal area)"
+unit = "m²"
+type = "float"
+default = 0.0
+min = 0.0
+max = 1000000.0
+group = "Reference values"
+help = "Area of the force coefficients Cd = D / (q A). 0 = the frontal area of the walls (their shadow on the y-z plane, for the whole body when symmetry planes cut it), as shown under the inputs."
+
+[[input]]
+key = "reference_length"
+label = "Reference length (0 = body length)"
+unit = "m"
+type = "float"
+default = 0.0
+min = 0.0
+max = 100000.0
+group = "Reference values"
+help = "Length of the moment coefficients Cm = M / (q A L). 0 = the largest extent of the walls. Moments are taken about the point a quarter of the body length behind its front, on the x axis."
+
+[[input]]
+key = "mesh_only"
+label = "Mesh only (do not solve)"
+type = "bool"
+default = false
+group = "Solver"
+help = "For very large meshes meant for another solver: the Run step then refuses to start and says why. Export the mesh from the Mesh step."

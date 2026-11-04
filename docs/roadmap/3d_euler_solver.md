@@ -185,3 +185,36 @@ Finish: (12) summary with test counts, "2D validation numbers unchanged", the to
 - imported_mesh template reads 3D files (counts "faces"); solving them needs the 3D setup of Part 3.
 - Tests: test_euler_3d.py 79 pass, test_mesh_io.py updated (3D files are now read).
 - Next: Part 3 (setup.py 3D: fields, equations, forces; external_3d run()).
+
+### Part 3 - external_3d run() (done)
+- `setup.py` is dimension-aware: `equations(n)` (5 in 3D), field `w`, `info["dim"]`, 3D cell centres for interpolation,
+  `external_problem` 3D (alpha + sideslip `beta`, injected into every free-stream BC as `sideslip`), scales with 5
+  entries, `nozzle_problem_3d` + `mesh_wall_profile_3d` (Part 4), `initial.quasi1d_state_3d`, `PRIMITIVE_KEYS`.
+- `forces.body_forces_3d` (force and moment vectors, Cd/Cl/Cy, CMx/y/z, Cm = -CMz) with symmetry-plane mirroring
+  (`symmetry_planes`: F_k = 0 and other components x 2, M_k x 2 and others 0, per plane); `smart_rules.reference_values_3d`
+  (frontal area = sum of n_x A over upstream wall faces x 2 per symmetry plane; length across the planes; moments about
+  front + L/4). `Enclosure3D` "quarter" option (second symmetry plane z = 0).
+- external_3d: euler_solver = true, inputs alpha, beta, reference area / length (0 = auto), quarter domain, mesh only,
+  initialisation; nozzle detection by an inlet patch. Prism layers stay off by default.
+- FINDINGS (the long part of this session):
+  1. Bug fixed: 3D residual normalisation. A momentum component that is zero by symmetry (z in an extruded 2D flow)
+     starts at round-off and could never drop; 3D floors each momentum norm at 1e-3 x the largest (2D unchanged).
+  2. Far field at near-sonic outflow: the Riemann and the extrapolation branches do not meet at normal Mach 1, faces
+     chatter, the residual stalls (tet ramp 30 deg at M2: 99.9 % of the residual in outflow cells at M 1.1-1.2).
+     3D blends the branches over normal Mach 0.9-1.1 (tet ramp RK3 6e-2 -> 5e-4). 2D keeps the sharp switch
+     (bit for bit) - gap: adopt in 2D with a re-validation.
+  3. SHORTFALL: implicit LU-SGS does not converge on TETRAHEDRA with a detached (bow) shock (30 deg ramp at M2: hexa
+     and prisms converge in 1,376 / 2,943 iterations, tets stall at 0.25; the M3 sphere and M2 cone blow up). It is
+     not the CFL (cfl_max 2-100), omega (1-3), the flux (pure HLLE), the limiter (BJ / K / freezing), the symmetry
+     planes or the far-field shape. Explicit SSP-RK3 converges. Also Venkatakrishnan K = 5 under-limits the large 3D
+     cells (eps ~ (K h / L)^1.5: far-field cells are as big as the body): the RK3 sphere diverged at K = 5, stable at
+     K = 1. So external_3d defaults to SSP-RK3, K = 1, 100 first-order iterations (solver_defaults); LU-SGS remains
+     the global default and works on hexa/prism meshes and attached shocks. The same weakness exists in 2D: the M3
+     cylinder on Gmsh triangles diverges with the defaults (first order LU-SGS at it. 166 in the near-vacuum wake).
+     Next stage candidates: a better implicit operator (Roe-Jacobian LU-SGS or matrix-free GMRES / Newton-Krylov).
+  4. Tried and removed (no benefit): Venkatakrishnan-Wang limiter (global-range eps lets the wake go unlimited) and a
+     local under-relaxation of the implicit update (it hid blow-ups, letting runs drift into garbage).
+- Verified: tests/test_euler_3d.py (closed body zero force; mirroring; one-layer extrusion residual = 2D residual to
+  1e-10, first/second order, BJ and unlimited); cases/external_3d tests (quarter domain volume and planes, reference
+  values, short M3 sphere run: Cd in range, Cl = Cy = 0, factor 4, mesh-only refusal). 91 pass.
+- Next: Part 4 (3D nozzle run, compare with 2D axisymmetric).

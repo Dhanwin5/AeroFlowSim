@@ -26,7 +26,7 @@ from aeroflowsim import gasdynamics as gd
 from aeroflowsim.euler import forces
 from aeroflowsim.euler.boundary import BC_TYPES, DEFAULT_FOR_KIND, BoundaryCondition, boundary_problems
 from aeroflowsim.euler.gradients import METHODS as GRADIENT_METHODS
-from aeroflowsim.euler.initial import QUASI_1D, RESTART, UNIFORM, quasi1d_state, restart_state
+from aeroflowsim.euler.initial import QUASI_1D, RESTART, UNIFORM, quasi1d_state, quasi1d_state_3d, restart_state
 from aeroflowsim.euler.limiters import LIMITERS
 from aeroflowsim.euler.solver import CONVERGED, DIVERGED, LUSGS, TIME_SCHEMES, Continuation, EulerSolver, Numerics
 from aeroflowsim.euler.state import (entropy, mach_number, primitive_to_conserved, state_from_mach, temperature,
@@ -41,8 +41,15 @@ MONITOR_LABELS = {
     "thrust": ("Thrust (vacuum), exit plane", "N"), "thrust_wall": ("Thrust (vacuum), wall + inlet", "N"),
     "mdot_in": ("Mass flow in", "kg/s"), "mdot_out": ("Mass flow out", "kg/s"),
     "Cd": ("Drag coefficient Cd", "-"), "Cl": ("Lift coefficient Cl", "-"), "Cm": ("Moment coefficient Cm", "-"),
+    "Cy": ("Side-force coefficient Cy", "-"),
 }
 EQUATIONS = ("mass", "x-momentum", "y-momentum", "energy")
+EQUATIONS_3D = ("mass", "x-momentum", "y-momentum", "z-momentum", "energy")
+
+
+def equations(n_vars) -> tuple:
+    """Names of the conserved equations of a state with n_vars rows (4 in 2D, 5 in 3D)."""
+    return EQUATIONS_3D if n_vars == 5 else EQUATIONS[:n_vars]
 G0 = forces.G0
 
 
@@ -177,7 +184,7 @@ class Problem:
     conditions: dict
     W0: np.ndarray
     L_ref: float                    # [m] (limiter eps, Cm)
-    scales: tuple                   # reference size of rho, u, v, p
+    scales: tuple                   # reference size of rho, u, v, (w,) p
     initialisation: str = UNIFORM
     monitor: object = None          # function(solver, W) -> {name: value}
     monitor_labels: dict = field(default_factory=dict)   # name -> (label, unit)
@@ -270,7 +277,7 @@ def _start(restart, mesh, fresh, init, gas=None):
     old = extras.get("interpolate")
     if old is not None:
         from aeroflowsim.post.sampling import interpolate_cells
-        return interpolate_cells(old["centres"], old["W"], mesh.cell_centres[:, :2]), INTERPOLATED
+        return interpolate_cells(old["centres"], old["W"], mesh.cell_centres[:, :mesh.dim]), INTERPOLATED
     if init == RESTART:                          # an old project that still asks for "Previous result"
         raise ValueError("There is no previous result on this mesh to continue: run once first (the run starts from "
                          "the Initial solution, uniform or quasi-1D).")
@@ -400,6 +407,101 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
                    monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
 
 
+def mesh_wall_profile_3d(mesh, wall_names, n_bins=None):
+    """The wall radius r(x) of a 3D nozzle with its axis along x, from the nodes of its wall patches: r = sqrt(y^2 + z^2),
+    the largest r of the wall nodes in each slice of x. Works for full, half and quarter domains (only the distance
+    from the axis is used)."""
+    nodes = []
+    for p in mesh.patches:
+        if p.name in wall_names:
+            f = mesh.face_nodes[p.faces]
+            nodes.append(f[f >= 0])
+    if not nodes:
+        raise ValueError("The mesh has no wall: the nozzle profile (for the quasi-1D start and the throat area) cannot "
+                         "be found.")
+    xyz = mesh.nodes[np.unique(np.concatenate(nodes))]
+    x, r = xyz[:, 0], np.hypot(xyz[:, 1], xyz[:, 2])
+    if n_bins is None:
+        n_bins = int(max(20, min(400, round(math.sqrt(len(x)) / 2))))
+    edges = np.linspace(x.min(), x.max(), n_bins + 1)
+    which = np.clip(np.searchsorted(edges, x, side="right") - 1, 0, n_bins - 1)
+    r_max = np.full(n_bins, -1.0)
+    np.maximum.at(r_max, which, r)
+    x_mid = 0.5 * (edges[:-1] + edges[1:])
+    keep = r_max > 0.0
+    # the end values sit on the inlet and exit planes, so the profile spans the whole nozzle
+    xs = np.concatenate([[x.min()], x_mid[keep], [x.max()]])
+    rs = np.concatenate([[r_max[keep][0]], r_max[keep], [r_max[keep][-1]]])
+    return WallProfile(xs, rs)
+
+
+def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:
+    """Internal (nozzle) flow on a 3D mesh: total-pressure inlet, pressure (or supersonic) outlet, slip walls, symmetry
+    planes. Mass flows and thrusts are those of the WHOLE nozzle: the sums over the meshed part times 2 per flat
+    symmetry plane (a quarter domain: x 4). Starts from the quasi-1D solution of the wall profile r(x)."""
+    bcs = conditions(params, mesh, defaults)
+    inlets = forces.patch_names_of(bcs, "total_pressure_inlet", "mass_flow_inlet", "supersonic_inlet")
+    outlets = forces.patch_names_of(bcs, "pressure_outlet", "supersonic_outlet")
+    walls = forces.patch_names_of(bcs, "slip_wall")
+    if not inlets or not outlets:
+        raise ValueError("A nozzle needs at least one inlet and one outlet boundary condition.")
+    tp = next((bc for bc in bcs.values() if bc.type == "total_pressure_inlet"), None)
+    if tp is None:
+        raise ValueError("A 3D nozzle needs a total-pressure inlet (chamber p0 and T0) for its start and ideal values.")
+    p0, T0 = tp.values["p0"], tp.values["T0"]
+    p_back = next((bc.values["p"] for bc in bcs.values() if bc.type == "pressure_outlet"), 0.0)
+    planes = forces.symmetry_planes(mesh, [n for n, bc in bcs.items() if bc.type == "symmetry"])
+    factor = float(2 ** len(planes))
+    profile = mesh_wall_profile_3d(mesh, walls)
+    r_t = float(profile.r.min())
+    A_t = math.pi * r_t**2                                               # whole nozzle [m^2]
+    W0, init = _start(restart, mesh, lambda: quasi1d_state_3d(mesh, profile, gas, p0, T0), QUASI_1D, gas)
+    rho0, c0, g = p0 / (gas.R * T0), float(gas.sound_speed(T0)), float(gas.gamma(T0))
+    mdot_1d = gd.choked_mass_flow(p0, T0, A_t, g, gas.R)
+    labels = {k: MONITOR_LABELS[k] for k in ("thrust", "thrust_wall", "mdot_in", "mdot_out")}
+
+    def numbers_of(solver):
+        k = forces.nozzle_numbers(solver, inlets, outlets, walls)
+        return {key: factor * value for key, value in k.items()}
+
+    def monitor(solver, W):
+        k = numbers_of(solver)
+        return {"thrust": k["thrust_exit"], "thrust_wall": k["thrust_wall"], "mdot_in": k["mdot_in"],
+                "mdot_out": k["mdot_out"]}
+
+    def finish(solver, W, out):
+        k = numbers_of(solver)
+        mdot, F_vac, F_wall = k["mdot_out"], k["thrust_exit"], k["thrust_wall"]
+        exit_area = abs(k["exit_area_x"])
+        local = np.concatenate([loc for name, _bc, loc, _info in solver.patches if name in outlets])
+        mass_w = solver.stage0_boundary_flux[0, local]
+        cells = solver.geom.boundary_owner[local]
+        areas = solver.geom.flux_areas[solver.geom.n_interior + local]
+        M = mach_number(W, gas)
+        M_exit = float(np.sum(mass_w * M[cells]) / np.sum(mass_w)) if np.sum(mass_w) > 0 else float("nan")
+        p_exit = float(np.sum(areas * W[-1, cells]) / np.sum(areas))
+        isp_1d = _ideal_isp(profile, True, gas, p0, T0)
+        return {"mdot": (mdot, "kg/s"), "mdot_inlet": (k["mdot_in"], "kg/s"), "mdot_exit": (mdot, "kg/s"),
+                "mdot_1D": (mdot_1d, "kg/s"), "discharge_coefficient": (mdot / mdot_1d, "-"),
+                "M_exit": (M_exit, "-"), "p_exit": (p_exit, "Pa"),
+                "F_vacuum": (F_vac, "N"), "F_vacuum_wall": (F_wall, "N"),
+                "thrust_difference": (100.0 * abs(F_vac - F_wall) / abs(F_vac) if F_vac else 0.0, "%"),
+                "F_at_p_back": (F_vac - p_back * exit_area, "N"),
+                "Isp_vacuum": (F_vac / (mdot * G0) if mdot > 0 else 0.0, "s"),
+                "Isp_vacuum_wall": (F_wall / (mdot * G0) if mdot > 0 else 0.0, "s"),
+                "Cf_vacuum": (F_vac / (p0 * A_t), "-"), "Isp_quasi1D": (isp_1d, "s"),
+                "A_throat": (A_t, "m²"), "symmetry_factor": (factor, "-")}
+
+    def series(solver, W):
+        x, p = forces.wall_pressure(solver, walls)
+        return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_z": x[:, 2], "wall_p": p, "wall_p_over_p0": p / p0}
+
+    return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, c0, p0), initialisation=init,
+                   monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"), monitor_scales={},
+                   finish=finish, series=series,
+                   continuation=continuation_of(restart) or interpolated_norm(mesh))
+
+
 def _ideal_isp(profile, axisymmetric, gas, p0, T0):
     """Vacuum Isp of the ideal (isentropic quasi-1D) nozzle with this profile's exit and throat [s]."""
     g = float(gas.gamma(T0))
@@ -428,8 +530,19 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     walls = forces.patch_names_of(bcs, "slip_wall")
     if not walls:
         raise ValueError("A body in a free stream needs at least one slip-wall boundary (the body surface).")
+    if mesh.dim == 3 and params.get("beta"):
+        # the sideslip is a template input (not a column of the BC table): every free-stream condition gets it
+        for bc in bcs.values():
+            if bc.type in ("far_field", "supersonic_inlet"):
+                bc.values = {**bc.values, "sideslip": float(params["beta"])}
     M, p_inf, T_inf, alpha = params["mach"], params["p_inf"], params["T_inf"], params["alpha"]
-    direction = (math.cos(math.radians(alpha)), math.sin(math.radians(alpha)))
+    three_d = mesh.dim == 3
+    beta = float(params.get("beta", 0.0)) if three_d else 0.0          # sideslip [deg] (3D only)
+    if three_d:
+        a, b = math.radians(alpha), math.radians(beta)
+        direction = (math.cos(a) * math.cos(b), math.sin(a) * math.cos(b), math.sin(b))
+    else:
+        direction = (math.cos(math.radians(alpha)), math.sin(math.radians(alpha)))
     rho, vel = state_from_mach(gas, M, p_inf, T_inf, direction)
     speed = float(np.linalg.norm(vel))
     q_inf = 0.5 * rho * speed**2                                        # dynamic pressure [Pa]
@@ -438,28 +551,43 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     half = any(p.type == "symmetry" for p in mesh.patches) and not mesh.axisymmetric
     mirror = 2.0 if half else 1.0
     c = float(gas.sound_speed(T_inf))
-    labels = {k: MONITOR_LABELS[k] for k in ("Cd", "Cl", "Cm")}
+    labels = {k: MONITOR_LABELS[k] for k in (("Cd", "Cl", "Cy", "Cm") if three_d else ("Cd", "Cl", "Cm"))}
+    planes = forces.symmetry_planes(mesh, [n for n, bc in bcs.items() if bc.type == "symmetry"]) if three_d else ()
+    x_ref3 = tuple(x_ref) + (0.0,) * (3 - len(x_ref))
 
     def coefficients(solver):
+        if three_d:
+            return forces.body_forces_3d(solver, walls, p_inf, q_inf, alpha, beta, A_ref, L_ref, x_ref3, planes)
         return forces.body_forces(solver, walls, p_inf, q_inf, alpha, A_ref, L_ref, x_ref, mirror)
 
     def monitor(solver, W):
         f = coefficients(solver)
-        return {"Cd": f["Cd"], "Cl": f["Cl"], "Cm": f["Cm"]}
+        return {k: f[k] for k in labels}
 
     def finish(solver, W, out):
         f = coefficients(solver)
-        force_unit = "N" if mesh.axisymmetric else "N/m"
-        return {"Cd": (f["Cd"], "-"), "Cl": (f["Cl"], "-"), "Cm": (f["Cm"], "-"),
-                "drag": (f["D"], force_unit), "lift": (f["L"], force_unit),
-                "Fx": (f["Fx"], force_unit), "Fy": (f["Fy"], force_unit),
-                "q_inf": (q_inf, "Pa"), "A_ref": (A_ref, "m²"), "L_ref": (L_ref, "m")}
+        force_unit = "N" if mesh.axisymmetric or three_d else "N/m"
+        numbers = {"Cd": (f["Cd"], "-"), "Cl": (f["Cl"], "-"), "Cm": (f["Cm"], "-"),
+                   "drag": (f["D"], force_unit), "lift": (f["L"], force_unit),
+                   "Fx": (f["Fx"], force_unit), "Fy": (f["Fy"], force_unit),
+                   "q_inf": (q_inf, "Pa"), "A_ref": (A_ref, "m²"), "L_ref": (L_ref, "m")}
+        if three_d:
+            numbers.update({"Cy": (f["Cy"], "-"), "side_force": (f["Y"], "N"), "Fz": (f["Fz"], "N"),
+                            "Mx": (f["Mx"], "N m"), "My": (f["My"], "N m"), "Mz": (f["Mz"], "N m"),
+                            "CMx": (f["CMx"], "-"), "CMy": (f["CMy"], "-"), "CMz": (f["CMz"], "-"),
+                            "symmetry_factor": (f["factor"], "-")})
+        return numbers
 
     def series(solver, W):
         x, p = forces.wall_pressure(solver, walls)
-        return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_Cp": (p - p_inf) / q_inf}
+        out = {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_Cp": (p - p_inf) / q_inf}
+        if three_d:
+            out["wall_z"] = x[:, 2]
+        return out
 
-    return Problem("external", gas, bcs, W0, L_ref=L_ref, scales=(rho, max(speed, c), max(speed, c), p_inf),
+    size = max(speed, c)
+    scales = (rho, size, size, size, p_inf) if three_d else (rho, size, size, p_inf)
+    return Problem("external", gas, bcs, W0, L_ref=L_ref, scales=scales,
                    initialisation=init, monitor=monitor, monitor_labels=labels,
                    converge_on=("Cd", "Cl"), monitor_scales={"Cd": 0.01, "Cl": 0.01, "Cm": 0.01},
                    finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
@@ -485,6 +613,9 @@ def flow_fields(W, gas) -> dict:
               "p0": Field(total_pressure(W, gas), "Pa", "Total pressure"),
               "T0": Field(total_temperature(W, gas), "K", "Total temperature"),
               "s": Field(entropy(W, gas), "J/(kg K)", "Entropy")}
+    if W.shape[0] == 5:                          # 3D: the z velocity (v is then the y velocity, not radial)
+        fields["v"] = Field(W[2].copy(), "m/s", "Velocity y")
+        fields["w"] = Field(W[3].copy(), "m/s", "Velocity z")
     return fields
 
 
@@ -535,14 +666,14 @@ def solve(problem, params, mesh, progress=None) -> Result:
     numbers = problem.finish(solver, W, out) if problem.finish else {}
     numbers.update({"wall_time": (out.wall_time_s, "s"), "positivity_events": (float(out.positivity_events), "-"),
                     "cfl_final": (out.cfl_final, "-")})
-    series = {f"residual_{name}": out.residuals[:, i] for i, name in enumerate(EQUATIONS[:W.shape[0]])}
+    series = {f"residual_{name}": out.residuals[:, i] for i, name in enumerate(equations(W.shape[0]))}
     series.update({f"monitor_{k}": v for k, v in out.monitors.items()})
     if problem.series:
         series.update(problem.series(solver, W))
     if out.limiter is not None:                  # a frozen limiter stays frozen when the run is continued
         series["limiter_frozen"] = out.limiter
     series["boundary_flux"] = solver.boundary_flux.copy()   # flux x area of every boundary face (post-processing)
-    series["cell_centres"] = mesh.cell_centres[:, :2].copy()  # [m]: lets a later run interpolate onto a new mesh
+    series["cell_centres"] = mesh.cell_centres[:, :mesh.dim].copy()  # [m]: lets a later run interpolate onto a new mesh
     info = {"status": out.status, "first_iteration": out.first_iteration, "mesh_signature": mesh_signature(mesh),
             "continued_from": None if previous is None else previous.iterations,
             "residual_norm": None if out.norm is None else [float(v) for v in out.norm], "message": out.message, "kind": problem.kind, "axisymmetric": mesh.axisymmetric,
@@ -552,7 +683,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
             "backend": out.backend, "threads": int(out.threads), "backend_note": solver.backend_note,
             "diverged_at": None if out.diverged_at is None else list(out.diverged_at),
             "L_ref": float(problem.L_ref), "scales": [float(v) for v in problem.scales],
-            "initialisation": problem.initialisation, "equations": list(EQUATIONS[:W.shape[0]]),
+            "initialisation": problem.initialisation, "equations": list(equations(W.shape[0])), "dim": int(mesh.dim),
             "monitor_labels": {k: list(v) for k, v in labels.items()},
             "converge_on": list(converge_on), "monitor_rules": {k: list(v) for k, v in rules.items()}, "monitor_tol": params["monitor_tol"],
             "monitor_window": params["monitor_window"], "tol": params["tol"], "cfl": params["cfl"],
@@ -565,5 +696,6 @@ def solve(problem, params, mesh, progress=None) -> Result:
 
 
 
-__all__ = ["solver_parameters", "numerics", "conditions", "table_rows", "nozzle_problem", "external_problem",
+__all__ = ["solver_parameters", "numerics", "conditions", "table_rows", "nozzle_problem", "nozzle_problem_3d",
+           "external_problem", "mesh_wall_profile_3d", "equations",
            "solve", "flow_fields", "mesh_wall_profile", "Problem", "DIVERGED", "BC_TYPES"]

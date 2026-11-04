@@ -566,12 +566,14 @@ class Project:
             return None
         if payload is None:
             return None
+        from aeroflowsim.euler.initial import PRIMITIVE_KEYS
         from aeroflowsim.result_io import can_continue
         result = payload["result"]
         centres = (result.series or {}).get("cell_centres")
-        if centres is None or can_continue(result, mesh) or not {"rho", "u", "v", "p"} <= set(result.fields):
+        keys = PRIMITIVE_KEYS[3 if mesh.dim == 3 else 2]
+        if centres is None or can_continue(result, mesh) or not set(keys) <= set(result.fields):
             return None
-        W = np.array([np.asarray(result.fields[k].values, dtype=float) for k in ("rho", "u", "v", "p")])
+        W = np.array([np.asarray(result.fields[k].values, dtype=float) for k in keys])
         if W.shape[1] != len(centres):
             return None
         norm = (result.info or {}).get("residual_norm")

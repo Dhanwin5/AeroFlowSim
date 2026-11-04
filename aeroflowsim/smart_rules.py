@@ -420,3 +420,47 @@ def suggestions_3d(built, context) -> list[Suggestion]:
         except Exception:
             continue
     return out
+
+
+# ---- 3D reference values of the force coefficients (3D Euler solver stage) ----------------------------------
+
+@dataclass
+class ReferenceValues:
+    """Reference area, length and moment point of a 3D body, with the reason shown to the user."""
+
+    area: float           # [m²] frontal area of the whole body
+    length: float         # [m] largest extent of the whole body
+    moment_point: tuple   # (x, y, z) [m]: a quarter of the length behind the front, on the x axis
+    reason: str
+
+
+def reference_values_3d(mesh, wall_names, planes=()) -> ReferenceValues:
+    """Frontal area and length of the walls of a 3D mesh, completed by its symmetry planes (axes in `planes`).
+
+    Frontal area = the walls' shadow on the y-z plane = sum over wall faces facing upstream of n_x A, with n pointing out
+    of the gas (into the body): exact for any body whose surface the x direction crosses once per side (spheres, cones,
+    cylinders, boxes, missiles); a body with overhangs (a fin behind a wider part) counts the hidden part too, so then the
+    user should type the area. Each symmetry plane doubles the area. Length = the largest extent of the walls, measured
+    across the symmetry planes (the mirror image included). The same choice as Fluent's "compute from surface"."""
+    faces = [p.faces for p in mesh.patches if p.name in wall_names]
+    if not faces:
+        raise ValueError("The mesh has no wall: there is no body to take the reference area from. Type the reference "
+                         "area and length.")
+    import numpy as np
+    f = np.concatenate(faces)
+    n, A = mesh.face_normals[f], mesh.face_areas[f]
+    # Mesh boundary normals point out of the domain (out of the gas, into the body): upstream faces have n_x > 0
+    area = float(np.sum(np.where(n[:, 0] > 0.0, n[:, 0] * A, 0.0))) * 2.0 ** len(planes)
+    nodes = mesh.face_nodes[f]
+    xyz = mesh.nodes[np.unique(nodes[nodes >= 0])]
+    lo, hi = xyz.min(axis=0), xyz.max(axis=0)
+    for k in planes:                    # mirror: the body spans -max|x_k| to +max|x_k| about the plane x_k = 0
+        hi[k] = max(abs(lo[k]), abs(hi[k]))
+        lo[k] = -hi[k]
+    length = float((hi - lo).max())
+    point = (float(lo[0]) + 0.25 * length, 0.0, 0.0)
+    cut = {0: "", 1: " (x 2 for the symmetry plane)", 2: " (x 4 for the two symmetry planes)"}[len(planes)]
+    reason = (f"Frontal area {area:.4g} m² = the shadow of the walls on the y-z plane{cut}; reference length "
+              f"{length:.4g} m = their largest extent; moments about x = {point[0]:.4g} m (a quarter of the length behind "
+              "the front).")
+    return ReferenceValues(area, length, point, reason)
