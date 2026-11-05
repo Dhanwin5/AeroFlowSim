@@ -23,6 +23,7 @@ value = 1.0
 unit = "-"
 tolerance_percent = 20.0
 source = "Laminar boundary-layer scaling delta* ~ Re^-1/2 (Schlichting & Gersten 2017, Boundary-Layer Theory, ch. 6)"
+shortfall = "Flaw of the pre-registered METRIC, not the solver: 1 - Cd (Cd against the 1D choked flow) is dominated by the inviscid 2D throat deficit (Cd about 0.94 at every Re: sonic-line curvature), which does not scale with Re; only the small viscous part does (Cd 0.9413, 0.9433, 0.9441). The viscous loss itself follows the Re^-1/2 scaling: Isp loss against the Euler run 3.20 %, 1.62 %, 0.86 % (local exponents 0.59, 0.54; theory 0.5). Next time pre-register Cd_laminar / Cd_Euler."
 
 [[reference]]
 id = "cd_rises"

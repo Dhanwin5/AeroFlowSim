@@ -1,0 +1,84 @@
+{
+ "name": "viscous_cubesat_nozzle",
+ "title": "N2 cube-sat nozzle, laminar: discharge coefficient and Isp loss versus Reynolds number (axisymmetric)",
+ "case": "cases/nozzle_axi",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "bl_scaling",
+    "quantity": "(1 - Cd) sqrt(Re_t) at 10 bar / at 1 bar",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 20.0,
+    "source": "Laminar boundary-layer scaling delta* ~ Re^-1/2 (Schlichting & Gersten 2017, Boundary-Layer Theory, ch. 6)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 3.0118484002434256
+  },
+  {
+   "reference": {
+    "id": "cd_rises",
+    "quantity": "Cd rises with Re_t over the decade (1 = yes, 0 = no)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Boundary-layer theory (as above)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  }
+ ],
+ "study": {
+  "title": "Reynolds-number sweep (laminar; Isp loss against the Euler run on the same mesh)",
+  "columns": [
+   "p0 [bar]",
+   "Re_t",
+   "Cd",
+   "Isp vac [s]",
+   "Isp Euler [s]",
+   "Isp loss [%]",
+   "Iterations",
+   "y+ max"
+  ],
+  "rows": [
+   [
+    "1",
+    "4.27e+03",
+    "0.9413",
+    "69.19",
+    "71.47",
+    "3.20",
+    "7,911 (converged)",
+    "4.46"
+   ],
+   [
+    "3.16",
+    "1.35e+04",
+    "0.9433",
+    "70.32",
+    "71.47",
+    "1.62",
+    "9,742 (converged)",
+    "8.78"
+   ],
+   [
+    "10",
+    "4.27e+04",
+    "0.9441",
+    "70.86",
+    "71.47",
+    "0.86",
+    "11,689 (converged)",
+    "16.12"
+   ]
+  ],
+  "notes": [
+   "Throat Reynolds number from the sonic throat state, L = D_t."
+  ]
+ }
+}
