@@ -12,6 +12,7 @@
 # AeroFlowSim's SST is the TMR "SST-V" form (vorticity production), so it is compared with the SST-V data.
 # Tolerance (stage plan): Cf within 1 % on our finest grid. Quick set: the 136 x 96 grid only, tolerance 5 %.
 # EXPECTED COMPRESSIBILITY: none to compare (the reference is the same compressible M = 0.2 case).
+# CHANGE BEFORE THE RUN (5 Nov 2026): the 544 x 384 grid is not run (~20 h estimated); the 272 x 192 value is compared.
 # PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
 
 title = "TMR 2D zero-pressure-gradient turbulent flat plate (SA, SST)"

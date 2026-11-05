@@ -23,7 +23,10 @@ RUNS = []
 
 
 def grids():
-    return [(136, 96, 4e-6)] if is_quick() else [(136, 96, 4e-6), (272, 192, 2e-6), (544, 384, 1e-6)]
+    # 544 x 384 (the pre-registered finest grid) is NOT run: estimated ~20 h at 3.5 us per cell-iteration and ~1e5
+    # iterations (decided 5 Nov 2026 before the run; addendum rule 10 caps a run at about 2 h). The compared value is the
+    # 272 x 192 grid's, judged against the same 1 % tolerance.
+    return [(136, 96, 4e-6)] if is_quick() else [(136, 96, 4e-6), (272, 192, 2e-6)]
 
 
 def run(model, nx, ny, first):
