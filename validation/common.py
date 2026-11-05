@@ -94,7 +94,10 @@ class Comparison:
     @property
     def status(self) -> str:
         """PASS, FAIL, or SHORTFALL (outside the tolerance, but a documented model difference: shown openly in the
-        report with its explanation, and not counted as a failure of the code)."""
+        report with its explanation, and not counted as a failure of the code), or PENDING REFERENCE (the published
+        value could not be obtained yet: the number is shown, judged against nothing, and not counted either way)."""
+        if self.reference.pending:
+            return "PENDING REFERENCE"
         if self.within:
             return "PASS"
         return "SHORTFALL" if self.reference.shortfall else "FAIL"
@@ -231,6 +234,8 @@ def write_report(validations: list[CaseValidation], path: Path | None = None) ->
         for c in v.comparisons:
             if c.status == "SHORTFALL":
                 lines += ["", f"**Shortfall (explained):** {c.reference.quantity}: {c.reference.shortfall}"]
+            if c.status == "PENDING REFERENCE":
+                lines += ["", f"**Pending reference:** {c.reference.quantity}: {c.reference.pending}"]
         lines += ["", "Sources:", ""]
         for source in dict.fromkeys(c.reference.source for c in v.comparisons):
             lines.append(f"- {source}")

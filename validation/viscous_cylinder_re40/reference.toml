@@ -1,0 +1,51 @@
+# Steady laminar flow past a circular cylinder at Re = 40 (2D, external_2d template through the one engine, run_case).
+# D = 1 m, M = 0.2, T = 300 K, p chosen so that Re = rho U D / mu = 40 (p ~ 0.92 Pa: Knudsen 0.008, continuum);
+# structured O-grid 160 x 80 (Medium) and 320 x 160 (Fine; first cell 0.002 D / 0.001 D), far field 40 D; Laminar, no-slip
+# adiabatic wall; LU-SGS. Recirculation length L from the rear of the cylinder to where u = 0 on the wake centre line.
+# REFERENCES (addendum 4: must be read in the source with page / table): Coutanceau & Bouard (1977, J. Fluid Mech. 79,
+# 231-256) and Dennis & Chang (1970, J. Fluid Mech. 42, 471-489). Neither paper could be fetched in this session
+# (publisher paywall) -> PENDING REFERENCE: our numbers are reported, not judged. Attach either paper (PDF) to fill in
+# the value, page and table; the pre-registered tolerances then apply: L/D within 5 %, Cd within 5 %.
+# EXPECTED COMPRESSIBILITY EFFECT (stated before the run): M = 0.2 raises Cd by O(M^2) ~ 1-2 % against incompressible
+# data (Prandtl-Glauert-like scaling of the pressure drag); L/D changes by a similar amount. To be included when the
+# reference is filled in (tolerance 5 % kept).
+# SELF-CONSISTENCY CHECKS meanwhile (pre-registered, judged now): the residual reaches 1e-6 on the Medium grid (stage plan;
+# the inviscid wake never settled, ledger of robust_second_order), and Cd on the Medium grid within 2 % of the Fine grid.
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run).
+
+title = "Laminar cylinder at Re = 40 (2D)"
+case = "cases/external_2d"
+
+[[reference]]
+id = "L_over_D"
+quantity = "Recirculation length L/D (Fine grid)"
+value = 1.0
+unit = "-"
+tolerance_percent = 5.0
+source = "Coutanceau & Bouard (1977) / Dennis & Chang (1970), J. Fluid Mech.: not fetched (paywall)"
+pending = "Paper not reachable from this session (publisher paywall). Attach Coutanceau & Bouard 1977 or Dennis & Chang 1970 (PDF); value, page and table go here. The number shown is AeroFlowSim's own."
+
+[[reference]]
+id = "Cd"
+quantity = "Drag coefficient Cd (Fine grid)"
+value = 1.0
+unit = "-"
+tolerance_percent = 5.0
+source = "Dennis & Chang (1970), J. Fluid Mech. 42: not fetched (paywall)"
+pending = "As above; the number shown is AeroFlowSim's own Cd."
+
+[[reference]]
+id = "converged"
+quantity = "Medium grid reached the residual 1e-6 (1 = yes, 0 = no)"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.01
+source = "Stage plan: the viscous wake must become a steady recirculation (residual 1e-6)"
+
+[[reference]]
+id = "cd_grid"
+quantity = "Cd Medium grid / Cd Fine grid"
+value = 1.0
+unit = "-"
+tolerance_percent = 2.0
+source = "Self-consistency (grid convergence)"
