@@ -183,3 +183,92 @@ def run_job(args):
 
 observed_orders = mms.observed_orders
 del math
+
+
+# ---- turbulence transport: order of accuracy of the scalar operator (euler/turbulence.py) ------------------------
+# A manufactured scalar q_m transported by the (fixed) manufactured mean flow with constant diffusion Gamma:
+#     rho u . grad q - (1/r^a) div(r^a Gamma grad q) = S_m          (a = 1 axisymmetric, else 0)
+# solved with the turbulence models' discretisation (upwind convection with the mean flow's face mass fluxes,
+# corrected-gradient diffusion, implicit SGS). EXPECTED ORDER (stated before measuring): 1, because the convection of
+# the turbulence equations is first-order upwind (as in CFL3D / FUN3D runs of the TMR) and the cell Peclet numbers are
+# large; diffusion and sources alone are second order.
+
+GAMMA_MMS = 0.5          # [Pa s]
+
+
+def scalar_exact(points):
+    x, y = points[0], points[1]
+    q = 1.0 + 0.5 * np.sin(np.pi * x) * np.cos(0.5 * np.pi * y)
+    if len(points) == 3:
+        q = q + 0.3 * np.sin(0.75 * np.pi * points[2])
+    return q
+
+
+def _scalar_source(points, dim, axisymmetric):
+    h = H_FD
+    pts = [np.asarray(c, dtype=float) for c in points]
+    exact = mms.exact_state if dim == 2 else mms.exact_state_3d
+    W = exact(*pts)
+    grad = []
+    for j in range(dim):
+        a = [c + (h if k == j else 0.0) for k, c in enumerate(pts)]
+        b = [c - (h if k == j else 0.0) for k, c in enumerate(pts)]
+        grad.append((scalar_exact(a) - scalar_exact(b)) / (2 * h))
+    conv = W[0] * sum(W[1 + j] * grad[j] for j in range(dim))
+    diff = 0.0
+    for j in range(dim):
+        acc = 0.0
+        for shift, w in ((2.0, -1.0), (1.0, 8.0), (-1.0, -8.0), (-2.0, 1.0)):
+            p2 = [c + (shift * h if k == j else 0.0) for k, c in enumerate(pts)]
+            gp = (scalar_exact([c + (h if k == j else 0.0) for k, c in enumerate(p2)])
+                  - scalar_exact([c - (h if k == j else 0.0) for k, c in enumerate(p2)])) / (2 * h)
+            flux = GAMMA_MMS * gp * (p2[1] if axisymmetric else 1.0)
+            acc = acc + w * flux
+        diff = diff + acc / (12.0 * h)
+    if axisymmetric:
+        diff = diff / pts[1]
+    return conv - diff
+
+
+def run_turbulence_level(kind, n, axisymmetric=False, sweeps=4000, tol=1e-11):
+    """Error (L2, Linf) of the turbulence transport operator on one mesh (module comment above)."""
+    from aeroflowsim.euler.state import primitive_to_conserved
+    from aeroflowsim.euler.turbulence import TurbulenceModel
+    mesh = ns_mesh(kind, n, axisymmetric)
+    num = Numerics(order=2, limiter=NO_LIMITER, carbuncle_fix=False)
+    solver = MMSSolverNS(mesh, ns_gas(1e-6), num)
+    W = solver.exact
+    solver.residual(primitive_to_conserved(W, solver.gas), True, W)
+    solver.stage0_viscous = solver.last_viscous
+    cc = solver.geom.cell_centres
+    pts = tuple(cc[:, k] for k in range(mesh.dim))
+    fc = solver.geom.face_centres[solver.geom.boundary_faces]
+    qb = scalar_exact(tuple(fc[:, k] for k in range(mesh.dim)))
+    S = _scalar_source(pts, mesh.dim, mesh.axisymmetric)
+
+    class Scalar(TurbulenceModel):
+        names = ("q",)
+
+        def freestream_values(self, fs, settings):
+            return np.array([1.0])
+
+        def boundary_values(self, Q, W_, mass_b):
+            return qb[None, :]
+
+        def eddy_viscosity(self, W_, Q, grads):
+            return None
+
+        def sources(self, W_, Q, grads, gradQ):
+            return S[None], np.zeros((1, len(S))), np.full((1, len(S)), GAMMA_MMS)
+
+    model = Scalar(solver, {"rho": 1.0, "mu": 1.0, "a": 1.0, "U": 1.0})
+    model.Q = scalar_exact(pts)[None, :].copy()
+    dt = solver.time_steps(W, 1e6)
+    for it in range(sweeps):
+        res = model.step(W, dt, solver.face_mass_flux)
+        if it > 5 and res < tol:
+            break
+    err = model.Q[0] - scalar_exact(pts)
+    vol = solver.geom.planar_volumes
+    w = vol / vol.sum()
+    return float(vol.mean() ** (1.0 / mesh.dim)), float(np.sqrt(np.sum(err**2 * w))), float(np.abs(err).max())

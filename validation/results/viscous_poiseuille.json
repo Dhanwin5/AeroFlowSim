@@ -1,0 +1,76 @@
+{
+ "name": "viscous_poiseuille",
+ "title": "Hagen-Poiseuille flow in a tube (laminar, axisymmetric)",
+ "case": "aeroflowsim/euler (EulerSolver, axisymmetric, viscous=Laminar)",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "umax_over_umean",
+    "quantity": "Centreline / area-mean velocity at x = 15 D",
+    "value": 2.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Hagen-Poiseuille exact solution (White 2006, Viscous Fluid Flow, 3rd ed., sec. 3-3.1)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.9845858323639882
+  },
+  {
+   "reference": {
+    "id": "wall_shear",
+    "quantity": "tau_w R / (mu u_m) at x = 15 D (Darcy f Re = 64)",
+    "value": 4.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Hagen-Poiseuille exact solution (as above)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 4.037197462487304
+  },
+  {
+   "reference": {
+    "id": "pressure_drop",
+    "quantity": "dp/dx / (-8 mu u_m / R^2 - (4/3) rho u_m du_m/dx), at 15 D",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Hagen-Poiseuille pressure drop with the compressible momentum-flux correction (derivation in reference.toml header)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0092282136730553
+  }
+ ],
+ "study": {
+  "title": "Run",
+  "columns": [
+   "Cells",
+   "Iterations",
+   "Time [s]",
+   "Status",
+   "Residual",
+   "Re (bulk, D)",
+   "Centreline Mach"
+  ],
+  "rows": [
+   [
+    "4,000",
+    "21,616",
+    "43",
+    "converged",
+    "1.0e-09",
+    "106.8",
+    "0.205"
+   ]
+  ],
+  "notes": [
+   "LU-SGS, CFL 5 -> 1000 (SER)."
+  ]
+ }
+}

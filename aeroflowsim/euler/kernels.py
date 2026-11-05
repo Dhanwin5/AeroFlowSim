@@ -443,6 +443,32 @@ def viscous_face_fluxes(GF, XF, mu_f, k_f, heat_mask, normals, flux_areas, face_
         FV[dim + 1, f] = (e + heat_mask[f] * k_f[f] * q) * flux_areas[f]
 
 
+# ---- turbulence equations (euler/turbulence.py) -------------------------------------------------------------
+
+@_jit(parallel=False)
+def scalar_sgs(R, D, coef, slot_other, X):
+    """One symmetric Gauss-Seidel step (forward + backward sweep, fixed cell order: deterministic) of the scalar
+    systems  D_i x_i - sum_s coef_is x_other(s) = R_i  (one per equation v), from x = 0; boundary slots (other >= C)
+    contribute nothing off the diagonal."""
+    n, C = R.shape
+    k_max = slot_other.shape[1]
+    for v in range(n):
+        for i in range(C):
+            acc = R[v, i]
+            for s in range(k_max):
+                j = slot_other[i, s]
+                if j < i:
+                    acc += coef[v, i, s] * X[v, j]
+            X[v, i] = acc / D[v, i]
+        for i in range(C - 1, -1, -1):
+            acc = 0.0
+            for s in range(k_max):
+                j = slot_other[i, s]
+                if i < j < C:
+                    acc += coef[v, i, s] * X[v, j]
+            X[v, i] += acc / D[v, i]
+
+
 # ---- time steps ----------------------------------------------------------------------------------------
 
 @_jit()

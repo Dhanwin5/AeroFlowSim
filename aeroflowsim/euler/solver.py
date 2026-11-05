@@ -379,6 +379,7 @@ class EulerSolver:
         weight = self._shock_weight(W, ghost_c) if self.numerics.carbuncle_fix else None
         F = hybrid_flux(WL, WR, g.normals, self.gas, weight)
         FA = F * g.flux_areas
+        self.face_mass_flux = FA[0].copy()                   # [kg/s per radian or per m]: turbulence convection
         v_source = None
         if self.viscous is not None:
             FV, v_source = self.viscous_terms(W, Wb_face)
@@ -430,6 +431,7 @@ class EulerSolver:
         kn.fluxes(K.WL, K.WR, W, ghost_c, g.owner, g.neighbour, K.normals, g.flux_areas, K.weight, use_weight,
                   bool(second_order), K.R, K.cv, K.gamma, K.FA, K.bad)
         self.last_positivity = int(np.count_nonzero(K.bad))
+        self.face_mass_flux = K.FA[0].copy()
         source = self.source
         if self.viscous is not None:
             FV, v_source = self.viscous_terms(W, Wb_face)
@@ -605,6 +607,8 @@ class EulerSolver:
         failed_at = None
         lowest, lowest_it = math.inf, 0          # lowest residual so far and its iteration (stall detection)
         self.psi_frozen = None
+        turb = self.turbulence
+        good_Q = None if turb is None else turb.Q.copy()
         if continuation is not None and continuation.iterations == 0 and continuation.norm is not None:
             norm = np.asarray(continuation.norm, dtype=float)     # interpolated start: the earlier run's scale
         if continuation is not None and continuation.iterations > 0:
@@ -658,6 +662,11 @@ class EulerSolver:
                     cfl *= 0.5
                     cfl_scale *= 0.5
                     U = good_U.copy()
+                    if turb is not None:
+                        turb.Q = good_Q.copy()
+                        del turb.history[good_it - (continuation.iterations if continuation else 0):]
+                        self.mu_t = turb.eddy_viscosity(self._primitive(U), turb.Q, None) if \
+                            self.last_viscous is not None else None
                     del res_hist[good_it:]
                     for v in mon_hist.values():
                         del v[good_it:]
@@ -668,6 +677,11 @@ class EulerSolver:
                     continue
                 U = U_new
                 it += 1
+                turb_level = 0.0
+                if turb is not None:
+                    # loosely coupled: one implicit step of the turbulence equations with the state and mass fluxes of
+                    # this iteration's residual (euler/turbulence.py)
+                    turb_level = turb.step(W, dt, self.stage0_mass_flux)
                 positivity_total += self.last_positivity
                 limited_total += self.last_limited
                 if not steady:
@@ -687,7 +701,7 @@ class EulerSolver:
                 values = monitor(self, W) if monitor is not None else {}
                 for k, v in values.items():
                     mon_hist.setdefault(k, []).append(float(v))
-                level = float(res.max())
+                level = max(float(res.max()), turb_level if it > NORM_ITERATIONS else 0.0)
                 if implicit and it > NORM_ITERATIONS:
                     # CFL ramp by "switched evolution relaxation" (SER, Mulder & van Leer 1985): the CFL number follows
                     # the residual, CFL = CFL_0 (residual)^-SER_EXPONENT, up to cfl_max: it falls again if the residual rises.
@@ -715,6 +729,8 @@ class EulerSolver:
                     break
                 if it % CHECKPOINT_EVERY == 0:
                     good_U, good_it, good_t = U.copy(), it, t_phys
+                    if turb is not None:
+                        good_Q = turb.Q.copy()
                 if not steady:
                     if t_phys >= num.end_time * (1.0 - 1e-12):
                         status = END_TIME
@@ -740,6 +756,8 @@ class EulerSolver:
         R0, _ = self.residual(U, second, W)
         self.stage0_boundary_flux = self.boundary_flux     # fluxes of the state W, for the monitors
         self.stage0_viscous_flux = self.boundary_viscous_flux
+        self.stage0_viscous = self.last_viscous if self.viscous is not None else None
+        self.stage0_mass_flux = self.face_mass_flux
         if self.numerics.time_scheme == LUSGS and self.numerics.end_time is None:
             dU = self._lusgs(U, W, R0, dt)
             if self.numerics.update_limit > 0.0:

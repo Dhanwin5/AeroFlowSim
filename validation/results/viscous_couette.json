@@ -1,0 +1,93 @@
+{
+ "name": "viscous_couette",
+ "title": "Plane Couette flow with viscous heating (laminar, 2D and 3D)",
+ "case": "aeroflowsim/euler (EulerSolver, viscous=Laminar)",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "shear_2d",
+    "quantity": "Wall shear stress / (mu U / H), 2D quads (from the solver's wall flux)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.5,
+    "source": "Exact solution of plane Couette flow (White 2006, Viscous Fluid Flow, 3rd ed., sec. 3-2)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999999925676845
+  },
+  {
+   "reference": {
+    "id": "temperature_rise_2d",
+    "quantity": "Peak temperature rise (T - T_w at mid-gap, interpolated) / exact mu U^2 / (8 k), 2D",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Exact quadratic temperature profile with viscous heating (same source)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9996744834008144
+  },
+  {
+   "reference": {
+    "id": "shear_3d",
+    "quantity": "Wall shear stress / (mu U / H), 3D hexahedra",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.5,
+    "source": "Exact solution (as above)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9999999953551147
+  },
+  {
+   "reference": {
+    "id": "temperature_rise_3d",
+    "quantity": "Peak temperature rise / exact, 3D",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Exact solution (as above)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9996744796844512
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Case",
+   "Cells",
+   "Iterations",
+   "Time [s]",
+   "Status"
+  ],
+  "rows": [
+   [
+    "2D",
+    "128",
+    "15,700",
+    "10.2",
+    "converged"
+   ],
+   [
+    "3D",
+    "128",
+    "12,734",
+    "9.4",
+    "converged"
+   ]
+  ],
+  "notes": [
+   "LU-SGS, CFL 5 -> 1000 (SER), residual drop 10 orders."
+  ]
+ }
+}

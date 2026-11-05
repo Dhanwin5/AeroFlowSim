@@ -30,6 +30,8 @@ def _wall_elements(mesh, wall_patches):
     faces = np.concatenate([np.arange(p.start, p.start + p.count) for p in mesh.patches if p.name in wall_patches]
                            ) if wall_patches else np.zeros(0, dtype=np.int64)
     dim = mesh.dim
+    if len(faces) == 0:
+        return np.zeros((0, dim, dim)), faces
     nodes = mesh.nodes[:, :dim]
     if dim == 2:
         fn = mesh.face_nodes[faces, :2]

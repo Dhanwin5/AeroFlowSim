@@ -153,3 +153,27 @@ scope now; nothing of this stage is to be moved to a later stage.
 * Order decision (addendum 1): Parts 4 and the laminar cases of Part 5 come BEFORE Part 3 (turbulence), so a cut-off
   still leaves a finished laminar solver.
 * Next: Part 2 rest (setup wiring tests, walk-through tests), Part 4 (wall fields), Part 5 laminar validations.
+
+### Ledger entry 2 (5 Nov 2026): Part 2 + Part 4 + laminar validation started + Part 3 core
+* Done: wall fields (`euler/wall_fields.py`: tau_w, signed Cf, q_w, St, y+, pressure/friction force split), wired into
+  external / nozzle problems (Cd_pressure, Cd_friction, y_plus_max/mean, wall_heat, wall_friction_x; series wall_Cf,
+  wall_q, wall_St, wall_y_plus, wall_T), post-processing fields (Wall group: wall_shear, skin_friction, wall_heat_flux,
+  stanton, y_plus; mu, mu_t_ratio), smart rules (Flow model from Re, first-layer text), checks (wall y+ > 2,
+  slip walls under a viscous model), viscous walls default to no-slip adiabatic (explicit user choices kept),
+  sliding-wall velocity input, `graded_rectangle` / `geometric_points` meshes. Walk-through tests
+  (tests/test_viscous_workflow.py). Fast suite: 1131 passed (before turbulence).
+* Turbulence (Part 3 core): `euler/turbulence.py` SA-noft2 and SST-2003 with vorticity production (= TMR "SST-V", whose
+  reference data we compare with), loosely coupled implicit SGS step after each mean-flow iteration (Numba kernel
+  `scalar_sgs`), wall distance exact. Decision recorded in the module: loosely coupled (as SU2/CFL3D), M-matrix,
+  positivity limit. SST wall omega = 60 nu/(beta1 y1^2) (this IS Menter's 10 x 6 nu/(beta1 y1^2); the plan's
+  "x 10" read as already inside the 60).
+* Turbulence transport MMS (expected order 1 stated in mms_ns.py BEFORE measuring): quads 0.97, triangles 0.98,
+  axisymmetric quads 0.98, hexa 0.93, prisms 0.96, tetra 1.00.
+* Validation so far: Couette PASS (shear 0.000 %, T rise 0.033 %, 2D and 3D); Poiseuille axisymmetric PASS (0.77 %,
+  0.93 %, 0.92 %; 21.6k iterations); square duct first set-up SHORTFALL (Re 98 not 50: station in the entrance region),
+  longer duct pre-registered and committed before its run.
+* References fetched (addendum 4): TMR flat plate SA and SST-V Cf at x = 0.97008 on the 5-grid family (cf_convergence.dat
+  of tmbwg.github.io/turbmodels, CFL3D finest 545x385: SA 0.270562e-2, SST-V 0.269085e-2). Coutanceau & Bouard, Dennis
+  & Chang, Johnson & Patel: JFM papers not reachable (paywall) -> PENDING REFERENCE.
+* First SA flat plate (60 x 48, coarse): Cf(0.97) = 0.002740 vs 0.002706 (1.3 %), 25k iterations, 88 s.
+* Next: duct result, Blasius, plate heat, cylinder/sphere (self-consistency, pending refs), turbulent plate grid series.
