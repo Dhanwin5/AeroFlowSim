@@ -1,0 +1,36 @@
+# 2D zero-pressure-gradient turbulent flat plate of the NASA Turbulence Modeling Resource (TMR, verification case "2DZP").
+# Set-up as the TMR intro page states it (tmbwg.github.io/turbmodels/flatplate.html, fetched 5 Nov 2026): M = 0.2,
+# Re = 5 million per unit length, plate from x = 0 to 2, domain x from -0.33 to 2, height 1; symmetry ahead of the plate.
+# T = 300 K (the TMR gives no temperature; at M 0.2 its effect is through mu(T) only, and Re is fixed). TMR free-stream
+# turbulence: SA nu_tilde = 3 nu; SST k = 9e-9 a^2, omega = 1e-6 rho a^2/mu (flatplate_sst.html).
+# Our grid family: graded quads with the TMR cell counts (finest 544 x 384 cells = the TMR 545 x 385 nodes; then 272 x
+# 192, 136 x 96), geometric clustering at the wall and the leading edge (first cell 1e-6, 2e-6, 4e-6); NOT the TMR grid
+# files (not downloaded), which is a known difference of a few tenths of a percent on the finest grid.
+# Reference: Cf at x = 0.97008 on the TMR finest grid, CFL3D (cell-centred, as AeroFlowSim), from the TMR data files
+#   FlatPlate/SA/cf_convergence.dat:          N = 208896  C_f = 0.270562153E-02  (FUN3D 0.270540E-02)
+#   FlatPlate/SST/cf_convergence_sstv.dat:    N = 208896  C_f = 0.269085355E-02  (FUN3D 0.269055E-02)
+# AeroFlowSim's SST is the TMR "SST-V" form (vorticity production), so it is compared with the SST-V data.
+# Tolerance (stage plan): Cf within 1 % on our finest grid. Quick set: the 136 x 96 grid only, tolerance 5 %.
+# EXPECTED COMPRESSIBILITY: none to compare (the reference is the same compressible M = 0.2 case).
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "TMR 2D zero-pressure-gradient turbulent flat plate (SA, SST)"
+case = "aeroflowsim/euler (EulerSolver + turbulence.py)"
+
+[[reference]]
+id = "cf_sa"
+quantity = "Cf at x = 0.97008, Spalart-Allmaras (finest grid)"
+value = 0.00270562153
+unit = "-"
+tolerance_percent = 1.0
+tolerance_percent_quick = 5.0
+source = "NASA TMR, 2DZP flat plate, FlatPlate/SA/cf_convergence.dat, CFL3D N = 208896 (tmbwg.github.io/turbmodels/flatplate_sa.html)"
+
+[[reference]]
+id = "cf_sst"
+quantity = "Cf at x = 0.97008, k-omega SST (SST-V; finest grid)"
+value = 0.00269085355
+unit = "-"
+tolerance_percent = 1.0
+tolerance_percent_quick = 5.0
+source = "NASA TMR, 2DZP flat plate, FlatPlate/SST/cf_convergence_sstv.dat, CFL3D N = 208896 (tmbwg.github.io/turbmodels/flatplate_sst.html)"
