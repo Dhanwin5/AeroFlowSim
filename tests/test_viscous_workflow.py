@@ -122,3 +122,29 @@ def test_3d_channel_laminar_runs_and_matches_couette():
     r = s.solve(uniform_state(mesh.n_cells, p / (gas.R * 300.0), (U / 2, 0.0, 0.0), p))
     y = mesh.cell_centres[:, 1]
     assert np.abs(r.W[1] - U * y / H).max() < 1e-4 * U
+
+
+def test_turbulent_project_runs_continues_with_its_turbulence_state(tmp_path, capsys):
+    """SA and SST from the command line: the log says fully turbulent; the result holds mu_t and the model's fields;
+    Run continues from them (more iterations, the eddy viscosity carried on, not restarted from the free stream)."""
+    from aeroflowsim.cli import main
+    from aeroflowsim.project import Project
+    for model, names in (("Spalart-Allmaras", ("nu_tilde",)), ("k-omega SST", ("k", "omega"))):
+        folder = tmp_path / f"{names[0]}.afsproj"
+        project = Project.create("cases/external_2d", folder, values=dict(WEDGE))
+        project.values.update({"flow_model": model, "mach": 0.5, "p_inf": 20000.0, "max_iter": 25})
+        project.save()
+        assert main(["run", str(folder)]) in (0, 2)
+        assert "fully turbulent" in capsys.readouterr().out
+        result = Project.open(folder).load_results()["result"]
+        for name in ("mu_t", "mu_t_ratio", "wall_distance") + names:
+            assert name in result.fields
+        before = result.fields["mu_t"].values.copy()
+        again = Project.open(folder)
+        again.values["max_iter"] = 35
+        again.save()
+        assert main(["run", str(folder)]) in (0, 2)
+        after = Project.open(folder).load_results()["result"]
+        assert after.iterations == 35
+        assert np.all(np.isfinite(after.fields["mu_t"].values)) and after.fields["mu_t"].values.max() > 0.0
+        assert not np.array_equal(after.fields["mu_t"].values, before)

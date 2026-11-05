@@ -118,6 +118,8 @@ def flow_plots(result) -> list:
         plots.append("Wall pressure p/p0 along x")
     if "wall_Cp" in series:
         plots.append("Pressure coefficient Cp along the wall")
+    if "wall_Cf" in series:                       # viscous runs (Laminar, SA, SST)
+        plots += ["Skin friction Cf along the wall", "Wall heat flux along the wall", "y+ of the first cell along the wall"]
     if any(k.startswith("residual_") for k in series):
         plots.append("Convergence history")
     return plots

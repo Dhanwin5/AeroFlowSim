@@ -184,6 +184,20 @@ def wall_figure(result, which, prefs=None):
     fig, ax = _figure(3.2)
     s = result.series
     unit = prefs.unit_for("m") if prefs is not None else None
+    if which.startswith(("Skin friction", "Wall heat flux", "y+")):
+        # viscous wall fields (euler/wall_fields.py), on the no-slip wall faces (their own coordinates wallv_x)
+        x = np.asarray(s["wallv_x"])
+        order = np.argsort(x)
+        key, label, title = {"Skin friction": ("wall_Cf", "Cf [-]", "Skin-friction coefficient (negative: reversed flow)"),
+                             "Wall heat flux": ("wall_q", "q_w [W/m²] (into the wall)", "Wall heat flux"),
+                             "y+": ("wall_y_plus", "y+ [-]", "y+ of the first cell (target about 1)")}[
+            next(k for k in ("Skin friction", "Wall heat flux", "y+") if which.startswith(k))]
+        ax.plot(x[order], np.asarray(s[key])[order], ".", ms=3, color=COLOR_NUMERICAL, label="wall")
+        ax.set_ylabel(label)
+        ax.set_title(title)
+        length_axes(ax, float(x.max() - x.min()) or 1.0, "x", unit=unit)
+        style_axes(ax)
+        return fig
     x = np.asarray(s["wall_x"])
     order = np.argsort(x)
     if which.startswith("Wall pressure"):

@@ -258,6 +258,7 @@ class Problem:
     finish: object = None           # function(solver, W, out) -> key_numbers dict
     series: object = None           # function(solver, W) -> {name: array} (e.g. wall Cp)
     continuation: object = None     # Continuation of the previous result this run carries on from, or None
+    restart: object = None          # the previous result's fields (turbulent runs carry on from its nu_tilde / k, omega)
 
 
 def mesh_wall_profile(mesh, wall_names):
@@ -475,7 +476,7 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
 
     return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, p0), initialisation=init,
                    monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"),
-                   monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
+                   monitor_scales={}, finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh), restart=restart)
 
 
 def mesh_wall_profile_3d(mesh, wall_names):
@@ -565,7 +566,7 @@ def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:
     return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, c0, p0), initialisation=init,
                    monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"), monitor_scales={},
                    finish=finish, series=series,
-                   continuation=continuation_of(restart) or interpolated_norm(mesh))
+                   continuation=continuation_of(restart) or interpolated_norm(mesh), restart=restart)
 
 
 def _ideal_isp(profile, axisymmetric, gas, p0, T0):
@@ -662,7 +663,7 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     return Problem("external", gas, bcs, W0, L_ref=L_ref, scales=scales,
                    initialisation=init, monitor=monitor, monitor_labels=labels,
                    converge_on=("Cd", "Cl"), monitor_scales={"Cd": 0.01, "Cl": 0.01, "Cm": 0.01},
-                   finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
+                   finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh), restart=restart)
 
 
 # ---- viscous wall numbers (euler/wall_fields.py) --------------------------------------------------------
@@ -747,7 +748,8 @@ def solve(problem, params, mesh, progress=None) -> Result:
                          scales=problem.scales, viscous=viscous_settings(params))
     if solver.viscous is not None and solver.viscous.turbulent:
         from aeroflowsim.euler.turbulence import attach_turbulence
-        attach_turbulence(solver, params, problem)
+        fields = problem.restart.get("fields", problem.restart) if isinstance(problem.restart, dict) else None
+        attach_turbulence(solver, params, problem, restart_fields=fields)
 
     autosave = _extras().get("autosave")
     last_save = [__import__("time").perf_counter()]
@@ -821,7 +823,25 @@ def solve(problem, params, mesh, progress=None) -> Result:
     if autosave:                                 # the run finished normally: its result replaces the autosave
         import shutil
         shutil.rmtree(autosave["path"], ignore_errors=True)
-    return Result(fields=flow_fields(W, problem.gas), residuals=residual_level.tolist(), key_numbers=numbers,
+    fields = flow_fields(W, problem.gas)
+    if solver.viscous is not None:
+        fields["mu"] = Field(np.asarray(problem.gas.mu(temperature(W, problem.gas)), dtype=float), "Pa s",
+                             "Molecular viscosity")
+        info["flow_model"] = solver.viscous.model
+    if solver.turbulence is not None:
+        t = solver.turbulence
+        mu_t = solver.mu_t if solver.mu_t is not None else np.zeros(mesh.n_cells)
+        fields["mu_t"] = Field(np.asarray(mu_t, dtype=float).copy(), "Pa s", "Eddy viscosity mu_t")
+        fields["mu_t_ratio"] = Field(mu_t / fields["mu"].values, "-", "Eddy-viscosity ratio mu_t / mu")
+        for name, values in zip(t.names, t.Q):
+            label, unit = t.labels[name]
+            fields[name] = Field(values.copy(), unit, label)
+        if t.history:
+            hist = np.array(t.history)
+            for i, name in enumerate(t.names):
+                series[f"turbulence_residual_{name}"] = hist[:, i]
+        fields["wall_distance"] = Field(t.d.copy(), "m", "Wall distance")
+    return Result(fields=fields, residuals=residual_level.tolist(), key_numbers=numbers,
                   iterations=out.iterations, converged=out.status == CONVERGED, series=series, info=info,
                   animation=solver.animation)
 
@@ -845,7 +865,11 @@ def _autosave(folder, solver, problem, params, mesh, it, info):
                 "cfl_final": float(info.get("cfl", params["cfl"])), "dim": int(mesh.dim),
                 "boundaries": {name: bc.to_dict() for name, bc in problem.conditions.items()},
                 "message": f"Autosaved at iteration {it:,} (the run was still going)."}
-    result = Result(fields=flow_fields(W, problem.gas), residuals=residuals.max(axis=1).tolist(), key_numbers={},
+    fields = flow_fields(W, problem.gas)
+    if solver.turbulence is not None:                       # turbulent runs: continue from the turbulence state too
+        for name, values in zip(solver.turbulence.names, solver.turbulence.Q):
+            fields[name] = Field(values.copy(), "", name)
+    result = Result(fields=fields, residuals=residuals.max(axis=1).tolist(), key_numbers={},
                     iterations=int(it), converged=False, series=series, info=run_info)
     save_run(folder, {"result": result, "params": dict(params)})
 
