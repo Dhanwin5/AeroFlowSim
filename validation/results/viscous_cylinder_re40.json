@@ -1,0 +1,105 @@
+{
+ "name": "viscous_cylinder_re40",
+ "title": "Laminar cylinder at Re = 40 (2D)",
+ "case": "cases/external_2d",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "L_over_D",
+    "quantity": "Recirculation length L/D (Fine grid)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Coutanceau & Bouard (1977) / Dennis & Chang (1970), J. Fluid Mech.: not fetched (paywall)",
+    "tolerance_percent_quick": null,
+    "pending": "Paper not reachable from this session (publisher paywall). Attach Coutanceau & Bouard 1977 or Dennis & Chang 1970 (PDF); value, page and table go here. The number shown is AeroFlowSim's own.",
+    "shortfall": ""
+   },
+   "measured": 2.2802507442027764
+  },
+  {
+   "reference": {
+    "id": "Cd",
+    "quantity": "Drag coefficient Cd (Fine grid)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Dennis & Chang (1970), J. Fluid Mech. 42: not fetched (paywall)",
+    "tolerance_percent_quick": null,
+    "pending": "As above; the number shown is AeroFlowSim's own Cd.",
+    "shortfall": ""
+   },
+   "measured": 1.5413538001121256
+  },
+  {
+   "reference": {
+    "id": "converged",
+    "quantity": "Medium grid reached the residual 1e-6 (1 = yes, 0 = no)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.01,
+    "source": "Stage plan: the viscous wake must become a steady recirculation (residual 1e-6)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0
+  },
+  {
+   "reference": {
+    "id": "cd_grid",
+    "quantity": "Cd Medium grid / Cd Fine grid",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "Self-consistency (grid convergence)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.00308719227748
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Grid",
+   "Cells",
+   "Iterations",
+   "Status",
+   "Residual",
+   "Cd",
+   "L/D (approx.)",
+   "Cd friction",
+   "Time [s]"
+  ],
+  "rows": [
+   [
+    "Medium",
+    "12,800",
+    "8,331",
+    "converged",
+    "1.0e-06",
+    "1.5461",
+    "2.217",
+    "0.5276",
+    "47"
+   ],
+   [
+    "Fine",
+    "51,200",
+    "23,533",
+    "converged",
+    "1.0e-06",
+    "1.5414",
+    "2.280",
+    "0.5260",
+    "500"
+   ]
+  ],
+  "notes": [
+   "L/D: u = 0 on the wake centre line, linear between cell centres."
+  ]
+ }
+}

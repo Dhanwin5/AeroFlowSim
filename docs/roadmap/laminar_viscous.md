@@ -177,3 +177,14 @@ scope now; nothing of this stage is to be moved to a later stage.
   & Chang, Johnson & Patel: JFM papers not reachable (paywall) -> PENDING REFERENCE.
 * First SA flat plate (60 x 48, coarse): Cf(0.97) = 0.002740 vs 0.002706 (1.3 %), 25k iterations, 88 s.
 * Next: duct result, Blasius, plate heat, cylinder/sphere (self-consistency, pending refs), turbulent plate grid series.
+
+### Ledger entry 3 (5 Nov 2026): laminar validation done, docs, examples
+* Results (pre-registered): Couette PASS; Poiseuille PASS; square duct SHORTFALL (8a: station in entrance region;
+  20a: 2.3 % / 1.7 %, likely resolution, unverified); Blasius PASS (Cf worst 1.0 %, delta99 2.7 %, 3D extrusion = 2D to
+  2e-7; residual 1.2e-7 at the 60k cap); Mach 2 plate PASS (T_aw 0.32 %, q_w 0.59 %); cylinder Re 40: converged 1e-6
+  (Medium 8.3k, Fine 23.5k iterations), Cd 1.541, L/D 2.28, grid 0.3 % - Cd and L/D PENDING REFERENCE.
+* Turbulent results, workflow, GUI: turbulence fields saved and restored on Run; Results step plots Cf, q_w, y+; GUI tests
+  87 passed; examples "N2 nozzle laminar", "NACA 0012 turbulent (SA)" (unsolved). Theory 13j, user guide, CHANGELOG,
+  roadmap README, low-Mach plan findings, gap register written.
+* TMR plate: finest grid dropped before the run (~20 h estimate).
+* Next: nozzle Re sweep and TMR plate results (running), full fast tests, quick + full validation, push.
