@@ -1,0 +1,33 @@
+# N2 cube-sat nozzle (nozzle_axi template defaults: N2, T0 = 293.15 K, throat diameter 0.28 mm), 2D AXISYMMETRIC laminar
+# Navier-Stokes through the one engine. THROAT REYNOLDS NUMBER ESTIMATED FIRST (smart_rules.flow_scales, sonic throat
+# state, L = D_t): p0 = 5 bar -> Re_t = 2.13e4; p0 = 1 bar -> 4.3e3; p0 = 10 bar -> 4.3e4: below ~1e5 everywhere, so the
+# Laminar model is chosen (fully turbulent would over-predict the losses).
+# Runs: p0 = 1, 3.16 and 10 bar (a decade), p_back 1 kPa (5 bar case; scaled with p0 so the expansion is the same),
+# adiabatic walls, template mesh with its inflation layers. Reported: Re_t, Cd, Isp loss 1 - Isp/Isp_inviscid (inviscid =
+# the Euler run on the same mesh), in the study table and the report.
+# Reference: laminar boundary-layer theory: the displacement thickness at the throat scales as Re^-1/2 (Blasius-type
+# growth, Schlichting & Gersten 2017 ch. 6), so the mass-flow loss 1 - Cd = 2 delta*/r_t scales as Re_t^-1/2. Checked:
+# (1 - Cd) sqrt(Re_t) of the 1-bar and 10-bar runs equal within 20 % (the scaling holds only approximately: the
+# pressure gradient and the curvature change little with p0, so a fixed tolerance of 20 % is pre-registered), and Cd
+# rises with Re (1 = yes). Published micro-nozzle data could not be fetched in this session (no open source found).
+# 3D quarter nozzle with prism layers (2D vs 3D within 2 %): NOT RUN in this session (time) - recorded in the gap register.
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "N2 cube-sat nozzle, laminar: discharge coefficient and Isp loss versus Reynolds number (axisymmetric)"
+case = "cases/nozzle_axi"
+
+[[reference]]
+id = "bl_scaling"
+quantity = "(1 - Cd) sqrt(Re_t) at 10 bar / at 1 bar"
+value = 1.0
+unit = "-"
+tolerance_percent = 20.0
+source = "Laminar boundary-layer scaling delta* ~ Re^-1/2 (Schlichting & Gersten 2017, Boundary-Layer Theory, ch. 6)"
+
+[[reference]]
+id = "cd_rises"
+quantity = "Cd rises with Re_t over the decade (1 = yes, 0 = no)"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.01
+source = "Boundary-layer theory (as above)"

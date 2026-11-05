@@ -1296,6 +1296,72 @@ the project fingerprint at its old value 0 (`parameters.FINGERPRINT_NEUTRAL`), s
 References: Barth (1991), AIAA 91-0721; Mavriplis (2003), AIAA 2003-3986; Holmes & Connell (1989), AIAA 89-1932;
 Economon et al. (2016), SU2, AIAA J. 54(3).
 
+## 13j. Viscous flow: laminar Navier-Stokes, walls, Spalart-Allmaras and k-omega SST (viscous-flow stage)
+
+**Flow model.** Input `flow_model` (Setup step, group Flow model): Euler (default; old projects), Laminar,
+Spalart-Allmaras, k-omega SST. Under Euler no viscous code runs (`EulerSolver(..., viscous=None)`), so every Euler number is
+unchanged bit for bit.
+
+**Viscous flux** (`aeroflowsim/euler/viscous.py`; kernels `viscous_face_gradients`, `viscous_face_fluxes`). Per unit
+area through a face with normal n:
+
+    F_v = [0, tau . n, (tau . u + k grad T) . n],   tau = mu_eff (grad u + grad u^T - 2/3 (div u) I)
+
+with mu_eff = mu(T_f) + mu_t, k_eff = k(T_f) + cp mu_t / Pr_t (Pr_t = 0.9), mu and k from the GasModel (section 11) at
+the face temperature. The residual of a cell is sum_f (F_inv - F_v) A_f.
+
+*Face gradient (corrected / edge-normal form, Blazek 2015 eq. 5.67; OpenFOAM, Fluent, SU2):*
+grad_f = g_mean - (g_mean . t - (phi_N - phi_P)/|d|) t, t = d/|d|, d = x_N - x_P. At a boundary face the
+second-order one-sided form g_f . d = 2 (phi_f - phi_P) - g_P . d is used (d from the cell centre to the face centre):
+with the first-order form the Navier-Stokes MMS order on quads was 1.72; with it 1.86 (both exact for linear profiles).
+
+*Axisymmetric* (x, r, per radian): div u = du/dx + dv/dr + v/r in tau, and the hoop stress
+tau_thth = mu (2 v/r - 2/3 div u) enters the r-momentum equation as - tau_thth A (A = G_r, the planar cell area of the
+well-balanced pressure term, section 12). *3D*: the same flux, no extra terms.
+
+*Time step and implicit diagonal:* lambda_v,f = max(4/3 mu, gamma k / cp)_f / (rho_f |d . n|);
+dt_i = CFL V_i / (Lambda_c,i + sum_f lambda_v,f A_f) (Blazek eq. 6.22); in LU-SGS lambda_v A is added to the diagonal
+and + lambda_v A dU_j to the sweeps (a Laplacian coupling; zero for Euler, so Euler is unchanged). The convective
+dissipation and the viscous terms are kept separate for the low-Mach preconditioning stage.
+
+**Walls** (`boundary.no_slip_wall`): the inviscid ghost is the mirror state (convective wall flux = pressure only); the
+boundary face value of the gradients and the viscous flux is u = u_wall (0, or a sliding x velocity), T = T_wall
+(isothermal) or the inside T with the heat flux set to zero (adiabatic). Under a viscous model a wall the user has not set
+becomes a no-slip adiabatic wall. Symmetry and slip walls use the mirror state: zero shear and heat flux follow from the
+corrected face gradient. Axis faces have zero area.
+
+**Wall distance** (`aeroflowsim/wall_distance.py`): exact distance from each cell centre to the nearest wall segment
+(2D) or triangle (3D; polygons split round their centre), by a KD-tree on the face centres and exact point-segment /
+point-triangle distances (Ericson 2005 sec. 5.1.5), with a bound (k-th centre distance - largest element radius) that
+widens the search until the minimum is certain: identical to brute force (tested).
+
+**Turbulence** (`aeroflowsim/euler/turbulence.py`; equations and constants in its docstring): SA-noft2 (TMR; Spalart &
+Allmaras 1992, S_tilde limiter of Allmaras et al. 2012) and SST (Menter, Kuntz & Langtry 2003) with vorticity production
+(TMR "SST-V"). Form rho Dq/Dt = div(Gamma grad q) + S, discretised with the mean flow's own face mass fluxes:
+first-order upwind convection, corrected-gradient diffusion, cell-centre sources. Implicit and loosely coupled: one
+symmetric Gauss-Seidel step per mean-flow iteration of
+[rho V/dt + sum (max(-m_f,0) + Gamma A/|d.n|) + V J] dq_i - sum c_ij dq_j = residual_i (production explicit,
+destruction on the diagonal: an M-matrix), with q_new >= 0.1 q_old (nu_tilde >= 0). Wall: nu_tilde = 0; k = 0,
+omega = 60 nu/(beta1 y1^2) (Menter's 10 x 6 nu/(beta1 y1^2)). Free stream (TMR): nu_tilde = 3 nu; k = 9e-9 a^2,
+omega = 1e-6 rho a^2/mu; or from the intensity Tu (k = 1.5 (Tu U)^2) and mu_t/mu. Axisymmetric: r-weighted areas and
+volumes give (1/r) d/dr (r Gamma dq/dr); the strain magnitude includes the hoop strain v/r. Fully turbulent, low-Re wall
+treatment only (no wall functions, no transition).
+
+**Wall quantities** (`aeroflowsim/euler/wall_fields.py`) from the solver's own wall fluxes: traction p n - tau.n,
+tau_w its tangential part, Cf = tau_w . t / q_ref, q_w = -(F_v,E - (tau.n).u_wall)/A (into the wall),
+St = q_w / (rho_ref U_ref cp (T0 - T_w)), u_tau = sqrt(|tau_w|/rho_w), y+ = rho_w u_tau y1 / mu_w; pressure and
+friction forces separately (their sum is the body force exactly).
+
+**Verification.** NS MMS (`aeroflowsim/mms_ns.py`; manufactured flows of section 13.1, viscous source by
+fourth-order differences of the analytic viscous flux, mu = 2 Pa s (T/300)^0.7): order 1.74-2.06 on quads, distorted
+quads, triangles, axisymmetric quads and triangles, hexahedra, prisms, tetrahedra (validation/mms_navier_stokes).
+Turbulence transport MMS: order 0.93-1.00 (expected 1: first-order upwind convection).
+
+References: Blazek (2015) Computational Fluid Dynamics, 3rd ed., ch. 2, 5, 6, 7; Spalart & Allmaras (1992) AIAA 92-0439;
+Allmaras, Johnson & Spalart (2012) ICCFD7-1902; Menter (1994) AIAA J. 32(8); Menter, Kuntz & Langtry (2003) Turbulence
+Heat and Mass Transfer 4; NASA Turbulence Modeling Resource (tmbwg.github.io/turbmodels); White (2006) Viscous Fluid
+Flow, 3rd ed.; Ericson (2005) Real-Time Collision Detection.
+
 ## 14. New shapes, nozzle contours and intakes (Shapes, grids and mesh import stage, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,
