@@ -188,3 +188,10 @@ scope now; nothing of this stage is to be moved to a later stage.
   roadmap README, low-Mach plan findings, gap register written.
 * TMR plate: finest grid dropped before the run (~20 h estimate).
 * Next: nozzle Re sweep and TMR plate results (running), full fast tests, quick + full validation, push.
+
+### Ledger entry 4 (5 Nov 2026): TMR flat plate, nozzle sweep
+* TMR flat plate (SA and SST-V, 136 x 96 and 272 x 192): SHORTFALL - the run hit the pre-set 2.5 h limit (9000 s)
+  without finishing, so there is no Cf result to compare with the CFL3D reference. Cause: slow convergence of the
+  low-Mach (M 0.2) plate with the Rusanov LU-SGS (acoustic stiffness), the same cause as the dropped finest grid. Only
+  evidence: coarse 60 x 48 SA, Cf(0.97) 1.3 % off. Moves to the low-Mach preconditioning stage.
+* Cube-sat nozzle sweep: Cd rises PASS; (1 - Cd) sqrt(Re_t) SHORTFALL (metric flaw: inviscid throat deficit dominates).
