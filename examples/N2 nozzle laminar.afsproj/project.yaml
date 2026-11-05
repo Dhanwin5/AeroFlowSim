@@ -1,0 +1,79 @@
+format_version: 1
+aeroflowsim_version: 0.2.0a3
+template: nozzle_axi
+template_title: Axisymmetric nozzle (2D Euler)
+template_fingerprint: 2ee6d31fc7dd1916d2f79a51a61fb9ad5a6b3b8bdd5441fe8f1a36c70ffac2f0
+created: '2026-11-05T11:53:19'
+modified: '2026-11-05T11:53:19'
+inputs:
+  geometry_source: Parametric (conical)
+  d_inlet: 0.002
+  L_inlet: 0.00133
+  half_angle_conv: 30.0
+  d_throat: 0.00028
+  half_angle_div: 15.0
+  d_exit: 0.000911
+  Rcu_ratio: 0.0
+  Rcd_ratio: 0.0
+  profile_csv: geometry/n2_conical_nozzle.csv
+  mesh_type: Structured
+  mesh_preset: Coarse
+  nx: 200
+  nr: 40
+  throat_clustering: true
+  clustering_strength: Moderate
+  cell_type: Triangles
+  surface_size: 0.04
+  max_size: 0.2
+  size_growth: 1.2
+  edge_refinement: true
+  save_msh: false
+  inflation: false
+  first_layer_height: 1.0e-06
+  n_layers: 10
+  growth_rate: 1.2
+  gas: N2
+  p0: 500000.0
+  T0: 293.15
+  p_back: 1000.0
+  initialisation: Quasi-1D solution
+  flow_model: Laminar
+  turb_freestream: TMR recommended
+  turb_intensity: 0.1
+  turb_viscosity_ratio: 1.0
+  boundaries: {}
+  cfl: 0.8
+  order: Second order (MUSCL)
+  first_order_iterations: 0
+  limiter: Venkatakrishnan
+  venkat_k: 5.0
+  freeze_limiter: 4.0
+  gradient: least squares
+  time_scheme: Implicit LU-SGS
+  max_iter: 20000
+  tol: 1.0e-06
+  monitor_tol: 0.0001
+  monitor_window: 500
+  update_limit: 0.0
+  carbuncle_fix: true
+steps: {}
+surfaces: []
+report_definitions:
+- name: exit p0 (mass-weighted)
+  kind: surface
+  monitor: false
+  converge: false
+  tolerance: 0.0001
+  window: 500
+  surface: outlet
+  operation: mass_weighted
+  field: p0
+  quantity: mass
+custom_fields: {}
+scenes: {}
+xy_plots: {}
+init_patches: []
+interpolate_new_mesh: true
+animation:
+  record: true
+  every: 0

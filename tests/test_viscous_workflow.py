@@ -148,3 +148,18 @@ def test_turbulent_project_runs_continues_with_its_turbulence_state(tmp_path, ca
         assert after.iterations == 35
         assert np.all(np.isfinite(after.fields["mu_t"].values)) and after.fields["mu_t"].values.max() > 0.0
         assert not np.array_equal(after.fields["mu_t"].values, before)
+
+
+def test_results_step_offers_and_draws_the_wall_plots():
+    """The Results step lists Cf, heat flux and y+ plots for a viscous result and draws them (no Qt needed)."""
+    from aeroflowsim.gui.figures import wall_figure
+    from aeroflowsim.gui.logic import flow_plots
+    from aeroflowsim.results import Result
+    x = np.linspace(0.0, 1.0, 20)
+    series = {"wall_x": x, "wall_y": 0 * x, "wall_Cp": 0 * x, "wallv_x": x, "wallv_y": 0 * x, "wall_Cf": 0.01 + 0 * x,
+              "wall_q": x, "wall_y_plus": 0.5 + x}
+    result = Result(fields={}, residuals=[], key_numbers={}, iterations=1, converged=True, series=series, info={})
+    plots = flow_plots(result)
+    for name in ("Skin friction Cf along the wall", "Wall heat flux along the wall", "y+ of the first cell along the wall"):
+        assert name in plots
+        assert wall_figure(result, name) is not None
