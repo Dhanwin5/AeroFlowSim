@@ -18,7 +18,7 @@ between sessions by hand.
 | 3D geometry and meshing | `3d_geometry_and_meshing.md` | 3D geometry workspace (STEP), tetrahedra, prism inflation | done |
 | 3D Euler solver | `3d_euler_solver.md` | The Euler solver on 3D meshes, 3D templates, 3D results, 3D mesh import (multiple zones moved on) | done |
 | Robust second order | `robust_second_order.md` | Second order on triangles and tetrahedra at strong shocks: node-value gradients, per-cell update limit | done |
-| Laminar viscous flow | `laminar_viscous.md` | Laminar Navier-Stokes 2D / axisymmetric: no-slip walls, skin friction, heat flux, cube-sat nozzle losses | next |
+| Viscous flow (laminar + RANS) | `laminar_viscous.md` | Laminar Navier-Stokes and RANS (Spalart-Allmaras, k-omega SST), 2D, axisymmetric and 3D: walls, skin friction, heat flux, cube-sat nozzle losses | next |
 | Low-Mach preconditioning | `low_mach_preconditioning.md` | Weiss-Smith preconditioning: accurate, fast steady flows at any Mach number | after laminar viscous |
 
 Earlier stages (desktop GUI, geometry workspace, gas library and units, 2D Euler solver) were planned before this
@@ -39,7 +39,7 @@ wiring (GUI, file formats, workflows, integrations, docs). Each stage file names
 | 3D geometry and meshing | Opus | many design decisions: 3D CAD handling, picking, mesh quality in 3D |
 | 3D Euler solver | Opus | new numerics in 3D (BCs, LU-SGS on mixed cells, verification) and the 3D Results step |
 | Robust second order | Opus | diagnosis of a numerical instability, one hypothesis at a time |
-| Laminar viscous flow | Opus | viscous fluxes, wall BCs, MMS for Navier-Stokes |
+| Viscous flow (laminar + RANS) | Opus | viscous fluxes, turbulence models, wall BCs, MMS for Navier-Stokes |
 | Low-Mach preconditioning | Opus | changes the equations' eigenstructure |
 | AI assistant | Sonnet | integration and GUI around a clear rule (the assistant only fills inputs) |
 | Adaptive mesh refinement | Opus | mesh data structures, conservation, solution transfer |
