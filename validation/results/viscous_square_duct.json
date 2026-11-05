@@ -1,0 +1,99 @@
+{
+ "name": "viscous_square_duct",
+ "title": "Laminar flow in a square duct (3D, exact series solution)",
+ "case": "aeroflowsim/euler (EulerSolver 3D, viscous=Laminar)",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "umax_over_umean",
+    "quantity": "Centreline / mean velocity at x = 6 a (reference: White eq. 3-48 series, evaluated)",
+    "value": 2.0962,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "White (2006), Viscous Fluid Flow, 3rd ed., eq. 3-48 (rectangular-duct series), evaluated in validate.py",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": "Set-up error, not the solver: the bulk Reynolds number came out 98.5, not the estimated 50, so the entrance length 0.06 Re a = 5.9 a reaches the measuring station x = 6 a (flow not developed: centre velocity still rising). Re-run with a longer duct below (pre-registered after this miss, before its run)."
+   },
+   "measured": 2.014453731320764
+  },
+  {
+   "reference": {
+    "id": "fRe",
+    "quantity": "Darcy friction factor x Reynolds number f Re at x = 6 a (reference: series)",
+    "value": 56.91,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "White (2006) eq. 3-48 series, evaluated in validate.py",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": "Same set-up error as above (station inside the entrance region)."
+   },
+   "measured": 58.87043653750386
+  },
+  {
+   "reference": {
+    "id": "umax_over_umean_long",
+    "quantity": "Centreline / mean velocity at x = 16 a, duct 20 a long",
+    "value": 2.0962,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "White (2006) eq. 3-48 series, evaluated in validate.py",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 2.0481480330507944
+  },
+  {
+   "reference": {
+    "id": "fRe_long",
+    "quantity": "f Re at x = 16 a, duct 20 a long",
+    "value": 56.91,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "White (2006) eq. 3-48 series, evaluated in validate.py",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 57.89107929633891
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Time [s]",
+   "Status",
+   "Residual",
+   "Re (bulk)"
+  ],
+  "rows": [
+   [
+    "8 a duct",
+    "9,216",
+    "11,719",
+    "65",
+    "converged",
+    "1.0e-09",
+    "98.5"
+   ],
+   [
+    "20 a duct",
+    "18,432",
+    "34,111",
+    "418",
+    "converged",
+    "1.0e-09",
+    "53.4"
+   ]
+  ],
+  "notes": [
+   "Quarter duct, LU-SGS, CFL 5 -> 1000 (SER)."
+  ]
+ }
+}

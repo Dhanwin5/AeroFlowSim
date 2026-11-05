@@ -18,8 +18,8 @@ between sessions by hand.
 | 3D geometry and meshing | `3d_geometry_and_meshing.md` | 3D geometry workspace (STEP), tetrahedra, prism inflation | done |
 | 3D Euler solver | `3d_euler_solver.md` | The Euler solver on 3D meshes, 3D templates, 3D results, 3D mesh import (multiple zones moved on) | done |
 | Robust second order | `robust_second_order.md` | Second order on triangles and tetrahedra at strong shocks: node-value gradients, per-cell update limit | done |
-| Viscous flow (laminar + RANS) | `laminar_viscous.md` | Laminar Navier-Stokes and RANS (Spalart-Allmaras, k-omega SST), 2D, axisymmetric and 3D: walls, skin friction, heat flux, cube-sat nozzle losses | next |
-| Low-Mach preconditioning | `low_mach_preconditioning.md` | Weiss-Smith preconditioning: accurate, fast steady flows at any Mach number | after laminar viscous |
+| Viscous flow (laminar + RANS) | `laminar_viscous.md` | Laminar Navier-Stokes and RANS (Spalart-Allmaras, k-omega SST), 2D, axisymmetric and 3D: walls, skin friction, heat flux, cube-sat nozzle losses | done (see its ledger for what moved on) |
+| Low-Mach preconditioning | `low_mach_preconditioning.md` | Weiss-Smith preconditioning: accurate, fast steady flows at any Mach number | next |
 
 Earlier stages (desktop GUI, geometry workspace, gas library and units, 2D Euler solver) were planned before this
 folder existed; their results are in the gap register and the CHANGELOG. Where the later stages fit: `next_steps.md`

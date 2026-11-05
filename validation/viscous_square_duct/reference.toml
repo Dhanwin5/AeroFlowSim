@@ -40,6 +40,7 @@ value = 2.0962
 unit = "-"
 tolerance_percent = 1.0
 source = "White (2006) eq. 3-48 series, evaluated in validate.py"
+shortfall = "Most likely grid resolution: 12 uniform cells per half side (the axisymmetric tube needed 20 radial cells for < 1 %); error fell from 3.9 % to 2.3 % once the flow was developed. NOT verified by a finer run in this session (a 24 x 24 section, ~74k cells, takes hours at this stiffness); next stage re-runs it with preconditioning."
 
 [[reference]]
 id = "fRe_long"
@@ -48,3 +49,4 @@ value = 56.91
 unit = "-"
 tolerance_percent = 1.0
 source = "White (2006) eq. 3-48 series, evaluated in validate.py"
+shortfall = "Most likely grid resolution: 12 uniform cells per half side (the axisymmetric tube needed 20 radial cells for < 1 %); error fell from 3.9 % to 2.3 % once the flow was developed. NOT verified by a finer run in this session (a 24 x 24 section, ~74k cells, takes hours at this stiffness); next stage re-runs it with preconditioning."

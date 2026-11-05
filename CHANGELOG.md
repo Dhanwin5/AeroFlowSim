@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased - Viscous flow: laminar, Spalart-Allmaras, k-omega SST (November 2026)
+
+- New input **Flow model** (Euler / Laminar / Spalart-Allmaras / k-omega SST) in every Euler template, default Euler:
+  old projects and every Euler validation number unchanged.
+- Laminar Navier-Stokes in 2D, axisymmetric (hoop stress) and 3D; corrected face gradients; viscous time step and
+  LU-SGS diagonal; Numba kernels equal to NumPy to 1e-12. NS MMS order 1.74-2.06 on eight mesh kinds.
+- New boundary type **No-slip wall** (adiabatic / isothermal, sliding velocity); walls become no-slip under a viscous model.
+- Turbulence: SA-noft2 and SST-2003 (vorticity production, TMR SST-V), loosely coupled implicit, exact wall distance.
+- Wall fields: wall shear, Cf, heat flux, Stanton number, y+; pressure and friction drag; plots and post-processing
+  fields; smart rule for the flow model; check of y+.
+- Validation: Couette (with viscous heating), Poiseuille (axisymmetric), square duct (3D), Blasius, Mach 2 plate heat
+  transfer, cylinder Re 40 (pending reference), TMR turbulent flat plate, cube-sat nozzle Re sweep: see report.md.
+
 ## Unreleased - Robust second order on triangles and tetrahedra (November 2026)
 
 - New gradient **Green-Gauss (node values)**: a vertex-neighbour stencil, exact for linear fields on any cell type

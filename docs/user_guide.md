@@ -285,6 +285,35 @@ Mach number and pressure. Command line: `run`, `report` and `export` work for 3D
 Not yet in 3D: the report-definition, surface and XY-plot panels of the 2D Results workspace, patch (initialisation)
 regions, multiple fluid zones (gap register).
 
+## Viscous flow: choosing a flow model and meshing the wall
+
+The Setup step has a **Flow model** group:
+
+- **Euler** (default; old projects): inviscid, slip walls. Shocks, expansions and thrust of an ideal nozzle.
+- **Laminar**: Navier-Stokes with the gas's own viscosity and conductivity. For throat or body Reynolds numbers below
+  about 1e5 (the N2 cube-sat nozzle at 5 bar has Re_t = 2.1e4: laminar).
+- **Spalart-Allmaras** (SA-noft2) and **k-omega SST** (Menter 2003): turbulent flow above about 1e5. SA is robust for
+  attached aerodynamic flows; SST is better with adverse pressure gradients and separation. Both are **fully turbulent,
+  low-Re wall treatment only: no wall functions, no transition** (the run log says so).
+
+The smart rule *Flow model* suggests a model from the Reynolds number; it never changes anything by itself.
+
+**Walls.** Under a viscous model every wall you have not set becomes a **No-slip wall**, adiabatic. In the boundary table
+choose *Isothermal* and a wall temperature for a cooled or heated wall, or a wall velocity for a sliding wall. A wall you
+explicitly set to *Slip wall* stays slip (a validity check warns you).
+
+**Meshing for y+ = 1.** Switch on the inflation layers in the Mesh step; the smart rule *First layer height* gives the
+height for y+ = 1 at your Reynolds number. After the run, the check *Wall y+* warns when y+ of the first cell exceeds 2
+(turbulent models need about 1). Plot *y+ of the first cell along the wall* to see where.
+
+**Results.** Key numbers: Cd split into pressure and friction drag (bodies), wall friction force and heat (nozzles),
+y+ max and mean. Fields (Wall group): wall shear stress, skin friction Cf, wall heat flux, Stanton number, y+; viscosity,
+eddy viscosity mu_t and mu_t/mu, the turbulence variables and the wall distance. Plots: Cf, heat flux and y+ along the
+wall. Run continues a stopped run, turbulence included.
+
+**Convergence.** Viscous runs at low Mach number or on very thin wall cells need many LU-SGS iterations (acoustic
+stiffness; low-Mach preconditioning comes next). Expect tens of thousands of iterations.
+
 ## Triangle and tetrahedron meshes: robust numerics
 
 Two Numerics inputs make second-order runs on triangles and tetrahedra robust at strong shocks:
