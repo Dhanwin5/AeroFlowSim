@@ -1,0 +1,66 @@
+{
+ "name": "viscous_plate_heat",
+ "title": "Laminar flat plate at Mach 2: recovery temperature and wall heat flux",
+ "case": "aeroflowsim/euler (EulerSolver, viscous=Laminar)",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "recovery_temperature",
+    "quantity": "Adiabatic wall temperature / T_aw (r = sqrt(Pr)) at Re_x = 1e5",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "Laminar recovery factor r = sqrt(Pr): White (2006), Viscous Fluid Flow, 3rd ed., sec. 7-3",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9967736438971054
+  },
+  {
+   "reference": {
+    "id": "heat_flux",
+    "quantity": "Wall heat flux / reference-temperature Reynolds-analogy estimate at Re_x = 1e5 (T_w = 300 K)",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Eckert reference temperature + Reynolds analogy St = Cf/(2 Pr^(2/3)): White (2006) sec. 7-4.4",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9941500133511456
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Time [s]",
+   "Status",
+   "Residual"
+  ],
+  "rows": [
+   [
+    "M2 adiabatic",
+    "8,960",
+    "10,829",
+    "45",
+    "converged",
+    "1.0e-08"
+   ],
+   [
+    "M2 isothermal",
+    "8,960",
+    "5,041",
+    "21",
+    "converged",
+    "1.0e-08"
+   ]
+  ],
+  "notes": []
+ }
+}

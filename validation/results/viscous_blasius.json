@@ -1,0 +1,82 @@
+{
+ "name": "viscous_blasius",
+ "title": "Laminar flat plate (Blasius), 2D and one-layer 3D extrusion",
+ "case": "aeroflowsim/euler (EulerSolver, viscous=Laminar)",
+ "date": "2026-11-05",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "cf_worst",
+    "quantity": "Cf / Cf_Blasius at Re_x = 1e4, 3e4, 1e5: the value furthest from 1",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 3.0,
+    "source": "Blasius solution (solved in validate.py); Schlichting & Gersten (2017) sec. 6.5",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0101808479225862
+  },
+  {
+   "reference": {
+    "id": "delta99",
+    "quantity": "delta_99 / delta_99,Blasius at Re_x = 1e5",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 5.0,
+    "source": "Blasius solution (solved in validate.py)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9734619785405103
+  },
+  {
+   "reference": {
+    "id": "extrusion_3d",
+    "quantity": "Cf (3D one-layer extrusion) / Cf (2D) at Re_x = 1e5",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 0.1,
+    "source": "Consistency: a one-cell extrusion with symmetry sides is the same discrete problem",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.000000178832847
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Time [s]",
+   "Status",
+   "Residual"
+  ],
+  "rows": [
+   [
+    "M0.2 2D",
+    "8,960",
+    "60,000",
+    "255",
+    "max_iterations",
+    "1.2e-07"
+   ],
+   [
+    "M0.2 3D",
+    "8,960",
+    "60,000",
+    "551",
+    "max_iterations",
+    "1.9e-07"
+   ]
+  ],
+  "notes": [
+   "Blasius f''(0) from the solved ODE: 0.33206"
+  ]
+ }
+}

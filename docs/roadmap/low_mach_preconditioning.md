@@ -99,5 +99,25 @@ preconditioning stage: do all parts below in order, in this one session, without
 2. Supersonic results are bit for bit unchanged; old projects open unchanged.
 3. Docs, gap register, CHANGELOG, ledger and the next stage's plan written; pushed.
 
+## Findings of the viscous-flow stage (5 Nov 2026) - part of this stage
+
+* The viscous solver (laminar, SA, SST) exists now (`euler/viscous.py`, `euler/turbulence.py`; ledger of
+  `docs/roadmap/laminar_viscous.md`). Its viscous spectral radius is kept SEPARATE from the convective dissipation in the
+  time step (`EulerSolver.time_steps`) and the LU-SGS diagonal (`lusgs(..., lam_visc)`), so the preconditioner scales
+  only the convective part. Preconditioning must cover the viscous terms' time-step limit (Weiss & Smith 1995: the
+  viscous Von Neumann number with the preconditioned eigenvalues).
+* Measured stiffness: LU-SGS's Rusanov diagonal (|u| + c) makes the effective pseudo-time step acoustic, independent of
+  the CFL number. Plane Couette at 1 atm (H = 1 mm, M 0.2) does not converge in 40k iterations; at 1 kPa it converges in
+  15.7k. The laminar validation cases were therefore run at low pressure (Couette 1 kPa, tube 5 kPa, duct 5 kPa, cylinder
+  Re 40 at 0.9 Pa with D = 1 m). RE-RUN after preconditioning at 1 atm and at M = 0.01-0.05 (addendum 2 of the viscous
+  stage): validation/viscous_couette, viscous_poiseuille, viscous_square_duct, viscous_blasius, viscous_cylinder_re40;
+  report iterations and wall-clock time against the ones in validation/report.md.
+* Square duct SHORTFALL (2.3 % / 1.7 %, 12 cells per half side): re-run on a 24 x 24 section once the cost allows.
+* TMR flat plate: the 544 x 384 grid was not run (~20 h at 3.5 us per cell-iteration); measure it with preconditioning
+  plus the line-implicit option if needed (addendum 7 of the viscous stage: high-aspect-ratio cells).
+* Not built in the viscous stage, still open: sphere at Re 100 in 3D, NACA 0012 at Re 6e6 (SA, SST) and its 3D extrusion,
+  the 3D quarter cube-sat nozzle with prism layers (2D vs 3D within 2 %), ONERA M6; and the references of Coutanceau &
+  Bouard / Dennis & Chang / Johnson & Patel (attach the PDFs). See the gap register.
+
 ## Ledger (progress log)
 
