@@ -19,10 +19,31 @@ value = 2.0962
 unit = "-"
 tolerance_percent = 1.0
 source = "White (2006), Viscous Fluid Flow, 3rd ed., eq. 3-48 (rectangular-duct series), evaluated in validate.py"
+shortfall = "Set-up error, not the solver: the bulk Reynolds number came out 98.5, not the estimated 50, so the entrance length 0.06 Re a = 5.9 a reaches the measuring station x = 6 a (flow not developed: centre velocity still rising). Re-run with a longer duct below (pre-registered after this miss, before its run)."
 
 [[reference]]
 id = "fRe"
 quantity = "Darcy friction factor x Reynolds number f Re at x = 6 a (reference: series)"
+value = 56.91
+unit = "-"
+tolerance_percent = 1.0
+source = "White (2006) eq. 3-48 series, evaluated in validate.py"
+shortfall = "Same set-up error as above (station inside the entrance region)."
+
+# ADDED 5 Nov 2026 after the miss above and BEFORE its run: the same duct, 20 a long (128 x 12 x 12 cells, same
+# cell size), measured at x = 16 a (> 2.5 x the entrance length at the measured Re ~ 100); same tolerances.
+
+[[reference]]
+id = "umax_over_umean_long"
+quantity = "Centreline / mean velocity at x = 16 a, duct 20 a long"
+value = 2.0962
+unit = "-"
+tolerance_percent = 1.0
+source = "White (2006) eq. 3-48 series, evaluated in validate.py"
+
+[[reference]]
+id = "fRe_long"
+quantity = "f Re at x = 16 a, duct 20 a long"
 value = 56.91
 unit = "-"
 tolerance_percent = 1.0

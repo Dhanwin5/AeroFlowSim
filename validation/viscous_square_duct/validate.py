@@ -45,11 +45,17 @@ def series(terms=300, n=400):
 
 
 def measure():
+    out = run_duct(8, 64, 6, "")
+    out.update(run_duct(20, 128, 16, "_long"))
+    return out
+
+
+def run_duct(length, nx, station, suffix):
     ratio, fre = series()
     if abs(ratio / 2.0962 - 1) > 1e-4 or abs(fre / 56.91 - 1) > 1e-4:
         raise RuntimeError(f"The series gives {ratio:.5f} and {fre:.4f}, not the pre-registered references.")
     g = gas()
-    mesh = box_mesh_3d(64, "hexahedra", lo=(0.0, 0.0, 0.0), hi=(8 * A, A / 2, A / 2), ny=12, nz=12)
+    mesh = box_mesh_3d(nx, "hexahedra", lo=(0.0, 0.0, 0.0), hi=(length * A, A / 2, A / 2), ny=12, nz=12)
     bc = {"xmin": BoundaryCondition("total_pressure_inlet", {"p0": P0, "T0": T0}),
           "xmax": BoundaryCondition("pressure_outlet", {"p": P_OUT}),
           "ymin": BoundaryCondition("symmetry"), "zmin": BoundaryCondition("symmetry"),
@@ -58,15 +64,15 @@ def measure():
     s = EulerSolver(mesh, g, bc, num, viscous=ViscousSettings(LAMINAR))
     t = time.perf_counter()
     r = s.solve(uniform_state(mesh.n_cells, P_OUT / (g.R * T0), (10.0, 0.0, 0.0), 0.5 * (P0 + P_OUT)))
-    TIMING["run"] = (r.iterations, time.perf_counter() - t, r.status, mesh.n_cells,
+    TIMING["run" + suffix] = (r.iterations, time.perf_counter() - t, r.status, mesh.n_cells,
                      float(r.residuals[-1].max()) if len(r.residuals) else 0.0)
     if r.status == "diverged":
-        return {"umax_over_umean": float("nan"), "fRe": float("nan")}
+        return {"umax_over_umean" + suffix: float("nan"), "fRe" + suffix: float("nan")}
     W = r.W
     s.residual(primitive_to_conserved(W, g), True, W)
     cc = mesh.cell_centres
     xs = np.unique(np.round(cc[:, 0], 12))
-    xc = xs[np.argmin(np.abs(xs - 6 * A))]
+    xc = xs[np.argmin(np.abs(xs - station * A))]
     col = np.flatnonzero(np.abs(cc[:, 0] - xc) < 1e-12)
     vol = mesh.cell_volumes[col]
     u = W[1, col]
@@ -79,12 +85,15 @@ def measure():
     data = wall_data(s, W)
     on = np.abs(data["x"][:, 0] - xc) < 1e-12
     tau = float(np.sum(np.linalg.norm(data["tau_w"][on], axis=1) * data["area"][on]) / np.sum(data["area"][on]))
-    TIMING["Re"] = float(np.mean(W[0, col])) * u_m * A / MU
-    return {"umax_over_umean": u_c / u_m, "fRe": 8.0 * tau * A / (MU * u_m)}
+    TIMING["Re" + suffix] = float(np.mean(W[0, col])) * u_m * A / MU
+    return {"umax_over_umean" + suffix: u_c / u_m, "fRe" + suffix: 8.0 * tau * A / (MU * u_m)}
 
 
 def study():
-    it, w, st, n, res = TIMING["run"]
-    return {"title": "Run", "columns": ["Cells", "Iterations", "Time [s]", "Status", "Residual", "Re (bulk)"],
-            "rows": [[f"{n:,}", f"{it:,}", f"{w:.0f}", st, f"{res:.1e}", f"{TIMING.get('Re', 0):.1f}"]],
+    rows = []
+    for suffix, name in (("", "8 a duct"), ("_long", "20 a duct")):
+        it, w, st, n, res = TIMING["run" + suffix]
+        rows.append([name, f"{n:,}", f"{it:,}", f"{w:.0f}", st, f"{res:.1e}", f"{TIMING.get('Re' + suffix, 0):.1f}"])
+    return {"title": "Runs", "columns": ["Run", "Cells", "Iterations", "Time [s]", "Status", "Residual", "Re (bulk)"],
+            "rows": rows,
             "notes": ["Quarter duct, LU-SGS, CFL 5 -> 1000 (SER)."]}
