@@ -4,7 +4,7 @@ AeroFlowSim 0.2.0a3, generated 2026-11-05 by `python validation/run_all.py`.
 
 **Validation set: full** (all meshes of every case; run weekly and on version tags).
 
-**Overall: FAIL** (20 of 24 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
+**Overall: FAIL** (21 of 25 cases pass; 2 explained shortfall(s), see the cases marked SHORTFALL)
 
 ## Back, Massier and Gier 45-15 deg conical nozzle: measured wall pressure (2D axisymmetric Euler, nozzle_axi): PASS
 
@@ -639,6 +639,63 @@ Sources:
 | tetrahedra | order |  |  |  | 1.771 1.752 1.830 1.843 1.747 |
 
 - Hexahedra, Kuhn tetrahedra (6 per cube) and prisms (2 per cube), warp 0.03.
+
+## Method of Manufactured Solutions: order of accuracy of the Navier-Stokes (laminar) terms: PASS
+
+Case: `aeroflowsim/mms_ns.py`, references: `validation/mms_navier_stokes/reference.toml`
+
+| Quantity | Reference | AeroFlowSim | Error % | Tolerance % | Pass/fail |
+|---|---:|---:|---:|---:|:---:|
+| Observed order (min L2 over rho, u, v, p), planar quads | 2 | 1.86384 | 6.808 | 10 | PASS |
+| Observed order, planar smoothly distorted quads | 2 | 1.83348 | 8.326 | 10 | PASS |
+| Observed order, planar triangles | 2 | 2.02058 | 1.029 | 15 | PASS |
+| Observed order, axisymmetric quads (pressure and hoop-stress sources) | 2 | 2.05594 | 2.797 | 10 | PASS |
+| Observed order, axisymmetric triangles | 2 | 1.95134 | 2.433 | 15 | PASS |
+| Observed order (min L2 over rho, u, v, w, p), warped hexahedra | 2 | 1.93628 | 3.186 | 10 | PASS |
+| Observed order, warped prisms | 2 | 1.78148 | 10.926 | 15 | PASS |
+| Observed order, warped tetrahedra | 2 | 1.7363 | 13.185 | 15 | PASS |
+
+Sources:
+
+- Formal order 2 of the scheme (MUSCL + corrected face gradients); MMS of Roy et al. (2004), Int. J. Numer. Meth. Fluids 44, 599-620
+- Formal order 2 (as above)
+
+### Levels (L2 errors of rho, velocity components, p)
+
+| Mesh | n | Cells | Iterations | Time [s] | L2 error / order (finest pair) |
+|---:|---:|---:|---:|---:|---:|
+| quads | 32 | 1,024 | 1,432 | 6.9 | 3.358e-04 1.138e-01 1.111e-01 6.158e+01 |
+| quads | 64 | 4,096 | 3,588 | 29.4 | 9.241e-05 2.961e-02 2.795e-02 1.539e+01 |
+| quads | 128 | 16,384 | 9,809 | 116.8 | 2.539e-05 7.556e-03 7.083e-03 3.778e+00 |
+| quads | order |  |  |  | 1.864 1.970 1.981 2.026 |
+| distorted_quads | 32 | 1,024 | 1,398 | 6.7 | 3.738e-04 1.218e-01 1.311e-01 7.073e+01 |
+| distorted_quads | 64 | 4,096 | 3,566 | 29.0 | 1.074e-04 3.361e-02 3.487e-02 1.820e+01 |
+| distorted_quads | 128 | 16,384 | 9,845 | 117.0 | 3.012e-05 8.810e-03 9.070e-03 4.542e+00 |
+| distorted_quads | order |  |  |  | 1.833 1.932 1.943 2.002 |
+| triangles | 32 | 2,048 | 2,489 | 13.9 | 5.466e-04 1.359e-01 1.203e-01 7.132e+01 |
+| triangles | 64 | 8,192 | 6,562 | 55.2 | 1.305e-04 2.993e-02 2.707e-02 1.711e+01 |
+| triangles | 128 | 32,768 | 18,895 | 247.1 | 3.216e-05 6.915e-03 6.337e-03 4.212e+00 |
+| triangles | order |  |  |  | 2.021 2.114 2.095 2.022 |
+| axi_quads | 32 | 1,024 | 752 | 3.6 | 5.119e-04 1.047e-01 9.281e-02 5.354e+01 |
+| axi_quads | 64 | 4,096 | 1,747 | 10.7 | 1.263e-04 2.499e-02 2.281e-02 1.317e+01 |
+| axi_quads | 128 | 16,384 | 4,581 | 61.5 | 3.006e-05 5.796e-03 5.485e-03 3.073e+00 |
+| axi_quads | order |  |  |  | 2.071 2.108 2.056 2.100 |
+| axi_triangles | 32 | 2,048 | 1,282 | 6.9 | 6.231e-04 1.112e-01 1.001e-01 4.028e+01 |
+| axi_triangles | 64 | 8,192 | 3,157 | 32.7 | 1.492e-04 2.499e-02 1.980e-02 8.958e+00 |
+| axi_triangles | 128 | 32,768 | 8,826 | 144.2 | 3.788e-05 6.462e-03 4.153e-03 2.193e+00 |
+| axi_triangles | order |  |  |  | 1.977 1.951 2.253 2.030 |
+| hexahedra | 12 | 1,728 | 400 | 3.0 | 2.532e-03 7.037e-01 6.918e-01 3.433e-01 3.342e+02 |
+| hexahedra | 24 | 13,824 | 826 | 15.3 | 6.615e-04 1.742e-01 1.662e-01 7.538e-02 8.636e+01 |
+| hexahedra | order |  |  |  | 1.936 2.014 2.057 2.187 1.952 |
+| prisms | 12 | 3,456 | 458 | 4.6 | 1.834e-03 3.536e-01 4.629e-01 2.995e-01 2.198e+02 |
+| prisms | 24 | 27,648 | 1,095 | 29.4 | 5.331e-04 8.011e-02 1.194e-01 6.437e-02 6.393e+01 |
+| prisms | order |  |  |  | 1.782 2.142 1.954 2.218 1.781 |
+| tetrahedra | 12 | 10,368 | 826 | 11.9 | 1.495e-03 2.865e-01 3.549e-01 2.309e-01 1.254e+02 |
+| tetrahedra | 24 | 82,944 | 2,070 | 113.0 | 4.240e-04 6.665e-02 8.897e-02 5.339e-02 3.765e+01 |
+| tetrahedra | order |  |  |  | 1.819 2.104 1.996 2.113 1.736 |
+
+- Air with mu = 2 Pa s (T/300 K)^0.7, Pr 0.72 (viscous terms as large as the convective ones).
+- Boundary faces: second-order one-sided face gradient (aeroflowsim/euler/viscous.py).
 
 ## Axisymmetric nozzle mesh geometry (default conical nozzle): PASS
 

@@ -128,3 +128,28 @@ scope now; nothing of this stage is to be moved to a later stage.
 
 ## Ledger (progress log)
 
+
+### Ledger entry 1 (5 Nov 2026): Part 1 - laminar viscous flux, MMS (+ first pieces of Part 2)
+* Done: `aeroflowsim/euler/viscous.py` (corrected face gradients, Stokes stress, heat flux, axisymmetric hoop stress,
+  viscous spectral radius); Numba kernels `viscous_face_gradients`, `viscous_face_fluxes` (kernels.py); EulerSolver
+  takes `viscous=ViscousSettings(...)` (None = the old Euler path, no viscous code runs); viscous dt
+  (dt = CFL V / (Lambda_c + sum lambda_v A)) and the viscous spectral radius on the LU-SGS diagonal / sweeps
+  (`lusgs(..., lam_visc)`: Euler passes zeros, so lam + 0.0 is bit-identical). No-slip wall BC type `no_slip_wall`
+  (adiabatic / isothermal, sliding velocity u_wall; acts as a slip wall under Euler); Flow-model inputs in
+  setup.solver_parameters (FINGERPRINT_NEUTRAL at Euler); exact wall distance `aeroflowsim/wall_distance.py`.
+* Decision: boundary faces use the SECOND-ORDER one-sided face gradient (g.d = 2 (phi_f - phi_P) - g_P.d). With the
+  first-order one-sided form (OpenFOAM/Fluent snGrad) the NS MMS order on quads was 1.72 (below the pre-registered 1.8);
+  with it 1.86. Exact for linear profiles (Couette) either way.
+* Verified: tests/test_viscous.py (Numba = NumPy 1e-12 on quads, triangles, axisymmetric, hexa, prisms, tetra, with
+  and without mu_t; thread independence; exact stress for linear fields; Euler path untouched), tests/test_wall_distance.py
+  (flat plate 2D/3D exact, cylinder, sphere, KD-tree = brute force). validation/mms_navier_stokes (pre-registered,
+  Euler-MMS tolerances): ALL PASS - quads 1.86, distorted 1.83, triangles 2.02, axi quads 2.06, axi triangles 1.95,
+  hexa 1.94, prisms 1.78, tetra 1.74. Euler kernel + LU-SGS tests pass (79). report.md: only the new section added.
+* Anomaly / finding for the low-Mach stage: plane Couette at 1 atm (H = 1 mm, M 0.2) converges extremely slowly with
+  LU-SGS: the Rusanov diagonal (|u| + c) makes the effective pseudo-time step acoustic, independent of the CFL number,
+  and the diffusion time H^2/nu is ~1e5-1e6 acoustic cell times. At 1 kPa (acoustic Reynolds number 100 x smaller) it
+  converges in 15.7k iterations, u exact to 2e-9, T within 0.03 %. Validation cases will be pre-registered at a
+  pressure where the stiffness ratio allows convergence (stated per case); re-run at 1 atm after preconditioning.
+* Order decision (addendum 1): Parts 4 and the laminar cases of Part 5 come BEFORE Part 3 (turbulence), so a cut-off
+  still leaves a finished laminar solver.
+* Next: Part 2 rest (setup wiring tests, walk-through tests), Part 4 (wall fields), Part 5 laminar validations.

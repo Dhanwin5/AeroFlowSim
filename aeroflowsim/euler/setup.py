@@ -29,6 +29,8 @@ from aeroflowsim.euler.gradients import METHODS as GRADIENT_METHODS
 from aeroflowsim.euler.initial import QUASI_1D, RESTART, UNIFORM, quasi1d_state, quasi1d_state_3d, restart_state
 from aeroflowsim.euler.limiters import LIMITERS
 from aeroflowsim.euler.solver import CONVERGED, DIVERGED, LUSGS, TIME_SCHEMES, Continuation, EulerSolver, Numerics
+from aeroflowsim.euler.viscous import (EULER, FLOW_MODELS, LAMINAR, TURBULENT_MODELS, WALL_NOTE, ViscousSettings,
+                                       is_viscous)
 from aeroflowsim.euler.state import (entropy, mach_number, primitive_to_conserved, state_from_mach, temperature,
                                      total_pressure, total_temperature, uniform_state)
 from aeroflowsim.geometry import WallProfile
@@ -73,6 +75,21 @@ def solver_parameters(overrides=None) -> list:
     overrides: {key: default} from the template's [case] solver_defaults.
     """
     inputs = [
+        Parameter("flow_model", "Flow model", "", EULER, help="Euler: inviscid flow (no viscosity, slip walls). "
+                  "Laminar: Navier-Stokes with the gas's viscosity and conductivity (no-slip walls). "
+                  "Spalart-Allmaras (SA-noft2) and k-omega SST (Menter 2003): Reynolds-averaged turbulent flow. "
+                  + WALL_NOTE, type="choice", options=FLOW_MODELS, group="Flow model", step="setup"),
+        Parameter("turb_freestream", "Free-stream turbulence", "", "TMR recommended", help="TMR recommended: the "
+                  "free-stream values of the NASA Turbulence Modeling Resource (SA: nu_tilde = 3 nu; SST: "
+                  "k = 9e-9 a^2, omega = 1e-6 rho a^2 / mu). Or set the turbulence intensity and the eddy-viscosity "
+                  "ratio yourself (inlets and far field).", type="choice",
+                  options=("TMR recommended", "Intensity and viscosity ratio"), group="Flow model", step="setup"),
+        Parameter("turb_intensity", "Turbulence intensity", "%", 0.1, 0.0, 50.0, "Free-stream turbulence intensity "
+                  "Tu = sqrt(2k/3) / |u| (k-omega SST; SA uses only the viscosity ratio).", type="float",
+                  group="Flow model", step="setup", show_if=("turb_freestream", "Intensity and viscosity ratio")),
+        Parameter("turb_viscosity_ratio", "Eddy-viscosity ratio mu_t / mu", "-", 1.0, 1e-6, 1e5, "Free-stream "
+                  "ratio of turbulent to molecular viscosity.", type="float", group="Flow model", step="setup",
+                  show_if=("turb_freestream", "Intensity and viscosity ratio")),
         Parameter("boundaries", "Boundary conditions", "", {}, help="The condition on every named boundary of the "
                   "mesh. Each boundary starts from the default for its kind (inlet, outlet, wall, ...); "
                   "change the type or its values in the table.", type="boundaries", group="Boundary conditions",
@@ -152,13 +169,28 @@ def _numerics(params, steady=True) -> Numerics:
                     update_limit=float(params.get("update_limit", 0.0) or 0.0))
 
 
+def viscous_settings(params):
+    """ViscousSettings of the template inputs, or None for the Euler flow model (old projects: no value = Euler)."""
+    model = params.get("flow_model", EULER) or EULER
+    if not is_viscous(model):
+        return None
+    turbulence = {}
+    if params.get("turb_freestream", "TMR recommended") != "TMR recommended":
+        turbulence = {"intensity": float(params.get("turb_intensity", 0.1)) / 100.0,
+                      "viscosity_ratio": float(params.get("turb_viscosity_ratio", 1.0))}
+    return ViscousSettings(model=model, turbulence=turbulence)
+
+
 def numerics_note(params) -> str:
     """One line for the run log: the numerics that are active (time scheme, gradient, limiter, update limit), or ""
     for templates without the Euler solver inputs."""
     if "time_scheme" not in params or "gradient" not in params:
         return ""
     limit = float(params.get("update_limit", 0.0) or 0.0)
-    parts = [params["time_scheme"], f"gradients {params['gradient']}", f"limiter {params['limiter']}"
+    model = params.get("flow_model", EULER)
+    parts = [f"flow model {model}" + (" (fully turbulent, low-Re wall treatment, no wall functions, no transition)"
+                                      if model in TURBULENT_MODELS else ""),
+             params["time_scheme"], f"gradients {params['gradient']}", f"limiter {params['limiter']}"
              + (f" (K = {params['venkat_k']:g})" if params["limiter"] == "Venkatakrishnan" else ""),
              f"update limit {limit:g}" if limit > 0 else "no update limit"]
     return "Numerics: " + ", ".join(parts) + "."
@@ -174,6 +206,7 @@ def conditions(params, mesh, defaults) -> dict:
     Raises ValueError (in plain words) if a patch has no valid condition.
     """
     table = params.get("boundaries") or {}
+    viscous = is_viscous(params.get("flow_model", EULER))
     out = {}
     for p in mesh.patches:
         if p.name in table:
@@ -182,6 +215,9 @@ def conditions(params, mesh, defaults) -> dict:
             out[p.name] = defaults[p.type]
         else:
             out[p.name] = BoundaryCondition(DEFAULT_FOR_KIND[p.type])
+        if viscous and p.name not in table and p.type == "wall" and out[p.name].type == "slip_wall":
+            # viscous flow: a wall the user has not set is a no-slip adiabatic wall (as Fluent and SU2 do)
+            out[p.name] = BoundaryCondition("no_slip_wall")
     names = [p.name for p in mesh.patches]
     problems = boundary_problems(out, names)
     problems += [f"There is a boundary condition for '{name}', but the mesh has no such boundary (the mesh has: "
@@ -194,7 +230,7 @@ def conditions(params, mesh, defaults) -> dict:
 def table_rows(params, mesh, defaults) -> list:
     """[(patch name, patch kind, BoundaryCondition, changed by the user)] for the Setup table."""
     table = params.get("boundaries") or {}
-    effective = conditions({"boundaries": {}}, mesh, defaults)
+    effective = conditions({"boundaries": {}, "flow_model": params.get("flow_model", EULER)}, mesh, defaults)
     rows = []
     for p in mesh.patches:
         bc = BoundaryCondition.from_dict(table[p.name]) if p.name in table else effective[p.name]
@@ -647,7 +683,10 @@ def solve(problem, params, mesh, progress=None) -> Result:
                          f"{params['max_iter']:,} (counted over the whole run): raise Maximum iterations to continue "
                          "it, or start from scratch.")
     solver = EulerSolver(mesh, problem.gas, problem.conditions, numerics(params), L_ref=problem.L_ref,
-                         scales=problem.scales)
+                         scales=problem.scales, viscous=viscous_settings(params))
+    if solver.viscous is not None and solver.viscous.turbulent:
+        from aeroflowsim.euler.turbulence import attach_turbulence
+        attach_turbulence(solver, params, problem)
 
     autosave = _extras().get("autosave")
     last_save = [__import__("time").perf_counter()]

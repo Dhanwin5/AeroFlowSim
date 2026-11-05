@@ -1,0 +1,89 @@
+# Order-of-accuracy verification of the laminar Navier-Stokes terms by the Method of Manufactured Solutions
+# (aeroflowsim/mms_ns.py). The manufactured flows of the Euler studies (Roy et al. 2004, and its 3D extension) are
+# imposed with the full Navier-Stokes source term (inviscid source of mms.py + the divergence of the viscous flux and,
+# axisymmetric, the hoop stress); air with an artificially large viscosity mu = 2 Pa s (T/300 K)^0.7, Pr = 0.72, so
+# the viscous terms are as large as the convective ones (Reynolds number ~150 on the unit box). Second order, no
+# limiter, implicit LU-SGS to a residual drop of 8 orders, started from the exact solution. The value compared is the
+# SMALLEST observed L2 order over the variables between the two finest meshes (refinement ratio 2).
+#
+# PRE-REGISTERED (5 Nov 2026, viscous-flow stage, before the validation run) with the acceptance of the Euler MMS
+# studies (validation/mms_euler2d, mms_euler3d), as the stage plan requires: quads and hexahedra within 10 % of the
+# formal order 2 (>= 1.8), distorted quads 10 %, triangles, prisms and tetrahedra within 15 % (>= 1.7), axisymmetric
+# as planar. Full set: 2D 32, 64, 128 cells per side; 3D 12^3 and 24^3 boxes. Quick set (CI): 2D 16, 32, 64 (order
+# between 32 and 64), 3D 6^3 and 12^3: not yet asymptotic, so tolerance_percent_quick. Not to be changed after
+# seeing the results; a miss is reported as a SHORTFALL with its cause.
+
+title = "Method of Manufactured Solutions: order of accuracy of the Navier-Stokes (laminar) terms"
+case = "aeroflowsim/mms_ns.py"
+
+[[reference]]
+id = "quads"
+quantity = "Observed order (min L2 over rho, u, v, p), planar quads"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 15.0
+source = "Formal order 2 of the scheme (MUSCL + corrected face gradients); MMS of Roy et al. (2004), Int. J. Numer. Meth. Fluids 44, 599-620"
+
+[[reference]]
+id = "distorted_quads"
+quantity = "Observed order, planar smoothly distorted quads"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 25.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "triangles"
+quantity = "Observed order, planar triangles"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+tolerance_percent_quick = 20.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "axi_quads"
+quantity = "Observed order, axisymmetric quads (pressure and hoop-stress sources)"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 15.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "axi_triangles"
+quantity = "Observed order, axisymmetric triangles"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+tolerance_percent_quick = 20.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "hexahedra"
+quantity = "Observed order (min L2 over rho, u, v, w, p), warped hexahedra"
+value = 2.0
+unit = "-"
+tolerance_percent = 10.0
+tolerance_percent_quick = 15.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "prisms"
+quantity = "Observed order, warped prisms"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+tolerance_percent_quick = 20.0
+source = "Formal order 2 (as above)"
+
+[[reference]]
+id = "tetrahedra"
+quantity = "Observed order, warped tetrahedra"
+value = 2.0
+unit = "-"
+tolerance_percent = 15.0
+tolerance_percent_quick = 22.5
+source = "Formal order 2 (as above)"

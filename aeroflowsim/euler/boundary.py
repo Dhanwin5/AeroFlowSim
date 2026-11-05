@@ -47,6 +47,14 @@ def slip_wall(Wi, normals, values, gas, patch):
     return Wg
 
 
+def no_slip_wall(Wi, normals, values, gas, patch):
+    """Viscous (no-slip) wall. Inviscid part: the mirror state of the slip wall, so the convective flux through the
+    wall is the pressure alone (Blazek 2015 sec. 8.6). The no-slip condition u = 0 and the thermal condition enter
+    through the boundary face values of the gradients and the viscous flux (solver.boundary_face_values): u = 0,
+    and T = T_wall (isothermal) or zero heat flux (adiabatic). Under the Euler flow model it acts as a slip wall."""
+    return slip_wall(Wi, normals, values, gas, patch)
+
+
 def symmetry(Wi, normals, values, gas, patch):
     """Mirror plane: the same mirror state as a slip wall (no flow through, no shear)."""
     return slip_wall(Wi, normals, values, gas, patch)
@@ -238,6 +246,16 @@ class BCType:
 BC_TYPES = {
     "slip_wall": BCType("Slip wall", slip_wall, "Inviscid solid wall: no flow through it, the gas slides along.",
                         (), ("wall",)),
+    "no_slip_wall": BCType(
+        "No-slip wall", no_slip_wall, "Viscous solid wall: the gas sticks to it (u = 0). Adiabatic (no heat flux) "
+        "or isothermal (fixed wall temperature). Under the Euler flow model it acts as a slip wall.",
+        (_p("thermal", "Thermal condition", "", "Adiabatic", help="Adiabatic: no heat flows through the wall. "
+            "Isothermal: the wall is held at a fixed temperature.", type="choice",
+            options=("Adiabatic", "Isothermal")),
+         _p("T_wall", "Wall temperature", "K", 300.0, 1.0, 1e5, "Temperature of an isothermal wall.",
+            show_if=("thermal", "Isothermal")),
+         _p("u_wall", "Wall velocity (x)", "m/s", 0.0, -1e5, 1e5, "Velocity of a wall sliding along itself in the "
+            "x direction (e.g. the moving plate of Couette flow); 0 = a wall at rest.")), ("wall",)),
     "symmetry": BCType("Symmetry", symmetry, "Mirror plane of a planar flow (half domain).", (), ("symmetry",)),
     "axis": BCType("Axis", axis, "Axis of an axisymmetric flow (r = 0).", (), ("axis",)),
     "far_field": BCType("Far field", far_field, "Free stream far from the body (characteristic, Riemann "

@@ -32,7 +32,10 @@ saying how to install it.
 
 # Inputs added after projects existed whose old behaviour is one value: while an input holds that value it is left out
 # of the project fingerprints (aeroflowsim/project.py), so old projects (which get it as their default) stay up to date.
-FINGERPRINT_NEUTRAL = {"update_limit": 0.0}
+FINGERPRINT_NEUTRAL = {"update_limit": 0.0,
+                       # viscous-flow stage: the Flow model and its inputs (old projects: Euler, the TMR free stream)
+                       "flow_model": "Euler", "turb_freestream": "TMR recommended", "turb_intensity": 0.1,
+                       "turb_viscosity_ratio": 1.0}
 
 import importlib.util
 import re

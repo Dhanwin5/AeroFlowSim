@@ -379,6 +379,70 @@ def face_sums(FA, W, slot_face, slot_sign, geometric_source, source, use_source,
             dUdt[v, i] = -r / volumes[i]
 
 
+# ---- viscous fluxes (euler/viscous.py) -------------------------------------------------------------------
+
+@_jit()
+def viscous_face_gradients(Xc, Xb, grad, owner, neighbour, d, d_len2, GF, XF):
+    """Corrected face gradients GF (n, dim, F) and face values XF (n, F) of X = [u_1 .. u_dim, T]
+    (ViscousOperator.face_gradients / face_mean). One face per loop iteration: thread independent."""
+    nv, C = Xc.shape
+    dim = grad.shape[1]
+    F = owner.shape[0]
+    nI = neighbour.shape[0]
+    for f in prange(F):
+        P = owner[f]
+        for v in range(nv):
+            if f < nI:
+                N = neighbour[f]
+                dphi = Xc[v, N] - Xc[v, P]
+                XF[v, f] = 0.5 * (Xc[v, P] + Xc[v, N])
+                along = 0.0
+                for k in range(dim):
+                    along += 0.5 * (grad[v, k, P] + grad[v, k, N]) * d[f, k]
+                corr = (dphi - along) / d_len2[f]
+                for k in range(dim):
+                    GF[v, k, f] = 0.5 * (grad[v, k, P] + grad[v, k, N]) + corr * d[f, k]
+            else:
+                b = f - nI
+                dphi = Xb[v, b] - Xc[v, P]
+                XF[v, f] = Xb[v, b]
+                along = 0.0
+                for k in range(dim):
+                    along += grad[v, k, P] * d[f, k]
+                corr = 2.0 * (dphi - along) / d_len2[f]      # second-order one-sided (viscous.py)
+                for k in range(dim):
+                    GF[v, k, f] = grad[v, k, P] + corr * d[f, k]
+
+
+@_jit()
+def viscous_face_fluxes(GF, XF, mu_f, k_f, heat_mask, normals, flux_areas, face_r, axisym, FV):
+    """Viscous flux x flux area FV (dim + 2, F) from the face gradients (ViscousOperator.fluxes)."""
+    dim = GF.shape[1]
+    F = GF.shape[2]
+    for f in prange(F):
+        div = 0.0
+        for k in range(dim):
+            div += GF[k, k, f]
+        if axisym and face_r[f] > 0.0:
+            div += XF[1, f] / face_r[f]
+        mu = mu_f[f]
+        FV[0, f] = 0.0
+        e = 0.0
+        for i in range(dim):
+            t = 0.0
+            for j in range(dim):
+                tij = mu * (GF[i, j, f] + GF[j, i, f])
+                if i == j:
+                    tij = tij - (2.0 / 3.0) * mu * div
+                t += tij * normals[f, j]
+            FV[1 + i, f] = t * flux_areas[f]
+            e += t * XF[i, f]
+        q = 0.0
+        for j in range(dim):
+            q += GF[dim, j, f] * normals[f, j]
+        FV[dim + 1, f] = (e + heat_mask[f] * k_f[f] * q) * flux_areas[f]
+
+
 # ---- time steps ----------------------------------------------------------------------------------------
 
 @_jit()
@@ -526,7 +590,7 @@ def _normal_flux_change(U, dU, j, nx, ny, nz, dim, R, cv, out):
 
 @_jit(parallel=False)
 def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, flux_areas, source_size, R, gamma,
-          cv, omega, lam, D, work, dU):
+          cv, omega, lam, D, work, dU, lam_visc):
     """One LU-SGS step: dU from  [V/dt + L + D + U] dU = V dU/dt  with the first-order Rusanov operator.
 
     Forward sweep over the cells in index order, backward sweep in reverse: a FIXED order, so the result is
@@ -566,6 +630,10 @@ def lusgs(U, W, dUdt, volumes, dt, slot_face, slot_sign, slot_other, normals, fl
                 lam[f] = abs(0.5 * (un + unj)) + 0.5 * (ci + cj)
             else:
                 lam[f] = abs(un) + ci
+    # viscous spectral radius (zero for Euler): adds lam_v A to the diagonal and the Laplacian coupling
+    # + lam_v A dU_j to the sweeps (1/2 omega (lam + 2 lam_v / omega) = 1/2 omega lam + lam_v)
+    for f in range(F):
+        lam[f] += 2.0 * lam_visc[f] / omega
     for i in range(C):
         d = volumes[i] / dt[i] + omega * math.sqrt(gamma * R * (W[nv - 1, i] / (W[0, i] * R))) * source_size[i]
         for s in range(k_max):

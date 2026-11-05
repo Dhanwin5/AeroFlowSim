@@ -141,8 +141,9 @@ class EulerSolver:
             variable (dim + 2 numbers), e.g. (rho_inf, |u_inf|, |u_inf|, p_inf).
     """
 
-    def __init__(self, mesh, gas, conditions, numerics=None, L_ref=1.0, scales=None):
+    def __init__(self, mesh, gas, conditions, numerics=None, L_ref=1.0, scales=None, viscous=None):
         self.mesh, self.gas = mesh, gas
+        self.viscous = viscous          # ViscousSettings (euler/viscous.py), or None: inviscid (Euler) exactly as before
         self.numerics = numerics or Numerics()
         self.geom = FVGeometry(mesh)
         self.grad = Gradients(self.geom, self.numerics.gradient)
@@ -166,6 +167,126 @@ class EulerSolver:
         self.source = None              # optional (n_vars, C) source integrated over each cell (MMS); None = none
         self.kernels, self.backend, self.backend_note = None, compute.NUMPY, ""
         self._choose_backend()
+        self.mu_t = None                # turbulent viscosity per cell [Pa s] (set by the turbulence model), or None
+        self.turbulence = None          # the turbulence model (euler/turbulence.py), or None
+        self._setup_walls()
+        if self.viscous is not None:
+            self._setup_viscous()
+
+    # ---- no-slip walls and the viscous terms (euler/viscous.py) -------------------------------------
+
+    def _setup_walls(self):
+        """Boundary-local indices of the no-slip wall faces and their wall temperature (NaN = adiabatic)."""
+        wall, T_wall, U_wall = [], [], []
+        for _name, bc, local, _info in self.patches:
+            if bc.type == "no_slip_wall":
+                wall.append(local)
+                U_wall.append(np.full(len(local), float(bc.values.get("u_wall", 0.0))))
+                iso = bc.values.get("thermal") == "Isothermal"
+                T_wall.append(np.full(len(local), float(bc.values.get("T_wall", 300.0)) if iso else np.nan))
+        self.wall_local = np.concatenate(wall) if wall else np.zeros(0, dtype=np.int64)
+        self.wall_T = np.concatenate(T_wall) if T_wall else np.zeros(0)
+        self.wall_u = np.concatenate(U_wall) if U_wall else np.zeros(0)      # x velocity of a sliding wall [m/s]
+
+    def _setup_viscous(self):
+        from aeroflowsim.euler.viscous import ViscousOperator
+        g = self.geom
+        self.vop = ViscousOperator(g)
+        self.heat_mask = np.ones(g.n_faces)
+        adiabatic = self.wall_local[np.isnan(self.wall_T)]
+        self.heat_mask[g.n_interior + adiabatic] = 0.0          # no heat flux through an adiabatic wall
+        self.wall_face_mask = np.zeros(g.n_faces, dtype=bool)
+        self.wall_face_mask[g.n_interior + self.wall_local] = True
+        self.lam_visc = np.zeros(g.n_faces)                     # viscous spectral radius per face [m/s]
+        self.last_viscous = None                                # face gradients etc. of the last residual
+        self.cp = float(np.mean(self.gas.cp(300.0)))
+
+    def _gradient_of(self, Xc, Xb):
+        """Cell gradients (n, dim, C) of any cell values Xc (n, C) with boundary values Xb (n, B), with the solver's
+        gradient operator (Numba kernel when in use)."""
+        if self.kernels is None:
+            return self.grad.gradient(Xc, Xb)
+        from aeroflowsim.euler import kernels as kn
+        K, g = self.kernels, self.geom
+        X = np.ascontiguousarray(np.concatenate([Xc, Xb], axis=1))
+        grad = np.empty((Xc.shape[0], g.dim, g.n_cells))
+        if K.csr:
+            kn.gradients_csr(X, K.indptr, K.indices, K.data, grad)
+        else:
+            kn.gradients(X, K.slot_other, K.coef_other, K.coef_self, grad)
+        return grad
+
+    def _face_mu_t(self):
+        """Turbulent viscosity at the faces (mean of the two cells; walls 0; other boundaries the inside cell)."""
+        g = self.geom
+        if self.mu_t is None:
+            return None
+        out = np.empty(g.n_faces)
+        out[:g.n_interior] = 0.5 * (self.mu_t[g.owner[:g.n_interior]] + self.mu_t[g.neighbour])
+        out[g.n_interior:] = self.mu_t[g.boundary_owner]
+        out[self.wall_face_mask] = 0.0
+        return out
+
+    def viscous_terms(self, W, Wb_face):
+        """Viscous flux x area (n_vars, F) and the axisymmetric hoop-stress source per cell (n_vars, C) or None.
+        Also keeps the face gradients for the wall fields and the turbulence model (self.last_viscous)."""
+        g, vop, gas = self.geom, self.vop, self.gas
+        dim = g.dim
+        R = gas.R
+        Xc = np.empty((dim + 1, g.n_cells))
+        Xc[:dim] = W[1:-1]
+        Xc[dim] = W[-1] / (W[0] * R)
+        Xb = np.empty((dim + 1, g.n_boundary))
+        Xb[:dim] = Wb_face[1:-1]
+        Xb[dim] = Wb_face[-1] / (Wb_face[0] * R)
+        grad = self._gradient_of(Xc, Xb)
+        T_f = vop.face_mean(Xc[dim:], Xb[dim:])[0]
+        mu_l = np.asarray(gas.mu(T_f), dtype=float)
+        k_l = np.asarray(gas.k(T_f), dtype=float)
+        mu_tf = self._face_mu_t()
+        if mu_tf is not None:
+            mu_f = mu_l + mu_tf
+            k_f = k_l + self.cp * mu_tf / self.viscous.prandtl_t
+        else:
+            mu_f, k_f = mu_l, k_l
+        if self.kernels is not None:
+            from aeroflowsim.euler import kernels as kn
+            GF = np.empty((dim + 1, dim, g.n_faces))
+            XF = np.empty((dim + 1, g.n_faces))
+            kn.viscous_face_gradients(np.ascontiguousarray(Xc), np.ascontiguousarray(Xb), grad, g.owner, g.neighbour,
+                                      vop.d, vop.d_len2, GF, XF)
+            FV = np.empty((dim + 2, g.n_faces))
+            kn.viscous_face_fluxes(GF, XF, np.ascontiguousarray(mu_f), np.ascontiguousarray(k_f), self.heat_mask,
+                                   self.kernels.normals, g.flux_areas, vop.face_r, bool(vop.axisymmetric), FV)
+        else:
+            FV = vop.fluxes(Xc, Xb, grad, mu_f, k_f, self.heat_mask)
+        self.last_viscous = {"Xc": Xc, "Xb": Xb, "grad": grad, "mu_f": mu_f, "k_f": k_f}
+        source = None
+        if vop.axisymmetric:
+            mu_c = np.asarray(gas.mu(Xc[dim]), dtype=float)
+            if self.mu_t is not None:
+                mu_c = mu_c + self.mu_t
+            tau = vop.hoop_source(Xc, grad, mu_c)
+            source = np.zeros((dim + 2, g.n_cells))
+            source[2] = -tau * g.geometric_source[1]          # r-momentum: + (p - tau_thth) A; p is done separately
+        return FV, source
+
+    def viscous_spectral_radius(self, W):
+        """lambda_v per face [m/s] (viscous.py) from the cell states (face means; boundary: the inside cell)."""
+        g = self.geom
+        T = W[-1] / (W[0] * self.gas.R)
+        Xc = np.vstack([W[0], T])
+        Xb = Xc[:, g.boundary_owner]
+        rho_f, T_f = self.vop.face_mean(Xc, Xb)
+        mu = np.asarray(self.gas.mu(T_f), dtype=float)
+        k = np.asarray(self.gas.k(T_f), dtype=float)
+        mu_tf = self._face_mu_t()
+        if mu_tf is not None:
+            mu = mu + mu_tf
+            k = k + self.cp * mu_tf / self.viscous.prandtl_t
+        gamma = float(np.mean(self.gas.gamma(300.0)))
+        fac = np.maximum(4.0 / 3.0 * mu, gamma * k / self.cp)
+        return fac / rho_f / self.vop.dn
 
     # ---- Numba kernels or NumPy (aeroflowsim/compute.py) -------------------------------------------
 
@@ -246,11 +367,17 @@ class EulerSolver:
         weight = self._shock_weight(W, ghost_c) if self.numerics.carbuncle_fix else None
         F = hybrid_flux(WL, WR, g.normals, self.gas, weight)
         FA = F * g.flux_areas
+        v_source = None
+        if self.viscous is not None:
+            FV, v_source = self.viscous_terms(W, Wb_face)
+            FA = FA - FV                                     # Navier-Stokes: inviscid minus viscous flux
         self.boundary_flux = FA[:, nI:]
         R = g.sum_over_faces(FA)
         R[1:-1] -= W[-1] * g.geometric_source               # well-balanced pressure term (see docstring)
         if self.source is not None:
             R -= self.source                                 # extra cell sources (MMS verification)
+        if v_source is not None:
+            R -= v_source                                    # axisymmetric hoop stress
         return -R / g.volumes, W
 
     def _residual_numba(self, U, second_order, W):
@@ -290,10 +417,17 @@ class EulerSolver:
         kn.fluxes(K.WL, K.WR, W, ghost_c, g.owner, g.neighbour, K.normals, g.flux_areas, K.weight, use_weight,
                   bool(second_order), K.R, K.cv, K.gamma, K.FA, K.bad)
         self.last_positivity = int(np.count_nonzero(K.bad))
+        source = self.source
+        if self.viscous is not None:
+            FV, v_source = self.viscous_terms(W, Wb_face)
+            K.FA -= FV                                      # Navier-Stokes: inviscid minus viscous flux
+            if v_source is not None:
+                source = v_source if source is None else source + v_source
         self.boundary_flux = K.FA[:, nI:].copy()          # a copy: the buffer is reused by the next stage
-        source = self.source if self.source is not None else K.no_source
+        use_source = source is not None
+        source = np.ascontiguousarray(source) if use_source else K.no_source
         dUdt = np.empty_like(W)
-        kn.face_sums(K.FA, W, K.slot_face, K.slot_sign, K.geometric_source, source, self.source is not None,
+        kn.face_sums(K.FA, W, K.slot_face, K.slot_sign, K.geometric_source, source, use_source,
                      g.volumes, dUdt)
         return dUdt, W
 
@@ -316,9 +450,10 @@ class EulerSolver:
             R, gamma, cv = self.kernels.R, self.kernels.gamma, self.kernels.cv
         else:
             R, gamma, cv = float(self.gas.R), float(self.gas.gamma(300.0)), float(self.gas.cv(300.0))
+        lam_visc = self.lam_visc if self.viscous is not None else b["no_visc"]
         kn.lusgs(np.ascontiguousarray(U), np.ascontiguousarray(W), np.ascontiguousarray(dUdt), g.volumes, dt,
                  b["slot_face"], b["slot_sign"], b["slot_other"], b["normals"], g.flux_areas, b["source_size"], R, gamma, cv,
-                 LUSGS_OMEGA, b["lam"], b["D"], b["work"], b["dU"])
+                 LUSGS_OMEGA, b["lam"], b["D"], b["work"], b["dU"], np.ascontiguousarray(lam_visc))
         return b["dU"].copy()
 
     def _limit_update(self, U, dU, limit):
@@ -346,8 +481,19 @@ class EulerSolver:
 
     def boundary_face_values(self, Wb_in, ghost_c):
         """Value at each boundary face centre for the gradients: the mean of inside and ghost state.
-        (The MMS verification overrides this with the exact solution.)"""
-        return 0.5 * (Wb_in + ghost_c)
+        No-slip walls: the wall velocity (zero) and, at an isothermal wall, the density of the wall temperature at the
+        inside pressure. (The MMS verification overrides this with the exact solution.)"""
+        out = 0.5 * (Wb_in + ghost_c)
+        if len(self.wall_local):
+            w = self.wall_local
+            out[1:-1, w] = 0.0
+            out[1, w] = self.wall_u
+            out[-1, w] = Wb_in[-1, w]
+            out[0, w] = Wb_in[0, w]
+            iso = ~np.isnan(self.wall_T)
+            if iso.any():
+                out[0, w[iso]] = Wb_in[-1, w[iso]] / (self.gas.R * self.wall_T[iso])
+        return out
 
     def _shock_weight(self, W, ghost_c):
         """HLLE blend weight per face from a pressure-jump sensor (flux.py, carbuncle fix).
@@ -375,7 +521,17 @@ class EulerSolver:
     # ---- time steps --------------------------------------------------------------------------------
 
     def time_steps(self, W, cfl):
-        """Stable time step of every cell [s] (local time stepping; take the minimum for a global step)."""
+        """Stable time step of every cell [s] (local time stepping; take the minimum for a global step).
+        Viscous runs: dt_i = CFL V_i / (Lambda_c + sum_f lambda_v,f A_f) (viscous.py)."""
+        dt = self._convective_time_steps(W, cfl)
+        if self.viscous is None:
+            return dt
+        g = self.geom
+        self.lam_visc = self.viscous_spectral_radius(W)
+        lam_v = np.abs(g.scatter) @ (self.lam_visc * g.planar_areas)       # [m³/s]
+        return cfl * g.planar_volumes / (cfl * g.planar_volumes / dt + lam_v)
+
+    def _convective_time_steps(self, W, cfl):
         g = self.geom
         if self.kernels is not None:
             from aeroflowsim.euler.kernels import time_steps
@@ -590,6 +746,7 @@ def _lusgs_buffers(solver):
     if buf is None:
         g, nv = solver.geom, solver.geom.dim + 2
         buf = solver._lusgs_buf = {"lam": np.empty(g.n_faces), "D": np.empty(g.n_cells), "work": np.empty(nv),
+                                   "no_visc": np.zeros(g.n_faces),
                                    "dU": np.empty((nv, g.n_cells)),
                                    "slot_face": np.ascontiguousarray(g.slot_face),
                                    "slot_sign": np.ascontiguousarray(g.slot_sign),
