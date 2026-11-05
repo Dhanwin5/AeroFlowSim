@@ -403,7 +403,7 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
     bcs = conditions(params, mesh, defaults)
     inlets = forces.patch_names_of(bcs, "total_pressure_inlet", "mass_flow_inlet", "supersonic_inlet")
     outlets = forces.patch_names_of(bcs, "pressure_outlet", "supersonic_outlet")
-    walls = forces.patch_names_of(bcs, "slip_wall")
+    walls = forces.patch_names_of(bcs, "slip_wall", "no_slip_wall")
     if not inlets or not outlets:
         raise ValueError("A nozzle needs at least one inlet and one outlet boundary condition.")
     p0, T0 = _inlet_total_state(bcs, params)
@@ -461,11 +461,17 @@ def nozzle_problem(params, mesh, gas, defaults, restart=None) -> Problem:
             "Isp_2D_over_quasi1D": (F_vac / (mdot * G0) / isp_1d if mdot > 0 and isp_1d else 0.0, "-"),
             "A_throat": (A_t, "m²"),
         }
+        if solver.viscous is not None:
+            numbers.update(nozzle_viscous_numbers(solver, W, walls, 1.0))
         return numbers
 
     def series(solver, W):
         x, p = forces.wall_pressure(solver, walls)
-        return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_p_over_p0": p / p0}
+        out = {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_p_over_p0": p / p0}
+        if solver.viscous is not None:
+            out.update(viscous_series(solver, W, walls, (1.0, 0.0), p0, p0 / (gas.R * T0),
+                                      float(gas.sound_speed(T0)), float(gas.cp(T0)), T0))
+        return out
 
     return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, p0), initialisation=init,
                    monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"),
@@ -498,7 +504,7 @@ def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:
     bcs = conditions(params, mesh, defaults)
     inlets = forces.patch_names_of(bcs, "total_pressure_inlet", "mass_flow_inlet", "supersonic_inlet")
     outlets = forces.patch_names_of(bcs, "pressure_outlet", "supersonic_outlet")
-    walls = forces.patch_names_of(bcs, "slip_wall")
+    walls = forces.patch_names_of(bcs, "slip_wall", "no_slip_wall")
     if not inlets or not outlets:
         raise ValueError("A nozzle needs at least one inlet and one outlet boundary condition.")
     tp = next((bc for bc in bcs.values() if bc.type == "total_pressure_inlet"), None)
@@ -546,11 +552,15 @@ def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:
                 "Isp_vacuum": (F_vac / (mdot * G0) if mdot > 0 else 0.0, "s"),
                 "Isp_vacuum_wall": (F_wall / (mdot * G0) if mdot > 0 else 0.0, "s"),
                 "Cf_vacuum": (F_vac / (p0 * A_t), "-"), "Isp_quasi1D": (isp_1d, "s"),
-                "A_throat": (A_t, "m²"), "symmetry_factor": (factor, "-")}
+                "A_throat": (A_t, "m²"), "symmetry_factor": (factor, "-"),
+                **(nozzle_viscous_numbers(solver, W, walls, factor) if solver.viscous is not None else {})}
 
     def series(solver, W):
         x, p = forces.wall_pressure(solver, walls)
-        return {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_z": x[:, 2], "wall_p": p, "wall_p_over_p0": p / p0}
+        out = {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_z": x[:, 2], "wall_p": p, "wall_p_over_p0": p / p0}
+        if solver.viscous is not None:
+            out.update(viscous_series(solver, W, walls, (1.0, 0.0, 0.0), p0, rho0, c0, float(gas.cp(T0)), T0))
+        return out
 
     return Problem("nozzle", gas, bcs, W0, L_ref=2.0 * r_t, scales=(rho0, c0, c0, c0, p0), initialisation=init,
                    monitor=monitor, monitor_labels=labels, converge_on=("thrust", "mdot_out"), monitor_scales={},
@@ -583,9 +593,9 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
     the run carries on from it.
     """
     bcs = conditions(params, mesh, defaults)
-    walls = forces.patch_names_of(bcs, "slip_wall")
+    walls = forces.patch_names_of(bcs, "slip_wall", "no_slip_wall")
     if not walls:
-        raise ValueError("A body in a free stream needs at least one slip-wall boundary (the body surface).")
+        raise ValueError("A body in a free stream needs at least one wall boundary (the body surface).")
     if mesh.dim == 3 and params.get("beta"):
         # the sideslip is a template input (not a column of the BC table): every free-stream condition gets it
         for bc in bcs.values():
@@ -627,6 +637,9 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
                    "drag": (f["D"], force_unit), "lift": (f["L"], force_unit),
                    "Fx": (f["Fx"], force_unit), "Fy": (f["Fy"], force_unit),
                    "q_inf": (q_inf, "Pa"), "A_ref": (A_ref, "m²"), "L_ref": (L_ref, "m")}
+        if solver.viscous is not None:
+            numbers.update(viscous_numbers(solver, W, walls, p_inf, q_inf, A_ref, direction, mirror, planes,
+                                           force_unit))
         if three_d:
             numbers.update({"Cy": (f["Cy"], "-"), "side_force": (f["Y"], "N"), "Fz": (f["Fz"], "N"),
                             "Mx": (f["Mx"], "N m"), "My": (f["My"], "N m"), "Mz": (f["Mz"], "N m"),
@@ -639,6 +652,9 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
         out = {"wall_x": x[:, 0], "wall_y": x[:, 1], "wall_p": p, "wall_Cp": (p - p_inf) / q_inf}
         if three_d:
             out["wall_z"] = x[:, 2]
+        if solver.viscous is not None:
+            T0_inf = T_inf * (1.0 + 0.5 * (float(gas.gamma(T_inf)) - 1.0) * M**2)
+            out.update(viscous_series(solver, W, walls, direction, q_inf, rho, speed, float(gas.cp(T_inf)), T0_inf))
         return out
 
     size = max(speed, c)
@@ -647,6 +663,51 @@ def external_problem(params, mesh, gas, defaults, A_ref, L_ref, x_ref, restart=N
                    initialisation=init, monitor=monitor, monitor_labels=labels,
                    converge_on=("Cd", "Cl"), monitor_scales={"Cd": 0.01, "Cl": 0.01, "Cm": 0.01},
                    finish=finish, series=series, continuation=continuation_of(restart) or interpolated_norm(mesh))
+
+
+# ---- viscous wall numbers (euler/wall_fields.py) --------------------------------------------------------
+
+def viscous_numbers(solver, W, walls, p_inf, q_inf, A_ref, direction, mirror, planes, force_unit) -> dict:
+    """Pressure and friction drag (along the drag direction), y+ of the first cells (max, mean) and the wall heat."""
+    from aeroflowsim.euler import wall_fields as wf
+    Fp, Ff = wf.force_split(solver, W, walls, p_inf)
+    d = np.asarray(direction, dtype=float)
+    factor = float(2 ** len(planes)) if planes else mirror
+    Dp, Df = factor * float(Fp @ d), factor * float(Ff @ d)
+    data = wf.wall_data(solver, W, walls)
+    yp = data["y_plus"]
+    return {"drag_pressure": (Dp, force_unit), "drag_friction": (Df, force_unit),
+            "Cd_pressure": (Dp / (q_inf * A_ref), "-"), "Cd_friction": (Df / (q_inf * A_ref), "-"),
+            "y_plus_max": (float(yp.max()) if len(yp) else 0.0, "-"),
+            "y_plus_mean": (float(yp.mean()) if len(yp) else 0.0, "-"),
+            "wall_heat": (factor * float(np.sum(data["q_w"] * data["area"]) * solver.full_circle),
+                          "W" if force_unit == "N" else "W/m")}
+
+
+def nozzle_viscous_numbers(solver, W, walls, factor) -> dict:
+    """Friction force on the nozzle wall along x (the thrust loss it causes), y+ and the heat flow into the wall."""
+    from aeroflowsim.euler import wall_fields as wf
+    _Fp, Ff = wf.force_split(solver, W, walls, 0.0)
+    data = wf.wall_data(solver, W, walls)
+    yp = data["y_plus"]
+    return {"wall_friction_x": (factor * float(Ff[0]), "N"),
+            "y_plus_max": (float(yp.max()) if len(yp) else 0.0, "-"),
+            "y_plus_mean": (float(yp.mean()) if len(yp) else 0.0, "-"),
+            "wall_heat": (factor * float(np.sum(data["q_w"] * data["area"]) * solver.full_circle), "W")}
+
+
+def viscous_series(solver, W, walls, direction, q_ref, rho_ref, speed_ref, cp, T0) -> dict:
+    """Wall fields of the no-slip walls (own coordinates wallv_x, ...): tau_w, Cf, q_w, St, y+, T_w."""
+    from aeroflowsim.euler import wall_fields as wf
+    data = wf.wall_data(solver, W, walls)
+    x = data["x"]
+    out = {"wallv_x": x[:, 0], "wallv_y": x[:, 1], "wall_tau": np.linalg.norm(data["tau_w"], axis=1),
+           "wall_Cf": wf.skin_friction(data, direction, q_ref), "wall_q": data["q_w"],
+           "wall_St": wf.stanton(data, rho_ref, speed_ref, cp, T0), "wall_y_plus": data["y_plus"],
+           "wall_T": data["T_w"]}
+    if x.shape[1] == 3:
+        out["wallv_z"] = x[:, 2]
+    return out
 
 
 # ---- solve ----------------------------------------------------------------------------------------------
@@ -728,6 +789,7 @@ def solve(problem, params, mesh, progress=None) -> Result:
     # One more residual evaluation of the final state, so the boundary fluxes (forces, mass flows) belong to it
     solver.residual(primitive_to_conserved(W, problem.gas), params["order"] == SECOND_ORDER, W)
     solver.stage0_boundary_flux = solver.boundary_flux
+    solver.stage0_viscous_flux = solver.boundary_viscous_flux
     numbers = problem.finish(solver, W, out) if problem.finish else {}
     numbers.update({"wall_time": (out.wall_time_s, "s"), "positivity_events": (float(out.positivity_events), "-"),
                     "cfl_final": (out.cfl_final, "-")})

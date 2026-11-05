@@ -1,0 +1,29 @@
+# Laminar flow in a square duct, 3D Navier-Stokes on hexahedra. Side a = 1 mm (hydraulic diameter D_h = a), length 8 a,
+# QUARTER domain (two symmetry planes through the duct axis), 64 x 12 x 12 cells; total-pressure inlet / pressure outlet
+# (p0 = 5.2 kPa, p = 5.0 kPa, T0 = 300 K): bulk Reynolds number about 50, centreline Mach about 0.15; air with CONSTANT
+# mu and k (as the Couette case); adiabatic no-slip walls. Measured at x = 6 a (entry length ~0.06 Re D_h = 3 a).
+# Exact fully developed solution: the Fourier series of White (2006, Viscous Fluid Flow, 3rd ed., eq. 3-48) for a
+# rectangular duct, EVALUATED in validate.py (300 terms): u_max / u_m = 2.0962 and the Darcy friction factor
+# f Re = 8 tau_w,mean D_h / (mu u_m) = 56.91 for a square (the series values; not typed from memory).
+# EXPECTED COMPRESSIBILITY EFFECT (stated before the run): pressure falls ~4 % along the duct; acceleration changes the
+# section's shear by O(gamma M^2 x 4 %) < 0.1 % - compared with the incompressible series.
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "Laminar flow in a square duct (3D, exact series solution)"
+case = "aeroflowsim/euler (EulerSolver 3D, viscous=Laminar)"
+
+[[reference]]
+id = "umax_over_umean"
+quantity = "Centreline / mean velocity at x = 6 a (reference: White eq. 3-48 series, evaluated)"
+value = 2.0962
+unit = "-"
+tolerance_percent = 1.0
+source = "White (2006), Viscous Fluid Flow, 3rd ed., eq. 3-48 (rectangular-duct series), evaluated in validate.py"
+
+[[reference]]
+id = "fRe"
+quantity = "Darcy friction factor x Reynolds number f Re at x = 6 a (reference: series)"
+value = 56.91
+unit = "-"
+tolerance_percent = 1.0
+source = "White (2006) eq. 3-48 series, evaluated in validate.py"

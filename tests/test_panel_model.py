@@ -73,7 +73,7 @@ def test_show_if_and_nested_show_if():
 def test_groups_in_schema_order_and_empty_groups_hidden():
     case = load_case("nozzle_axi")
     model = PanelModel(case.parameters())
-    groups = ["Geometry", "Mesh", "Inflation layers", "Gas", "Operating conditions", "Boundary conditions", "Numerics"]
+    groups = ["Geometry", "Mesh", "Inflation layers", "Gas", "Operating conditions", "Flow model", "Boundary conditions", "Numerics"]
     assert list(model.groups()) == groups          # schema order, then the Euler solver's own groups
     values = defaults(case.parameters())
     assert model.visible_groups(values) == groups   # 'inflation' box itself shows

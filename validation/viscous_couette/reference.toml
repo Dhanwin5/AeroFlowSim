@@ -1,0 +1,47 @@
+# Plane Couette flow with viscous heating (laminar Navier-Stokes, 2D quads and 3D hexahedra).
+# Gap H = 1 mm between an isothermal wall at rest (T_w = 300 K) and an isothermal wall sliding at U = 0.2 a (a at 300 K,
+# Mach 0.2), air with CONSTANT mu = 1.846e-5 Pa s and k = 0.02624 W/(m K) (values of air at 300 K), p = 1 kPa,
+# streamwise zero-gradient (fully developed) end boundaries. Exact solution (constant mu and k, any density): the shear
+# stress is uniform, so u = U y / H exactly, and the energy equation k T'' + mu (U/H)^2 = 0 gives the quadratic
+#     T = T_w + mu U^2 / (2 k) (y / H)(1 - y / H)      (White 2006, Viscous Fluid Flow, sec. 3-2; derived in validate.py)
+# EXPECTED COMPRESSIBILITY EFFECT (stated before the run): none on these quantities - with constant mu and k the solution
+# above is exact for the compressible equations (density varies with T, but neither tau nor the heat balance depends
+# on it). The pressure 1 kPa (Knudsen number 0.007, continuum) is chosen because at 1 atm the acoustic-to-diffusion
+# stiffness ratio makes LU-SGS converge too slowly without preconditioning (ledger entry 1); the exact solution does not
+# depend on p. Mesh 4 x 32 (2D) and 2 x 32 x 2 (3D).
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "Plane Couette flow with viscous heating (laminar, 2D and 3D)"
+case = "aeroflowsim/euler (EulerSolver, viscous=Laminar)"
+
+[[reference]]
+id = "shear_2d"
+quantity = "Wall shear stress / (mu U / H), 2D quads (from the solver's wall flux)"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.5
+source = "Exact solution of plane Couette flow (White 2006, Viscous Fluid Flow, 3rd ed., sec. 3-2)"
+
+[[reference]]
+id = "temperature_rise_2d"
+quantity = "Peak temperature rise (T - T_w at mid-gap, interpolated) / exact mu U^2 / (8 k), 2D"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.0
+source = "Exact quadratic temperature profile with viscous heating (same source)"
+
+[[reference]]
+id = "shear_3d"
+quantity = "Wall shear stress / (mu U / H), 3D hexahedra"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.5
+source = "Exact solution (as above)"
+
+[[reference]]
+id = "temperature_rise_3d"
+quantity = "Peak temperature rise / exact, 3D"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.0
+source = "Exact solution (as above)"

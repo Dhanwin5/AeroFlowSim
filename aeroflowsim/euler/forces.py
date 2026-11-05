@@ -125,7 +125,11 @@ def wall_pressure(solver, names):
         A = g.flux_areas[g.n_interior + local]
         ok = A > 0.0
         n = solver.boundary_normals[local]
-        p = np.einsum("kf,fk->f", solver.stage0_boundary_flux[1:-1, local], n)
+        flux = solver.stage0_boundary_flux[1:-1, local]
+        visc = getattr(solver, "stage0_viscous_flux", None)
+        if visc is not None:
+            flux = flux + visc[1:-1, local]                 # viscous runs: the inviscid part (p n A) only
+        p = np.einsum("kf,fk->f", flux, n)
         xs.append(g.face_centres[g.n_interior + local][ok])
         ps.append(p[ok] / A[ok])
     if not xs:

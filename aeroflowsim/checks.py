@@ -671,9 +671,45 @@ def axisymmetric_incidence(case, params, mesh, result):
                        "have an angle of attack. Set the angle to 0, or use a planar (2D) body for incidence.")
 
 
-SETUP_CHECKS = [axisymmetric_incidence]   # checks of the inputs and the mesh, before the solver starts
+def wall_y_plus(case, params, mesh, result):
+    """Viscous runs: y+ of the first cells. The low-Re wall treatment (no wall functions) needs y+ about 1; above 2
+    the wall shear and heat flux of a turbulent boundary layer are not resolved."""
+    from aeroflowsim.euler.viscous import TURBULENT_MODELS, is_viscous
+    from aeroflowsim.smart_rules import MAX_WALL_Y_PLUS
+    numbers = (result.key_numbers or {}) if result is not None else {}
+    if not is_viscous(params.get("flow_model")) or "y_plus_max" not in numbers:
+        return None
+    yp = float(numbers["y_plus_max"][0])
+    turbulent = params.get("flow_model") in TURBULENT_MODELS
+    if yp > MAX_WALL_Y_PLUS:
+        return CheckResult("Wall y+", "warning" if turbulent else "info",
+                           f"y+ of the first cell reaches {yp:.3g} (above {MAX_WALL_Y_PLUS:g}). "
+                           + ("The turbulence model has a low-Re wall treatment only (no wall functions): re-mesh with a "
+                              "first layer for y+ about 1 (Mesh step, inflation layers; the smart rule suggests the "
+                              "height)." if turbulent else
+                              "For laminar flow this is acceptable while about 10 cells span the boundary layer; for "
+                              "accurate wall shear and heat flux use a first layer for y+ about 1."), yp, "-")
+    return CheckResult("Wall y+", "info", f"y+ of the first cell is at most {yp:.3g} (wall-resolved).", yp, "-")
 
-FLOW_CHECKS = [run_status, monitors_settled, thrust_two_ways, total_pressure_loss, positivity_events, cfl_reductions]
+
+def slip_walls_in_viscous_flow(case, params, mesh, result):
+    """A viscous flow model with a wall the user set to 'slip wall': allowed (e.g. a far wall), but worth a note."""
+    from aeroflowsim.euler.viscous import is_viscous
+    if not is_viscous(params.get("flow_model")):
+        return None
+    table = params.get("boundaries") or {}
+    slip = [name for name, bc in table.items() if isinstance(bc, dict) and bc.get("type") == "slip_wall"]
+    if not slip:
+        return None
+    return CheckResult("Slip walls in viscous flow", "warning",
+                       f"The flow model is {params['flow_model']}, but {', '.join(slip)} is set to 'Slip wall' (no "
+                       "friction there). Set it to 'No-slip wall' unless that is intended.", float(len(slip)), "")
+
+
+SETUP_CHECKS = [axisymmetric_incidence, slip_walls_in_viscous_flow]   # checks of the inputs and the mesh, before the solver starts
+
+FLOW_CHECKS = [run_status, monitors_settled, thrust_two_ways, total_pressure_loss, positivity_events, cfl_reductions,
+               wall_y_plus]
 
 # Every check, in the order shown. Add new checks here.
 CHECKS = [convergence, mass_balance] + FLOW_CHECKS + SETUP_CHECKS + GAS_CHECKS + MESH_CHECKS

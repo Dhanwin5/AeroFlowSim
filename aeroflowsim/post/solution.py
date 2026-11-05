@@ -129,8 +129,11 @@ class Solution:
                 numerics = numerics_of(self.params)
             except (KeyError, ValueError):
                 pass
+        from aeroflowsim.euler.setup import viscous_settings
         solver = EulerSolver(self.mesh, self.gas, self.conditions, numerics, L_ref=self.info.get("L_ref", 1.0),
-                             scales=self.info.get("scales"))
+                             scales=self.info.get("scales"), viscous=viscous_settings(self.params))
+        if solver.viscous is not None and "mu_t" in self.fields:
+            solver.mu_t = np.asarray(self.fields["mu_t"], dtype=float)      # turbulent runs: the stored eddy viscosity
         frozen = self.series.get("limiter_frozen")
         if frozen is not None and np.shape(frozen) == (4, self.mesh.n_cells):
             solver.psi_frozen = np.asarray(frozen, dtype=float)
@@ -145,8 +148,30 @@ class Solution:
 
     @cached_property
     def boundary_values(self) -> np.ndarray:
-        """State (4, B) at every boundary face centre: mean of the inside cell and the ghost state."""
+        """State (4, B) at every boundary face centre: mean of the inside cell and the ghost state (no-slip walls:
+        the wall velocity and temperature, exactly as the solver's boundary values)."""
+        if self._solver is not None:
+            return self._solver.boundary_face_values(self.W[:, self.geom.boundary_owner], self.ghost_states)
         return 0.5 * (self.W[:, self.geom.boundary_owner] + self.ghost_states)
+
+    @property
+    def viscous(self) -> bool:
+        """True for a run with a viscous flow model (Laminar, SA, SST)."""
+        from aeroflowsim.euler.viscous import is_viscous
+        return is_viscous(self.params.get("flow_model"))
+
+    @cached_property
+    def wall_data(self) -> dict:
+        """Wall quantities of the no-slip walls (euler/wall_fields.wall_data) from one residual evaluation of this
+        state: shear stress, heat flux, y+, ... per wall face (empty dict for Euler results)."""
+        from aeroflowsim.euler.state import primitive_to_conserved
+        from aeroflowsim.euler.wall_fields import wall_data
+        s = self._solver
+        if s is None or s.viscous is None:
+            return {}
+        second = self.params.get("order", "Second order") != "First order"
+        s.residual(primitive_to_conserved(self.W, self.gas), second, self.W)
+        return wall_data(s, self.W)
 
     @cached_property
     def gradients(self) -> np.ndarray:

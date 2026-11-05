@@ -1,0 +1,32 @@
+# Heat transfer of a laminar flat plate at Mach 2 (addendum 3 b, c). Same plate and grading as viscous_blasius, air
+# (Sutherland viscosity, constant Pr 0.72), M = 2, T_inf = 200 K, Re per metre 2e6; supersonic inlet, far field above,
+# supersonic outlet. Measured at Re_x = 1e5 (x = 50 mm).
+# (b) ADIABATIC wall: wall temperature = recovery temperature T_aw = T_inf (1 + r (gamma - 1)/2 M^2), r = sqrt(Pr)
+#     (laminar recovery factor; Schlichting & Gersten 2017 sec. 10.4 / White 2006 sec. 7-3): T_aw = 335.8 K.
+# (c) ISOTHERMAL wall T_w = 300 K: wall heat flux into the wall against the Reynolds analogy with Eckert's reference
+#     temperature: T* = T_inf (0.5 + 0.039 M^2 + 0.5 T_w/T_inf), Cf = 0.664 sqrt(C*) / sqrt(Re_x) with
+#     C* = rho* mu* / (rho_inf mu_inf), St = Cf / (2 Pr^(2/3)), q_w = St rho_inf U_inf cp (T_aw - T_w)
+#     (White 2006 sec. 7-4.4, eqs. 7-44 and 7-45; evaluated in validate.py).
+# EXPECTED SIZE OF THE MODEL ERROR (stated before the run): sqrt(Pr) approximates the similarity recovery factor of air
+# to ~0.5 % of r, i.e. ~0.1 % of T_aw; the reference-temperature method is an engineering fit, typically within 2-3 % of
+# the similarity solution at M = 2 - inside the 1 % and 5 % tolerances.
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "Laminar flat plate at Mach 2: recovery temperature and wall heat flux"
+case = "aeroflowsim/euler (EulerSolver, viscous=Laminar)"
+
+[[reference]]
+id = "recovery_temperature"
+quantity = "Adiabatic wall temperature / T_aw (r = sqrt(Pr)) at Re_x = 1e5"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.0
+source = "Laminar recovery factor r = sqrt(Pr): White (2006), Viscous Fluid Flow, 3rd ed., sec. 7-3"
+
+[[reference]]
+id = "heat_flux"
+quantity = "Wall heat flux / reference-temperature Reynolds-analogy estimate at Re_x = 1e5 (T_w = 300 K)"
+value = 1.0
+unit = "-"
+tolerance_percent = 5.0
+source = "Eckert reference temperature + Reynolds analogy St = Cf/(2 Pr^(2/3)): White (2006) sec. 7-4.4"

@@ -75,9 +75,64 @@ _DERIVED = {
     "residual_density": ("Residual of the last iteration (density)", "-", "Residual"),
     "residual_energy": ("Residual of the last iteration (energy)", "-", "Residual"),
     "x": ("x coordinate", "m", "Mesh quality"),
+    "mu": ("Molecular viscosity", "Pa s", "Viscous"),
+    "mu_t_ratio": ("Eddy-viscosity ratio mu_t / mu", "-", "Viscous"),
+    "wall_shear": ("Wall shear stress", "Pa", "Wall"),
+    "skin_friction": ("Skin-friction coefficient Cf", "-", "Wall"),
+    "wall_heat_flux": ("Wall heat flux (into the wall)", "W/m²", "Wall"),
+    "stanton": ("Stanton number", "-", "Wall"),
+    "y_plus": ("Wall y+ of the first cell", "-", "Wall"),
     "y": ("y coordinate (radius)", "m", "Mesh quality"),
 }
 SCHLIEREN_K = 15.0
+VISCOUS_ONLY = ("mu", "mu_t_ratio", "wall_shear", "skin_friction", "wall_heat_flux", "stanton", "y_plus")
+WALL_FIELDS = ("wall_shear", "skin_friction", "wall_heat_flux", "stanton", "y_plus")
+
+
+def wall_face_values(sol, name) -> np.ndarray:
+    """(B,) value of a wall field at every boundary face: the no-slip wall faces get theirs, the others NaN.
+    Cf and St use the reference values of the result (free stream for bodies, inlet total state for nozzles)."""
+    data = sol.wall_data
+    out = np.full(sol.geom.n_boundary, np.nan)
+    if not data:
+        return out
+    from aeroflowsim.euler import wall_fields as wf
+    if name == "wall_shear":
+        vals = np.linalg.norm(data["tau_w"], axis=1)
+    elif name == "wall_heat_flux":
+        vals = data["q_w"]
+    elif name == "y_plus":
+        vals = data["y_plus"]
+    else:
+        ref = _wall_reference(sol)
+        if name == "skin_friction":
+            vals = wf.skin_friction(data, ref["direction"], ref["q"])
+        else:
+            vals = wf.stanton(data, ref["rho"], ref["speed"], ref["cp"], ref["T0"])
+    out[data["faces"]] = vals
+    return out
+
+
+def _wall_reference(sol) -> dict:
+    """Reference state of Cf and St: the free stream (external) or the inlet total state (internal flow)."""
+    gas, p = sol.gas, sol.params
+    if sol.kind == "external" and {"mach", "p_inf", "T_inf"} <= set(p):
+        M, T = p["mach"], p["T_inf"]
+        g = float(gas.gamma(T))
+        a = math.radians(p.get("alpha", 0.0))
+        rho = p["p_inf"] / (gas.R * T)
+        speed = M * float(gas.sound_speed(T))
+        return {"direction": (math.cos(a), math.sin(a), 0.0), "q": 0.5 * rho * speed**2, "rho": rho, "speed": speed,
+                "cp": float(gas.cp(T)), "T0": T * (1.0 + 0.5 * (g - 1.0) * M * M)}
+    p0, T0 = None, None
+    for bc in sol.conditions.values():
+        if bc.type == "total_pressure_inlet":
+            p0, T0 = bc.values["p0"], bc.values["T0"]
+            break
+    p0 = p0 or p.get("p0", 101325.0)
+    T0 = T0 or p.get("T0", 300.0)
+    return {"direction": (1.0, 0.0, 0.0), "q": p0, "rho": p0 / (gas.R * T0), "speed": float(gas.sound_speed(T0)),
+            "cp": float(gas.cp(T0)), "T0": T0}
 
 
 def field_info(sol, name) -> FieldInfo:
@@ -107,7 +162,8 @@ def field_info(sol, name) -> FieldInfo:
 def available_fields(sol) -> list:
     """Every field this solution can show, in a sensible order (FieldInfo list)."""
     names = [k for k in _BASE if k in sol.fields] + [k for k in sol.fields if k not in _BASE]
-    names += list(_DERIVED) + list(sol.custom_fields)
+    viscous = getattr(sol, "viscous", False)
+    names += [k for k in _DERIVED if viscous or k not in VISCOUS_ONLY] + list(sol.custom_fields)
     return [field_info(sol, n) for n in names]
 
 
@@ -190,6 +246,21 @@ def _compute(sol, name, stack):
         return np.abs(R[k]) / scale
     if name in ("x", "y"):
         return sol.geom.cell_centres[:, 0 if name == "x" else 1]
+    if name == "mu":
+        from aeroflowsim.euler.state import temperature
+        return np.asarray(gas.mu(temperature(W, gas)), dtype=float)
+    if name == "mu_t_ratio":
+        mu_t = sol.fields.get("mu_t")
+        if mu_t is None:
+            return np.zeros(sol.mesh.n_cells)
+        return mu_t / _compute(sol, "mu", stack)
+    if name in WALL_FIELDS:
+        # cells next to a no-slip wall carry the value of their wall face (for contours); the others NaN
+        faces = wall_face_values(sol, name)
+        out = np.full(sol.mesh.n_cells, np.nan)
+        ok = ~np.isnan(faces)
+        out[sol.geom.boundary_owner[ok]] = faces[ok]
+        return out
     if name in sol.custom_fields:
         if name in stack:
             raise FieldError(f"The custom field '{name}' uses itself (directly or through another custom field).")
@@ -238,6 +309,8 @@ def boundary_face_values(sol, name, values=None) -> np.ndarray:
         pointwise["w"] = lambda: Wb[3]
     if name in pointwise:
         return pointwise[name]()
+    if name in WALL_FIELDS:
+        return wall_face_values(sol, name)
     if name in ("T", "M", "p0", "T0", "s", "speed", "h", "h0", "Cp"):
         face_sol = _FaceState(sol, Wb)
         return np.asarray(_compute(face_sol, name, set()), dtype=float)

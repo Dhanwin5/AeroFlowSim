@@ -1,0 +1,40 @@
+# Laminar flat plate (Blasius), 2D and its one-layer 3D extrusion. Plate 0 < x < 0.1 m, symmetry plane ahead of it
+# (-0.05 m < x < 0), air (Sutherland viscosity, Pr 0.72) at M = 0.2, T = 300 K, Re per metre 2e6 (p = 45.8 kPa), far
+# field above (0.05 m) and upstream, pressure outlet; adiabatic no-slip plate. Graded quads 140 x 64 (first cell
+# 1e-5 m, 0.1 mm at the leading edge). Cf from the solver's wall flux at Re_x = 1e4, 3e4 and 1e5 (x = 5, 15, 50 mm);
+# delta_99 (u = 0.99 U, interpolated in the cell column) at Re_x = 1e5.
+# Reference: the Blasius similarity solution f''' + f f''/2 = 0 is SOLVED in validate.py (shooting, f''(0) = 0.33206):
+# Cf sqrt(Re_x) = 0.664, delta_99 sqrt(Re_x)/x = 4.91 (Schlichting & Gersten 2017, Boundary-Layer Theory, 9th ed.,
+# sec. 6.5; the numbers used are those of the solved ODE, not typed in).
+# EXPECTED COMPRESSIBILITY EFFECT (stated before the run): at M = 0.2 the adiabatic-wall temperature rises 0.7 % and the
+# Chapman-Rubesin factor differs from 1 by < 0.5 %: Cf changes by < 0.5 % - inside the tolerance, compared with the
+# incompressible Blasius values. The 3D run is the same mesh extruded one cell (symmetry sides): Cf equal to 2D within
+# 0.1 %.
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "Laminar flat plate (Blasius), 2D and one-layer 3D extrusion"
+case = "aeroflowsim/euler (EulerSolver, viscous=Laminar)"
+
+[[reference]]
+id = "cf_worst"
+quantity = "Cf / Cf_Blasius at Re_x = 1e4, 3e4, 1e5: the value furthest from 1"
+value = 1.0
+unit = "-"
+tolerance_percent = 3.0
+source = "Blasius solution (solved in validate.py); Schlichting & Gersten (2017) sec. 6.5"
+
+[[reference]]
+id = "delta99"
+quantity = "delta_99 / delta_99,Blasius at Re_x = 1e5"
+value = 1.0
+unit = "-"
+tolerance_percent = 5.0
+source = "Blasius solution (solved in validate.py)"
+
+[[reference]]
+id = "extrusion_3d"
+quantity = "Cf (3D one-layer extrusion) / Cf (2D) at Re_x = 1e5"
+value = 1.0
+unit = "-"
+tolerance_percent = 0.1
+source = "Consistency: a one-cell extrusion with symmetry sides is the same discrete problem"

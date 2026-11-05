@@ -187,6 +187,18 @@ class EulerSolver:
         self.wall_local = np.concatenate(wall) if wall else np.zeros(0, dtype=np.int64)
         self.wall_T = np.concatenate(T_wall) if T_wall else np.zeros(0)
         self.wall_u = np.concatenate(U_wall) if U_wall else np.zeros(0)      # x velocity of a sliding wall [m/s]
+        nB = self.geom.n_boundary
+        self.wall_u_face = np.zeros(nB)                 # the same per boundary face (0 elsewhere)
+        self.wall_u_face[self.wall_local] = self.wall_u
+        self.wall_T_face = np.full(nB, np.nan)          # isothermal wall temperature per boundary face (NaN elsewhere)
+        self.wall_T_face[self.wall_local] = self.wall_T
+        self.boundary_viscous_flux = None               # (n_vars, B) viscous flux x area of the last residual
+
+    def wall_T_of(self, local, W):
+        """Wall temperature [K] of boundary faces `local`: T_wall (isothermal) or the inside cell's T (adiabatic)."""
+        T_in = W[-1, self.geom.boundary_owner[local]] / (W[0, self.geom.boundary_owner[local]] * self.gas.R)
+        Tw = self.wall_T_face[local]
+        return np.where(np.isnan(Tw), T_in, Tw)
 
     def _setup_viscous(self):
         from aeroflowsim.euler.viscous import ViscousOperator
@@ -371,6 +383,7 @@ class EulerSolver:
         if self.viscous is not None:
             FV, v_source = self.viscous_terms(W, Wb_face)
             FA = FA - FV                                     # Navier-Stokes: inviscid minus viscous flux
+            self.boundary_viscous_flux = FV[:, nI:]
         self.boundary_flux = FA[:, nI:]
         R = g.sum_over_faces(FA)
         R[1:-1] -= W[-1] * g.geometric_source               # well-balanced pressure term (see docstring)
@@ -421,6 +434,7 @@ class EulerSolver:
         if self.viscous is not None:
             FV, v_source = self.viscous_terms(W, Wb_face)
             K.FA -= FV                                      # Navier-Stokes: inviscid minus viscous flux
+            self.boundary_viscous_flux = FV[:, nI:].copy()
             if v_source is not None:
                 source = v_source if source is None else source + v_source
         self.boundary_flux = K.FA[:, nI:].copy()          # a copy: the buffer is reused by the next stage
@@ -725,6 +739,7 @@ class EulerSolver:
         """One multistage step; returns (new U, residual dU/dt of the first stage)."""
         R0, _ = self.residual(U, second, W)
         self.stage0_boundary_flux = self.boundary_flux     # fluxes of the state W, for the monitors
+        self.stage0_viscous_flux = self.boundary_viscous_flux
         if self.numerics.time_scheme == LUSGS and self.numerics.end_time is None:
             dU = self._lusgs(U, W, R0, dt)
             if self.numerics.update_limit > 0.0:

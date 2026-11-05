@@ -1,0 +1,43 @@
+# Laminar flow in a circular tube (Hagen-Poiseuille), 2D AXISYMMETRIC Navier-Stokes. Tube radius R = 0.5 mm, length
+# 40 R (20 D), total-pressure inlet (p0 = 5.1 kPa, T0 = 300 K) and pressure outlet (4.6 kPa): bulk Reynolds number about
+# 100, centreline Mach number about 0.2; air with CONSTANT mu = 1.846e-5 Pa s, k = 0.02624 W/(m K); adiabatic no-slip
+# wall; 200 x 20 quads. Measured at x = 15 D (entry length 0.06 Re D ~ 6 D, so fully developed), from the section's
+# cells: area-mean velocity u_m, centreline velocity (quadratic fit of the cells nearest the axis), wall shear (the
+# solver's wall flux) and the wall-pressure gradient (linear fit over 14 D - 16 D).
+# Exact (incompressible, fully developed; White 2006 sec. 3-3.1): u = 2 u_m (1 - r^2/R^2), so u_max / u_m = 2,
+# tau_w = 4 mu u_m / R, dp/dx = -8 mu u_m / R^2.
+# EXPECTED COMPRESSIBILITY EFFECT (stated before the run): the pressure falls ~9 % along the tube, so density falls and
+# the flow ACCELERATES; the momentum balance of a section then has the extra inertia term beta rho u_m du_m/dx
+# (beta = 4/3 for a parabolic profile), of relative size ~ gamma beta M_m^2 ~ 2 %, larger than the 1 % tolerance. The
+# pressure gradient is therefore compared with the COMPRESSIBLE reference  dp/dx = -8 mu u_m/R^2 - beta rho u_m du_m/dx
+# (du_m/dx from the u_m of the sections at 14 D and 16 D). The profile shape and tau_w R / (mu u_m) change only by
+# O(M^2 x local acceleration) ~ 0.1 %: compared with the incompressible exact values.
+# The pressure (a few kPa, Knudsen 0.002) keeps the acoustic stiffness of LU-SGS manageable (ledger entry 1).
+# PRE-REGISTERED 5 Nov 2026 (viscous-flow stage, before the validation run). A miss is a SHORTFALL with its cause.
+
+title = "Hagen-Poiseuille flow in a tube (laminar, axisymmetric)"
+case = "aeroflowsim/euler (EulerSolver, axisymmetric, viscous=Laminar)"
+
+[[reference]]
+id = "umax_over_umean"
+quantity = "Centreline / area-mean velocity at x = 15 D"
+value = 2.0
+unit = "-"
+tolerance_percent = 1.0
+source = "Hagen-Poiseuille exact solution (White 2006, Viscous Fluid Flow, 3rd ed., sec. 3-3.1)"
+
+[[reference]]
+id = "wall_shear"
+quantity = "tau_w R / (mu u_m) at x = 15 D (Darcy f Re = 64)"
+value = 4.0
+unit = "-"
+tolerance_percent = 1.0
+source = "Hagen-Poiseuille exact solution (as above)"
+
+[[reference]]
+id = "pressure_drop"
+quantity = "dp/dx / (-8 mu u_m / R^2 - (4/3) rho u_m du_m/dx), at 15 D"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.0
+source = "Hagen-Poiseuille pressure drop with the compressible momentum-flux correction (derivation in reference.toml header)"

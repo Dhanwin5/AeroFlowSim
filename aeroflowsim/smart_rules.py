@@ -228,6 +228,39 @@ def suggestions(built, context) -> list[Suggestion]:
 TARGET_Y_PLUS = 1.0          # wall-resolved boundary layers (laminar / low-Re models) [-]
 STRONG_SHOCK_MACH = 3.0      # free-stream Mach number above which the bow shock counts as strong [-]
 LOW_MACH = 0.3               # below this an explicit density-based solver converges slowly [-]
+RE_TURBULENT = 1e5           # Reynolds number above which a nozzle / body boundary layer is taken as turbulent [-]
+MAX_WALL_Y_PLUS = 2.0        # y+ of the first cell above this: the low-Re wall treatment is not resolved [-]
+
+
+def flow_model_suggestion(case, params) -> list:
+    """Flow model from the Reynolds number: laminar below about 1e5, turbulent (SA or SST) above (nozzles and bodies;
+    transition is not modelled, so turbulent means fully turbulent). Only when the choice disagrees with Re."""
+    if "flow_model" not in params:
+        return []
+    try:
+        flow = flow_scales(case, params)
+    except Exception:           # noqa: BLE001 - a template without the inputs this needs: no suggestion
+        flow = None
+    if not flow:
+        return []
+    Re, model = flow["Re"], params["flow_model"]
+    basis = f"Re = {Re:.3g} (based on the {flow['where']} state and L = {length_text(flow['L'])})"
+    if Re >= RE_TURBULENT and model in ("Euler", "Laminar"):
+        return [Suggestion("Flow model", "Spalart-Allmaras", f"{basis}: above about 1e5 the boundary layer of a nozzle "
+                           "or body is normally turbulent. SA is robust and standard for attached aerodynamic flows "
+                           "(k-omega SST for adverse pressure gradients and separation). Fully turbulent, low-Re wall "
+                           "treatment only: mesh for y+ about 1." + (" Euler ignores viscosity altogether."
+                                                                     if model == "Euler" else ""),
+                           "input", {"flow_model": "Spalart-Allmaras"})]
+    if Re < RE_TURBULENT and model in ("Spalart-Allmaras", "k-omega SST"):
+        return [Suggestion("Flow model", "Laminar", f"{basis}: below about 1e5 the boundary layer is normally "
+                           "laminar; a fully turbulent model would over-predict friction and heat transfer.",
+                           "input", {"flow_model": "Laminar"})]
+    if model == "Euler" and Re < RE_TURBULENT:
+        return [Suggestion("Flow model", "Laminar", f"{basis}: at this Reynolds number viscous losses (friction, "
+                           "discharge coefficient, Isp loss) are noticeable; the Laminar model includes them.", "input",
+                           {"flow_model": "Laminar"})]
+    return []
 
 
 def flow_scales(case, params) -> dict | None:
@@ -278,7 +311,8 @@ def first_layer(built, context):
     value = float(f"{h / scale:.2g}")
     reason = (f"Re = {flow['Re']:.3g} (based on the {flow['where']} state and L = {length_text(flow['L'])}): "
               f"y+ = {TARGET_Y_PLUS:g} needs a first cell about {length_text(h)} high (flat-plate estimate). "
-              "Inviscid (Euler) runs do not need inflation layers; they are for viscous flow (Phase 4).")
+              "Inviscid (Euler) runs do not need inflation layers; viscous runs (Laminar, SA, SST) need them: the "
+              "low-Re wall treatment has no wall functions.")
     return [Suggestion("First layer height", f"{length_text(h)}  ({key} = {value:g})", reason, "input", {key: value})]
 
 
@@ -302,6 +336,7 @@ def numerics_suggestions(case, params, mesh=None) -> list:
                 "node. The update limit keeps a cell's pressure positive in strong expansions (the wake of a blunt body). "
                 "Measured: the 30 deg ramp on tetrahedra 0.26 -> 4e-8, the 10 deg cone converged, no divergence.",
                 "input", {"gradient": SIMPLEX_GRADIENT, "update_limit": SIMPLEX_UPDATE_LIMIT}))
+    out += flow_model_suggestion(case, params)
     mach = params.get("mach")
     if mach is not None and mach >= STRONG_SHOCK_MACH:
         out.append(Suggestion("Strong-shock start", "CFL 0.5, 500 first-order iterations, carbuncle fix on",

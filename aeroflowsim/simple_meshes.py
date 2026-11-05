@@ -181,6 +181,51 @@ def box_mesh_3d(n=4, kind="hexahedra", lo=(0.0, 0.0, 0.0), hi=(1.0, 1.0, 1.0), w
     return Mesh.from_cells(nodes, types, cells, boundary)
 
 
+def graded_rectangle(xs, ys, bottom=(("bottom", "wall", None),), kinds=None, axisymmetric=False):
+    """Structured quads on the node coordinates xs (nx + 1) x ys (ny + 1) (any grading, e.g. geometric towards a wall).
+
+    bottom: [(patch name, patch type, x_end)] splitting the bottom edge at x_end (None = to the end), e.g. a symmetry
+    plane ahead of a flat plate and the plate itself. Other patches: left, right, top with types from kinds (default
+    inlet, outlet, farfield). Used by the viscous validation cases (flat plate, tube, Couette)."""
+    xs, ys = np.asarray(xs, dtype=float), np.asarray(ys, dtype=float)
+    nx, ny = len(xs) - 1, len(ys) - 1
+    kinds = {"left": "inlet", "right": "outlet", "top": "farfield", **(kinds or {})}
+    X, Y = np.meshgrid(xs, ys, indexing="ij")
+    nodes = np.column_stack([X.ravel(), Y.ravel()])
+    nid = lambda i, j: i * (ny + 1) + j
+    cells = [[nid(i, j), nid(i + 1, j), nid(i + 1, j + 1), nid(i, j + 1)] for i in range(nx) for j in range(ny)]
+    boundary = {"left": (kinds["left"], [[nid(0, j), nid(0, j + 1)] for j in range(ny)]),
+                "right": (kinds["right"], [[nid(nx, j), nid(nx, j + 1)] for j in range(ny)]),
+                "top": (kinds["top"], [[nid(i, ny), nid(i + 1, ny)] for i in range(nx)])}
+    start = 0
+    for name, kind, x_end in bottom:
+        stop = nx if x_end is None else int(np.argmin(np.abs(xs - x_end)))
+        boundary[name] = (kind, [[nid(i, 0), nid(i + 1, 0)] for i in range(start, stop)])
+        start = stop
+    return Mesh.from_cells(nodes, np.full(len(cells), QUAD), np.array(cells), boundary, axisymmetric=axisymmetric)
+
+
+def geometric_points(start, stop, n, first):
+    """n + 1 points from start to stop whose first spacing is `first`, growing geometrically (ratio found by bisection)."""
+    L = stop - start
+    if first * n >= L:
+        return np.linspace(start, stop, n + 1)
+    lo, hi = 1.0 + 1e-12, 2.0
+    while first * (hi**n - 1.0) / (hi - 1.0) < L:
+        hi *= 2.0
+    for _ in range(200):
+        r = 0.5 * (lo + hi)
+        if first * (r**n - 1.0) / (r - 1.0) > L:
+            hi = r
+        else:
+            lo = r
+    r = 0.5 * (lo + hi)
+    d = first * r ** np.arange(n)
+    pts = start + np.concatenate([[0.0], np.cumsum(d)])
+    pts[-1] = stop
+    return pts
+
+
 def _all_boundary_faces(types, cells):
     """Node lists (padded with -1) of every face that belongs to one cell only."""
     from aeroflowsim.mesh import _find_faces, MAX_CELL_NODES
