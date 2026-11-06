@@ -150,3 +150,8 @@ At the very end give me a plain-language summary: what works now, how a new user
   without calling `run`: safe, check not met), q1d_shock (software does not converge at 2.5 bar; agent honest).
 * Bugs found by the evals and fixed: 1D continue / CLI re-run crash (Project.interpolation_source), bridge UTF-8.
 * Next: Part 6 - full tests, quick validation, push.
+
+### Ledger 6 (Part 6, 2026-11-07)
+- Fast + GUI tests: 1319 passed, 1 skipped (93 GUI tests included).
+- Quick validation: only timings changed; every validated number identical; the same 7 known shortfalls as before (none new).
+- Pushed. No tag, release or settings change.
