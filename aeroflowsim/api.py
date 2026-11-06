@@ -478,8 +478,8 @@ class Api:
             from aeroflowsim.mesh import CELL_TYPES
             import numpy as np
             types, counts = np.unique(mesh.cell_types, return_counts=True)
-            out["cell_types"] = {CELL_TYPES.get(int(t), str(t)) if isinstance(CELL_TYPES, dict) else str(int(t)):
-                                 int(n) for t, n in zip(types, counts)}
+            out["cell_types"] = {getattr(CELL_TYPES.get(int(t)), "name", str(int(t))): int(n)
+                                 for t, n in zip(types, counts)}
         if hasattr(mesh, "patches"):
             out["patches"] = [{"name": untrusted(pt.name), "faces": int(pt.count)} for pt in mesh.patches]
         return out

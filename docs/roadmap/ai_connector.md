@@ -96,3 +96,18 @@ At the very end give me a plain-language summary: what works now, how a new user
 * Anomalies: boundary tables (type `boundaries`) are not settable by the AI (template defaults; edges with no
   suggested name need the GUI). Run-time estimate is a rough upper bound (max iterations x cells x measured cost).
 * Next: Part 2 tests through a real MCP client (server.py written; in-process Client lists 25 tools, image works).
+
+### Ledger entry 2 (6 Nov 2026): Part 2 - MCP server
+* Done: `aeroflowsim/connector/server.py` (MCPServer of the official SDK mcp 2.3.0; every Api method a tool with its
+  docstring, read-only / non-destructive / closed-world annotations; get_plot returns a PNG image block; resources:
+  template schema, validation report, docs; refuses unless allowed; missing `mcp` -> install hint, exit 3).
+* SDK facts read from the installed source (the docs page did not cover them): `MCPServer.run("stdio")`; the stdio
+  transport points fd 1 at stderr while serving (Gmsh / OCC output cannot corrupt the protocol); `Client(server)`
+  connects in process for tests; the SDK imports the OpenTelemetry API only (no exporter, sends nothing).
+* Verified: tests/test_mcp_server.py 16 passed - EVERY template (discovered) through a real client: describe, create,
+  valid / invalid / wrong-unit inputs, shape or imported geometry, mesh, check, run, job_status, results, PNG plot,
+  export, report; tool list = API; off by default (function and CLI); `settings` turns it on; works without `mcp`;
+  `mcp` not imported unless serving; no non-loopback socket; the real `aeroflowsim mcp` process over stdio survives
+  OpenCASCADE printing during a STEP import.
+* Fixed: contour pictures of a nearly uniform field (relative band; same bug hit the report of a 10-iteration run).
+* Next: Part 3 - fetch current Claude Code plugin / Claude Desktop extension docs, then skill and bundles.

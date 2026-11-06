@@ -44,8 +44,8 @@ def _wrap(api: Api, name: str):
             from mcp.server.mcpserver import Image
             import base64
             png = base64.b64decode(out.pop("png_base64"))
-            return [Image(data=png, format="png"), json.dumps(out, ensure_ascii=False)]
-        return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+            return [Image(data=png, format="png"), json.dumps(out, ensure_ascii=False, default=str)]
+        return json.dumps(out, ensure_ascii=False, separators=(",", ":"), default=str)
 
     return tool_function
 
