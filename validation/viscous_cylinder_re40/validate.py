@@ -52,7 +52,8 @@ def run(name, n_body, n_normal, first):
 
 
 def measure():
-    med, cd_m, _ = run("Medium", 80 if is_quick() else 160, 40 if is_quick() else 80, 0.004 if is_quick() else 0.002)
+    # quick set too: a coarser O-grid out to 40 D would break the 1.1 growth limit of structured_mesh
+    med, cd_m, _ = run("Medium", 160, 80, 0.002)
     if is_quick():
         return {"L_over_D": float("nan"), "Cd": cd_m, "converged": float(med.converged), "cd_grid": 1.0}
     fine, cd_f, L_f = run("Fine", 320, 160, 0.001)
