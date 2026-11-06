@@ -38,8 +38,8 @@ def field_picture(sol, name, cmap="turbo", mirror=False, levels=None, title=None
     ax = fig.add_subplot()
     lo = float(np.nanmin(v)) if vmin is None else vmin
     hi = float(np.nanmax(v)) if vmax is None else vmax
-    if hi <= lo:
-        hi = lo + 1e-12
+    if hi <= lo:                       # a uniform field: a band wide enough to survive rounding (1e5 + 1e-12 == 1e5)
+        hi = lo + max(1e-12, 1e-9 * abs(lo))
     lv = np.linspace(lo, hi, 41)
     copies = [1.0, -1.0] if mirror else [1.0]
     for sign in copies:

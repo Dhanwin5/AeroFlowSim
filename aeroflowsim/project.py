@@ -64,6 +64,9 @@ MESH_1D_FILE = "mesh1d.npz"
 DEPENDS_ON = {"geometry": ("geometry",), "mesh": ("geometry", "mesh"), "run": INPUT_STEPS}
 
 
+AI_LOG = "ai_log.jsonl"         # every AI connector call on this project (aeroflowsim/api.py), one JSON line each
+AI_PROVENANCE = "Set up through the AI connector; inputs listed below."
+
 OPEN_FILE = "project.afsproj"   # a small file in every project folder; the installer associates .afsproj with AeroFlowSim
 
 POST_DEFAULTS = {

@@ -53,6 +53,8 @@ dependencies = [
 mesh = []
 # The optional assistant (docs/user_guide.md): only the online provider needs it (stores its key in the OS keyring).
 assistant = ["keyring"]
+# The optional AI connector (aeroflowsim mcp): the official MCP Python SDK (MIT), imported only by that command.
+ai = ["mcp==2.3.0"]
 
 [tool.setuptools.packages.find]
 # Every package under aeroflowsim/ (the templates, examples and docs are installed by setup.py as data files)

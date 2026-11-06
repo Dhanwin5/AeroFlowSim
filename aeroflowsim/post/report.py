@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from aeroflowsim import __version__
+from aeroflowsim.project import AI_LOG, AI_PROVENANCE
 from aeroflowsim.units import prefixed
 
 SECTIONS = ("Project", "Geometry and mesh", "Boundary conditions", "Gas", "Numerics", "Convergence",
@@ -104,6 +105,8 @@ def build(project, prefs=None, snapshots=True):
         ("Run fingerprint", str(run.get("fingerprint", ""))[:16]),
         ("Results up to date", "yes" if project.status("run") == "ok" else "NO (inputs changed since the run)")])
     d.text(f"All numbers are in {units_text}.")
+    if (project.folder / AI_LOG).is_file():        # provenance (AI connector, safety rule 6)
+        d.text(f"{AI_PROVENANCE} Every connector call is in {AI_LOG} in the project folder.")
 
     three_d = two_d and mesh.dim == 3
     d.section("Geometry and mesh")

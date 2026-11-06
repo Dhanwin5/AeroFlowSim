@@ -270,7 +270,21 @@ def main(argv=None):
     assist.add_argument("--allow-online", action="store_true", help="online: confirm that the text may leave this computer")
     assist_key = commands.add_parser("assist-key", help="store or remove the online provider's key in the OS keyring")
     assist_key.add_argument("action", choices=("set", "delete"))
+    commands.add_parser("mcp", help="AI connector: serve AeroFlowSim to an AI assistant (Claude, any MCP client) over "
+                                    "stdio; off until allowed with  settings --allow-ai-connector on")
+    settings = commands.add_parser("settings", help="show or change the AI connector settings")
+    settings.add_argument("--allow-ai-connector", choices=("on", "off"), default=None,
+                          help="let AI assistants use AeroFlowSim through  aeroflowsim mcp  (default off)")
+    settings.add_argument("--workspace", default=None, metavar="FOLDER",
+                          help="the only folder the AI connector may use (default Documents/AeroFlowSim Projects)")
+    settings.add_argument("--confirm-minutes", type=float, default=None, metavar="MIN",
+                          help="runs estimated longer than this need the user's confirmation (default 10)")
     args = parser.parse_args(argv)
+    if args.command == "mcp":
+        from aeroflowsim.connector.server import main as mcp_main
+        return mcp_main()
+    if args.command == "settings":
+        return command_settings(args)
     if args.command == "run":
         from aeroflowsim import compute
         if args.backend:
@@ -298,6 +312,32 @@ def main(argv=None):
     if args.command == "snapshot":
         return command_snapshot(args)
     return command_run(args)
+
+
+def command_settings(args):
+    """Show the AI connector settings; change the ones given."""
+    from pathlib import Path
+
+    from aeroflowsim.connector.settings import load_settings, save_settings, settings_file
+    s = load_settings()
+    changed = False
+    if args.allow_ai_connector is not None:
+        s.allow, changed = args.allow_ai_connector == "on", True
+    if args.workspace is not None:
+        s.workspace, changed = str(Path(args.workspace).expanduser().resolve()), True
+    if args.confirm_minutes is not None:
+        if args.confirm_minutes <= 0:
+            print("Error: --confirm-minutes must be above 0.")
+            return 1
+        s.confirm_minutes, changed = float(args.confirm_minutes), True
+    if changed:
+        save_settings(s)
+    print(f"AI connector settings ({settings_file()}):")
+    print(f"  Allow AI connector   {'on' if s.allow else 'off'}")
+    print(f"  Workspace            {s.workspace_path()}")
+    print(f"  Confirm runs above   {s.confirm_minutes:g} min or {100 * s.memory_fraction:.0f} % of free memory")
+    print(f"  Time limit of a run  {s.max_job_hours:g} h; one run at a time: {'yes' if s.one_job_at_a_time else 'no'}")
+    return 0
 
 
 def command_mesh_info(args):

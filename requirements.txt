@@ -16,3 +16,5 @@ gmsh==4.15.2
 ezdxf==1.4.5
 meshio==5.3.5
 h5py==3.16.0
+# optional extra [ai] (AI connector): pip install -e ".[ai]"
+# mcp==2.3.0
