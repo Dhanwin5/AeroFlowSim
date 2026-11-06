@@ -113,6 +113,8 @@ preconditioning stage: do all parts below in order, in this one session, without
   stage): validation/viscous_couette, viscous_poiseuille, viscous_square_duct, viscous_blasius, viscous_cylinder_re40;
   report iterations and wall-clock time against the ones in validation/report.md.
 * Square duct SHORTFALL (2.3 % / 1.7 %, 12 cells per half side): re-run on a 24 x 24 section once the cost allows.
+* TMR flat plate SHORTFALL: even the 136 x 96 / 272 x 192 SA + SST runs hit the 2.5 h limit with no result (only
+  evidence: coarse 60 x 48 SA, Cf 1.3 % off). Re-run validation/turbulent_flat_plate with preconditioning FIRST.
 * TMR flat plate: the 544 x 384 grid was not run (~20 h at 3.5 us per cell-iteration); measure it with preconditioning
   plus the line-implicit option if needed (addendum 7 of the viscous stage: high-aspect-ratio cells).
 * Not built in the viscous stage, still open: sphere at Re 100 in 3D, NACA 0012 at Re 6e6 (SA, SST) and its 3D extrusion,
