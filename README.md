@@ -40,6 +40,17 @@ Installers for Windows, macOS (Apple silicon and Intel) and Linux (AppImage): se
   snapshot`, `aeroflowsim.post`).
 - Equations and methods: [docs/theory_manual.md](docs/theory_manual.md); tutorials in [docs/tutorials](docs/tutorials).
 
+## Use it with Claude or another AI assistant (optional)
+
+AeroFlowSim has a local **MCP server** (`python -m aeroflowsim mcp`): Claude Desktop, Claude Code or any MCP app can set
+up, mesh, check, run and report projects for you in plain English, through the same input checks, solver and validity
+checks as the GUI. It is **off by default**, local only (stdio, no network port), works only inside one workspace
+folder, never deletes anything, asks before long runs, and reports the software's own verdict. Install the extra
+`pip install -e ".[ai]"`, then **Tools > Use with AI assistants** (allow, copy the snippet, test). Claude Code plugin
+with the skill: `/plugin marketplace add Dhanwin5/AeroFlowSim` and `/plugin install aeroflowsim@aeroflowsim`.
+Details and the privacy table: [docs/user_guide.md](docs/user_guide.md) ("Using AeroFlowSim with Claude and other AI
+assistants"); files: [integrations/claude](integrations/claude).
+
 ## Install
 
 You need Python 3.13 and Git. In a terminal (PowerShell on Windows), from the project folder:

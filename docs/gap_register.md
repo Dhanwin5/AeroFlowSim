@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned geometry workspace` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: 3D geometry and meshing (2026-11-03).
+Last updated: AI connector (2026-11-06).
 
 ## 1. Platform and GUI
 
@@ -220,6 +220,11 @@ Last updated: 3D geometry and meshing (2026-11-03).
 | AI assistant plugin v1 (opt-in, fills schema inputs only, local-model option) | done | P3 | AI assistant: `aeroflowsim/assistant/`, Setup-step panel, Tools > Assistant settings, `assist` command. Off by default; providers Rules (no AI), Local model (localhost only), Online (own key, own opt-in); every proposal checked against schema.toml; Apply = one undo step; a model's numbers must appear in the user's text. Tests use a fake provider (no network, no model) |
 | Assistant tried against a real local model server and a real online service | later | P2 | AI assistant had no model server, no `keyring` package and no key at hand: the Local and Online providers are tested only with a fake server answer (request and answer format, localhost check, https check, strict JSON). Try Ollama once (`--provider local --model NAME`) and one online service before relying on them |
 | Assistant: online provider speaks only the common "chat completions" JSON format; no built-in provider address | later | P3 | a native provider for another API format would be a new small class in `assistant/` |
+| AI connector: MCP server for Claude and any MCP app (`aeroflowsim mcp`) | done | P2 | AI connector stage: `aeroflowsim/api.py` (25 tools), `connector/` (settings off by default, workspace sandbox, one background run, stdio server), skill + Claude Code plugin + marketplace + Desktop / generic snippets in `integrations/claude/`, Tools > Use with AI assistants. Every template tested through a real MCP client; safety rules tested (sandbox incl. junctions, no overwrite, schema-only inputs, confirmation, honest verdict, provenance, untrusted text) |
+| AI connector: boundary-condition tables and unnamed edges | later | P2 | the AI cannot set a `boundaries` input (template defaults are used) and cannot name workspace edges the software does not suggest (e.g. inlet / outlet of a planar duct): the user does it in the GUI. A validated `set_boundaries` tool would close it |
+| AI connector: not tried in Claude Desktop / Claude Code by hand; `claude plugin validate` not run | later | P2 | formats written from the official docs (Nov 2026) and tested structurally; the Claude Code CLI was not installed here. Install the plugin once and run `claude plugin validate .` and `./integrations/claude` |
+| AI connector: Claude Desktop extension (.mcpb) | later | P3 | not made: the server needs the user's own Python install; the documented config entry is used. An .mcpb bundling Python would make setup one click |
+| AI connector: run estimate is a rough upper bound | partial | P3 | max iterations x cells x measured cost per cell-iteration (1D / 2D / 3D, x 2.5 viscous); converged runs stop earlier. A per-template measured cost table would sharpen it |
 | Assistant: explaining results, filling the boundary-condition table, files, mesh and numerics choices | later | P3 | v1 fills schema inputs only (numbers, choices, gas); it does not read results |
 | Assistant (rules): shapes must be named in full ("conical nose cone"), no number words ("two"), no radius to diameter, English only | partial | P3 | listed in the user guide; a model provider covers more phrasings (its numbers must still be in the text) |
 | Surrogate models + shape optimisation | later | P2 | Phase 5 headline feature |

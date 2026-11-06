@@ -380,3 +380,28 @@ every field list, the report, the exports and the formulas.
 **Validation sets:** a `validate.py` calls `validation.common.is_quick()` to choose its coarse meshes for the quick
 set (CI on every push, under 10 minutes); a reference may have `tolerance_percent_quick`. `run_all.py --quick` writes
 `report_quick.md`; the full set writes `report.md`.
+
+## The AI connector (`aeroflowsim/api.py`, `aeroflowsim/connector/`, AI connector stage)
+
+**Layers.** `api.Api` holds the tools: each is a method marked `@tool`, takes JSON-able arguments and returns a dict.
+`Api.call(name, **arguments)` is the only entry the server uses: it turns refusals (`ToolError`, `SandboxError`,
+`ValueError`, ...) into `{"ok": false, "error": ...}` and appends the call to the project's `ai_log.jsonl`.
+`connector/server.py` registers every name in `api.TOOLS` with the method's docstring as the description the AI reads
+(no per-tool code there), plus three read-only resources. `gui/connector_page.py` only stores settings and shows
+snippets; its Test button runs `connector/selftest.py` in another process, so the GUI never imports `mcp`.
+
+**Adding a tool.**
+1. Write a method on `Api` with `@tool`, type hints on every argument (they become the JSON schema) and a docstring
+   that tells an AI what it does and when to use it. Return a small dict (result lines, not logs).
+2. Go through the rules in the module docstring: paths only via `self.workspace` (`path`, `existing_project`), inputs
+   only via `set_inputs`, never delete or overwrite (`_unique` for new files), refuse while the project runs
+   (`_not_running`), wrap text read from files in `untrusted(...)`, and add it to `server.READ_ONLY` if it changes
+   nothing.
+3. Add it to the tool table of `integrations/claude/skills/aeroflowsim/reference.md` (a test checks that every tool is
+   there) and, if it changes the workflow, to `SKILL.md`.
+4. Tests: a call in `tests/test_api.py` (including a refusal), and the per-template flow in `tests/test_mcp_server.py`
+   if every template should use it.
+
+**New templates and inputs** need nothing here: tools read `schema.toml` through `find_cases` / `Case.parameters()`;
+`tests/test_mcp_server.py` discovers templates from `cases/`, and `tests/test_integrations.py` fails until the new
+template has a row in the skill's chooser table.

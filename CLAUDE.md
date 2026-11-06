@@ -137,6 +137,10 @@ aeroflowsim/               the Python package
                            proposal against schema.toml), units_map.py, rules.py (provider "Rules (no AI)"), local.py
                            (localhost model server), online.py (opt-in, own key), net.py (the ONLY network code),
                            keystore.py (OS keyring), config.py (settings, make_provider), command.py (CLI assist)
+    api.py                 AI connector tool layer: one method per MCP tool, JSON in / out, no Qt (safety rules in its docstring)
+    connector/             AI connector: settings.py (off by default, JSON in app data), sandbox.py (workspace), jobs.py
+                           (one background run), server.py (MCP over stdio; imports the optional `mcp` package), snippets.py,
+                           selftest.py
     vtk.py                 ParaView .vtu writer (any cell data); save_mesh_files()
     units.py               display units of the GUI (conversions, presets, preferences); SI inside
     euler1d.py, quasi1d.py, gasdynamics.py, riemann_exact.py, results.py, plots.py, visualise.py
@@ -162,6 +166,7 @@ aeroflowsim/               the Python package
         geometry_logic.py, geometry_view.py, geometry_forms.py   workspace: logic (no Qt, 2D and 3D), view, dialogs
         geometry3d_view.py       3D workspace view (faces, picking, box selection, hide / isolate, section plane)
         sketch_tools.py, icons.py   mouse drawing tools (no Qt), the app's own icon set
+        connector_page.py        Tools > Use with AI assistants (allow, workspace, snippets, Test)
         assistant_panel.py, assistant_settings.py   optional Assistant panel of the Setup step + Tools > Assistant settings
                                  (no network code; imports aeroflowsim.assistant only when the assistant is on)
         gas_logic.py, gas_dialog.py  gas dropdown / Details / custom-gas form: logic (no Qt) + dialogs
@@ -193,6 +198,8 @@ spikes/                    throwaway proofs of concept (not part of the package)
 tools/gas_data/            developer tool that writes aeroflowsim/gases/*.toml from NIST data (not packaged)
 tools/structured_flow_checks.py, tools/nozzle_flow_checks.py   quick flow runs on the new grids and nozzle contours (shapes, grids and mesh import)
 tools/assistant_screenshots.py   screenshots of the Assistant panel (off / review / online, light and dark)
+tools/connector_screenshots.py   screenshots of Tools > Use with AI assistants (light and dark)
+integrations/claude/       Claude skill, Claude Code plugin, Desktop / generic MCP config examples (marketplace: .claude-plugin/)
 tools/screenshots.py       screenshots of every GUI page (light/dark, scaling); tools/build_installer.py: Windows
                            installer (PyInstaller + Inno Setup, tools/installer/); tools/make_examples.py
 examples/                  example projects shipped with the installer (N2 nozzle with result, NACA 0012, wedge, Sod)

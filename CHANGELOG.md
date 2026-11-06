@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased - AI connector: drive AeroFlowSim from Claude or any MCP app (November 2026)
+
+- New command `aeroflowsim mcp`: a local MCP server (stdio only, no network port) with 25 tools over a new tool
+  layer `aeroflowsim/api.py`: templates, gases, shapes, projects, inputs with units, geometry, mesh, checks, background
+  runs (status, Stop, Continue), results with the software's verdict, PNG plots, compare, export, report, validation
+  report, docs search. Optional extra `pip install -e ".[ai]"` (official MCP Python SDK, pinned); nothing loaded
+  without it.
+- Off by default: Tools > Use with AI assistants (allow, workspace folder, copy snippets for Claude Desktop, Claude
+  Code and other MCP apps, Test button) or `aeroflowsim settings --allow-ai-connector on`.
+- Safety: one workspace folder (no `..`, absolute, UNC, reserved names, links), nothing deleted or overwritten,
+  inputs only through the schema checks, gas properties only from the library, confirmation before long runs, one run
+  at a time with a time limit, honest verdicts (no numbers from a diverged run), `ai_log.jsonl` provenance, file text
+  marked untrusted.
+- Claude skill + Claude Code plugin (`integrations/claude/`) and a plugin marketplace at the repository root.
+- Fixed: contour pictures of a (nearly) uniform field failed ("Contour levels must be increasing"), also in reports.
+
 ## Unreleased - Viscous flow: laminar, Spalart-Allmaras, k-omega SST (November 2026)
 
 - New input **Flow model** (Euler / Laminar / Spalart-Allmaras / k-omega SST) in every Euler template, default Euler:

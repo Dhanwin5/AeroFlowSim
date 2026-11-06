@@ -1545,6 +1545,32 @@ to this computer, the online provider sends the description (and the field defin
 files, geometry or results) over the internet, only after an explicit opt-in. The only network code is `net.py`; the
 desktop GUI files contain none (`tests/test_gui_privacy.py`, `tests/test_assistant.py`).
 
+## 15b. The AI connector: an AI assistant drives the software, the software keeps the physics
+
+**What it is.** An MCP server (`aeroflowsim/connector/server.py`) over a tool layer (`aeroflowsim/api.py`): an AI
+assistant calls tools such as `set_inputs`, `mesh`, `run`, `get_results`. The same principle as section 15 holds, more
+strictly, because here the AI acts rather than proposes:
+
+1. **The schema is the only door for inputs.** `set_inputs` passes every value through the review of section 15
+   (`assistant/review.py`: input exists, type, unit of the right quantity converted by `units_map.py`, range by
+   `parameters.clean_value`, `show_if`), plus: gas properties are refused (gases come from the gas library with their
+   sources). There is no tool for solver internals, code or the shell.
+2. **The software decides validity.** `get_results` returns `verdict` from `Result.info["status"]` / `Result.converged`
+   (converged, stopped, max iterations, diverged) and `results` from the fingerprints of section 3 ("up to date" or
+   "OUT OF DATE"); a diverged run returns `key_numbers = None`. The failed validity checks, `smart_rules.diagnose`
+   ("what to try") and the gap-register rows naming the template travel with every result.
+3. **Cost is the user's decision.** The estimate is an upper bound, t <= N_cells x N_max x c, with c = 1.5 us (1D),
+   3 us (2D), 8 us (3D) per cell and iteration (measured LU-SGS, validation/timing.md, rounded up) and x 2.5 for
+   viscous models; memory from `compute.run_memory_estimate` (3D). Above the user's limit (default 10 min or 70 % of
+   free memory) the run needs a second call with `confirm=true`, which the skill tells the AI to ask the user for.
+4. **Same engine.** Runs call `project.run_project` (the command line's path; the GUI does the same steps), so an
+   AI-started run gives the same numbers. Run carries on from the saved result like the GUI's Run.
+
+Where: `aeroflowsim/api.py` (`Api.set_inputs`, `Api._estimate`, `Api.get_results`), `connector/sandbox.py`
+(workspace), `connector/jobs.py` (background run, Stop, time limit). User side: user guide, "Using AeroFlowSim with
+Claude and other AI assistants". Standard: Model Context Protocol, modelcontextprotocol.io (specification and Python
+SDK, version pinned in the `ai` extra).
+
 ## 16. References
 
 - Abbott, I. H., von Doenhoff, A. E. (1959). *Theory of Wing Sections*. Dover.

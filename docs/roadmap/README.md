@@ -19,6 +19,7 @@ between sessions by hand.
 | 3D Euler solver | `3d_euler_solver.md` | The Euler solver on 3D meshes, 3D templates, 3D results, 3D mesh import (multiple zones moved on) | done |
 | Robust second order | `robust_second_order.md` | Second order on triangles and tetrahedra at strong shocks: node-value gradients, per-cell update limit | done |
 | Viscous flow (laminar + RANS) | `laminar_viscous.md` | Laminar Navier-Stokes and RANS (Spalart-Allmaras, k-omega SST), 2D, axisymmetric and 3D: walls, skin friction, heat flux, cube-sat nozzle losses | done (see its ledger for what moved on) |
+| AI connector | `ai_connector.md` | MCP server + skill: Claude or any MCP app sets up, runs and reports AeroFlowSim projects safely | done |
 | Low-Mach preconditioning | `low_mach_preconditioning.md` | Weiss-Smith preconditioning: accurate, fast steady flows at any Mach number | next |
 
 Earlier stages (desktop GUI, geometry workspace, gas library and units, 2D Euler solver) were planned before this
@@ -42,6 +43,7 @@ wiring (GUI, file formats, workflows, integrations, docs). Each stage file names
 | Viscous flow (laminar + RANS) | Opus | viscous fluxes, turbulence models, wall BCs, MMS for Navier-Stokes |
 | Low-Mach preconditioning | Opus | changes the equations' eigenstructure |
 | AI assistant | Sonnet | integration and GUI around a clear rule (the assistant only fills inputs) |
+| AI connector | Sonnet | protocol plumbing and safety rules around the existing engine |
 | Adaptive mesh refinement | Opus | mesh data structures, conservation, solution transfer |
 | Parametric studies | Sonnet | workflow on top of the existing engine |
 | Unsteady flow | Opus | dual time stepping numerics and their verification |

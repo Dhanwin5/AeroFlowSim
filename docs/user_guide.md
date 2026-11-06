@@ -446,6 +446,85 @@ equivalent `--set` options for `run`). `--provider local --model NAME` and
 
 Physics note: see the theory manual, section 15 ("it assists, it never replaces physics").
 
+## Using AeroFlowSim with Claude and other AI assistants
+
+An AI assistant can drive AeroFlowSim for you: you say in plain English what you want ("thrust and Isp of an N2
+thruster, 5 bar, 1 mm throat, area ratio 25"), and the assistant chooses the template, fills the inputs, meshes,
+checks, runs, reads the results and writes the report. It works with **Claude Desktop**, **Claude Code** and any other
+app that speaks **MCP** (Model Context Protocol, an open standard for connecting AI apps to local tools).
+AeroFlowSim itself works fully without it; nothing of it is loaded until you use it.
+
+(Pictures of the page, light and dark: `python tools/connector_screenshots.py` writes them to
+`docs/screenshots/connector/`.)
+
+### Set it up (once)
+
+1. Install the optional part: in the AeroFlowSim folder, `.venv\Scripts\python.exe -m pip install -e ".[ai]"`
+   (it adds the official MCP Python package, `mcp`).
+2. Allow it: **Tools > Use with AI assistants > Allow AI connector**, choose the **workspace folder** (default
+   `Documents\AeroFlowSim Projects`; the assistant can use nothing outside it) and press **Save**. Or on the command line:
+   `python -m aeroflowsim settings --allow-ai-connector on`.
+3. Press **Test**: it starts the server the way an AI app does and lists its tools ("The server works: 25 tools").
+4. Connect your app (the page shows each text ready to **Copy**, with the right python path of this computer):
+   * **Claude Desktop:** Settings > Developer > Edit Config opens `claude_desktop_config.json`; add the
+     `"aeroflowsim"` entry inside `"mcpServers"`, save, quit and restart Claude Desktop. AeroFlowSim then appears
+     among the connectors.
+   * **Claude Code:** type `/plugin marketplace add Dhanwin5/AeroFlowSim`, then
+     `/plugin install aeroflowsim@aeroflowsim`; it asks once for the python of your AeroFlowSim installation. The plugin
+     brings the **skill** (how to use AeroFlowSim well and honestly) and the server. The server alone:
+     `claude mcp add --transport stdio --scope user aeroflowsim -- <python> -m aeroflowsim mcp`.
+   * **Other MCP apps:** the `mcpServers` entry of the third tab (stdio).
+
+For the skill in Claude Desktop or claude.ai, add the folder `integrations/claude/skills/aeroflowsim` as a skill
+(see your app's documentation on skills); the server works without it, the skill makes the assistant follow the
+workflow and honesty rules below.
+
+### What it can do
+
+List and describe templates, gases and shapes; create projects; set inputs with units (checked like typing them);
+choose a library shape or import a file from the workspace folder (wall profile, coordinates, DXF, STEP, IGES, mesh
+files); mesh; check; run in the background with progress, Stop and Continue; read results with the software's own
+verdict; pictures (residuals, contours, wall pressure); compare runs; export (CSV, VTU, Tecplot, mesh files); the HTML
+report; the validation report; search this guide, the theory manual and the gap register.
+
+### What it never does
+
+* Never works outside the workspace folder (no `..`, no other drives, no network paths, no links out of it).
+* Never deletes or overwrites anything: new projects need new names; exports, pictures and reports get new file names;
+  a run replaces only its own project's results, exactly as Run in this window does.
+* Never types a value past the checks: unit, range and "only used when" of every input are checked; gas properties
+  can only come from the gas library.
+* Never runs code, shell commands or anything but AeroFlowSim's own functions; never changes solver settings that are
+  not template inputs.
+* Never starts a long run without asking: a run estimated above the limit (default 10 minutes, or 70 % of the free
+  memory) comes back as "needs confirmation" and the assistant must ask you. One run at a time; a run stops by itself
+  after 12 hours.
+* Never hides a bad result: the verdict (converged / stopped / max iterations / DIVERGED / out of date) is the
+  software's; a diverged run gives no numbers.
+* Every call is written to `ai_log.jsonl` in the project folder; reports and `summary.yaml` of such a project say
+  "Set up through the AI connector; inputs listed below."
+
+### Privacy
+
+| What | Where it goes |
+|---|---|
+| The connection between the AI app and AeroFlowSim | Local: the app starts `python -m aeroflowsim mcp` on this computer and talks to it through its standard input and output. No network port, no internet, no statistics. |
+| What the assistant reads (template descriptions, input values, result numbers, check messages, pictures, doc snippets) | Into your conversation with the AI provider (for Claude: Anthropic), like anything you type. Do not use it for designs you may not share with that provider; use the desktop app, or a local model with an MCP-capable local app. |
+| Project files, meshes and results | Stay on this computer; only the summaries above are read. |
+| Your AI plan | The assistant uses your own AI account and plan; AeroFlowSim keeps its answers short (result lines, small tables) to spare it. |
+
+### Troubleshooting
+
+* **"The AeroFlowSim AI connector is off"**: allow it (step 2).
+* **"needs the optional package mcp"**: step 1, with the same python the app starts.
+* **The server does not appear in Claude Desktop**: check the JSON (commas, double backslashes in Windows paths),
+  restart Claude Desktop fully, and read `%APPDATA%\Claude\logs\mcp-server-aeroflowsim.log` (AeroFlowSim writes its
+  messages there). If the log shows the connector as off although you allowed it, add
+  `"env": {"APPDATA": "C:\Users\<you>\AppData\Roaming"}` to the entry (the app may not pass APPDATA on).
+* **A run is refused ("Another run is going on")**: one run at a time; wait, or ask the assistant to stop it.
+* **The assistant says a boundary has no name** (custom geometry): name it in the Geometry step of this window; the
+  assistant accepts only the names the software can suggest.
+
 ## Troubleshooting
 
 - **The run does not converge / the residual stalls.** Look at the *Residual of the last iteration* field in the

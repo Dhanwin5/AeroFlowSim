@@ -254,6 +254,8 @@ class MainWindow(QMainWindow):
                                 "Write the automatic report of this project"),
             "assistant": a("&Assistant settings...", self.show_assistant_settings, None,
                            "Optional assistant (off by default): provider, local model, online opt-in"),
+            "connector": a("Use with &AI assistants...", self.show_connector, None,
+                           "Let Claude or another MCP app drive AeroFlowSim (off by default; local, no network)"),
             "preferences": a("&Preferences...", self.show_preferences, None,
                              "Settings of this computer: CPU threads of the solver"),
             "gases": a("&Gas library...", self.show_gas_library, None, "Every gas with its values and sources; custom gases"),
@@ -302,6 +304,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self.act["validation"])
         tools_menu.addAction(self.act["gases"])
         tools_menu.addAction(self.act["assistant"])
+        tools_menu.addAction(self.act["connector"])
         tools_menu.addSeparator()
         tools_menu.addAction(self.act["preferences"])
         help_menu = menu.addMenu("&Help")
@@ -732,6 +735,11 @@ class MainWindow(QMainWindow):
         dialog = AssistantSettingsDialog(self.settings, self)
         if dialog.exec():
             self.pages["setup"].assistant.refresh()
+
+    def show_connector(self):
+        """Tools > Use with AI assistants: allow the AI connector, copy the client snippets, test the server."""
+        from aeroflowsim.gui.connector_page import ConnectorDialog
+        ConnectorDialog(self).exec()
 
     def show_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.project.folder)))
