@@ -125,3 +125,17 @@ At the very end give me a plain-language summary: what works now, how a new user
 * Not verified: `claude plugin validate` (Claude Code CLI not installed here); no .mcpb Desktop extension (the server
   needs the user's own Python install; the config entry is the documented route). Both stated in the README.
 * Next: Part 4 - GUI page Tools > Use with AI assistants, docs.
+
+### Ledger entry 4 (6 Nov 2026): Part 4 - GUI and docs
+* Done: Tools > Use with AI assistants (`gui/connector_page.py`: Allow, workspace folder, confirm limit, Copy tabs for
+  Claude Desktop / Claude Code / other MCP apps with this computer's python, Test button via `connector/selftest.py`
+  in a separate process). User guide section (setup per client, can / never does, privacy table, cost, troubleshooting),
+  README section, theory manual 15b, developer guide (how to add a tool), gap register (1 done, 4 open rows),
+  CHANGELOG, roadmap README, CLAUDE.md layout. Screenshots light / dark by `tools/connector_screenshots.py`
+  (docs/screenshots is git-ignored, as for every screenshot).
+* Verified: tests/gui/test_connector_page.py 5 passed (off by default, Save, reopen, snippets, Copy, Test while off,
+  Test lists 25 tools); test_gui_privacy passes (no network code or web address in the GUI).
+* Finding: the SDK's stdio client passes only a safe subset of environment variables to the server; the self-test
+  passes the whole environment. Claude Desktop may behave the same: the troubleshooting text says to add APPDATA to
+  `env` if the server reports "off" although allowed.
+* Next: Part 5 - evals.
