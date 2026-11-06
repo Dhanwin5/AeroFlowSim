@@ -1,0 +1,26 @@
+{
+  "name": "aeroflowsim",
+  "displayName": "AeroFlowSim",
+  "version": "0.2.0",
+  "description": "Drive the AeroFlowSim CFD program (nozzles, propulsion, external aerodynamics) from Claude: a skill with the workflow and honesty rules, and the local AeroFlowSim MCP server (stdio, no network).",
+  "author": {
+    "name": "Dhanwin Mehta"
+  },
+  "repository": "https://github.com/Dhanwin5/AeroFlowSim",
+  "license": "GPL-3.0-or-later",
+  "keywords": ["cfd", "aerodynamics", "nozzle", "propulsion", "mcp"],
+  "userConfig": {
+    "python": {
+      "type": "file",
+      "title": "Python of your AeroFlowSim installation",
+      "description": "The python executable that has AeroFlowSim and its [ai] extra installed, e.g. C:\\Projects\\AeroFlowSim\\.venv\\Scripts\\python.exe. The desktop app shows it in Tools > Use with AI assistants.",
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "aeroflowsim": {
+      "command": "${user_config.python}",
+      "args": ["-m", "aeroflowsim", "mcp"]
+    }
+  }
+}

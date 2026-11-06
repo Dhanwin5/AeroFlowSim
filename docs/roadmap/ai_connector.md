@@ -111,3 +111,17 @@ At the very end give me a plain-language summary: what works now, how a new user
   OpenCASCADE printing during a STEP import.
 * Fixed: contour pictures of a nearly uniform field (relative band; same bug hit the report of a 10-iteration run).
 * Next: Part 3 - fetch current Claude Code plugin / Claude Desktop extension docs, then skill and bundles.
+
+### Ledger entry 3 (6 Nov 2026): Part 3 - skill and bundles
+* Read first (WebFetch, Nov 2026): code.claude.com plugin manifest reference, marketplace reference, skills page,
+  MCP page (`claude mcp add --transport stdio --scope user <name> -- <cmd>`); modelcontextprotocol.io "Connect to
+  local MCP servers" (claude_desktop_config.json locations and shape).
+* Done: `integrations/claude/` - plugin.json (skill + MCP server; userConfig asks for the AeroFlowSim python),
+  skills/aeroflowsim/SKILL.md (workflow, chooser table of all 8 templates, units, gases, y+, honesty, cost, limits,
+  examples) + reference.md (every tool, reading checks, sweeps); desktop and generic config examples; repository-root
+  `.claude-plugin/marketplace.json`; `aeroflowsim/connector/snippets.py` builds the snippets with the running python.
+* Verified: tests/test_integrations.py 6 passed (portable frontmatter, only real tool names, every tool documented,
+  every discovered template in the chooser table, manifest / marketplace structure, snippets).
+* Not verified: `claude plugin validate` (Claude Code CLI not installed here); no .mcpb Desktop extension (the server
+  needs the user's own Python install; the config entry is the documented route). Both stated in the README.
+* Next: Part 4 - GUI page Tools > Use with AI assistants, docs.

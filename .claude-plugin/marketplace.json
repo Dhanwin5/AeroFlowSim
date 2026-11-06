@@ -1,0 +1,14 @@
+{
+  "name": "aeroflowsim",
+  "description": "AeroFlowSim, open-source CFD for nozzle and propulsion aerodynamics, for Claude Code: skill + local MCP server.",
+  "owner": {
+    "name": "Dhanwin Mehta"
+  },
+  "plugins": [
+    {
+      "name": "aeroflowsim",
+      "source": "./integrations/claude",
+      "description": "Set up, mesh, check, run and report AeroFlowSim CFD cases from Claude Code."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "aeroflowsim": {
+      "type": "stdio",
+      "command": "/path/to/aeroflowsim-venv/bin/python",
+      "args": [
+        "-m",
+        "aeroflowsim",
+        "mcp"
+      ]
+    }
+  }
+}

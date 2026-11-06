@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "aeroflowsim": {
+      "command": "C:\\path\\to\\AeroFlowSim\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "aeroflowsim",
+        "mcp"
+      ]
+    }
+  }
+}
