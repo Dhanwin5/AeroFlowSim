@@ -139,3 +139,14 @@ At the very end give me a plain-language summary: what works now, how a new user
   passes the whole environment. Claude Desktop may behave the same: the troubleshooting text says to add APPDATA to
   `env` if the server reports "off" although allowed.
 * Next: Part 5 - evals.
+
+### Ledger entry 5 (6 Nov 2026): Part 5 - evals
+* Done: docs/ai_evals/tasks.json (25 tasks, every template, machine-checkable expectations), tools/run_ai_evals.py
+  (list / prepare / grade / claude mode; claude flags checked at code.claude.com/docs/en/headless), tools/ai_eval_bridge.py,
+  optional session log in Api (`AEROFLOWSIM_AI_SESSION_LOG`), tests/test_ai_evals.py (4: coverage, grader catches a
+  wrong number, a run after a refused input, a self-confirmed run).
+* Run: no `claude` CLI and no API key on this machine, so the 8 cheapest tasks ran on Claude Sonnet subagents with the
+  skill + bridge. **Pass rate 6 / 8** (results_2026-11-06.md). Failures: needs_confirmation (agent asked from `check`
+  without calling `run`: safe, check not met), q1d_shock (software does not converge at 2.5 bar; agent honest).
+* Bugs found by the evals and fixed: 1D continue / CLI re-run crash (Project.interpolation_source), bridge UTF-8.
+* Next: Part 6 - full tests, quick validation, push.

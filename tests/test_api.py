@@ -342,3 +342,14 @@ def test_api_imports_no_qt_and_no_network():
         for word in ("PySide6", "pyvista", "vtk", "socket", "urllib", "http.client", "requests"):
             assert f"import {word}" not in text and f"from {word}" not in text, (path.name, word)
     assert api_module.Api
+
+
+def test_continue_a_1d_project(api):
+    """Regression (found by the evals): Run of a 1D project that already had a result crashed in
+    Project.interpolation_source ('Mesh1D' has no 'dim'), also from the command line."""
+    api.call("create_project", template="quasi1d_nozzle", name="q")
+    api.call("set_inputs", project="q", inputs={"max_iter": 20})
+    api.jobs.wait(api.call("run", project="q")["job_id"])
+    job = api.call("continue_run", project="q")["job_id"]
+    api.jobs.wait(job)
+    assert api.call("job_status", job_id=job)["status"] == "finished"

@@ -27,6 +27,7 @@ Safety rules (each one tested in tests/test_api.py):
 import base64
 import json
 import math
+import os
 import re
 import time
 from datetime import datetime
@@ -98,8 +99,10 @@ class ToolError(ValueError):
 
 
 class Api:
-    def __init__(self, settings: ConnectorSettings | None = None, workspace=None, cases_dir=None):
+    def __init__(self, settings: ConnectorSettings | None = None, workspace=None, cases_dir=None, session_log=None):
         self.settings = settings or ConnectorSettings()
+        # every call of this session, project or not (evals and debugging; off unless given or set in the environment)
+        self.session_log = session_log or os.environ.get("AEROFLOWSIM_AI_SESSION_LOG") or None
         self.workspace = Workspace(workspace or self.settings.workspace_path())
         self.cases_dir = Path(cases_dir or CASES_DIR)
         self.jobs = JobManager(self.settings.one_job_at_a_time, self.settings.max_job_hours)
@@ -122,6 +125,12 @@ class Api:
         except Exception as error:      # noqa: BLE001 - an unexpected failure is reported, never hides as success
             out = {"ok": False, "error": f"{type(error).__name__}: {error}"[:600]}
         self._log(name, arguments, out)
+        if self.session_log:
+            line = {"time": datetime.now().isoformat(timespec="seconds"), "tool": name,
+                    "arguments": json.loads(json.dumps(arguments, default=str)),
+                    "result": {k: v for k, v in out.items() if k in ("ok", "error", "status", "verdict", "job_id")}}
+            with open(self.session_log, "a", encoding="utf-8") as f:
+                f.write(json.dumps(line, ensure_ascii=False) + "\n")
         return out
 
     def _log(self, name, arguments, out):

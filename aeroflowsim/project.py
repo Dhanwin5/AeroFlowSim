@@ -575,8 +575,8 @@ class Project:
     def interpolation_source(self, mesh):
         """{"centres", "W"} of the saved result when it belongs to a DIFFERENT mesh than `mesh` and the project allows
         starting from it ("interpolate_new_mesh", default on); else None (the run starts from the Initial solution)."""
-        if not self.post.get("interpolate_new_mesh", True) or mesh is None:
-            return None
+        if not self.post.get("interpolate_new_mesh", True) or mesh is None or not hasattr(mesh, "dim"):
+            return None                            # (1D meshes: no interpolation onto a new mesh)
         try:
             payload = self.load_results()
         except (OSError, ValueError, KeyError):
