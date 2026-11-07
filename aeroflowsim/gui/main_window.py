@@ -151,6 +151,8 @@ class MainWindow(QMainWindow):
         self.panels = {}
         self.dark = self.settings.value("theme", "light") == "dark"
         self.units = self.load_units()  # display units (View > Units); everything inside stays SI
+        from aeroflowsim.gui import geometry_logic
+        geometry_logic.set_length_unit(self.units.unit_for("m"))   # geometry dialogs in the same length unit
 
         self.runner = JobRunner(self)
         self.runner.updated.connect(self.on_job_updated)
@@ -383,6 +385,7 @@ class MainWindow(QMainWindow):
         self.act["stop"].setEnabled(busy)
 
     def refresh_all(self):
+        self.update_hidden_inputs()
         self.refresh_status()
         self.update_title()
         if self.current_step:
@@ -622,6 +625,16 @@ class MainWindow(QMainWindow):
             panel.value_changed.connect(self.on_panel_edit)
             self.panels[step] = panel
             self.inputs.addWidget(panel)
+        self.update_hidden_inputs()
+
+    def update_hidden_inputs(self):
+        """Hide the inputs the template does not use with the current mesh (e.g. the free stream of a 3D nozzle)."""
+        from aeroflowsim.case import get_hidden_inputs
+        if self.project is None:
+            return
+        hidden = get_hidden_inputs(self.project.case, self.project.values, self.mesh)
+        for panel in self.panels.values():
+            panel.set_hidden(hidden)
 
     def remove_panels(self):
         for panel in self.panels.values():
@@ -646,7 +659,9 @@ class MainWindow(QMainWindow):
 
     def set_units(self, prefs: UnitPreferences, save=True):
         """Show and type numbers in these units: panels are rebuilt, pages redrawn (values stay SI)."""
+        from aeroflowsim.gui import geometry_logic
         self.units = prefs
+        geometry_logic.set_length_unit(prefs.unit_for("m"))   # the geometry dialogs too (2D and 3D)
         if save:
             for quantity, name in prefs.as_dict().items():
                 self.settings.setValue(f"units/{quantity}", name)
@@ -989,6 +1004,7 @@ class MainWindow(QMainWindow):
             project.record_mesh(mesh, {"build_s": round(payload.get("build_s", 0.0), 3)}, fingerprint=fingerprint)
             self.undo.setClean()                  # making a mesh saves the project (see project.py)
             self.mesh = mesh
+            self.update_hidden_inputs()
             for panel in self.panels.values():
                 panel.refresh_boundaries()       # the table lists the patches of the new mesh
             self.mesh_checks = run_mesh_checks(project.case, params, mesh)

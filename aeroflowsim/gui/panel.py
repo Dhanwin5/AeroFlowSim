@@ -585,6 +585,11 @@ class InputPanel(QWidget):
         self._refresh()
         self.value_changed.emit(name, value)
 
+    def set_hidden(self, names):
+        """Hide these inputs (the template's choice for the current mesh) and redraw."""
+        self.model.hidden = set(names)
+        self._refresh()
+
     def _refresh(self):
         shown = self.model.visible(self._values)
         problems = self.model.problems(self._values)

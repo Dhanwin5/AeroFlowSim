@@ -135,6 +135,7 @@ class PanelModel:
         self.params = [p for p in self.all_params if step is None or p.step == step]
         self.units = units
         self.specs = [widget_spec(p, units) for p in self.params]
+        self.hidden = set()                   # inputs the template hides for the current mesh (get_hidden_inputs)
 
     def spec(self, name) -> WidgetSpec:
         return next(s for s in self.specs if s.name == name)
@@ -148,7 +149,7 @@ class PanelModel:
 
     def visible(self, values) -> set[str]:
         """Names of the inputs to show for these values (show_if, nested show_if included)."""
-        return {p.name for p in self.params if is_shown(p, values, self.all_params)}
+        return {p.name for p in self.params if is_shown(p, values, self.all_params) and p.name not in self.hidden}
 
     def visible_groups(self, values) -> list[str]:
         """Headings that have at least one visible input (empty groups are hidden)."""

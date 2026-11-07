@@ -32,7 +32,29 @@ from aeroflowsim.geometry_model.edit_operations import (
 from aeroflowsim.geometry_model.operations import (
     TEMPLATE_TYPES, BooleanOp, Delete, Enclosure, Fillet, NameBoundary, Refinement, SetRole, Transform)
 
-MM = 1e-3                   # one millimetre [m]: lengths are shown and typed in mm
+MM = 1e-3                   # one millimetre [m]: the default display unit of lengths
+_LENGTH_UNIT = [None]       # the display Unit of lengths (View > Units; full 3D release stage); None = mm
+
+
+def set_length_unit(unit):
+    """Show and type the lengths of the geometry dialogs in this aeroflowsim.units.Unit (None = mm)."""
+    _LENGTH_UNIT[0] = unit
+
+
+def length_name() -> str:
+    return _LENGTH_UNIT[0].name if _LENGTH_UNIT[0] is not None else "mm"
+
+
+def to_length(value_m) -> float:
+    """A length [m] in the display unit."""
+    unit = _LENGTH_UNIT[0]
+    return float(value_m) / MM if unit is None else float(unit.from_si(float(value_m)))
+
+
+def from_length(value) -> float:
+    """A typed length (display unit) in metres."""
+    unit = _LENGTH_UNIT[0]
+    return float(value) * MM if unit is None else float(unit.to_si(float(value)))
 
 
 @dataclass(frozen=True)
@@ -49,7 +71,7 @@ class Field:
 
     @property
     def unit(self) -> str:
-        return {"length": "mm", "angle": "°", "ratio": "L", "diameters": "D"}.get(self.kind, "")
+        return {"length": length_name(), "angle": "°", "ratio": "L", "diameters": "D"}.get(self.kind, "")
 
 
 def _choices(values):
@@ -161,9 +183,9 @@ def shown(field, params) -> bool:
 
 
 def to_text(field, value) -> str:
-    """The value as shown in a field (lengths in mm)."""
+    """The value as shown in a field (lengths in the display unit, mm by default)."""
     if field.kind == "length":
-        return f"{float(value) / MM:.8g}"
+        return f"{to_length(value):.8g}"
     if field.kind in ("number", "angle", "ratio", "diameters"):
         return f"{float(value):.8g}"
     return str(value)
@@ -178,7 +200,7 @@ def from_text(field, text):
             raise ValueError(f"{field.label}: '{text}' is not a number") from None
         if not math.isfinite(value):
             raise ValueError(f"{field.label}: the number must be finite")
-        return value * MM if field.kind == "length" else value
+        return from_length(value) if field.kind == "length" else value
     return text
 
 
@@ -852,7 +874,7 @@ _plain_to_text, _plain_from_text = to_text, from_text
 def to_text(field, value) -> str:  # noqa: F811  (the 2D version, plus point lists)
     """The value as shown in a field (lengths in mm; point lists as x y; x y ... in mm)."""
     if field.kind == POINT_KIND:
-        return "; ".join(f"{x / MM:.8g} {y / MM:.8g}" for x, y in value)
+        return "; ".join(f"{to_length(x):.8g} {to_length(y):.8g}" for x, y in value)
     return _plain_to_text(field, value)
 
 
@@ -867,7 +889,7 @@ def from_text(field, text):  # noqa: F811
         try:
             if len(numbers) != 2:
                 raise ValueError
-            points.append([float(numbers[0]) * MM, float(numbers[1]) * MM])
+            points.append([from_length(numbers[0]), from_length(numbers[1])])
         except ValueError:
             raise ValueError(f"{field.label}: point {k} ({part}) must be two numbers, x and y") from None
     if len(points) < 3:

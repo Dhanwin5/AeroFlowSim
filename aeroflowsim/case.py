@@ -97,7 +97,7 @@ from aeroflowsim.schema import SCHEMA_FILE, Schema, load_schema
 REQUIRED_FUNCTIONS = ["build_mesh", "run"]
 OPTIONAL_FUNCTIONS = ["reference", "reference_lines", "geometry", "derived", "estimated_cells",
                       "workspace_settings", "size_inputs", "gas", "reservoir_state", "workspace_settings_3d",
-                      "body_3d", "domain_3d"]
+                      "body_3d", "domain_3d", "hidden_inputs"]
 
 
 def check_module(module, has_solver=True) -> list[str]:
@@ -221,6 +221,18 @@ def get_reference(case, params, mesh):
     if hasattr(case, "reference"):
         return case.reference(params, mesh)
     return None
+
+
+def get_hidden_inputs(case, params, mesh) -> set:
+    """Inputs the template hides for this mesh (optional case.hidden_inputs(params, mesh) -> set of keys; e.g. the
+    free stream of an internal flow). Hidden inputs keep their values; they are only not shown."""
+    fn = getattr(case.module, "hidden_inputs", None)
+    if fn is None or mesh is None:
+        return set()
+    try:
+        return set(fn(params, mesh) or ())
+    except Exception:                       # a template bug never breaks the panel: show everything
+        return set()
 
 
 def get_geometry(case, params):
