@@ -172,6 +172,11 @@ class Mesh:
         dim           2 or 3
         axisymmetric  True: 2D mesh in the (x, r) plane, axis along x, r = y >= 0
         info          dict of extra facts from the generator (e.g. inflation settings)
+        cell_zones    {zone name: sorted cell ids} when the mesh has SEVERAL cell zones (full 3D release
+                      stage); {} for a one-zone mesh (all old meshes). Zones share their interface faces:
+                      an interface face is an ordinary interior face whose owner and neighbour lie in
+                      different zones (a conformal interface, Fluent's "interior" between zones), so the
+                      solver needs no change and conservation across the interface is exact.
 
     Computed once from the topology (the "geometry"):
         face_centres (F, 3) [m], face_normals (F, 3) unit vectors, face_areas (F,) [m²]
@@ -187,7 +192,7 @@ class Mesh:
     """
 
     def __init__(self, nodes, cell_types, cell_nodes, face_nodes, owner, neighbour, patches,
-                 dim, axisymmetric=False, info=None):
+                 dim, axisymmetric=False, info=None, cell_zones=None):
         self.nodes = np.asarray(nodes, dtype=float)
         self.cell_types = np.asarray(cell_types, dtype=np.int32)
         self.cell_nodes = np.asarray(cell_nodes, dtype=np.int64)
@@ -198,13 +203,15 @@ class Mesh:
         self.dim = int(dim)
         self.axisymmetric = bool(axisymmetric)
         self.info = dict(info or {})
+        self.cell_zones = {str(k): np.sort(np.asarray(v, dtype=np.int64)) for k, v in (cell_zones or {}).items()}
         self._check_topology()
         self._compute_geometry()
 
     # ---- building a mesh from cells ---------------------------------------------------------
 
     @classmethod
-    def from_cells(cls, nodes, cell_types, cell_nodes, boundary, dim=None, axisymmetric=False, info=None):
+    def from_cells(cls, nodes, cell_types, cell_nodes, boundary, dim=None, axisymmetric=False, info=None,
+                   cell_zones=None):
         """Build a Mesh from nodes, cells and boundary tags; the faces are found automatically.
 
         nodes       (N, 2) or (N, 3) coordinates [m] (2D input gets z = 0)
@@ -214,6 +221,8 @@ class Mesh:
                     each patch, given by their nodes in any order. Every boundary face must be
                     in exactly one patch.
         dim         2 or 3; None = taken from the cell types
+        cell_zones  optional {zone name: cell ids} (cell ids = row numbers of cell_nodes); one zone or
+                    none = a one-zone mesh
         """
         nodes = np.asarray(nodes, dtype=float)
         if nodes.ndim != 2 or nodes.shape[1] not in (2, 3):
@@ -235,7 +244,8 @@ class Mesh:
 
         face_nodes, owner, neighbour = _find_faces(cell_types, padded)
         face_nodes, owner, neighbour, patches = _sort_faces_into_patches(face_nodes, owner, neighbour, boundary)
-        return cls(nodes, cell_types, padded, face_nodes, owner, neighbour, patches, dim, axisymmetric, info)
+        return cls(nodes, cell_types, padded, face_nodes, owner, neighbour, patches, dim, axisymmetric, info,
+                   cell_zones=cell_zones if cell_zones and len(cell_zones) > 1 else None)
 
     def _check_topology(self):
         """Raise ValueError if the arrays do not describe a consistent mesh."""
@@ -261,6 +271,10 @@ class Mesh:
         boundary_faces = sum(p.count for p in self.patches)
         if self.n_interior_faces + boundary_faces != self.n_faces:
             raise ValueError("Every boundary face must belong to exactly one patch.")
+        if self.cell_zones:
+            ids = np.concatenate(list(self.cell_zones.values()))
+            if len(ids) != self.n_cells or not np.array_equal(np.sort(ids), np.arange(self.n_cells)):
+                raise ValueError("Every cell must belong to exactly one cell zone.")
         for p in self.patches:
             if p.type not in PATCH_TYPES:
                 raise ValueError(f"Patch '{p.name}': type '{p.type}' is not one of {', '.join(PATCH_TYPES)}.")
@@ -295,6 +309,54 @@ class Mesh:
             if p.name == name:
                 return p
         raise KeyError(f"No patch '{name}'. Patches: {', '.join(p.name for p in self.patches)}")
+
+    # ---- cell zones (full 3D release stage) -------------------------------------------------------
+
+    @property
+    def zone_names(self) -> list:
+        """Names of the cell zones; a one-zone mesh has the single zone "fluid"."""
+        return list(self.cell_zones) or ["fluid"]
+
+    def cell_zone_index(self) -> np.ndarray:
+        """(C,) index into zone_names of every cell (all 0 for a one-zone mesh)."""
+        index = np.zeros(self.n_cells, dtype=np.int64)
+        for k, cells in enumerate(self.cell_zones.values()):
+            index[cells] = k
+        return index
+
+    def zone_cells(self, name) -> np.ndarray:
+        """Cell ids of one zone (KeyError if there is none)."""
+        if not self.cell_zones and name == "fluid":
+            return np.arange(self.n_cells)
+        if name not in self.cell_zones:
+            raise KeyError(f"No cell zone '{name}'. Zones: {', '.join(self.zone_names)}")
+        return self.cell_zones[name]
+
+    def interface_faces(self, zone_a, zone_b) -> np.ndarray:
+        """Interior faces between two zones, oriented so the normal points from zone_a into zone_b:
+        returns (faces, sign) with sign +1 where the owner is in zone_a and -1 where it is in zone_b."""
+        index = self.cell_zone_index()
+        a, b = self.zone_names.index(zone_a), self.zone_names.index(zone_b)
+        n = self.n_interior_faces
+        zo, zn = index[self.owner[:n]], index[self.neighbour[:n]]
+        forward = np.flatnonzero((zo == a) & (zn == b))
+        backward = np.flatnonzero((zo == b) & (zn == a))
+        faces = np.concatenate([forward, backward])
+        sign = np.concatenate([np.ones(len(forward)), -np.ones(len(backward))])
+        order = np.argsort(faces)
+        return faces[order], sign[order]
+
+    def interfaces(self) -> list:
+        """[(zone_a, zone_b, n_faces)] for every pair of zones that share faces."""
+        if not self.cell_zones:
+            return []
+        index = self.cell_zone_index()
+        n = self.n_interior_faces
+        zo, zn = index[self.owner[:n]], index[self.neighbour[:n]]
+        differ = zo != zn
+        pairs = np.unique(np.sort(np.column_stack([zo[differ], zn[differ]]), axis=1), axis=0, return_counts=True)
+        names = self.zone_names
+        return [(names[int(i)], names[int(j)], int(c)) for (i, j), c in zip(*pairs)]
 
     def face_patch_index(self) -> np.ndarray:
         """(F,) index into self.patches of every face; -1 for interior faces."""
@@ -340,8 +402,14 @@ class Mesh:
             patch_types=np.array([p.type for p in self.patches], dtype=str),
             patch_starts=np.array([p.start for p in self.patches], dtype=np.int64),
             patch_counts=np.array([p.count for p in self.patches], dtype=np.int64),
-            dim=self.dim, axisymmetric=self.axisymmetric, info=json.dumps(self.info))
+            dim=self.dim, axisymmetric=self.axisymmetric, info=json.dumps(self.info), **self._zone_arrays())
         return path
+
+    def _zone_arrays(self) -> dict:
+        """Extra arrays of a multi-zone mesh (none for a one-zone mesh, so its file is exactly as before)."""
+        if not self.cell_zones:
+            return {}
+        return {"zone_names": np.array(self.zone_names, dtype=str), "cell_zone": self.cell_zone_index()}
 
     @classmethod
     def load(cls, path) -> "Mesh":
@@ -352,13 +420,18 @@ class Mesh:
                                  f"{int(data['format_version'])}); please update AeroFlowSim.")
             patches = [Patch(str(n), str(t), int(s), int(c)) for n, t, s, c in
                        zip(data["patch_names"], data["patch_types"], data["patch_starts"], data["patch_counts"])]
+            zones = None
+            if "zone_names" in data.files:
+                index = data["cell_zone"]
+                zones = {str(n): np.flatnonzero(index == k) for k, n in enumerate(data["zone_names"])}
             return cls(data["nodes"], data["cell_types"], data["cell_nodes"], data["face_nodes"],
                        data["owner"], data["neighbour"], patches, int(data["dim"]),
-                       bool(data["axisymmetric"]), json.loads(str(data["info"])))
+                       bool(data["axisymmetric"]), json.loads(str(data["info"])), cell_zones=zones)
 
     def __repr__(self):
         kind = "axisymmetric" if self.axisymmetric else f"{self.dim}D"
-        return f"Mesh({kind}, {self.n_cells} cells, {self.n_faces} faces, {self.n_nodes} nodes)"
+        zones = f", {len(self.cell_zones)} zones" if self.cell_zones else ""
+        return f"Mesh({kind}, {self.n_cells} cells, {self.n_faces} faces, {self.n_nodes} nodes{zones})"
 
 
 def _find_faces(cell_types, cell_nodes):
@@ -494,3 +567,40 @@ def _cell_geometry(mesh, area_vectors):
     safe = np.where(volume != 0.0, volume, 1.0)
     centres = np.where(volume[:, None] != 0.0, moment / safe[:, None], tips)
     return volume, centres
+
+
+def remove_zones(mesh: Mesh, names, patch_name=None, patch_type="wall") -> Mesh:
+    """The mesh without the cells of the zones `names` ("solid / excluded" zones, blanked like Fluent's
+    deactivated cell zones). The faces that bordered the removed cells become one new boundary patch
+    (default name "<zone>_wall" for one zone, else "excluded_wall", type wall); the other patches keep
+    their names, types and faces. Unused nodes are dropped; cell zones that remain are kept."""
+    names = [names] if isinstance(names, str) else list(names)
+    if not names:
+        return mesh
+    removed = np.zeros(mesh.n_cells, dtype=bool)
+    for n in names:
+        removed[mesh.zone_cells(n)] = True
+    keep = np.flatnonzero(~removed)
+    if not len(keep):
+        raise ValueError("Every cell zone is excluded: nothing is left to solve.")
+    new_id = np.full(mesh.n_cells, -1, dtype=np.int64)
+    new_id[keep] = np.arange(len(keep))
+    patch_name = patch_name or (f"{names[0]}_wall" if len(names) == 1 else "excluded_wall")
+    boundary = {}
+    for p in mesh.patches:
+        faces = p.faces
+        faces = faces[~removed[mesh.owner[faces]]]
+        boundary[p.name] = (p.type, mesh.face_nodes[faces])
+    n = mesh.n_interior_faces
+    cut = np.flatnonzero(removed[mesh.owner[:n]] != removed[mesh.neighbour[:n]])
+    if len(cut):
+        boundary[patch_name] = (patch_type, mesh.face_nodes[cut])
+    boundary = {k: v for k, v in boundary.items() if len(v[1])}
+    used = np.unique(mesh.cell_nodes[keep][mesh.cell_nodes[keep] >= 0])
+    node_id = np.full(mesh.n_nodes, -1, dtype=np.int64)
+    node_id[used] = np.arange(len(used))
+    relabel = lambda a: np.where(a >= 0, node_id[np.maximum(a, 0)], -1)
+    boundary = {k: (t, relabel(f)) for k, (t, f) in boundary.items()}
+    zones = {k: new_id[v[~removed[v]]] for k, v in mesh.cell_zones.items() if k not in names}
+    return Mesh.from_cells(mesh.nodes[used], mesh.cell_types[keep], relabel(mesh.cell_nodes[keep]), boundary,
+                           dim=mesh.dim, axisymmetric=mesh.axisymmetric, info=mesh.info, cell_zones=zones)

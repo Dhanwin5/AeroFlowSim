@@ -54,6 +54,8 @@ class RawMesh:
     source: str = ""                                    # file name
     hints: dict = field(default_factory=dict)           # {tag name: boundary type read from the file, if it says}
     dim: int = 2                                        # 2, or 3: points (N, 3), groups (m, 4) faces (triangles: -1)
+    zones: dict = field(default_factory=dict)           # {cell zone name: cell numbers in the order of `cells`}; only
+                                                        # when the file has two or more cell zones (full 3D release)
 
     @property
     def n_cells(self) -> int:
@@ -118,11 +120,13 @@ def read_gmsh(path) -> RawMesh:
     if any(b.type in GMSH_VOLUME for b in m.cells):
         return _read_gmsh_3d(m, Path(path).name)
     names = {int(v[0]): k for k, v in m.field_data.items() if int(v[1]) == 1}
+    zone_names = {int(v[0]): k for k, v in m.field_data.items() if int(v[1]) == 2}
     physical = m.cell_data.get("gmsh:physical")
-    cells, groups = [], {}
+    cells, groups, zone_tags = [], {}, []
     for k, block in enumerate(m.cells):
         if block.type in ("triangle", "quad"):
             cells.append((TRIANGLE if block.type == "triangle" else QUAD, np.asarray(block.data, dtype=np.int64)))
+            zone_tags.append(physical[k] if physical is not None else np.zeros(len(block.data), dtype=int))
         elif block.type == "line":
             tags = physical[k] if physical is not None else np.zeros(len(block.data), dtype=int)
             for tag in np.unique(tags):
@@ -135,7 +139,19 @@ def read_gmsh(path) -> RawMesh:
                              "triangles and quadrilaterals in 2D; tetrahedra, pyramids, prisms, hexahedra in 3D).")
     if not cells:
         raise ValueError(f"{Path(path).name} has no 2D cells (triangles or quadrilaterals).")
-    return RawMesh(_flat_2d(m.points, Path(path).name), cells, {k: np.vstack(v) for k, v in groups.items()}, "Gmsh")
+    return RawMesh(_flat_2d(m.points, Path(path).name), cells, {k: np.vstack(v) for k, v in groups.items()}, "Gmsh",
+                   zones=_zones_of_tags(zone_tags, zone_names))
+
+
+def _zones_of_tags(tags, names) -> dict:
+    """{zone name: cell numbers} from the physical tag of every cell block ({} when all cells share one tag)."""
+    if not tags:
+        return {}
+    tags = np.concatenate([np.asarray(t, dtype=np.int64) for t in tags])
+    unique = np.unique(tags)
+    if len(unique) < 2:
+        return {}
+    return {names.get(int(t), f"zone_{int(t)}"): np.flatnonzero(tags == t) for t in unique}
 
 
 GMSH_VOLUME = {"tetra": TETRA, "pyramid": PYRAMID, "wedge": WEDGE, "hexahedron": HEXAHEDRON}   # meshio names
@@ -147,12 +163,14 @@ def _read_gmsh_3d(m, name) -> RawMesh:
     meshio returns the cells in VTK node order for these four types (it converts Gmsh's prism order; tested by a round
     trip through write_gmsh_3d), and mesh_from_raw still turns any inside-out cell round."""
     names = {int(v[0]): k for k, v in m.field_data.items() if int(v[1]) == 2}
+    zone_names = {int(v[0]): k for k, v in m.field_data.items() if int(v[1]) == 3}
     physical = m.cell_data.get("gmsh:physical")
-    cells, groups = [], {}
+    cells, groups, zone_tags = [], {}, []
     for k, block in enumerate(m.cells):
         data = np.asarray(block.data, dtype=np.int64)
         if block.type in GMSH_VOLUME:
             cells.append((GMSH_VOLUME[block.type], data))
+            zone_tags.append(physical[k] if physical is not None else np.zeros(len(data), dtype=int))
         elif block.type in ("triangle", "quad"):
             tags = physical[k] if physical is not None else np.zeros(len(data), dtype=int)
             faces = np.full((len(data), 4), -1, dtype=np.int64)
@@ -166,7 +184,7 @@ def _read_gmsh_3d(m, name) -> RawMesh:
             raise ValueError(f"{name} contains {block.type} cells (high-order or unknown). AeroFlowSim reads linear "
                              "tetrahedra, pyramids, prisms and hexahedra.")
     return RawMesh(np.asarray(m.points, dtype=float)[:, :3], cells, {k: np.vstack(v) for k, v in groups.items()},
-                   "Gmsh", dim=3)
+                   "Gmsh", dim=3, zones=_zones_of_tags(zone_tags, zone_names))
 
 
 def _clean_lines(path):
@@ -178,9 +196,48 @@ def _clean_lines(path):
 
 def read_su2(path) -> RawMesh:
     """SU2 native .su2 (NDIME, NELEM, NPOIN, NMARK / MARKER_TAG / MARKER_ELEMS), 2D or 3D (SU2 uses VTK numbers and
-    node orders, so the cells need no reordering)."""
+    node orders, so the cells need no reordering). A multi-zone file (NZONE = n, one IZONE block each with its own
+    points) becomes one mesh with n cell zones "zone_1", ...: points that coincide between zones (the conformal
+    interface, tolerance 1e-9 of the mesh size) are merged, so the interface markers become interior faces."""
     lines = list(_clean_lines(path))
     name = Path(path).name
+    starts = [k for k, line in enumerate(lines) if line.split("=", 1)[0].strip().upper() == "IZONE"]
+    if not starts:
+        return _read_su2_block(lines, name)
+    blocks = [_read_su2_block(lines[a:b], name) for a, b in zip(starts, starts[1:] + [len(lines)])]
+    text = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    named = [t.split(":", 1)[1].strip() for t in text if t.strip().lower().startswith("% zone:")]
+    names = named if len(named) == len(blocks) and len(set(named)) == len(named) else         [f"zone_{k}" for k in range(1, len(blocks) + 1)]
+    return _merge_zones(blocks, names, "SU2")
+
+
+def _merge_zones(blocks, names, fmt) -> RawMesh:
+    """One RawMesh with cell zones from several RawMeshes that touch at conformal interfaces (coincident points)."""
+    dim = blocks[0].dim
+    points = np.vstack([b.points for b in blocks])
+    size = float(np.ptp(points, axis=0).max()) or 1.0
+    keys = np.round(points / (1e-9 * size)).astype(np.int64)
+    _, first, inverse = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    inverse = inverse.ravel()
+    merged = points[first]
+    cells, groups, zones, offset, count = [], {}, {}, 0, 0
+    for block, zone in zip(blocks, names):
+        renumber = inverse[offset:offset + len(block.points)]
+        ids = []
+        for kind, conn in block.cells:
+            cells.append((kind, renumber[conn]))
+            ids.append(np.arange(count, count + len(conn)))
+            count += len(conn)
+        zones[zone] = np.concatenate(ids)
+        for tag, faces in block.groups.items():
+            faces = np.where(faces >= 0, renumber[np.maximum(faces, 0)], -1)
+            groups[tag] = np.vstack([groups[tag], faces]) if tag in groups else faces
+        offset += len(block.points)
+    return RawMesh(merged, cells, groups, fmt, dim=dim, zones=zones if len(zones) > 1 else {})
+
+
+def _read_su2_block(lines, name) -> RawMesh:
+    """One zone of an SU2 file (or the whole of a one-zone file)."""
     i, ndime, cells, points, groups = 0, 2, {}, None, {}
 
     def value(line):
@@ -228,6 +285,7 @@ def read_su2(path) -> RawMesh:
     return RawMesh(points, [(t, np.array(c, dtype=np.int64)) for t, c in cells.items()], groups, "SU2", dim=ndime)
 
 
+CELL_NODES = {TRIANGLE: 3, QUAD: 4, TETRA: 4, HEXAHEDRON: 8, WEDGE: 6, PYRAMID: 5}
 SU2_CELLS = {2: (TRIANGLE, QUAD), 3: (TETRA, HEXAHEDRON, WEDGE, PYRAMID)}     # VTK numbers SU2 uses
 SU2_NODES = {TRIANGLE: 3, QUAD: 4, TETRA: 4, HEXAHEDRON: 8, WEDGE: 6, PYRAMID: 5, 3: 2}
 
@@ -240,7 +298,7 @@ def read_fluent(path) -> RawMesh:
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     name = Path(path).name
     sections = re.findall(r"\((\d+)\s*\(([^()]*)\)\s*(?:\(([^()]*)\))?", text, flags=re.S)
-    nodes, faces, zones, names, cell_zone_types = [], [], {}, {}, {}
+    nodes, faces, zones, names, cell_zone_types, cell_ranges = [], [], {}, {}, {}, []
     n_dim = 2
     for code, head, body in sections:
         code = int(code)
@@ -262,6 +320,8 @@ def read_fluent(path) -> RawMesh:
             else:
                 rows = np.array([int(x, 16) for x in data], dtype=np.int64).reshape(-1, width).tolist()
             faces.append((zone, bctype, rows))
+        elif code == 12 and int(h[0], 16) != 0:      # a cell zone: (12 (zone first last type element-type))
+            cell_ranges.append((int(h[0], 16), int(h[1], 16), int(h[2], 16)))
         elif code == 45 and h:
             names[int(h[0])] = h[2] if len(h) > 2 else f"zone_{h[0]}"
     if n_dim != 2:
@@ -284,14 +344,25 @@ def read_fluent(path) -> RawMesh:
                 groups.setdefault(tag, []).append((n0, n1))
                 if bctype == 3:
                     hints[tag] = "wall"
-    cells = {TRIANGLE: [], QUAD: []}
+    cells, cell_ids = {TRIANGLE: [], QUAD: []}, {TRIANGLE: [], QUAD: []}
     for c in sorted(cell_faces):
         poly = _chain(cell_faces[c], name)
         if len(poly) not in (3, 4):
             raise ValueError(f"{name}: cell {c} has {len(poly)} corners; only triangles and quadrilaterals are read.")
         cells[TRIANGLE if len(poly) == 3 else QUAD].append(poly)
-    return RawMesh(points, [(t, np.array(c, dtype=np.int64)) for t, c in cells.items() if c],
-                   {k: np.array(v, dtype=np.int64) for k, v in groups.items()}, "Fluent", hints=hints)
+        cell_ids[TRIANGLE if len(poly) == 3 else QUAD].append(c)
+    order = [t for t in (TRIANGLE, QUAD) if cells[t]]
+    zone_of = {}                                       # Fluent cell id -> cell zone name (sections 12 and 45)
+    for zone, first, last in cell_ranges:
+        for c in range(first, last + 1):
+            zone_of[c] = names.get(zone, f"zone_{zone}")
+    ids = [c for t in order for c in cell_ids[t]]
+    zones = {}
+    if len(set(zone_of.values())) > 1:
+        labels = np.array([zone_of.get(c, "fluid") for c in ids])
+        zones = {z: np.flatnonzero(labels == z) for z in dict.fromkeys(labels.tolist())}
+    return RawMesh(points, [(t, np.array(cells[t], dtype=np.int64)) for t in order],
+                   {k: np.array(v, dtype=np.int64) for k, v in groups.items()}, "Fluent", hints=hints, zones=zones)
 
 
 def _chain(edges, name):
@@ -333,7 +404,11 @@ def _children(node, label):
 
 
 def read_cgns(path) -> RawMesh:
-    """CGNS/HDF5, one unstructured 2D zone: coordinates, TRI_3 / QUAD_4 / MIXED sections, BAR_2 sections or ZoneBC groups."""
+    """CGNS/HDF5, unstructured, 2D or 3D, one zone or several. Per zone: coordinates; cell sections (2D: TRI_3, QUAD_4;
+    3D: TETRA_4, PYRA_5, PENTA_6, HEXA_8; or MIXED); boundary sections (2D: BAR_2; 3D: TRI_3, QUAD_4) named by the
+    ZoneBC that points to them, else by the section name. Several zones (each with its own points, the usual CGNS
+    multi-zone layout) become one mesh with one cell zone per CGNS zone (named like it); their coincident interface
+    points are merged (full 3D release stage)."""
     import h5py
     name = Path(path).name
     try:
@@ -341,77 +416,99 @@ def read_cgns(path) -> RawMesh:
     except OSError:
         raise ValueError(f"{name} is not a CGNS/HDF5 file (CGNS files in the old ADF format are not read).") from None
     with file:
-        zones = [(k, z) for _, b in _children(file, "CGNSBase_t") for k, z in _children(b, "Zone_t")]
+        bases = _children(file, "CGNSBase_t")
+        zones = [(k, z, int(_data(b)[0])) for _, b in bases for k, z in _children(b, "Zone_t")]
         if not zones:
             raise ValueError(f"{name} has no zone.")
-        if len(zones) > 1:
-            raise ValueError(f"{name} has {len(zones)} zones; AeroFlowSim reads one zone.")
-        base = _children(file, "CGNSBase_t")[0][1]
-        if int(_data(base)[0]) != 2:
-            raise ValueError(f"{name} is a {int(_data(base)[0])}D CGNS mesh. AeroFlowSim reads only 2D meshes now.")
-        zone = zones[0][1]
-        if _text(next(v for k, v in _children(zone, "ZoneType_t")), "type") != "C1" or \
-                bytes(_data(next(v for k, v in _children(zone, "ZoneType_t")))).decode() != "Unstructured":
-            raise ValueError(f"{name} is a structured CGNS zone: only unstructured zones are read.")
-        coords = next(v for k, v in _children(zone, "GridCoordinates_t"))
-        x, y = np.asarray(_data(coords["CoordinateX"]), dtype=float), np.asarray(_data(coords["CoordinateY"]), dtype=float)
-        points = np.column_stack([x, y])
-        cells, bars = {TRIANGLE: [], QUAD: []}, []                    # bars: (name, first id, edges)
-        for section_name, section in _children(zone, "Elements_t"):
-            kind = int(_data(section)[0])
-            first, last = (int(v) for v in _data(section["ElementRange"]))
-            conn = np.asarray(_data(section["ElementConnectivity"]), dtype=np.int64).ravel()
-            if kind == CGNS_TRI:
-                cells[TRIANGLE].append(conn.reshape(-1, 3) - 1)
-            elif kind == CGNS_QUAD:
-                cells[QUAD].append(conn.reshape(-1, 4) - 1)
-            elif kind == CGNS_BAR:
-                bars.append((section_name, first, conn.reshape(-1, 2) - 1))
-            elif kind == CGNS_MIXED:
-                k, ids, edges = 0, [], []
-                while k < len(conn):
-                    t = int(conn[k])
-                    n = {CGNS_BAR: 2, CGNS_TRI: 3, CGNS_QUAD: 4}.get(t)
-                    if n is None:
-                        raise ValueError(f"{name}: section '{section_name}' holds element type {t}: only 2D linear elements are read.")
-                    nodes = conn[k + 1:k + 1 + n] - 1
-                    (edges if t == CGNS_BAR else cells[TRIANGLE if t == CGNS_TRI else QUAD]).append(nodes)
-                    k += n + 1
-                if edges:
-                    bars.append((section_name, first, np.array(edges)))
+        dims = {d for _, _, d in zones}
+        if len(dims) > 1 or dims - {2, 3}:
+            raise ValueError(f"{name}: the zones must all be 2D or all 3D (cell dimension {sorted(dims)}).")
+        blocks = [_read_cgns_zone(z, d, name) for _, z, d in zones]
+    if len(blocks) == 1:
+        return blocks[0]
+    return _merge_zones(blocks, [k for k, _, _ in zones], "CGNS")
+
+
+CGNS_VOLUME = {10: (TETRA, 4), 12: (PYRAMID, 5), 14: (WEDGE, 6), 17: (HEXAHEDRON, 8)}   # CGNS type -> (VTK, nodes)
+CGNS_NODES = {3: 2, 5: 3, 7: 4, 10: 4, 12: 5, 14: 6, 17: 8}
+
+
+def _read_cgns_zone(zone, dim, name) -> RawMesh:
+    """One unstructured CGNS zone as a RawMesh (2D or 3D)."""
+    ztype = next((v for k, v in _children(zone, "ZoneType_t")), None)
+    if ztype is None or bytes(_data(ztype)).decode() != "Unstructured":
+        raise ValueError(f"{name} is a structured CGNS zone: only unstructured zones are read.")
+    coords = next(v for k, v in _children(zone, "GridCoordinates_t"))
+    axes = ["CoordinateX", "CoordinateY"] + (["CoordinateZ"] if dim == 3 else [])
+    points = np.column_stack([np.asarray(_data(coords[a]), dtype=float) for a in axes])
+    cells = {}
+    faces = []                                               # (section name, first element id, (n, 2 or 4) nodes)
+    boundary_kinds = {CGNS_BAR} if dim == 2 else {CGNS_TRI, CGNS_QUAD}
+    width = 2 if dim == 2 else 4
+
+    def add(kind, nodes, collected):
+        if kind in boundary_kinds:
+            row = np.full(width, -1, dtype=np.int64)
+            row[:len(nodes)] = nodes
+            collected.append(row)
+        elif dim == 2 and kind in (CGNS_TRI, CGNS_QUAD):
+            cells.setdefault(TRIANGLE if kind == CGNS_TRI else QUAD, []).append(nodes)
+        elif dim == 3 and kind in CGNS_VOLUME:
+            vtk = CGNS_VOLUME[kind][0]
+            cells.setdefault(vtk, []).append(nodes[FROM_VTK[vtk]] if vtk in FROM_VTK else nodes)
+        else:
+            raise ValueError(f"{name}: element type {kind} is not read in a {dim}D mesh (linear elements only).")
+
+    for section_name, section in _children(zone, "Elements_t"):
+        kind = int(_data(section)[0])
+        first, _last = (int(v) for v in _data(section["ElementRange"]))
+        conn = np.asarray(_data(section["ElementConnectivity"]), dtype=np.int64).ravel()
+        collected = []
+        if kind == CGNS_MIXED:
+            k = 0
+            while k < len(conn):
+                t = int(conn[k])
+                if t not in CGNS_NODES:
+                    raise ValueError(f"{name}: section '{section_name}' holds element type {t} (linear elements only).")
+                add(t, conn[k + 1:k + 1 + CGNS_NODES[t]] - 1, collected)
+                k += CGNS_NODES[t] + 1
+        else:
+            if kind not in CGNS_NODES:
+                raise ValueError(f"{name}: section '{section_name}' holds element type {kind} (linear elements only).")
+            for row in conn.reshape(-1, CGNS_NODES[kind]) - 1:
+                add(kind, row, collected)
+        if collected:
+            faces.append((section_name, first, np.array(collected)))
+    by_bc = []
+    for bc_zone in _children(zone, "ZoneBC_t"):
+        for bc_name, bc in _children(bc_zone[1], "BC_t"):
+            if "PointRange" in bc:
+                lo, hi = np.asarray(_data(bc["PointRange"])).ravel()[:2]
+                ids = np.arange(int(lo), int(hi) + 1)
+            elif "PointList" in bc:
+                ids = np.asarray(_data(bc["PointList"]), dtype=np.int64).ravel()
             else:
-                raise ValueError(f"{name}: section '{section_name}' holds element type {kind}: only linear triangles, "
-                                 "quadrilaterals and lines are read.")
-        groups = {}
-        by_bc = []
-        for bc_zone in _children(zone, "ZoneBC_t"):
-            for bc_name, bc in _children(bc_zone[1], "BC_t"):
-                if "PointRange" in bc:
-                    a, b = np.asarray(_data(bc["PointRange"])).ravel()[:2]
-                    ids = np.arange(int(a), int(b) + 1)
-                elif "PointList" in bc:
-                    ids = np.asarray(_data(bc["PointList"]), dtype=np.int64).ravel()
-                else:
-                    continue
-                by_bc.append((bc_name, ids))
-        edge_of = {}
-        for section_name, first, edges in bars:
-            for k, e in enumerate(edges):
-                edge_of[first + k] = e
-        used = set()
-        for bc_name, ids in by_bc:
-            found = [edge_of[i] for i in ids if i in edge_of]
-            if found:
-                groups[bc_name] = np.array(found, dtype=np.int64)
-                used.update(int(i) for i in ids)
-        for section_name, first, edges in bars:                      # sections that no BC points to: the section is the tag
-            rest = [e for k, e in enumerate(edges) if first + k not in used]
-            if rest:
-                groups[section_name] = np.array(rest, dtype=np.int64)
-    out = [(t, np.vstack(c)) for t, c in cells.items() if c]
+                continue
+            by_bc.append((bc_name, ids))
+    face_of = {}
+    for _section, first, rows in faces:
+        for k, row in enumerate(rows):
+            face_of[first + k] = row
+    groups, used = {}, set()
+    for bc_name, ids in by_bc:
+        found = [face_of[i] for i in ids if i in face_of]
+        if found:
+            groups[bc_name] = np.vstack([groups[bc_name], found]) if bc_name in groups else np.array(found)
+            used.update(int(i) for i in ids)
+    for section_name, first, rows in faces:                  # sections no BC points to: the section is the tag
+        rest = [r for k, r in enumerate(rows) if first + k not in used]
+        if rest:
+            groups[section_name] = np.array(rest, dtype=np.int64)
+    order = (TRIANGLE, QUAD) if dim == 2 else (TETRA, PYRAMID, WEDGE, HEXAHEDRON)   # the writers' section order
+    out = [(t, np.vstack(cells[t])) for t in order if cells.get(t)]
     if not out:
-        raise ValueError(f"{name} has no 2D cells (TRI_3 or QUAD_4 sections).")
-    return RawMesh(points, out, groups, "CGNS")
+        raise ValueError(f"{name} has no {dim}D cells.")
+    return RawMesh(points, out, groups, "CGNS", dim=dim)
 
 
 def _node(parent, name, label, kind, data=None):
@@ -427,6 +524,26 @@ def _node(parent, name, label, kind, data=None):
     return group
 
 
+INTERFACE_SUFFIX = "_interface"     # boundary of one zone's part where it touches other zones (multi-zone CGNS)
+
+
+def _cgns_parts(mesh):
+    """[(CGNS zone name, Mesh)]: the mesh itself as "Zone", or one part per cell zone; a part's faces shared with other
+    zones form the patch "<zone>_interface" (BC type BCTypeNull; reading the file merges them back into interior
+    faces). Zone names are the cell zone names."""
+    if not mesh.cell_zones:
+        return [("Zone", mesh)]
+    from aeroflowsim.mesh import remove_zones
+    return [(z, remove_zones(mesh, [o for o in mesh.zone_names if o != z], patch_name=z + INTERFACE_SUFFIX))
+            for z in mesh.zone_names]
+
+
+def _cgns_bc(patch):
+    if patch.name.endswith(INTERFACE_SUFFIX):
+        return "BCTypeNull"
+    return CGNS_BC.get(patch.type, "BCTypeNull")
+
+
 def write_cgns(mesh: Mesh, path) -> Path:
     """CGNS/HDF5: base (2, 2), one unstructured zone, coordinates, cell sections, one BAR_2 section and BC per patch.
     A 3D mesh: see write_cgns_3d."""
@@ -436,35 +553,41 @@ def write_cgns(mesh: Mesh, path) -> Path:
     _check_2d(mesh)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    cells = _cell_lists(mesh)
     with h5py.File(path, "w") as f:
         f.create_dataset(" format", data=np.frombuffer(b"IEEE_LITTLE_64\0", dtype=np.int8))
         f.create_dataset(" hdf5version", data=np.frombuffer(b"HDF5 Version 1.14.0\0", dtype=np.int8))
         _node(f, "CGNSLibraryVersion", "CGNSLibraryVersion_t", "R4", [4.0])
         base = _node(f, "Base", "CGNSBase_t", "I4", [2, 2])
-        zone = _node(base, "Zone", "Zone_t", "I4", [[mesh.n_nodes, mesh.n_cells, 0]])
-        _node(zone, "ZoneType", "ZoneType_t", "C1", np.frombuffer(b"Unstructured", dtype=np.int8))
-        grid = _node(zone, "GridCoordinates", "GridCoordinates_t", "MT")
-        _node(grid, "CoordinateX", "DataArray_t", "R8", mesh.nodes[:, 0])
-        _node(grid, "CoordinateY", "DataArray_t", "R8", mesh.nodes[:, 1])
-        element = 1
-        for section, (kind, conn) in zip(("Cells_tri", "Cells_quad"), cells):
-            sec = _node(zone, section, "Elements_t", "I4", [{TRIANGLE: CGNS_TRI, QUAD: CGNS_QUAD}[kind], 0])
-            conn = conn if len(conn) else conn
-            _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
-            _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
-            element += len(conn)
-        zbc = _node(zone, "ZoneBC", "ZoneBC_t", "MT")
-        for patch in mesh.patches:
-            edges = mesh.face_nodes[patch.faces, :2]
-            sec = _node(zone, patch.name, "Elements_t", "I4", [CGNS_BAR, 0])
-            _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(edges) - 1])
-            _node(sec, "ElementConnectivity", "DataArray_t", "I4", (edges + 1).ravel())
-            bc = _node(zbc, patch.name, "BC_t", "C1", np.frombuffer(CGNS_BC.get(patch.type, "BCTypeNull").encode(), dtype=np.int8))
-            _node(bc, "PointRange", "IndexRange_t", "I4", [[element], [element + len(edges) - 1]])
-            _node(bc, "GridLocation", "GridLocation_t", "C1", np.frombuffer(b"EdgeCenter", dtype=np.int8))
-            element += len(edges)
+        for zone_name, part in _cgns_parts(mesh):
+            _write_cgns_zone(base, zone_name, part)
     return path
+
+
+def _write_cgns_zone(base, zone_name, mesh):
+    """One 2D unstructured zone (coordinates, cell sections, one BAR_2 section and BC per patch)."""
+    cells = _cell_lists(mesh)
+    zone = _node(base, zone_name, "Zone_t", "I4", [[mesh.n_nodes, mesh.n_cells, 0]])
+    _node(zone, "ZoneType", "ZoneType_t", "C1", np.frombuffer(b"Unstructured", dtype=np.int8))
+    grid = _node(zone, "GridCoordinates", "GridCoordinates_t", "MT")
+    _node(grid, "CoordinateX", "DataArray_t", "R8", mesh.nodes[:, 0])
+    _node(grid, "CoordinateY", "DataArray_t", "R8", mesh.nodes[:, 1])
+    element = 1
+    for section, (kind, conn) in zip(("Cells_tri", "Cells_quad"), cells):
+        sec = _node(zone, section, "Elements_t", "I4", [{TRIANGLE: CGNS_TRI, QUAD: CGNS_QUAD}[kind], 0])
+        conn = conn if len(conn) else conn
+        _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
+        _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
+        element += len(conn)
+    zbc = _node(zone, "ZoneBC", "ZoneBC_t", "MT")
+    for patch in mesh.patches:
+        edges = mesh.face_nodes[patch.faces, :2]
+        sec = _node(zone, patch.name, "Elements_t", "I4", [CGNS_BAR, 0])
+        _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(edges) - 1])
+        _node(sec, "ElementConnectivity", "DataArray_t", "I4", (edges + 1).ravel())
+        bc = _node(zbc, patch.name, "BC_t", "C1", np.frombuffer(_cgns_bc(patch).encode(), dtype=np.int8))
+        _node(bc, "PointRange", "IndexRange_t", "I4", [[element], [element + len(edges) - 1]])
+        _node(bc, "GridLocation", "GridLocation_t", "C1", np.frombuffer(b"EdgeCenter", dtype=np.int8))
+        element += len(edges)
 
 
 # ---- writing Gmsh and SU2 ----------------------------------------------------------------------------------------------
@@ -496,8 +619,12 @@ def write_gmsh(mesh: Mesh, path, version="2.2") -> Path:
     patches = list(mesh.patches)
     cells = [(code, conn) for code, conn in _cell_lists(mesh) if len(conn)]
     gmsh_type = {TRIANGLE: 2, QUAD: 3}
-    out = ["$MeshFormat", f"{version} 0 8", "$EndMeshFormat", "$PhysicalNames", str(len(patches) + 1)]
-    out += [f'1 {k} "{p.name}"' for k, p in enumerate(patches, start=1)] + ['2 1 "fluid"', "$EndPhysicalNames"]
+    zone_tag = mesh.cell_zone_index() + 1                      # physical surface of every cell (1 = "fluid")
+    zone_of = {code: zone_tag[mesh.cell_types == code] for code, _ in cells}
+    zones = mesh.zone_names
+    out = ["$MeshFormat", f"{version} 0 8", "$EndMeshFormat", "$PhysicalNames", str(len(patches) + len(zones))]
+    out += [f'1 {k} "{p.name}"' for k, p in enumerate(patches, start=1)]
+    out += [f'2 {k} "{z}"' for k, z in enumerate(zones, start=1)] + ["$EndPhysicalNames"]
     if version == "2.2":
         out += ["$Nodes", str(len(nodes))] + [f"{i + 1} {x!r} {y!r} 0" for i, (x, y, _) in enumerate(nodes)] + ["$EndNodes"]
         n_elements = sum(len(c) for _, c in cells) + sum(p.count for p in patches)
@@ -508,22 +635,26 @@ def write_gmsh(mesh: Mesh, path, version="2.2") -> Path:
                 out.append(f"{element} 1 2 {k} {k} {a + 1} {b + 1}")
                 element += 1
         for code, conn in cells:
-            for row in conn:
-                out.append(f"{element} {gmsh_type[code]} 2 1 1 " + " ".join(str(int(n) + 1) for n in row))
+            for row, z in zip(conn, zone_of[code]):
+                out.append(f"{element} {gmsh_type[code]} 2 {z} {z} " + " ".join(str(int(n) + 1) for n in row))
                 element += 1
         out.append("$EndElements")
     else:
         arr = mesh.nodes
         lo, hi = arr[:, :2].min(axis=0).tolist(), arr[:, :2].max(axis=0).tolist()
-        out += ["$Entities", f"0 {len(patches)} 1 0"]
+        out += ["$Entities", f"0 {len(patches)} {len(zones)} 0"]
         for k, p in enumerate(patches, start=1):
             e = mesh.face_nodes[p.faces, :2].ravel()
             a, b = arr[e, :2].min(axis=0).tolist(), arr[e, :2].max(axis=0).tolist()
             out.append(f"{k} {a[0]!r} {a[1]!r} 0 {b[0]!r} {b[1]!r} 0 1 {k} 0")
-        out.append(f"1 {lo[0]!r} {lo[1]!r} 0 {hi[0]!r} {hi[1]!r} 0 1 1 {len(patches)} " + " ".join(str(k) for k in range(1, len(patches) + 1)))
+        for z in range(1, len(zones) + 1):
+            out.append(f"{z} {lo[0]!r} {lo[1]!r} 0 {hi[0]!r} {hi[1]!r} 0 1 {z} {len(patches)} "
+                       + " ".join(str(k) for k in range(1, len(patches) + 1)))
         out += ["$EndEntities", "$Nodes", f"1 {len(nodes)} 1 {len(nodes)}", f"2 1 0 {len(nodes)}"]
         out += [str(i + 1) for i in range(len(nodes))] + [f"{x!r} {y!r} 0" for x, y, _ in nodes] + ["$EndNodes"]
-        blocks = len(patches) + len(cells)
+        cell_blocks = [(z, code, conn[zone_of[code] == z]) for code, conn in cells for z in range(1, len(zones) + 1)
+                       if np.any(zone_of[code] == z)]
+        blocks = len(patches) + len(cell_blocks)
         n_elements = sum(len(c) for _, c in cells) + sum(p.count for p in patches)
         out += ["$Elements", f"{blocks} {n_elements} 1 {n_elements}"]
         element = 1
@@ -532,8 +663,8 @@ def write_gmsh(mesh: Mesh, path, version="2.2") -> Path:
             for a, b in mesh.face_nodes[p.faces, :2]:
                 out.append(f"{element} {a + 1} {b + 1}")
                 element += 1
-        for code, conn in cells:
-            out.append(f"2 1 {gmsh_type[code]} {len(conn)}")
+        for z, code, conn in cell_blocks:
+            out.append(f"2 {z} {gmsh_type[code]} {len(conn)}")
             for row in conn:
                 out.append(f"{element} " + " ".join(str(int(n) + 1) for n in row))
                 element += 1
@@ -543,7 +674,10 @@ def write_gmsh(mesh: Mesh, path, version="2.2") -> Path:
 
 
 def write_su2(mesh: Mesh, path) -> Path:
-    """SU2 .su2: the cells, the points and one MARKER_TAG per patch (named like the patch). 3D: see write_su2_3d."""
+    """SU2 .su2: the cells, the points and one MARKER_TAG per patch (named like the patch). 3D: see write_su2_3d.
+    A multi-zone mesh: see write_su2_zones."""
+    if mesh.cell_zones:
+        return write_su2_zones(mesh, path)
     if mesh.dim == 3:
         return write_su2_3d(mesh, path)
     _check_2d(mesh)
@@ -603,8 +737,12 @@ def write_gmsh_3d(mesh: Mesh, path, version="2.2") -> Path:
     patches = list(mesh.patches)
     cells = _cell_lists_3d(mesh, FROM_VTK)
     faces = [_patch_faces(mesh, p) for p in patches]
-    out = ["$MeshFormat", f"{version} 0 8", "$EndMeshFormat", "$PhysicalNames", str(len(patches) + 1)]
-    out += [f'2 {k} "{p.name}"' for k, p in enumerate(patches, start=1)] + ['3 1 "fluid"', "$EndPhysicalNames"]
+    zone_tag = mesh.cell_zone_index() + 1                      # physical volume of every cell (1 = "fluid")
+    zone_of = {code: zone_tag[mesh.cell_types == code] for code, _ in cells}
+    zones = mesh.zone_names
+    out = ["$MeshFormat", f"{version} 0 8", "$EndMeshFormat", "$PhysicalNames", str(len(patches) + len(zones))]
+    out += [f'2 {k} "{p.name}"' for k, p in enumerate(patches, start=1)]
+    out += [f'3 {k} "{z}"' for k, z in enumerate(zones, start=1)] + ["$EndPhysicalNames"]
     n_elements = sum(len(c) for _, c in cells) + sum(p.count for p in patches)
     element = 1
     if version == "2.2":
@@ -616,8 +754,8 @@ def write_gmsh_3d(mesh: Mesh, path, version="2.2") -> Path:
                     out.append(f"{element} {kind} 2 {k} {k} " + " ".join(str(int(n) + 1) for n in row))
                     element += 1
         for code, conn in cells:
-            for row in conn:
-                out.append(f"{element} {GMSH_3D[code]} 2 1 1 " + " ".join(str(int(n) + 1) for n in row))
+            for row, z in zip(conn, zone_of[code]):
+                out.append(f"{element} {GMSH_3D[code]} 2 {z} {z} " + " ".join(str(int(n) + 1) for n in row))
                 element += 1
         out.append("$EndElements")
     else:
@@ -625,16 +763,18 @@ def write_gmsh_3d(mesh: Mesh, path, version="2.2") -> Path:
 
         def box(points):
             return " ".join(repr(v) for v in [*points.min(axis=0).tolist(), *points.max(axis=0).tolist()])
-        out += ["$Entities", f"0 0 {len(patches)} 1"]
+        out += ["$Entities", f"0 0 {len(patches)} {len(zones)}"]
         for k, p in enumerate(patches, start=1):
             used = mesh.face_nodes[p.faces]
             out.append(f"{k} {box(arr[used[used >= 0]])} 1 {k} 0")
-        out.append(f"1 {box(arr)} 1 1 {len(patches)} " + " ".join(str(k) for k in range(1, len(patches) + 1)))
+        for z in range(1, len(zones) + 1):
+            out.append(f"{z} {box(arr)} 1 {z} {len(patches)} " + " ".join(str(k) for k in range(1, len(patches) + 1)))
         out += ["$EndEntities", "$Nodes", f"1 {len(nodes)} 1 {len(nodes)}", f"3 1 0 {len(nodes)}"]
         out += [str(i + 1) for i in range(len(nodes))] + [f"{x!r} {y!r} {z!r}" for x, y, z in nodes] + ["$EndNodes"]
         blocks = [(2, k, kind, conn) for k, (tri, quad) in enumerate(faces, start=1)
                   for kind, conn in ((2, tri), (3, quad)) if len(conn)]
-        blocks += [(3, 1, GMSH_3D[code], conn) for code, conn in cells]
+        blocks += [(3, z, GMSH_3D[code], conn[zone_of[code] == z]) for code, conn in cells
+                   for z in range(1, len(zones) + 1) if np.any(zone_of[code] == z)]
         out += ["$Elements", f"{len(blocks)} {n_elements} 1 {n_elements}"]
         for dim, entity, kind, conn in blocks:
             out.append(f"{dim} {entity} {kind} {len(conn)}")
@@ -642,6 +782,51 @@ def write_gmsh_3d(mesh: Mesh, path, version="2.2") -> Path:
                 out.append(f"{element} " + " ".join(str(int(n) + 1) for n in row))
                 element += 1
         out.append("$EndElements")
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return path
+
+
+def write_su2_zones(mesh: Mesh, path) -> Path:
+    """SU2 multi-zone file: NZONE = n and one IZONE block per cell zone, each with its own points (SU2 numbers the
+    points per zone), its cells, its part of every patch and one marker per interface ("<zone>_to_<other>", the
+    faces it shares with the other zone, which SU2 joins with MARKER_ZONE_INTERFACE). Zone names are not part of the
+    format: they are written as comments ("% zone: name")."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    index = mesh.cell_zone_index()
+    nI = mesh.n_interior_faces
+    face_kind = {2: 3, 3: 5, 4: 9}                               # nodes per face -> VTK line / triangle / quad
+    out = [f"NZONE= {len(mesh.zone_names)}"]
+    for k, zone in enumerate(mesh.zone_names):
+        cells = np.flatnonzero(index == k)
+        used = np.unique(mesh.cell_nodes[cells][mesh.cell_nodes[cells] >= 0])
+        local = np.full(mesh.n_nodes, -1, dtype=np.int64)
+        local[used] = np.arange(len(used))
+        out += [f"% zone: {zone}", f"IZONE= {k + 1}", f"NDIME= {mesh.dim}", f"NELEM= {len(cells)}"]
+        for j, c in enumerate(cells):
+            n = CELL_NODES[int(mesh.cell_types[c])]
+            out.append(f"{int(mesh.cell_types[c])} " + " ".join(str(int(local[v])) for v in mesh.cell_nodes[c, :n])
+                       + f" {j}")
+        out.append(f"NPOIN= {len(used)}")
+        out += [" ".join(repr(float(x)) for x in mesh.nodes[v, :mesh.dim]) + f" {j}" for j, v in enumerate(used)]
+        markers = []
+        for p in mesh.patches:
+            faces = p.faces[index[mesh.owner[p.faces]] == k]
+            if len(faces):
+                markers.append((p.name, faces))
+        for j, other in enumerate(mesh.zone_names):
+            if j == k:
+                continue
+            zo, zn = index[mesh.owner[:nI]], index[mesh.neighbour[:nI]]
+            faces = np.flatnonzero(((zo == k) & (zn == j)) | ((zo == j) & (zn == k)))
+            if len(faces):
+                markers.append((f"{zone}_to_{other}", faces))
+        out.append(f"NMARK= {len(markers)}")
+        for tag, faces in markers:
+            out += [f"MARKER_TAG= {tag}", f"MARKER_ELEMS= {len(faces)}"]
+            for f in mesh.face_nodes[faces]:
+                f = f[f >= 0]
+                out.append(f"{face_kind[len(f)]} " + " ".join(str(int(local[v])) for v in f))
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
     return path
 
@@ -680,32 +865,38 @@ def write_cgns_3d(mesh: Mesh, path) -> Path:
         f.create_dataset(" hdf5version", data=np.frombuffer(b"HDF5 Version 1.14.0\0", dtype=np.int8))
         _node(f, "CGNSLibraryVersion", "CGNSLibraryVersion_t", "R4", [4.0])
         base = _node(f, "Base", "CGNSBase_t", "I4", [3, 3])
-        zone = _node(base, "Zone", "Zone_t", "I4", [[mesh.n_nodes, mesh.n_cells, 0]])
-        _node(zone, "ZoneType", "ZoneType_t", "C1", np.frombuffer(b"Unstructured", dtype=np.int8))
-        grid = _node(zone, "GridCoordinates", "GridCoordinates_t", "MT")
-        for k, axis in enumerate("XYZ"):
-            _node(grid, f"Coordinate{axis}", "DataArray_t", "R8", mesh.nodes[:, k])
-        element = 1
-        names = {TETRA: "Cells_tetra", PYRAMID: "Cells_pyramid", WEDGE: "Cells_prism", HEXAHEDRON: "Cells_hexa"}
-        for code, conn in _cell_lists_3d(mesh, FROM_VTK):
-            sec = _node(zone, names[code], "Elements_t", "I4", [CGNS_3D[code], 0])
-            _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
-            _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
-            element += len(conn)
-        zbc = _node(zone, "ZoneBC", "ZoneBC_t", "MT")
-        for patch in mesh.patches:
-            first = element
-            for suffix, kind, conn in zip(("", "_quads"), (CGNS_TRI_3, CGNS_QUAD_4), _patch_faces(mesh, patch)):
-                if len(conn):
-                    sec = _node(zone, patch.name + suffix, "Elements_t", "I4", [kind, 0])
-                    _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
-                    _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
-                    element += len(conn)
-            bc = _node(zbc, patch.name, "BC_t", "C1",
-                       np.frombuffer(CGNS_BC.get(patch.type, "BCTypeNull").encode(), dtype=np.int8))
-            _node(bc, "PointRange", "IndexRange_t", "I4", [[first], [element - 1]])
-            _node(bc, "GridLocation", "GridLocation_t", "C1", np.frombuffer(b"FaceCenter", dtype=np.int8))
+        for zone_name, part in _cgns_parts(mesh):
+            _write_cgns_3d_zone(base, zone_name, part)
     return path
+
+
+def _write_cgns_3d_zone(base, zone_name, mesh):
+    """One 3D unstructured zone (coordinates, cell sections, per patch TRI_3 / QUAD_4 sections and a BC)."""
+    zone = _node(base, zone_name, "Zone_t", "I4", [[mesh.n_nodes, mesh.n_cells, 0]])
+    _node(zone, "ZoneType", "ZoneType_t", "C1", np.frombuffer(b"Unstructured", dtype=np.int8))
+    grid = _node(zone, "GridCoordinates", "GridCoordinates_t", "MT")
+    for k, axis in enumerate("XYZ"):
+        _node(grid, f"Coordinate{axis}", "DataArray_t", "R8", mesh.nodes[:, k])
+    element = 1
+    names = {TETRA: "Cells_tetra", PYRAMID: "Cells_pyramid", WEDGE: "Cells_prism", HEXAHEDRON: "Cells_hexa"}
+    for code, conn in _cell_lists_3d(mesh, FROM_VTK):
+        sec = _node(zone, names[code], "Elements_t", "I4", [CGNS_3D[code], 0])
+        _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
+        _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
+        element += len(conn)
+    zbc = _node(zone, "ZoneBC", "ZoneBC_t", "MT")
+    for patch in mesh.patches:
+        first = element
+        for suffix, kind, conn in zip(("", "_quads"), (CGNS_TRI_3, CGNS_QUAD_4), _patch_faces(mesh, patch)):
+            if len(conn):
+                sec = _node(zone, patch.name + suffix, "Elements_t", "I4", [kind, 0])
+                _node(sec, "ElementRange", "IndexRange_t", "I4", [element, element + len(conn) - 1])
+                _node(sec, "ElementConnectivity", "DataArray_t", "I4", (conn + 1).ravel())
+                element += len(conn)
+        bc = _node(zbc, patch.name, "BC_t", "C1",
+                   np.frombuffer(_cgns_bc(patch).encode(), dtype=np.int8))
+        _node(bc, "PointRange", "IndexRange_t", "I4", [[first], [element - 1]])
+        _node(bc, "GridLocation", "GridLocation_t", "C1", np.frombuffer(b"FaceCenter", dtype=np.int8))
 
 
 def write_mesh(mesh: Mesh, path, gmsh_version="2.2") -> Path:
@@ -842,7 +1033,8 @@ def mesh_from_raw(raw: RawMesh, unit="m", axisymmetric=False, patch_types=None) 
         nodes[:, 1] = np.maximum(nodes[:, 1], 0.0)
     info = {"generator": "imported", "source": raw.source, "format": raw.format, "file_unit": unit,
             "axisymmetric": bool(axisymmetric)}
-    return Mesh.from_cells(nodes, cell_types, cells, boundary, dim=2, axisymmetric=axisymmetric, info=info)
+    return Mesh.from_cells(nodes, cell_types, cells, boundary, dim=2, axisymmetric=axisymmetric, info=info,
+                           cell_zones=raw.zones or None)
 
 
 def _mesh_from_raw_3d(raw: RawMesh, unit, patch_types) -> Mesh:
@@ -891,7 +1083,7 @@ def _mesh_from_raw_3d(raw: RawMesh, unit, patch_types) -> Mesh:
     cells = np.where(cells >= 0, renumber[np.maximum(cells, 0)], -1)
     boundary = {name: (types[name], np.where(g >= 0, renumber[np.maximum(g, 0)], -1)) for name, g in tagged.items()}
     info = {"generator": "imported", "source": raw.source, "format": raw.format, "file_unit": unit, "axisymmetric": False}
-    return Mesh.from_cells(nodes[used], cell_types, cells, boundary, dim=3, info=info)
+    return Mesh.from_cells(nodes[used], cell_types, cells, boundary, dim=3, info=info, cell_zones=raw.zones or None)
 
 
 def import_mesh(path, unit="m", axisymmetric=False, patch_types=None) -> Mesh:

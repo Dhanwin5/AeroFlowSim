@@ -144,13 +144,17 @@ def _times_area(unit):
 def region_cells(sol, region=None) -> np.ndarray:
     """Boolean (C,) mask of the cells whose centroid is inside the region.
 
-    region: None / {"type": "domain"}; {"type": "box", "min": (x, y), "max": (x, y)};
+    region: None / {"type": "domain"}; {"type": "zone", "name": zone name}; {"type": "box", "min": (x, y), "max": (x, y)};
     {"type": "circle", "centre": (x, y), "radius": r}; {"type": "polygon", "points": [(x, y), ...]} [m].
     """
     c = sol.geom.cell_centres[:, :2]
     if not region or region.get("type", "domain") == "domain":
         return np.ones(len(c), dtype=bool)
     kind = region["type"]
+    if kind == "zone":                                     # a cell zone of a multi-zone mesh (by name)
+        mask = np.zeros(len(c), dtype=bool)
+        mask[sol.mesh.zone_cells(region["name"])] = True
+        return mask
     if kind == "box":
         lo, hi = np.asarray(region["min"], float), np.asarray(region["max"], float)
         return np.all((c >= np.minimum(lo, hi)) & (c <= np.maximum(lo, hi)), axis=1)
@@ -276,3 +280,45 @@ def forces_and_moments(sol, walls, moment_point=(0.0, 0.0), p_ref=None, q_ref=No
 
 __all__ = ["SURFACE_OPERATIONS", "VOLUME_OPERATIONS", "CONSERVED", "surface_integral", "volume_integral",
            "region_cells", "cell_volumes", "flux_balance", "forces_and_moments", "FieldError"]
+
+
+# ---- cell zones (full 3D release stage) ----------------------------------------------------------------
+
+def zone_balance(sol) -> dict:
+    """Mass, momentum and energy through every zone interface and the balance of every zone.
+
+    For a zone, inflow through its boundary patches plus inflow through its interfaces must add up to zero at a
+    steady state. The interface numbers are the solver's own face fluxes (stored for multi-zone runs as
+    series "interface_flux"), so what leaves one zone enters the next exactly: the flux is computed once per face.
+    Returns {"interfaces": [(zone_a, zone_b, mass, momentum..., energy)] (positive from a into b),
+             "zones": [(zone, mass, x-mom, y-mom, energy)] (net OUTFLOW of the zone: boundaries + interfaces),
+             "columns": ...}. A one-zone mesh gives one zone and no interfaces."""
+    mesh = sol.mesh
+    names = mesh.zone_names
+    index = mesh.cell_zone_index()
+    F = sol.boundary_flux * sol.full_circle
+    nvar = min(F.shape[0], mesh.dim + 2)                 # mass, momentum (2 or 3), energy (not turbulence)
+    nI = mesh.n_interior_faces
+    out_flux = np.zeros((len(names), nvar))
+    for p in mesh.patches:
+        local = sol.patch_faces(p.name)
+        cells = mesh.owner[nI + local]
+        for k in range(nvar):
+            np.add.at(out_flux[:, k], index[cells], F[k, local])
+    rows = []
+    faces = sol.series.get("interface_faces")
+    if faces is not None and len(faces):
+        faces = np.asarray(faces, dtype=np.int64)
+        FI = np.asarray(sol.series["interface_flux"])[:nvar] * sol.full_circle
+        zo, zn = index[mesh.owner[faces]], index[mesh.neighbour[faces]]
+        for k in range(nvar):
+            np.add.at(out_flux[:, k], zo, FI[k])        # leaves the owner's zone ...
+            np.add.at(out_flux[:, k], zn, -FI[k])       # ... and enters the neighbour's zone
+        pairs = np.sort(np.column_stack([zo, zn]), axis=1)
+        for a, b in np.unique(pairs, axis=0):
+            sel = (pairs[:, 0] == a) & (pairs[:, 1] == b)
+            sign = np.where(zo[sel] == a, 1.0, -1.0)
+            rows.append((names[a], names[b], *[float(np.sum(sign * FI[k, sel])) for k in range(nvar)]))
+    zones = [(n, *[float(v) for v in out_flux[i]]) for i, n in enumerate(names)]
+    momentum = tuple(f"{a}-momentum [N]" for a in "xyz"[:nvar - 2])
+    return {"interfaces": rows, "zones": zones, "columns": ("Zone", "Mass [kg/s]", *momentum, "Energy [W]")}

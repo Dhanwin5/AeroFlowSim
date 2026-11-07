@@ -300,7 +300,7 @@ def _extras() -> dict:
 def apply_patches(W, mesh, gas, patches):
     """Patch (initialisation) regions on top of a fresh initial state (Fluent's "Patch"), in the given order.
 
-    patches: [{"region": {box / circle / polygon, as aeroflowsim.post.integrals.region_cells}, "values": {"p": Pa,
+    patches: [{"region": {zone (by name) / box / circle / polygon, as aeroflowsim.post.integrals.region_cells}, "values": {"p": Pa,
     "T": K, "u": m/s, "v": m/s}}]; cells whose centroid is inside get the given values (missing ones keep theirs;
     density follows from p and T with the gas constant). Returns (W, number of cells patched)."""
     from matplotlib.path import Path as MplPath
@@ -310,7 +310,10 @@ def apply_patches(W, mesh, gas, patches):
     for patch in patches or []:
         region = patch.get("region") or {}
         kind = region.get("type")
-        if kind == "box":
+        if kind == "zone":                       # a cell zone (multi-zone mesh): its own initial condition
+            inside = np.zeros(mesh.n_cells, dtype=bool)
+            inside[mesh.zone_cells(region["name"])] = True
+        elif kind == "box":
             lo, hi = np.asarray(region["min"], float), np.asarray(region["max"], float)
             inside = np.all((c >= np.minimum(lo, hi)) & (c <= np.maximum(lo, hi)), axis=1)
         elif kind == "circle":
@@ -318,7 +321,7 @@ def apply_patches(W, mesh, gas, patches):
         elif kind == "polygon":
             inside = MplPath(np.asarray(region["points"], float)).contains_points(c)
         else:
-            raise ValueError(f"Patch region type '{kind}' is not known; use box, circle or polygon.")
+            raise ValueError(f"Patch region type '{kind}' is not known; use zone, box, circle or polygon.")
         values = patch.get("values") or {}
         T_old = temperature(W, gas)
         if "p" in values:
@@ -802,6 +805,12 @@ def solve(problem, params, mesh, progress=None) -> Result:
     if out.limiter is not None:                  # a frozen limiter stays frozen when the run is continued
         series["limiter_frozen"] = out.limiter
     series["boundary_flux"] = solver.boundary_flux.copy()   # flux x area of every boundary face (post-processing)
+    if mesh.cell_zones:                          # multi-zone mesh: flux x area through every zone interface face
+        n = mesh.n_interior_faces
+        index = mesh.cell_zone_index()
+        faces = np.flatnonzero(index[mesh.owner[:n]] != index[mesh.neighbour[:n]])
+        series["interface_faces"] = faces
+        series["interface_flux"] = np.asarray(solver.face_flux)[:, faces].copy()
     series["cell_centres"] = mesh.cell_centres[:, :mesh.dim].copy()  # [m]: lets a later run interpolate onto a new mesh
     info = {"status": out.status, "first_iteration": out.first_iteration, "mesh_signature": mesh_signature(mesh),
             "continued_from": None if previous is None else previous.iterations,

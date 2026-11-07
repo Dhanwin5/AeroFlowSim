@@ -121,3 +121,13 @@ zones), each zone with a name and its own settings; non-conformal interfaces are
   waiting for my yes. Next stage file written (rule 19): low-Mach preconditioning, updated with this stage's findings.
 
 ## Ledger
+
+### Plan (2026-11-07, start of the session)
+- Part 1: one hypothesis at a time, cheapest twin first. The 2D cylinder on triangles shows the same symptom (+8.4 %)
+  as the 3D sphere (+10.7 %) and runs in minutes, so each hypothesis is screened there, then confirmed on the sphere.
+  Order: (1) resolution (cell growth across the shock layer, then a sphere refinement study with GCI), (2) limiter
+  (K, Barth-Jespersen), (3) HLLE carbuncle blend, (4) gradient method. Tool: `tools/shock_position_study.py`
+  (one JSON line per run in `validation/results/shock_study.jsonl`).
+- Part 2: `Mesh.cell_zones` (name -> cell ids, empty for one zone = old arrays), Fragment in 2D / 3D kernels, zone
+  names and per-zone settings in the workspace, IO per format, results per zone, conservation tests.
+- Part 3, Part 4 as written above; Part 4 is reached even if Part 3 items run out of time (SHORTFALL).

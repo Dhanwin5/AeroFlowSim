@@ -386,6 +386,7 @@ class EulerSolver:
             FA = FA - FV                                     # Navier-Stokes: inviscid minus viscous flux
             self.boundary_viscous_flux = FV[:, nI:]
         self.boundary_flux = FA[:, nI:]
+        self.face_flux = FA                                  # every face (a reference; zone interfaces read it)
         R = g.sum_over_faces(FA)
         R[1:-1] -= W[-1] * g.geometric_source               # well-balanced pressure term (see docstring)
         if self.source is not None:
@@ -440,6 +441,7 @@ class EulerSolver:
             if v_source is not None:
                 source = v_source if source is None else source + v_source
         self.boundary_flux = K.FA[:, nI:].copy()          # a copy: the buffer is reused by the next stage
+        self.face_flux = K.FA                             # every face (the buffer; zone interfaces copy from it)
         use_source = source is not None
         source = np.ascontiguousarray(source) if use_source else K.no_source
         dUdt = np.empty_like(W)
