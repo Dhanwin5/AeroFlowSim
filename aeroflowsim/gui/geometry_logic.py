@@ -57,6 +57,17 @@ def _choices(values):
 
 
 ROLE_CHOICES = ((FLUID, "Fluid (meshed)"), (SOLID, "Solid (cut out)"))
+# Fluid zones (full 3D release stage): the settings of the LAST selected face / body (the region that wins)
+ZONE_FIELDS = (
+    Field("name", "Zone name of the last selected", "text",
+          help="The cell zone the last selected face or body becomes (the others keep their own names)."),
+    Field("size", "Cell size in this zone (0 = none)", "length",
+          help="A constant cell size inside the zone, combined with the other sizes (the smallest wins)."),
+    Field("exclude", "Exclude this zone (not solved)", "bool",
+          help="Solid / excluded: the zone is removed after meshing; its faces with the other zones become the wall "
+               "boundary '<zone>_wall'."),
+)
+
 FIELDS = {
     "transform": (
         Field("kind", "Transform", "choice", _choices(Transform.KINDS)),
@@ -74,6 +85,7 @@ FIELDS = {
     "boolean": (Field("kind", "Boolean", "choice", _choices(BooleanOp.KINDS)),
                 Field("keep_tools", "Keep the tool faces", "bool")),
     "set_role": (Field("role", "Role", "choice", ROLE_CHOICES),),
+    "fluid_zones": ZONE_FIELDS,
     "enclosure": (
         Field("kind", "Shape", "choice", (("circle", "Circle"), ("rectangle", "Rectangle"),
                                           ("c_domain", "C-domain (airfoils)"), ("plume", "Nozzle: plume region"),
@@ -226,6 +238,12 @@ def operation_for(kind, selection, built):
             raise ValueError("Select the faces to mark as fluid or solid.")
         role = SOLID if built.faces[faces[0]].role == FLUID else FLUID
         return SetRole(faces=faces, role=role)
+    if kind == "fluid_zones":
+        faces = _faces_of(selection, built)
+        if len(faces) < 2:
+            raise ValueError("Fluid zones need two fluid faces: click the enclosure, then (Shift) the region.")
+        from aeroflowsim.geometry_model.operations import FluidZones
+        return FluidZones(faces=faces, name="zone2")
     if kind == "boolean":
         faces = _faces_of(selection, built)
         if len(faces) < 2:
@@ -801,6 +819,7 @@ FIELDS.update({
         Field("copy", "Transform a copy (keep the original)", "bool")),
     "boolean_3d": (Field("kind", "Boolean", "choice", _choices(Boolean3D.KINDS)),),
     "set_role_3d": (Field("role", "Mark as", "choice", ROLE_CHOICES),),
+    "fluid_zones_3d": ZONE_FIELDS,
     "enclosure_3d": (
         Field("kind", "Shape", "choice", _choices(Enclosure3D.KINDS)),
         Field("upstream", "Upstream", "ratio", show_if=("kind", ("box", "cylinder"))),
@@ -864,11 +883,13 @@ BODIES_3D = (("box", "Box…", "A box"), ("cylinder", "Cylinder…", "A cylinder
 TOOLS_3D = (("transform_3d", "Transform…", "Move, rotate, scale or mirror the selected bodies (or everything)"),
             ("boolean_3d", "Boolean…", "Union, subtract or intersect the selected bodies (first = the one kept)"),
             ("set_role_3d", "Fluid / solid…", "Mark the selected bodies as fluid (meshed) or solid (cut out)"),
+            ("fluid_zones_3d", "Fluid zones…", "Make the selected fluid bodies separate cell zones sharing their faces "
+             "(the last selected wins where they overlap: e.g. the enclosure, then a plume region)"),
             ("delete_3d", "Delete", "Delete the selected bodies (Del)"),
             ("enclosure_3d", "Enclosure…", "Put a fluid domain (box, cylinder, sphere) round the solid bodies"),
             ("name_faces", "Name boundary…", "Give the selected faces a boundary name and type (a mesh patch)"),
             ("refinement_3d", "Refinement…", "A box, sphere or cylinder with smaller cells"))
-NEEDS_BODIES = ("boolean_3d", "set_role_3d", "delete_3d")
+NEEDS_BODIES = ("boolean_3d", "set_role_3d", "delete_3d", "fluid_zones_3d")
 NO_DIALOG_3D = ("delete_3d",)     # added at once (no settings to ask for)
 SECTION_AXES = ("none", "x", "y", "z")
 
@@ -951,6 +972,11 @@ def operation_for_3d(kind, selection, built):
         return Boolean3D(kind="subtract", objects=bodies[:1], tools=bodies[1:])
     if kind == "set_role_3d":
         return SetRole3D(bodies=bodies, role=SOLID)
+    if kind == "fluid_zones_3d":
+        if len(bodies) < 2:
+            raise ValueError("Fluid zones need two fluid bodies: click the enclosure, then (Shift) the region.")
+        from aeroflowsim.geometry_model.operations3d import FluidZones3D
+        return FluidZones3D(bodies=bodies, name="zone2")
     if kind == "delete_3d":
         return Delete3D(bodies=bodies)
     if kind == "name_faces":

@@ -51,7 +51,7 @@ IMPORT_FILTER = ("Geometry files (*.dxf *.step *.stp *.iges *.igs *.csv *.dat *.
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
 EDIT_MENU = ("transform", "fillet", "chamfer", "split_line", "split_face", "split_edge", "trim", "extend",
-             "offset", "pattern", "fill", "merge_faces", "delete", "set_role", "boolean")   # in the Edit menu button
+             "offset", "pattern", "fill", "merge_faces", "delete", "set_role", "fluid_zones", "boolean")   # in the Edit menu button
 CLICK_TOOLS = ("split_line", "trim", "extend")      # editing tools used with the mouse (gui/sketch_tools.py)
 SKETCHES = tuple((kind, cls.title, kind if kind != "polyline" else "line")   # (tool, menu text, icon)
                  for kind, cls in sketch_tools.TOOLS.items())
@@ -70,6 +70,8 @@ TOOLS = (   # (operation kind, button text, tooltip)
     ("merge_faces", "Merge faces", "Join the selected faces into one"),
     ("delete", "Delete", "Delete the selected faces or free curves (Del)"),
     ("set_role", "Fluid / solid…", "Mark the selected faces as fluid (meshed) or solid (cut out)"),
+    ("fluid_zones", "Fluid zones…", "Make the selected fluid faces separate cell zones sharing their edges (the last "
+     "selected wins where they overlap: e.g. the far field, then a plume region)"),
     ("boolean", "Boolean…", "Union, subtract or intersect the selected faces (first = object)"),
     ("enclosure", "Enclosure…", "Put a fluid domain (circle, rectangle, C-domain) around the solid bodies"),
     ("name_boundary", "Name boundary…", "Give the selected edges a boundary name and type (a mesh patch)"),
@@ -240,7 +242,7 @@ class GeometryPage(QWidget):
                 constrain_menu.addSeparator()
         bar.addWidget(self._menu_button("Constrain", "constrain", constrain_menu, "Constraints and driving "
                                         "dimensions for sketches: the shape follows when a dimension is changed"))
-        names = {"transform": "transform", "fillet": "fillet", "delete": "delete", "set_role": "role",
+        names = {"transform": "transform", "fillet": "fillet", "delete": "delete", "set_role": "role", "fluid_zones": "role",
                  "boolean": "boolean", "enclosure": "enclosure", "name_boundary": "name", "refinement": "refinement",
                  "chamfer": "chamfer", "split_line": "split", "split_face": "split", "split_edge": "split_edge",
                  "trim": "trim", "extend": "extend", "offset": "offset", "pattern": "pattern", "fill": "fill",
@@ -506,7 +508,7 @@ class GeometryPage(QWidget):
             return [t["name_boundary"], t["refinement"], None, t["split_edge"], t["trim"], t["extend"], t["offset"],
                     t["fillet"], t["transform"], t["delete"], None, self.act_points]
         if kind == "face":
-            return [t["transform"], t["set_role"], t["split_line"], t["boolean"], t["merge_faces"], t["offset"],
+            return [t["transform"], t["set_role"], t["fluid_zones"], t["split_line"], t["boolean"], t["merge_faces"], t["offset"],
                     t["pattern"], None, t["enclosure"], t["refinement"], None, t["delete"]]
         return [self.act_import, None, t["enclosure"], t["refinement"], None, self.act_suggest]
 

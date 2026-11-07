@@ -190,6 +190,13 @@ def build(project, prefs=None, snapshots=True):
                     + [("Net", "", *[f"{v:.6g}" for v in fb["net"]])])
             d.text(f"Relative imbalance: mass {100 * fb['relative']['mass']:.3g} %, energy "
                    f"{100 * fb['relative']['energy']:.3g} % (SI units, outward positive). {fb['note']}")
+            if sol.mesh.cell_zones:
+                from aeroflowsim.post.integrals import zone_balance
+                zb = zone_balance(sol)
+                d.table(zb["columns"], [(z, *[f"{v:.6g}" for v in r]) for z, *r in zb["zones"]]
+                        + [(f"{a} -> {b}", *[f"{v:.6g}" for v in r]) for a, b, *r in zb["interfaces"]])
+                d.text("Cell zones: the net outflow of every zone (boundaries and interfaces) and the flux through "
+                       "every zone interface (positive from the first zone into the second).")
         except ValueError as exc:
             d.text(str(exc))
     else:

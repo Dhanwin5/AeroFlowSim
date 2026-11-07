@@ -36,7 +36,8 @@ from aeroflowsim.gui.widgets import Banner, ValueTable
 IMPORT_FILTER_3D = "STEP or IGES solids (*.step *.stp *.iges *.igs);;STEP (*.step *.stp);;IGES (*.iges *.igs)"
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
-TOOL_ICONS = {"transform_3d": "transform", "boolean_3d": "boolean", "set_role_3d": "role", "delete_3d": "delete",
+TOOL_ICONS = {"transform_3d": "transform", "boolean_3d": "boolean", "set_role_3d": "role", "fluid_zones_3d": "role",
+              "delete_3d": "delete",
               "enclosure_3d": "enclosure", "name_faces": "name", "refinement_3d": "refinement"}
 
 
@@ -148,7 +149,7 @@ class Geometry3DPage(QWidget):
             action = QAction(icon(TOOL_ICONS[kind]), text, self, toolTip=tip)
             action.triggered.connect(lambda _=False, k=kind: self.add_operation(k))
             self.tool_actions[kind] = action
-            if kind in ("transform_3d", "boolean_3d", "set_role_3d", "delete_3d"):
+            if kind in ("transform_3d", "boolean_3d", "set_role_3d", "fluid_zones_3d", "delete_3d"):
                 edit.addAction(action)
         self.edit_button = self._menu_button("Edit", "edit", edit, "Transform, boolean, fluid / solid, delete")
         bar.addWidget(self.edit_button)
@@ -323,7 +324,7 @@ class Geometry3DPage(QWidget):
         menu = QMenu(self)
         if kind:
             for action in (t["name_faces"], t["refinement_3d"], None, t["transform_3d"], t["boolean_3d"],
-                           t["set_role_3d"], t["delete_3d"], None, self.act_hide, self.act_isolate):
+                           t["set_role_3d"], t["fluid_zones_3d"], t["delete_3d"], None, self.act_hide, self.act_isolate):
                 menu.addSeparator() if action is None else menu.addAction(action)
         else:
             body_menu = menu.addMenu(icon("body"), "Add body")

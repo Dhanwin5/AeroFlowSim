@@ -256,3 +256,22 @@ def test_zone_size_and_excluded_zone_3d():
                   None, settings)
     assert cut.cell_zones == {} and cut.patch("plume_wall").type == "wall"
     assert np.isclose(cut.cell_volumes.sum(), plain.cell_volumes[plain.zone_cells("outer")].sum(), rtol=1e-9)
+
+
+def test_geometry_forms_make_fluid_zones():
+    """Geometry step logic (no Qt): the Fluid zones tool needs two selected bodies / faces, its form has the zone
+    name, size and exclude settings, which apply to the last selected one."""
+    pytest.importorskip("gmsh")
+    from aeroflowsim.geometry_model import GeometryDocument, replay
+    from aeroflowsim.geometry_model.operations3d import Box, Enclosure3D, Sphere, _zone_params
+    from aeroflowsim.gui import geometry_logic as gl
+    built = replay(GeometryDocument([Sphere("op1", radius=0.5), Enclosure3D("op2"),
+                                     Box("op3", x0=0.6, y0=-0.5, z0=-0.5, dx=1, dy=1, dz=1, role="fluid")],
+                                    dimension=3))
+    with pytest.raises(ValueError, match="two fluid bodies"):
+        gl.operation_for_3d("fluid_zones_3d", [("body", "op2")], built)
+    op = gl.operation_for_3d("fluid_zones_3d", [("body", "op2"), ("body", "op3")], built)
+    assert op.params["bodies"] == ["op2", "op3"]
+    assert [f.key for f in gl.FIELDS["fluid_zones_3d"]] == ["name", "size", "exclude"]
+    names, sizes, excluded = _zone_params({**op.params, "name": "plume", "size": 0.01, "exclude": True}, "op3")
+    assert names == {"op3": "plume"} and sizes == {"plume": 0.01} and excluded == ["plume"]

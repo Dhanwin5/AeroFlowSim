@@ -83,6 +83,7 @@ _DERIVED = {
     "stanton": ("Stanton number", "-", "Wall"),
     "y_plus": ("Wall y+ of the first cell", "-", "Wall"),
     "y": ("y coordinate (radius)", "m", "Mesh quality"),
+    "zone": ("Cell zone (number, in the order of the zone list)", "-", "Mesh quality"),
 }
 SCHLIEREN_K = 15.0
 VISCOUS_ONLY = ("mu", "mu_t_ratio", "wall_shear", "skin_friction", "wall_heat_flux", "stanton", "y_plus")
@@ -163,7 +164,9 @@ def available_fields(sol) -> list:
     """Every field this solution can show, in a sensible order (FieldInfo list)."""
     names = [k for k in _BASE if k in sol.fields] + [k for k in sol.fields if k not in _BASE]
     viscous = getattr(sol, "viscous", False)
-    names += [k for k in _DERIVED if viscous or k not in VISCOUS_ONLY] + list(sol.custom_fields)
+    zoned = bool(getattr(sol.mesh, "cell_zones", None))
+    names += [k for k in _DERIVED if (viscous or k not in VISCOUS_ONLY) and (zoned or k != "zone")]
+    names += list(sol.custom_fields)
     return [field_info(sol, n) for n in names]
 
 
@@ -232,6 +235,8 @@ def _compute(sol, name, stack):
         mag = np.sqrt(np.sum(gp * gp, axis=0))
         c = sound_speed(W, gas)
         return np.where(mag > 0.0, (u * gp[0] + v * gp[1]) / (c * np.where(mag > 0.0, mag, 1.0)), 0.0)
+    if name == "zone":                              # colour / threshold by cell zone (multi-zone meshes)
+        return sol.mesh.cell_zone_index().astype(float)
     if name in ("aspect_ratio", "non_orthogonality", "volume_ratio", "cell_size", "min_angle", "skewness"):
         from aeroflowsim import mesh_quality as mq
         fn = {"aspect_ratio": mq.aspect_ratio, "non_orthogonality": mq.non_orthogonality,

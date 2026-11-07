@@ -422,7 +422,7 @@ class FluidZones3D(Operation3D):
     excluded": removed after meshing, their faces with the other zones become the wall patch "<zone>_wall")."""
 
     type, title = "fluid_zones_3d", "Fluid zones"
-    DEFAULTS = {"bodies": [], "names": {}, "sizes": {}, "excluded": []}
+    DEFAULTS = {"bodies": [], "names": {}, "sizes": {}, "excluded": [], "name": "", "size": 0.0, "exclude": False}
 
     def summary(self) -> str:
         n = len(self.params["bodies"])
@@ -434,8 +434,23 @@ class FluidZones3D(Operation3D):
         for b in bodies:
             if kernel.body_meta[kernel.body_by_id(b)].role != FLUID:
                 raise ValueError(f"body '{b}' is solid: only fluid bodies become zones (mark it fluid first)")
-        kernel.fragment(bodies, self.id, self.params.get("names") or {})
-        kernel.zone_settings(self.params.get("sizes") or {}, self.params.get("excluded") or [])
+        names, sizes, excluded = _zone_params(self.params, bodies[-1])
+        kernel.fragment(bodies, self.id, names)
+        kernel.zone_settings(sizes, excluded)
+
+
+def _zone_params(p, last):
+    """(names, sizes, excluded) of a Fluid zones operation, with the flat settings of the form applied to `last`."""
+    names, sizes = dict(p.get("names") or {}), dict(p.get("sizes") or {})
+    excluded = list(p.get("excluded") or [])
+    if p.get("name"):
+        names[last] = str(p["name"]).strip()
+    zone = names.get(last) or names.get(str(last).split(":")[0]) or last
+    if float(p.get("size") or 0.0) > 0.0:
+        sizes[zone] = float(p["size"])
+    if p.get("exclude") and zone not in excluded:
+        excluded.append(zone)
+    return names, sizes, excluded
 
 
 class Delete3D(Operation3D):

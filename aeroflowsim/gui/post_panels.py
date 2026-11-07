@@ -905,6 +905,13 @@ class ReportsPanel(_Base):
         rows = [(n, t, f(m, "kg/s"), f(x, "N"), f(y, "N"), f(e, "W")) for n, t, m, x, y, e in fb["rows"]]
         net = fb["net"]
         rows.append(("Net (out - in)", "", f(net[0], "kg/s"), f(net[1], "N"), f(net[2], "N"), f(net[3], "W")))
+        if sol.mesh.cell_zones:                          # several cell zones: each zone's balance and the interfaces
+            from aeroflowsim.post.integrals import zone_balance
+            zb = zone_balance(sol)
+            for z, m, x, y, *rest in zb["zones"]:
+                rows.append((f"Zone {z} (net out)", "zone", f(m, "kg/s"), f(x, "N"), f(y, "N"), f(rest[-1], "W")))
+            for a, b, m, x, y, *rest in zb["interfaces"]:
+                rows.append((f"{a} -> {b}", "interface", f(m, "kg/s"), f(x, "N"), f(y, "N"), f(rest[-1], "W")))
         self.flux_table.set_rows(rows)
         note = (f"Imbalance: mass {100 * fb['relative']['mass']:.3g} % and energy {100 * fb['relative']['energy']:.3g} % "
                 "of the inflow. Outward positive; momentum fluxes include the pressure force.")

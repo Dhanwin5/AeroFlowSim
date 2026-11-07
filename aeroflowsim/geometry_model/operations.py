@@ -290,7 +290,7 @@ class FluidZones(Operation):
     excluded": removed after meshing, their faces with the other zones become the wall patch "<zone>_wall")."""
 
     type, title = "fluid_zones", "Fluid zones"
-    DEFAULTS = {"faces": [], "names": {}, "sizes": {}, "excluded": []}
+    DEFAULTS = {"faces": [], "names": {}, "sizes": {}, "excluded": [], "name": "", "size": 0.0, "exclude": False}
 
     def summary(self) -> str:
         n = len(self.params["faces"])
@@ -302,8 +302,10 @@ class FluidZones(Operation):
         for f in faces:
             if kernel.face_meta[kernel.face_by_id(f)].role != FLUID:
                 raise ValueError(f"face '{f}' is solid: only fluid faces become zones (mark it fluid first)")
-        kernel.fragment(faces, self.id, self.params.get("names") or {})
-        kernel.zone_settings(self.params.get("sizes") or {}, self.params.get("excluded") or [])
+        from aeroflowsim.geometry_model.operations3d import _zone_params
+        names, sizes, excluded = _zone_params(self.params, faces[-1])
+        kernel.fragment(faces, self.id, names)
+        kernel.zone_settings(sizes, excluded)
 
 
 class SetRole(Operation):
