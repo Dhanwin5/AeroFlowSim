@@ -842,6 +842,11 @@ FIELDS.update({
     "boolean_3d": (Field("kind", "Boolean", "choice", _choices(Boolean3D.KINDS)),),
     "set_role_3d": (Field("role", "Mark as", "choice", ROLE_CHOICES),),
     "fluid_zones_3d": ZONE_FIELDS,
+    "nozzle_region_3d": (
+        Field("kind", "Region", "choice", (("plume", "Plume region behind the outlet"),
+                                           ("plenum", "Inlet plenum in front of the inlet"))),
+        Field("length", "Length", "diameters", help="In diameters of the nozzle's outlet (plume) or inlet (plenum)."),
+        Field("radius", "Radius", "diameters", help="In the same diameters; more than 0.5 (wider than the face).")),
     "enclosure_3d": (
         Field("kind", "Shape", "choice", _choices(Enclosure3D.KINDS)),
         Field("upstream", "Upstream", "ratio", show_if=("kind", ("box", "cylinder"))),
@@ -907,6 +912,8 @@ TOOLS_3D = (("transform_3d", "Transform…", "Move, rotate, scale or mirror the 
             ("set_role_3d", "Fluid / solid…", "Mark the selected bodies as fluid (meshed) or solid (cut out)"),
             ("fluid_zones_3d", "Fluid zones…", "Make the selected fluid bodies separate cell zones sharing their faces "
              "(the last selected wins where they overlap: e.g. the enclosure, then a plume region)"),
+            ("nozzle_region_3d", "Plume / plenum…", "A plume region behind the nozzle outlet or an inlet plenum in "
+             "front of its inlet, as its own cell zone (the nozzle axis is the x axis)"),
             ("delete_3d", "Delete", "Delete the selected bodies (Del)"),
             ("enclosure_3d", "Enclosure…", "Put a fluid domain (box, cylinder, sphere) round the solid bodies"),
             ("name_faces", "Name boundary…", "Give the selected faces a boundary name and type (a mesh patch)"),
@@ -982,6 +989,9 @@ def operation_for_3d(kind, selection, built):
         return Transform3D(targets=bodies, cx=float(c[0]), cy=float(c[1]), cz=float(c[2]))
     if kind == "enclosure_3d":
         return Enclosure3D()
+    if kind == "nozzle_region_3d":
+        from aeroflowsim.geometry_model.operations3d import NozzleRegion3D
+        return NozzleRegion3D(nozzle=bodies[0] if bodies else "")
     if kind == "refinement_3d":
         return Refinement3D(shape="sphere", xc=float(c[0]), yc=float(c[1]), zc=float(c[2]), radius=L,
                             x0=float(c[0] - L), y0=float(c[1] - L), z0=float(c[2] - L), x1=float(c[0] + L),

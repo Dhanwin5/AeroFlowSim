@@ -566,6 +566,68 @@ class Enclosure3D(Operation3D):
         kernel.boolean("subtract", [vol], bodies, self.id, FLUID)
 
 
+class NozzleRegion3D(Operation3D):
+    """Plume region or inlet plenum round a fluid nozzle (full 3D release stage; the 3D form of the 2D enclosure's
+    "plume region" and "inlet plenum"): a cylinder of gas behind the face named outlet (plume) or in front of the face
+    named inlet (plenum), `length` and `radius` in diameters of that face, joined to the nozzle by Fragment as its own
+    cell zone ("plume" / "plenum"). The nozzle's axis must be the x axis (as for every revolved or imported nozzle of
+    the templates); a quarter nozzle (y >= 0, z >= 0, two symmetry planes) gets a quarter cylinder, a full nozzle a full
+    one. Boundaries: plume - outer faces "plume_outlet" (outlet), the base annulus "plume_base" (wall); plenum - outer
+    faces "plenum_inlet" (inlet: the chamber), the base annulus "plenum_wall" (wall). The nozzle's own inlet / outlet
+    face becomes the interface (interior faces)."""
+
+    type, title = "nozzle_region_3d", "Plume / plenum"
+    DEFAULTS = {"kind": "plume", "nozzle": "", "length": 5.0, "radius": 2.0}
+    KINDS = ("plume", "plenum")
+
+    def summary(self) -> str:
+        p = self.params
+        return f"{p['kind'].capitalize()} region: {p['length']:g} x {p['radius']:g} diameters"
+
+    def apply(self, kernel, context):
+        p = self.params
+        if p["kind"] not in self.KINDS:
+            raise ValueError(f"unknown region '{p['kind']}' (plume or plenum)")
+        face_name = "outlet" if p["kind"] == "plume" else "inlet"
+        fluid = kernel.bodies_with_role(FLUID)
+        nozzle = kernel.body_by_id(p["nozzle"]) if p["nozzle"] else (fluid[0] if len(fluid) == 1 else None)
+        if nozzle is None:
+            raise ValueError("choose the nozzle body (there is not exactly one fluid body)")
+        faces = [t for t in kernel.faces_of(nozzle) if t in kernel.face_meta
+                 and kernel.face_meta[t].default_name == face_name]
+        if not faces:
+            raise ValueError(f"the nozzle has no face named {face_name} (name its {face_name} face first)")
+        pts = np.vstack([kernel.probes(t) for t in faces] + [kernel.gmsh.model.getValue(0, v, []).reshape(1, 3)
+                                                             for t in faces for _, v in
+                                                             kernel.gmsh.model.getBoundary([(2, t)], recursive=True)])
+        x_face = float(np.mean(pts[:, 0]))
+        radius_face = float(np.hypot(pts[:, 1], pts[:, 2]).max())
+        if radius_face <= 0.0 or float(np.ptp(pts[:, 0])) > 1e-6 * radius_face:
+            raise ValueError(f"the {face_name} face must be a flat disc normal to the x axis")
+        nb = np.asarray(kernel.occ.getBoundingBox(3, nozzle), dtype=float)
+        tol = 1e-3 * radius_face                  # (OCC pads bounding boxes by about 1e-7 m)
+        quarter = nb[1] > -tol and nb[2] > -tol
+        if not quarter and (nb[1] > -tol or nb[2] > -tol):
+            raise ValueError("a half nozzle is not supported: use a quarter (y >= 0, z >= 0) or the full nozzle")
+        d = 2.0 * radius_face
+        length, radius = _positive("the length", p["length"]) * d, _positive("the radius", p["radius"]) * d
+        if radius <= radius_face:
+            raise ValueError("the region radius must be larger than the face (more than 0.5 diameters)")
+        x0, x1 = (x_face, x_face + length) if p["kind"] == "plume" else (x_face - length, x_face)
+        outer, base = (("plume_outlet", "outlet"), ("plume_base", "wall")) if p["kind"] == "plume" else \
+            (("plenum_inlet", "inlet"), ("plenum_wall", "wall"))
+        rect = [[x0, 0.0], [x1, 0.0], [x1, radius], [x0, radius]]
+        if p["kind"] == "plume":            # edges: axis, far end, side, base at the exit plane
+            names = [["", ""], list(outer), list(outer), list(base)]
+        else:                               # edges: axis, base at the inlet plane, side, far end
+            names = [["", ""], list(base), list(outer), list(outer)]
+        Revolve(self.id, profile="points", points=rect, angle=90.0 if quarter else 360.0, role=FLUID,
+                names=names).apply(kernel, context)
+        nozzle_id = kernel.body_meta[nozzle].id if nozzle in kernel.body_meta else f"body{nozzle}"
+        kernel.fragment([nozzle_id, self.id], f"{self.id}:zones", {self.id: p["kind"],
+                                                                  nozzle_id: kernel.body_meta[nozzle].zone or "nozzle"})
+
+
 class NameFaces(Operation3D):
     """Give faces a boundary name and type (they become a mesh patch of that name); inflation: grow prism
     layers from them (walls)."""
@@ -719,5 +781,5 @@ def _nearest_segment(points, probes) -> int:
 
 
 OPERATIONS_3D = {cls.type: cls for cls in (Box, Cylinder, Cone, Sphere, ImportSolid, Revolve, Extrude, Transform3D,
-                                           Boolean3D, SetRole3D, FluidZones3D, Delete3D, Enclosure3D, NameFaces, Refinement3D,
+                                           Boolean3D, SetRole3D, FluidZones3D, NozzleRegion3D, Delete3D, Enclosure3D, NameFaces, Refinement3D,
                                            TemplateBody, TemplateEnclosure3D)}

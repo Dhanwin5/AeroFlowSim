@@ -275,3 +275,27 @@ def test_geometry_forms_make_fluid_zones():
     assert [f.key for f in gl.FIELDS["fluid_zones_3d"]] == ["name", "size", "exclude"]
     names, sizes, excluded = _zone_params({**op.params, "name": "plume", "size": 0.01, "exclude": True}, "op3")
     assert names == {"op3": "plume"} and sizes == {"plume": 0.01} and excluded == ["plume"]
+
+
+@pytest.mark.parametrize("kind, zone, outer", [("plume", "plume", "plume_outlet"), ("plenum", "plenum", "plenum_inlet")])
+@pytest.mark.parametrize("angle", [90.0, 360.0])
+def test_nozzle_region_3d_round_a_nozzle(kind, zone, outer, angle):
+    """Plume region / inlet plenum round a revolved fluid nozzle: a second zone of the right volume, the nozzle's own
+    outlet / inlet face is gone (interface), the new outer boundary has the right type."""
+    pytest.importorskip("gmsh")
+    import math
+    from aeroflowsim.geometry_model import GeometryDocument
+    from aeroflowsim.geometry_model.operations3d import NozzleRegion3D, Revolve
+    from aeroflowsim.workspace_mesh3d import MeshSettings3D, mesh_3d
+    wall = [[0.0, 0.02], [0.03, 0.02], [0.05, 0.008], [0.09, 0.016]]
+    ops = [Revolve("noz", profile="nozzle", points=wall, angle=angle, role="fluid"),
+           NozzleRegion3D("reg", kind=kind, length=2.0, radius=1.5)]
+    mesh = mesh_3d(GeometryDocument(ops, dimension=3), None,
+                   MeshSettings3D(surface_size=0.006, max_size=0.02, growth=1.3, curvature=12))
+    assert sorted(mesh.zone_names) == sorted(["nozzle", zone])
+    types = {p.name: p.type for p in mesh.patches}
+    assert types[outer] == ("outlet" if kind == "plume" else "inlet")
+    assert ("outlet" if kind == "plume" else "inlet") not in types           # the nozzle's face is the interface
+    d = 2.0 * (0.016 if kind == "plume" else 0.02)
+    volume = math.pi * (1.5 * d) ** 2 * 2.0 * d * angle / 360.0
+    assert mesh.cell_volumes[mesh.zone_cells(zone)].sum() == pytest.approx(volume, rel=2e-2)

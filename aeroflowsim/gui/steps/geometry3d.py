@@ -36,7 +36,7 @@ from aeroflowsim.gui.widgets import Banner, ValueTable
 IMPORT_FILTER_3D = "STEP or IGES solids (*.step *.stp *.iges *.igs);;STEP (*.step *.stp);;IGES (*.iges *.igs)"
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
-TOOL_ICONS = {"transform_3d": "transform", "boolean_3d": "boolean", "set_role_3d": "role", "fluid_zones_3d": "role",
+TOOL_ICONS = {"transform_3d": "transform", "boolean_3d": "boolean", "set_role_3d": "role", "fluid_zones_3d": "role", "nozzle_region_3d": "enclosure",
               "delete_3d": "delete",
               "enclosure_3d": "enclosure", "name_faces": "name", "refinement_3d": "refinement"}
 
@@ -330,7 +330,7 @@ class Geometry3DPage(QWidget):
             body_menu = menu.addMenu(icon("body"), "Add body")
             for k, _, _ in logic.BODIES_3D:
                 body_menu.addAction(t[k])
-            for action in (self.act_import, None, t["enclosure_3d"], t["refinement_3d"]):
+            for action in (self.act_import, None, t["enclosure_3d"], t["nozzle_region_3d"], t["refinement_3d"]):
                 menu.addSeparator() if action is None else menu.addAction(action)
         menu.addSeparator()
         menu.addAction(self.act_show)
