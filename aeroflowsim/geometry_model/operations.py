@@ -285,10 +285,12 @@ class BooleanOp(Operation):
 class FluidZones(Operation):
     """Several fluid zones (full 3D release stage): the fluid faces listed (all fluid faces when empty) are joined by
     Fragment, so neighbouring zones share their edges (a conformal interface). Where faces overlap the LATER face
-    wins (an enclosure, then a plume region inside it). names: {face id: zone name}. The 2D form of FluidZones3D."""
+    wins (an enclosure, then a plume region inside it). names: {face id: zone name}. The 2D form of FluidZones3D. sizes: {zone: cell size [m]} (a constant
+    size inside the zone, combined with the other size fields by Min); excluded: zones that are not solved ("solid /
+    excluded": removed after meshing, their faces with the other zones become the wall patch "<zone>_wall")."""
 
     type, title = "fluid_zones", "Fluid zones"
-    DEFAULTS = {"faces": [], "names": {}}
+    DEFAULTS = {"faces": [], "names": {}, "sizes": {}, "excluded": []}
 
     def summary(self) -> str:
         n = len(self.params["faces"])
@@ -301,6 +303,7 @@ class FluidZones(Operation):
             if kernel.face_meta[kernel.face_by_id(f)].role != FLUID:
                 raise ValueError(f"face '{f}' is solid: only fluid faces become zones (mark it fluid first)")
         kernel.fragment(faces, self.id, self.params.get("names") or {})
+        kernel.zone_settings(self.params.get("sizes") or {}, self.params.get("excluded") or [])
 
 
 class SetRole(Operation):

@@ -417,10 +417,12 @@ class FluidZones3D(Operation3D):
     Fragment, so they share their interface faces (a conformal interface: the mesh has one face there, owned by one zone
     and neighboured by the other). Where bodies overlap the LATER body wins (e.g. an enclosure, then a plume region
     inside it: the region becomes the zone "plume", the rest of the enclosure keeps its zone). names: {body id: zone
-    name}. Solid bodies are not touched (they are still cut out by the enclosure)."""
+    name}. Solid bodies are not touched (they are still cut out by the enclosure). sizes: {zone: cell size [m]} (a constant
+    size inside the zone, combined with the other size fields by Min); excluded: zones that are not solved ("solid /
+    excluded": removed after meshing, their faces with the other zones become the wall patch "<zone>_wall")."""
 
     type, title = "fluid_zones_3d", "Fluid zones"
-    DEFAULTS = {"bodies": [], "names": {}}
+    DEFAULTS = {"bodies": [], "names": {}, "sizes": {}, "excluded": []}
 
     def summary(self) -> str:
         n = len(self.params["bodies"])
@@ -433,6 +435,7 @@ class FluidZones3D(Operation3D):
             if kernel.body_meta[kernel.body_by_id(b)].role != FLUID:
                 raise ValueError(f"body '{b}' is solid: only fluid bodies become zones (mark it fluid first)")
         kernel.fragment(bodies, self.id, self.params.get("names") or {})
+        kernel.zone_settings(self.params.get("sizes") or {}, self.params.get("excluded") or [])
 
 
 class Delete3D(Operation3D):

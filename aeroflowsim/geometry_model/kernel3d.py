@@ -328,6 +328,14 @@ class Kernel3D:
         self.relabel(snap, op_id)
         return result
 
+    def zone_settings(self, sizes, excluded):
+        """Per-zone settings of the Fluid zones operation (read by the mesher): {zone: cell size [m]}, [excluded]."""
+        for zone, size in sizes.items():
+            if not float(size) > 0.0:
+                raise ValueError(f"zone '{zone}': the cell size must be positive")
+        self.zone_sizes = {str(k): float(v) for k, v in sizes.items()}
+        self.zone_excluded = [str(z) for z in excluded]
+
     def fragment(self, bodies, op_id, names=None) -> list:
         """Gmsh/OpenCASCADE Fragment of fluid bodies (full 3D release stage, multiple zones): overlapping bodies are
         cut into pieces that share their faces (conformal interfaces, one surface mesh on both sides). Each piece is a

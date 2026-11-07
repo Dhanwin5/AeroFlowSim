@@ -235,3 +235,24 @@ def test_workspace_2d_fluid_zones():
     assert np.isclose(mesh.cell_volumes[mesh.zone_cells("wake")].sum(), 2.5, rtol=1e-12)
     assert sorted(q.name for q in mesh.patches) == sorted(q.name for q in plain.patches)
     assert np.isclose(mesh.cell_volumes.sum(), plain.cell_volumes.sum(), rtol=1e-4)   # the far-field circle is a polygon
+
+
+def test_zone_size_and_excluded_zone_3d():
+    """Per-zone settings: a smaller cell size in the plume zone gives more cells there; an excluded zone is removed
+    and its interface becomes the wall patch "<zone>_wall"."""
+    pytest.importorskip("gmsh")
+    from aeroflowsim.geometry_model import GeometryDocument
+    from aeroflowsim.geometry_model.operations3d import Box, Enclosure3D, FluidZones3D, Sphere
+    from aeroflowsim.workspace_mesh3d import MeshSettings3D, mesh_3d
+    base = [Sphere("op1", radius=0.5), Enclosure3D("op2", kind="box", upstream=2, downstream=3, lateral=2),
+            Box("op3", x0=0.6, y0=-0.8, z0=-0.8, dx=2.0, dy=1.6, dz=1.6, role="fluid")]
+    settings = MeshSettings3D(surface_size=0.15, max_size=0.6, growth=1.3, curvature=12)
+    names = {"op2": "outer", "op3": "plume"}
+    plain = mesh_3d(GeometryDocument(base + [FluidZones3D("op4", names=names)], dimension=3), None, settings)
+    fine = mesh_3d(GeometryDocument(base + [FluidZones3D("op4", names=names, sizes={"plume": 0.12})], dimension=3),
+                   None, settings)
+    assert len(fine.zone_cells("plume")) > 3 * len(plain.zone_cells("plume"))
+    cut = mesh_3d(GeometryDocument(base + [FluidZones3D("op4", names=names, excluded=["plume"])], dimension=3),
+                  None, settings)
+    assert cut.cell_zones == {} and cut.patch("plume_wall").type == "wall"
+    assert np.isclose(cut.cell_volumes.sum(), plain.cell_volumes[plain.zone_cells("outer")].sum(), rtol=1e-9)

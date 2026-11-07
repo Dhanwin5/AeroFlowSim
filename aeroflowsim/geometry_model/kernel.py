@@ -336,6 +336,14 @@ class Kernel:
 
     # ---- booleans --------------------------------------------------------------------------------
 
+    def zone_settings(self, sizes, excluded):
+        """Per-zone settings of the Fluid zones operation (read by the mesher): {zone: cell size [m]}, [excluded]."""
+        for zone, size in sizes.items():
+            if not float(size) > 0.0:
+                raise ValueError(f"zone '{zone}': the cell size must be positive")
+        self.zone_sizes = {str(k): float(v) for k, v in sizes.items()}
+        self.zone_excluded = [str(z) for z in excluded]
+
     def fragment(self, faces, op_id, names=None) -> list:
         """Fragment of fluid faces (several cell zones, full 3D release stage): overlapping faces are cut into pieces
         that share their edges (conformal interfaces). Each piece is a zone named after the LAST input face covering

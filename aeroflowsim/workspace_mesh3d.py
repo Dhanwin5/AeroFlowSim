@@ -184,13 +184,22 @@ def mesh_3d(document, context, settings) -> Mesh:
         zoned = any(zone_of_volume.values())           # only a Fluid zones operation makes zones
         zone_of_volume = {v: z or "fluid" for v, z in zone_of_volume.items()}
         tet_counts = [len(gmsh.model.mesh.getElementsByType(GMSH_TETRA, v)[1]) // 4 for v in fluid]
+        excluded = list(getattr(kernel, "zone_excluded", []))
     info = {"generator": "workspace 3D (Gmsh tetrahedra" + (" + prism layers)" if layers else ")"),
             "operations": len(document.operations), "reference_length": float(built.reference_length()),
             "fluid_volume_exact": float(built.fluid_volume()), **settings_info(settings)}
     mesh = Mesh.from_cells(nodes, types, cells, boundary, dim=3, info=info)
     if not zoned or len(set(zone_of_volume.values())) < 2:
         return mesh                                     # one zone: exactly the mesh as before
-    return with_zones(mesh, [zone_of_volume[v] for v in fluid], tet_counts)
+    return exclude(with_zones(mesh, [zone_of_volume[v] for v in fluid], tet_counts), excluded)
+
+
+def exclude(mesh, excluded) -> Mesh:
+    """The mesh without its excluded ("solid / excluded") zones (mesh.remove_zones, one wall patch per zone)."""
+    from aeroflowsim.mesh import remove_zones
+    for zone in [z for z in excluded if z in mesh.cell_zones]:
+        mesh = remove_zones(mesh, zone)
+    return mesh
 
 
 def with_zones(mesh, volume_zones, tet_counts) -> Mesh:
@@ -283,6 +292,14 @@ def _size_fields(gmsh, kernel, built, settings, walls):
             for key, value in (("XCenter", c[0]), ("YCenter", c[1]), ("ZCenter", c[2]), ("Radius", p["radius"]),
                                ("VIn", size), ("VOut", settings.max_size), ("Thickness", thickness)):
                 field.setNumber(f, key, value)
+            fields.append(f)
+    for zone, size in getattr(kernel, "zone_sizes", {}).items():     # a constant size inside a cell zone
+        volumes = [v for v in kernel.volume_tags() if v in kernel.body_meta and kernel.body_meta[v].zone == zone]
+        if volumes:
+            f = field.add("Constant")
+            field.setNumber(f, "VIn", min(size, settings.max_size))
+            field.setNumber(f, "VOut", settings.max_size)
+            field.setNumbers(f, "VolumesList", volumes)
             fields.append(f)
     if not fields:
         f = field.add("MathEval")

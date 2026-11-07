@@ -178,6 +178,7 @@ def workspace_mesh(document, context, settings) -> Mesh:
         zoned = any(face_zones)                      # only a Fluid zones operation makes zones
         face_zones = [z or "fluid" for z in face_zones]
         nodes, types, cells, boundary, counts = _arrays(gmsh, patch_types, fluid_faces if zoned else None)
+        excluded = list(getattr(kernel, "zone_excluded", []))
     for chain, grown, segment_edges in layers:
         nodes, types, cells, boundary = _add_layers(nodes, types, cells, boundary, chain, grown, segment_edges, named)
     nodes, types, cells, boundary = _drop_unused_nodes(nodes, types, cells, boundary)
@@ -189,8 +190,8 @@ def workspace_mesh(document, context, settings) -> Mesh:
     mesh = Mesh.from_cells(nodes, types, cells, boundary, dim=2, axisymmetric=built.axisymmetric, info=info)
     if not zoned or len(set(face_zones)) < 2:
         return mesh                                  # one zone: exactly the mesh (and code path) as before
-    from aeroflowsim.workspace_mesh3d import with_zones
-    return with_zones(mesh, face_zones, counts)
+    from aeroflowsim.workspace_mesh3d import exclude, with_zones
+    return exclude(with_zones(mesh, face_zones, counts), excluded)
 
 
 def _check(built):
@@ -303,6 +304,14 @@ def _size_fields(gmsh, kernel, built, settings, top_curves):
             d = field.add("Distance")
             field.setNumbers(d, "PointsList", points)
             threshold(d, h, 0.5 * p["width"])
+    for zone, size in getattr(kernel, "zone_sizes", {}).items():     # a constant size inside a cell zone
+        faces = [t for t in kernel.face_tags() if t in kernel.face_meta and kernel.face_meta[t].zone == zone]
+        if faces:
+            f = field.add("Constant")
+            field.setNumber(f, "VIn", min(size, settings.max_size))
+            field.setNumber(f, "VOut", settings.max_size)
+            field.setNumbers(f, "SurfacesList", faces)
+            fields.append(f)
     if not fields:
         constant = field.add("MathEval")
         field.setString(constant, "F", repr(settings.max_size))
