@@ -1,0 +1,33 @@
+# 3D nozzle (cases/nozzle_3d, quarter with two symmetry planes, tetrahedra, template defaults) against the axisymmetric
+# solution of the SAME conical contour (cases/nozzle_axi, structured Medium mesh, its defaults). Both inviscid, same gas
+# (N2), same chamber and back pressure. A code-to-code consistency check of the 3D solver, the quarter-domain factor and
+# the revolved geometry: the ratios 3D / axisymmetric must be 1.
+# PRE-REGISTERED 7 Nov 2026 (full 3D release stage) BEFORE the run: mass flow and vacuum thrust within 2 %, vacuum Isp
+# within 1 % (the Isp is a ratio of the two, so most of a mesh-resolution difference cancels). A miss is a SHORTFALL.
+
+title = "3D quarter nozzle vs the axisymmetric nozzle on the same contour"
+case = "cases/nozzle_3d"
+
+[[reference]]
+id = "mdot_ratio"
+quantity = "Mass flow, 3D quarter (x 4) / axisymmetric"
+value = 1.0
+unit = "-"
+tolerance_percent = 2.0
+source = "cases/nozzle_axi on the same contour (code-to-code consistency, 2D axisymmetric Euler validated vs theory)"
+
+[[reference]]
+id = "thrust_ratio"
+quantity = "Vacuum thrust (exit plane), 3D / axisymmetric"
+value = 1.0
+unit = "-"
+tolerance_percent = 2.0
+source = "cases/nozzle_axi on the same contour"
+
+[[reference]]
+id = "isp_ratio"
+quantity = "Vacuum specific impulse, 3D / axisymmetric"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.0
+source = "cases/nozzle_axi on the same contour"
