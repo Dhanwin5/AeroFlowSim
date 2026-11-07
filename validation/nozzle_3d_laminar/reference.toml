@@ -1,0 +1,27 @@
+# The N2 CubeSat nozzle (template defaults: throat 0.28 mm, p0 = 5 bar, p_back = 1 kPa, Re_t = 2.1e4: laminar) in 3D:
+# cases/nozzle_3d, quarter, LAMINAR Navier-Stokes, prism layers on the wall, against the axisymmetric laminar solution of
+# the same contour (cases/nozzle_axi, its default mesh with inflation layers, the validation/viscous_cubesat_nozzle
+# setup). Code-to-code consistency of the 3D viscous solver with prism layers: ratios 3D / axisymmetric = 1.
+# PRE-REGISTERED 7 Nov 2026 (full 3D release stage) BEFORE this case was run, but AFTER the inviscid 3D nozzle case
+# (validation/nozzle_3d) showed a +2.8 % mass-flow gap on its default tetrahedral mesh: discharge coefficient within 3 %
+# and vacuum Isp within 1.5 % (the Isp is a ratio of thrust and mass flow, most of a resolution difference cancels).
+# This is stated so the choice can be judged; a miss is a SHORTFALL.
+
+title = "3D quarter CubeSat nozzle, laminar with prism layers, vs the axisymmetric laminar nozzle"
+case = "cases/nozzle_3d"
+
+[[reference]]
+id = "cd_ratio"
+quantity = "Discharge coefficient, 3D quarter laminar / axisymmetric laminar"
+value = 1.0
+unit = "-"
+tolerance_percent = 3.0
+source = "cases/nozzle_axi laminar on the same contour (validation/viscous_cubesat_nozzle setup)"
+
+[[reference]]
+id = "isp_ratio"
+quantity = "Vacuum specific impulse, 3D quarter laminar / axisymmetric laminar"
+value = 1.0
+unit = "-"
+tolerance_percent = 1.5
+source = "cases/nozzle_axi laminar on the same contour"
