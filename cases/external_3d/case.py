@@ -134,15 +134,6 @@ def boundary_defaults(params):
                                                                                             {"p": params["p_inf"]})}
 
 
-FREE_STREAM_INPUTS = ("mach", "p_inf", "T_inf", "alpha", "beta")
-
-
-def hidden_inputs(params, mesh):
-    """An internal flow (the mesh has an inlet) does not use the free stream: hide its inputs (the inlet and outlet
-    conditions are set in the boundary-condition table)."""
-    return set(FREE_STREAM_INPUTS) if getattr(mesh, "patches", None) and is_internal(mesh) else set()
-
-
 def is_internal(mesh) -> bool:
     """True for an internal flow (a nozzle or duct): the mesh has an inlet boundary."""
     return any(p.type == "inlet" for p in mesh.patches)

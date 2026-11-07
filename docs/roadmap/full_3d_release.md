@@ -131,3 +131,51 @@ zones), each zone with a name and its own settings; non-conformal interfaces are
 - Part 2: `Mesh.cell_zones` (name -> cell ids, empty for one zone = old arrays), Fragment in 2D / 3D kernels, zone
   names and per-zone settings in the workspace, IO per format, results per zone, conservation tests.
 - Part 3, Part 4 as written above; Part 4 is reached even if Part 3 items run out of time (SHORTFALL).
+
+### Ledger 1 - Part 1 first experiments; Part 2 mesh and file zones (2026-11-07)
+Done (commit e6d2cf5):
+- Part 2 step 1 + 4: `Mesh.cell_zones` ({} for one zone: old arrays and the old .npz file, tested), `zone_names`,
+  `zone_cells`, `interfaces`, `interface_faces`, `mesh.remove_zones` (solid / excluded zone -> wall patch
+  "<zone>_wall"); zones as initial-condition regions (`{"type": "zone"}` in apply_patches and region_cells);
+  interface fluxes stored for multi-zone runs (`series["interface_flux"]`) and `post.integrals.zone_balance`.
+  Files: Gmsh 2D / 3D physical surfaces / volumes (v2.2 and 4.1), SU2 NZONE / IZONE (points merged at the interface),
+  CGNS one Zone_t per cell zone, now 2D AND 3D import (was 2D only), Fluent cell zones (section 12 + 45).
+- Verified: tests/test_zones.py (15 tests): one-zone file unchanged, round trips per format, two-zone run = one-zone
+  run (all fields bit for bit), zone balances sum to the domain balance to 1e-12; test_mesh_io.py unchanged (pass).
+Part 1 measurements (`validation/results/shock_study.jsonl`, `tools/shock_position_study.py`):
+
+| Run | Cells | Converged | Stand-off / R | vs Billig |
+|---|---:|---|---:|---:|
+| 2D cylinder, triangles (validation mesh) | 11,435 | no (1e-3) | 0.7027 | +8.4 % |
+| 2D cylinder, triangles, growth 1.08 | 32,816 | no (1e-3) | 0.7151 | +10.3 % |
+| 2D cylinder, structured polar 60 x 80 | 4,800 | 1e-6 | 0.7019 | +8.2 % |
+| 2D cylinder, structured polar 120 x 160 | 19,200 | 1e-6 | 0.6993 | +7.8 % |
+| 2D cylinder, structured polar 240 x 320 | 76,800 | 1e-6 | 0.6981 | +7.6 % |
+| sphere axisymmetric O-grid Medium | 4,800 | 1e-6 | 0.2142 | +4.5 % |
+| sphere axisymmetric O-grid Fine | 14,400 | 1e-6 | 0.2139 | +4.4 % |
+
+- Finding 1 (hypothesis "simplex error" REJECTED for the 2D cylinder): the solver's mesh-converged answer on a
+  structured quad grid is 0.698 R, +7.6 % from Billig; the triangle mesh is within 0.7 % of it. The 8.4 % "triangle
+  error" is the gap between converged Euler and Billig's correlation at Mach 3 (the correlation is a fit to
+  experiments, its error grows at low Mach: +2.3 % at Mach 6 on the polar grid). The pre-registered tolerance is not
+  changed: the case stays a SHORTFALL with this measured cause.
+- Finding 2: for the sphere the converged structured answer is 0.2139 R (+4.4 %); the tetrahedra give 0.2269 R, so
+  +6 % of the gap is the tetrahedral mesh. Next: 3D refinement study (60k / 150k / 400k).
+- Anomaly: axisymmetric O-grid 640 x 180 with far field at 10 D diverged at iteration 225 (not followed up: not
+  needed for the converged value; recorded for the gap register).
+- Stopped (redundant after the polar study): 2D triangle growth 1.04 / 1.02 runs.
+
+### Ledger 2 - Part 2 multiple zones (done; commits 4ef59c5 .. zones part 5)
+- Geometry: Fluid zones operation in 2D (`operations.FluidZones`, `Kernel.fragment`) and 3D (`FluidZones3D`,
+  `Kernel3D.fragment`): Gmsh/OCC Fragment, the LATER body wins where bodies overlap (Fluent / STAR-CCM+ region order),
+  zone names per body, per-zone cell size (Gmsh Constant field, Min with the other fields), excluded ("solid /
+  excluded") zones removed after meshing with the interface as wall "<zone>_wall". The mesher gives cells their zone
+  (tets / triangles per volume / face; prism and inflation layers take the zone they grow into). Without a Fluid zones
+  operation the old code path runs unchanged (no zones, same cell order).
+- GUI: Fluid zones tool in the 2D and 3D Geometry steps (form: zone name, size, exclude for the last selected);
+  "Cell zone" field in Results (colour / threshold); zone balance rows in the flux table and the report; zones as
+  regions of the Run step's start patches. Per-zone physics (porous media, sources) stays later (gap register).
+- Verified: tests/test_zones.py 20 tests + tests/gui/test_zones_gui.py; workspace mesh tests and geometry GUI tests pass.
+- Decision (why): conformal interfaces only, as Fluent's "interior" between cell zones - exact conservation with no
+  interpolation; non-conformal interfaces are later.
+- Next: Part 3.

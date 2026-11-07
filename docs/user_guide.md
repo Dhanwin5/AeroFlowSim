@@ -273,8 +273,11 @@ second-order runs oscillate near strong shocks; see the theory manual, section 1
   Cancel, a crash or a power cut, Run carries on from the last autosave. A finished run removes it.
 - **Mesh only.** For very large meshes meant for another solver, tick *Mesh only (do not solve)* (Solver group) and
   export the mesh from the Mesh step.
-- **Meshes from other programs.** *Start from an existing mesh* (`imported_mesh`) reads 3D Gmsh (.msh v2 / v4) and SU2
-  files too (CGNS and Fluent: 2D only); every boundary surface needs a tag; choose its type in *Boundary types*.
+- **Meshes from other programs.** *Start from an existing mesh* (`imported_mesh`) reads 3D Gmsh (.msh v2 / v4), SU2
+  and CGNS files too (Fluent: 2D only); every boundary surface needs a tag; choose its type in *Boundary types*.
+  Files with several cell zones (Gmsh physical volumes, SU2 NZONE, several CGNS zones, Fluent cell zones) keep them.
+- **Internal flows** hide the free-stream inputs (Mach, p, T, angles): a nozzle uses the inlet and outlet conditions
+  of the boundary table instead.
 
 **The Results step in 3D** shows the walls coloured by a field, and on the right: *Display* = Walls, Slice plane (normal
 x, y or z, moved with the slider), Iso-surface (type the level; empty = the middle of the range) or Streamlines (12
@@ -282,8 +285,45 @@ seeds across the inflow); *Show walls*; right-click a point to probe the cell th
 velocity vector, node values) and *Save CSV* (x, y, z and the fields per cell). The automatic report shows slices of
 Mach number and pressure. Command line: `run`, `report` and `export` work for 3D projects as for 2D.
 
-Not yet in 3D: the report-definition, surface and XY-plot panels of the 2D Results workspace, patch (initialisation)
-regions, multiple fluid zones (gap register).
+Tabs beside the 3D view (full 3D release stage):
+
+- **Patches**: which boundaries are drawn (the walls by default; tick the symmetry planes or the far field to see them).
+- **XY plot**: a field along the cut of the ticked patches by a plane, e.g. *Cp* along a wing section: choose the plane
+  normal (x, y or z), its position [m] and the axis to plot against; *Save CSV*.
+- **Reports**: the project's report definitions (force, surface, volume) evaluated on the 3D result (a Cd report gives
+  exactly the solver's Cd), and the flux balance, per zone and per interface when the mesh has zones.
+- **Snapshots**: save the current result under a name and compare its key numbers with the current one.
+
+### Several fluid zones
+
+Commercial codes split a domain into **cell zones** (an inner nozzle, a plume region, a refinement block) that share
+their interface faces. In the Geometry step (2D and 3D):
+
+1. Make the bodies: e.g. the enclosure (fluid) and a box or cylinder for the region (role *fluid*).
+2. Select the enclosure, then (Shift) the region, and choose **Edit > Fluid zones…**. The last selected wins where the
+   bodies overlap. The form names that zone, gives it its own **cell size** (0 = none) or **excludes** it (not solved:
+   removed after meshing, its faces become the wall `<zone>_wall`).
+3. Mesh: the zones share one surface mesh at the interface (conformal), so mass, momentum and energy pass exactly.
+
+In Results the field **Cell zone** colours the zones; the flux balance lists each zone and each interface. In the Run
+step's *Start of a run* dialog a zone can be a start region (its own p, T, u, v). For a nozzle, **Plume / plenum…**
+puts a plume region behind the outlet or an inlet plenum in front of the inlet (as its own zone; the nozzle axis must
+be the x axis; quarter or full nozzles).
+
+### The 3D nozzle template
+
+**3D nozzle (3D Euler)** (`nozzle_3d`) revolves the conical contour of the axisymmetric nozzle (the same inputs and
+defaults) about the x axis: a quarter (default, two symmetry planes) or the full nozzle, with an optional **plume
+region** behind the exit (a second zone; its outer boundary is a pressure outlet at the back pressure). Key numbers as
+for the axisymmetric nozzle, for the whole nozzle; with a plume region the exit numbers are taken on the exit plane
+(the zone interface). Tutorial: `docs/tutorials/nozzle_3d_plume.md`.
+
+### Edges in the 3D Geometry step
+
+Turn on the **Edges** selection filter in the tool bar to pick edges (click; Shift or Ctrl adds). Then *Edit >*
+**Edge size…** (a local cell size along the edges, e.g. a nozzle lip), **Fillet…** (round the edges with a radius) or
+**Chamfer…** (a flat cut). **Split by plane…** cuts the selected bodies (or all) by a plane into pieces that share the
+cut face (then make them zones with Fluid zones). Lengths in the geometry dialogs follow *View > Units*.
 
 ## Viscous flow: choosing a flow model and meshing the wall
 

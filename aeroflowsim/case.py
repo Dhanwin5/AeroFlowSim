@@ -224,15 +224,26 @@ def get_reference(case, params, mesh):
 
 
 def get_hidden_inputs(case, params, mesh) -> set:
-    """Inputs the template hides for this mesh (optional case.hidden_inputs(params, mesh) -> set of keys; e.g. the
-    free stream of an internal flow). Hidden inputs keep their values; they are only not shown."""
-    fn = getattr(case.module, "hidden_inputs", None)
-    if fn is None or mesh is None:
+    """Inputs the template hides for this mesh: case.hidden_inputs(params, mesh) -> set of keys if the template has it;
+    else the free stream when the template's is_internal(mesh) is true. Hidden inputs keep their values."""
+    if mesh is None or not getattr(mesh, "patches", None):
         return set()
+    fn = getattr(case.module, "hidden_inputs", None)
+    internal = getattr(case.module, "is_internal", None)
     try:
-        return set(fn(params, mesh) or ())
+        if fn is not None:
+            return set(fn(params, mesh) or ())
+        if internal is not None and internal(mesh):    # a free-stream template meshed as an internal flow
+            return {k for k in FREE_STREAM_INPUTS if k in params}
     except Exception:                       # a template bug never breaks the panel: show everything
         return set()
+    return set()
+
+
+# The free stream of external-flow templates: hidden when the template's is_internal(mesh) says the mesh is an
+# internal flow (a nozzle: the inlet and outlet conditions come from the boundary table). Done here, not in the
+# template, so the template code (and the fingerprint of every project made with it) stays unchanged.
+FREE_STREAM_INPUTS = ("mach", "p_inf", "T_inf", "alpha", "beta")
 
 
 def get_geometry(case, params):

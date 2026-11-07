@@ -301,6 +301,27 @@ project afterwards), `cases/external_3d/test_case.py`; validation `validation/ge
 - Reproduction set for robustness work: `python tools/robustness_cases.py [cases] '{numerics JSON}'` (worst-cell
   diagnosis); the developer knob `AEROFLOWSIM_NUMERICS` sets Numerics fields that are not inputs.
 
+## Multiple cell zones (full 3D release stage)
+
+- **Data.** `Mesh.cell_zones` = {name: sorted cell ids}; `{}` for one zone (every mesh before this stage), so a one-zone
+  mesh keeps the old arrays and writes the old `.npz` (no `zone_names` / `cell_zone` arrays). Helpers: `zone_names`,
+  `zone_cells`, `cell_zone_index`, `interfaces`, `interface_faces`; `mesh.remove_zones` drops excluded zones (their
+  interface becomes the wall `<zone>_wall`). An interface is just interior faces with owner and neighbour in different
+  zones: the solver never looks at zones, so a two-zone mesh solves exactly like the same mesh as one zone (tested).
+- **Where zones come from.** Geometry: the Fluid zones operation (`operations.FluidZones`, `operations3d.FluidZones3D`)
+  calls `Kernel.fragment` / `Kernel3D.fragment` (OCC Fragment; the LAST body wins on overlaps) and stores the zone name
+  in `FaceMeta.zone` / `BodyMeta.zone` (booleans keep it). The meshers give each Gmsh entity's cells its zone
+  (`workspace_mesh3d.with_zones`; layers take the zone they touch). Without any zone name set the old code path runs
+  (same cell order). Files: Gmsh physical surfaces / volumes, SU2 NZONE / IZONE (points merged at the interface by
+  `mesh_io._merge_zones`), CGNS one Zone_t per zone, Fluent cell zones (sections 12 / 45).
+- **Results.** Multi-zone runs store `series["interface_faces"]` and `series["interface_flux"]` (flux x area,
+  owner -> neighbour, from `EulerSolver.face_flux` of the final residual evaluation); `post.integrals.zone_balance`,
+  the region type `{"type": "zone", "name": ...}` (volume integrals and start patches), the derived field `zone`.
+- **Per-zone settings now:** name, cell size (Gmsh Constant field), excluded, initial condition. Per-zone physics
+  (porous media, sources, frames) is later: it would be a per-cell source term selected by `cell_zone_index()`.
+- **Hidden inputs.** A template may define `hidden_inputs(params, mesh) -> set` (e.g. external_3d hides the free stream
+  of an internal flow); `case.get_hidden_inputs` and `PanelModel.hidden`; values stay, only the rows hide.
+
 ## 9. Tests
 
 - `tests/test_panel_model.py`, `tests/test_gui_logic.py`, `tests/test_project.py`,

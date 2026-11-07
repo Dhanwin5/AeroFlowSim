@@ -1362,6 +1362,78 @@ Allmaras, Johnson & Spalart (2012) ICCFD7-1902; Menter (1994) AIAA J. 32(8); Men
 Heat and Mass Transfer 4; NASA Turbulence Modeling Resource (tmbwg.github.io/turbmodels); White (2006) Viscous Fluid
 Flow, 3rd ed.; Ericson (2005) Real-Time Collision Detection.
 
+## 13k. Full 3D release: shock position on tetrahedra, multiple zones, 3D post-processing, 3D nozzle (full 3D release stage)
+
+**Shock stand-off on simplex meshes: what the error is (measured).** One hypothesis at a time
+(`tools/shock_position_study.py`, results in `validation/results/shock_study.jsonl`). The first question is not "which
+scheme is wrong" but "what does THIS solver give on a mesh where the answer is not in doubt". A structured polar grid in
+front of the Mach 3 cylinder (grid lines along the shock, converged to 1e-6) gives Delta/R = 0.7019, 0.6993, 0.6981 at
+4,800, 19,200 and 76,800 cells: the mesh-converged Euler value is about 0.698, which is +7.6 % from Billig's correlation
+(0.6485). The triangle mesh of the validation case gives 0.7027, 0.7 % from that converged value. So the 2D "triangle
+error" is the difference between converged inviscid Euler and Billig's correlation (a fit to experiments; its error grows
+at low Mach: +2.3 % at Mach 6 on the same polar grid), not an error of triangles.
+For the sphere the structured axisymmetric O-grid converges to 0.2139 R (+4.4 % from Billig: 0.2142 Medium, 0.2139 Fine),
+and the tetrahedra give 0.2269 R at 60k cells and 0.2236 R at 144k cells (template defaults, 8,000 iterations; the
+60k value equals the 20,000-iteration one). Measured against the structured value the tetrahedral error falls from
++6.1 % to +4.5 % for h ratio r = (144k/60k)^(1/3) = 1.34, i.e. order
+
+    p = ln(e1 / e2) / ln(r) = ln(0.0130 / 0.0097) / ln(1.34) = 1.0
+
+(first order, as expected for a captured shock whose half-way pressure point moves with the smearing), and the
+Richardson value f_2 + (f_2 - f_1) / (r^p - 1) = 0.2236 - 0.0033 / 0.34 = 0.214 is the structured answer. Conclusion:
+the tetrahedral stand-off is a resolution error of the shock layer (about 5 cells across the shock layer at 60k), it
+converges to the structured value, and the remaining gap to Billig is the correlation's. No scheme change was made, so no
+validated number changed.
+
+**Multiple cell zones (Fluent "cell zones", conformal interfaces).** A mesh may carry `cell_zones` = {name: cell ids}.
+An interface between zones A and B is a set of ordinary interior faces f with owner in A and neighbour in B. The
+finite-volume update of a cell i is
+
+    V_i dU_i/dt = - sum_f F_f A_f s_if    (s_if = +1 if i owns f, -1 if it is the neighbour)
+
+and each face flux F_f A_f is computed ONCE. Summing over the cells of zone A, every face inside A cancels (it appears
+with +1 and -1), so
+
+    d/dt int_A U dV = - sum_{f on boundary patches of A} F_f A_f - sum_{f on interfaces of A} F_f A_f s_f,
+
+and the flux that leaves A through an interface is exactly the flux that enters B: conservation across interfaces holds
+to round-off, with no interpolation (non-conformal interfaces would need a flux-matching step; later).
+`post.integrals.zone_balance` evaluates both sums from the solver's stored fluxes (series `interface_flux`, written only
+for multi-zone runs); the test checks that the zone balances add up to the domain balance to 1e-12 and that a two-zone
+mesh gives the same solution as the same mesh with one zone (identical: the solver does not look at zones).
+Geometry: OpenCASCADE Fragment (Gmsh `occ.fragment`) of overlapping fluid bodies splits them into pieces that share
+their faces; a piece covered by several inputs belongs to the LAST one (the region priority of STAR-CCM+ and Fluent
+meshing). Per zone: a name, a constant cell size (Gmsh Constant field, combined by Min), an initial condition (a start
+patch of type zone) and "excluded" (the zone is removed after meshing; its interface becomes the wall `<zone>_wall`).
+Prism or inflation layers take the zone of the cells they grow into (zone indices passed across interior faces).
+
+**3D post-processing.** A field along a plane cut of the walls (Cp along a wing section): `post.view3d.wall_cut`
+intersects the triangulated wall with the plane n.(x - x0) = 0. For a triangle edge from P_i to P_j with signed
+distances s_i, s_j of opposite sign, the cut point and value are
+
+    t = s_i / (s_i - s_j),   P = P_i + t (P_j - P_i),   phi = phi_i + t (phi_j - phi_i)
+
+(exact for the linear node values on a triangle). Force report definitions in 3D (`post.integrals.forces_3d`): the
+walls' (p - p_ref) n A summed, mirrored by the flat symmetry planes (x 2 each, the out-of-plane components cancel) and
+projected on the wind axes of alpha and beta - the same numbers as the solver's (`euler.forces.body_forces_3d`; tested
+to 1e-9).
+
+**3D nozzle (cases/nozzle_3d).** The conical contour of `nozzle_axi` revolved by 90 degrees (two symmetry planes) or 360.
+Vacuum thrust two ways: the exit-plane momentum flux F = int (rho u^2 + p) dA and the wall thrust (inlet momentum plus
+the pressure force on the nozzle wall only). With a plume region the exit plane is the nozzle -> plume interface, and F
+and the mass flow are summed over its faces from the solver's own interface fluxes (with sign +1 for faces owned by the
+nozzle zone): the same numbers the solver used to move mass and momentum.
+
+**3D geometry edits.** Fillet and chamfer of solid edges (OpenCASCADE BRepFilletAPI through Gmsh `occ.fillet` /
+`occ.chamfer`): a fillet of radius r on a 90-degree edge of length l removes (1 - pi/4) r^2 l of volume, a chamfer of
+distance d removes d^2 l / 2 (both tested to 1e-9). Split by a plane: Fragment with a large disc, the disc pieces
+outside the bodies removed. A local edge size: a Gmsh Distance field on the edge curves with a Threshold from the edge
+size to the largest size over (h_max - h_edge) / (growth - 1).
+
+References: Billig (1967) J. Spacecraft Rockets 4(6); Roache (1998) Verification and Validation in Computational Science
+and Engineering (Richardson extrapolation, observed order); ANSYS Fluent User's Guide, cell zones and interior faces;
+Geuzaine & Remacle (2009) Int. J. Numer. Meth. Eng. 79(11) (Gmsh), OpenCASCADE BOPAlgo (general fuse / fragment).
+
 ## 14. New shapes, nozzle contours and intakes (Shapes, grids and mesh import stage, part 1)
 
 Code: `aeroflowsim/shapes/` (one `.toml` + `.py` per shape), `aeroflowsim/nozzle_contours.py`,
