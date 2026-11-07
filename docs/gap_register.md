@@ -9,7 +9,7 @@ the status of the items that moved, add any new gaps found, and report both to t
 **Status:** `done` · `partial` · `planned geometry workspace` (planned in that prompt) · `later` · `out of scope`
 **Priority:** **P1** needed for the 2D alpha release · **P2** needed for version 1.0 · **P3** nice to have
 
-Last updated: AI connector (2026-11-06).
+Last updated: full 3D release (2026-11-07).
 
 ## 1. Platform and GUI
 
@@ -92,8 +92,8 @@ Last updated: AI connector (2026-11-06).
 | NACA 5-digit constants: tabulated for L = 2 only (x10-x51); other L scale k1 linearly; 210 line is 2.8 % off its design lift (3-digit r) | partial | P3 | constants from Wikipedia (NASA TM X-3284 not reachable) |
 | Unsourced default dimensions (capsule, intake angles, MOC characteristics count) | partial | P3 | illustrative inputs, labelled as such in the help text |
 | 3D geometry workspace: STEP/IGES solids (closed shells sewn), box / cylinder / cone / sphere, revolve (profile or nozzle wall CSV), extrude, transform (copy), union / subtract / intersect, fluid / solid, delete, enclosure box / cylinder / sphere (half domain with symmetry plane), face names with prism-layer tick, refinement box / sphere / cylinder, stable face ids (lineage), STEP export, undo / redo | done | P2 | 3D geometry and meshing: `geometry_model/kernel3d.py`, `operations3d.py`, `built3d.py`; history format 2 (`"dimension": 3`), 2D histories unchanged; `tests/test_geometry_3d.py`, `validation/geometry_3d/` (24 exact references) |
-| 3D: fillet / chamfer of solid edges, shell, split body by a plane, pattern, draft | later | P2 | not in the 3D operation set yet (do them in CAD and import the STEP) |
-| 3D nozzle helpers: plume region and inlet plenum round an imported nozzle | later | P2 | the 2D enclosure has them; in 3D a box / cylinder can be added and united by hand |
+| 3D: fillet / chamfer of solid edges, shell, split body by a plane, pattern, draft | partial | P2 | full 3D release: fillet, chamfer, split by a plane and a local edge size done (Edges selection filter); shell, pattern and draft later |
+| 3D nozzle helpers: plume region and inlet plenum round an imported nozzle | done | P2 | full 3D release: Plume / plenum operation (own zone, quarter or full nozzle on the x axis); a half nozzle is not supported (message) |
 | Revolve of a CSV wall profile uses straight segments between the points | partial | P3 | the 2D workspace uses splines; fine CSV points make the difference small (1e-6 of the volume for 400 points) |
 
 ## 4. Meshing
@@ -112,7 +112,7 @@ Last updated: AI connector (2026-11-06).
 | Mesh import (Gmsh .msh v2/v4, SU2, CGNS unstructured 2D, Fluent ASCII 2D) with unit, planar / axisymmetric choice and boundary-type map; export to Gmsh 2.2 / 4.1, SU2, CGNS; template "Start from an existing mesh"; `mesh-info` / `mesh-convert` | done | P2 | shapes, grids and mesh import part 3: `aeroflowsim/mesh_io.py`, `cases/imported_mesh`; round trips exact for all four writers (`tests/test_mesh_io.py`) |
 | Import dialog with a boundary-type TABLE (one row per tag, drop-down) in the GUI | later | P2 | now the map is a text input (`name: type, ...`) with the list of found names and their types shown under the inputs; a Qt table dialog and Tools > Convert mesh are not built |
 | Mesh import: 3D meshes (Gmsh v2/v4, SU2: tetrahedra, pyramids, prisms, hexahedra) | done | P2 | 3D Euler solver part 2: `mesh_io._read_gmsh_3d`, `read_su2` NDIME 3, `_mesh_from_raw_3d` (orientation fix, every face tagged); round trips on every cell type |
-| Mesh import: CGNS 3D, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | later | P2 | CGNS 3D not built in the 3D Euler stage (addendum: Gmsh and SU2 first) |
+| Mesh import: CGNS 3D, higher-order elements, binary Fluent, multi-zone CGNS, Fluent export | partial | P2 | full 3D release: CGNS 3D and multi-zone CGNS / SU2 / Gmsh / Fluent cell zones done; higher-order elements, binary and 3D Fluent, Fluent export later |
 | 3D mesh export: Gmsh 2.2 / 4.1, SU2, CGNS (TETRA / PENTA / sections per patch), .vtu; GUI *Export mesh…* and `export <project> --mesh FILE` | done | P2 | 3D geometry and meshing: `mesh_io.write_mesh` and the 3D writers (VTK -> Gmsh / CGNS prism order); Gmsh reads the files back with positive Jacobians (`tests/test_workspace_mesh3d.py`); not yet opened in SU2 itself |
 | CGNS export checked with an external CGNS reader | later | P2 | only our own reader was available; open an exported file in SU2 / ParaView once |
 | Planar nozzle template (for the MOC nozzle) | later | P2 | `tools/nozzle_flow_checks.py moc` solves the planar nozzle directly; no template runs planar internal flow of a wall profile |
@@ -160,20 +160,20 @@ Last updated: AI connector (2026-11-06).
 | Parametric studies and batch runs | planned parametric studies | P2 | |
 | Unsteady flow (dual time stepping) | planned unsteady flow | P2 | |
 | 3D Euler solver (5 equations, every BC through the face normal, LU-SGS, forces with symmetry planes, 3D nozzles, 3D Results, autosave, memory check) | done | P1 | 3D Euler solver stage: free stream 1e-13 on every cell type, MMS order 1.75-1.97, validation/euler3d_* (see report.md); docs/roadmap/3d_euler_solver.md ledger |
-| Multiple fluid zones (Fragment / shared topology, cell zones, per-zone settings) | later | P2 | not built in the 3D Euler stage (addendum rule 1); moved to the plan of the viscous stage |
-| Second-order robustness on triangles / tetrahedra at strong shocks | partial | P1 | robust-second-order stage: two causes found and fixed - the face-neighbour gradient stencil (Green-Gauss with node values: tet ramp 0.26 -> 4e-8, cone converges, tet MMS order 1.75 -> 1.86) and large implicit updates in near-vacuum wakes (per-cell update limit: no case diverges). STILL OPEN (restated with evidence): bow-shock stand-off on simplex meshes 8-11 % too large (3D sphere M3 0.227 R, 2D cylinder on triangles 0.703 R vs Billig 0.205 / 0.649; structured 2D twin 4.5 %); cone shock angle +7 % at 31k cells, +5 % at 72k (resolution); next: sphere refinement study 60k / 150k / 400k |
+| Multiple fluid zones (Fragment / shared topology, cell zones, per-zone settings) | done | P2 | full 3D release: conformal zones (2D and 3D), per-zone name / size / exclude / start state, zone balance; per-zone physics (porous media, sources, moving frames) and non-conformal interfaces later |
+| Second-order robustness on triangles / tetrahedra at strong shocks | done | P1 | full 3D release: the stand-off gap is MEASURED, not a scheme error - structured polar cylinder converges to 0.698 R (+7.6 % from Billig: the correlation), triangles within 0.7 % of it; sphere tetrahedra converge at first order to the structured 0.2139 R (60k +6.1 %, 144k +4.5 %). The validation rows vs Billig stay SHORTFALLS (pre-registered); a mesh-converged reference (structured twin) is the better reference for the next stage |
 | Inviscid blunt-body wake on unstructured meshes not steady to round-off (126k sphere timing target cannot be met as defined) | partial | P2 | viscous stage: with viscosity the cylinder wake at Re 40 is a steady recirculation (validation/viscous_cylinder_re40, converged check); inviscid case unchanged. Earlier: robust-second-order stage: residual ~1e-4 held by ~1 % of the cells behind sphere / cylinder (implicit and explicit alike) while Cd settles to 5 digits; forebody results judged with the monitors. Expected to disappear with viscosity (laminar stage) |
 | Far-field near-sonic outflow blend in 2D | later | P2 | not adopted in the robust stage either: it would change 2D numbers |
 | Far-field near-sonic outflow blend (normal Mach 0.9-1.1) in 2D | later | P2 | 3D only (2D bit for bit); adopt in 2D with a re-validation |
-| 3D Results: report definitions, surfaces, XY plots, patch regions, snapshots compare in 3D | later | P2 | the 2D Results workspace panels are not wired to 3D (walls / slices / iso-surfaces / streamlines / probe / export are) |
+| 3D Results: report definitions, surfaces, XY plots, patch regions, snapshots compare in 3D | done | P2 | full 3D release: Patches, XY plot (wall cut), Reports (3D force reports = solver Cd), Snapshots tabs; animation and linked views in 3D later |
 | Free-stream inputs shown for nozzle projects of external_3d | later | P3 | they do nothing for an internal flow; hide them when the mesh has an inlet |
 | Low-Mach preconditioning | planned | P1 | next stage: docs/roadmap/low_mach_preconditioning.md |
 | Laminar Navier-Stokes (2D, axisymmetric, 3D), no-slip adiabatic / isothermal / sliding walls, wall heat flux | done | P1 | viscous-flow stage: `euler/viscous.py`, NS MMS order 1.74-2.06 on 8 mesh kinds; Couette, Poiseuille, Blasius, Mach 2 plate heat transfer PASS (validation/report.md) |
 | Spalart-Allmaras (SA-noft2) and k-omega SST (SST-V), exact wall distance | done | P1 | viscous-flow stage: `euler/turbulence.py`, loosely coupled implicit SGS; transport MMS order 0.93-1.00 (expected 1); TMR flat plate on 136 x 96 / 272 x 192: SHORTFALL - did not finish inside the 2.5 h limit (no result; only the coarse 60 x 48 SA check, Cf 1.3 % off) |
 | Slip-wall (rarefied) boundary condition for micro-nozzles (Maxwell slip, temperature jump) | later | P2 | not in the viscous stage; the N2 cube-sat nozzle at 1 bar has Kn ~ 1e-3 at the throat (continuum) |
-| Square duct (3D laminar) 2.3 % / 1.7 % off the series | partial | P2 | viscous stage SHORTFALL, likely resolution (12 cells per half side), unverified: re-run 24 x 24 after preconditioning |
+| Square duct (3D laminar) 2.3 % / 1.7 % off the series | partial | P2 | full 3D release: 24 x 24 re-run with tools/duct_resolution.py (result in the ledger of docs/roadmap/full_3d_release.md) |
 | Cylinder Re 40 and sphere Re 100 references (Coutanceau & Bouard, Dennis & Chang, Johnson & Patel) | open | P1 | PENDING REFERENCE: papers not reachable (paywall); attach PDFs. Sphere Re 100 3D not run |
-| NACA 0012 Re 6e6 (SA, SST) and 3D extrusion; 3D quarter cube-sat nozzle with prism layers; ONERA M6 (3D turbulent) | planned | P1 | not run in the viscous stage (time); 3D turbulent validation so far = one-layer extrusion consistency + MMS; next with low-Mach stage |
+| NACA 0012 Re 6e6 (SA, SST) and 3D extrusion; 3D quarter cube-sat nozzle with prism layers; ONERA M6 (3D turbulent) | partial | P1 | full 3D release: 3D cube-sat nozzle laminar with prism layers pre-registered (validation/nozzle_3d_laminar); ONERA M6 NOT RUN - the ONERA D section coordinates are not in the repository (needs the user's OK to add the geometry data); sphere Re 100 laminar PENDING REFERENCE (Johnson & Patel data not attached) |
 | TMR flat plate finest grid (544 x 384) | planned | P2 | ~20 h at current cost; after preconditioning / line-implicit |
 | Low-Mach stiffness of viscous runs (acoustic pseudo-time step of the Rusanov LU-SGS) | open | P1 | measured in the viscous stage (Couette at 1 atm does not converge in 40k iterations); validation cases run at low pressure; cure: low-Mach preconditioning (next stage) |
 | Constant-density liquids (preconditioned) | later | P3 | Phase 4 |
@@ -244,3 +244,7 @@ Last updated: AI connector (2026-11-06).
 | Contributing guide, code of conduct, issue templates, security policy | done | P2 | post-processing and alpha release |
 | Repository pre-public check | done | P1 | post-processing and alpha release: no secrets, personal paths or large binaries in history; CAD test files are generated; commit e-mail becomes public |
 | Optional web demo | later | P3 | |
+| 3D nozzle vs axisymmetric on the default tetrahedral mesh: mass flow +2.8 %, thrust +2.3 % (Isp 0.49 %) | partial | P2 | full 3D release SHORTFALL (pre-registered 2 %); suspected throat resolution (5 cells across the throat); a finer-mesh run is in the ledger |
+| Axisymmetric O-grid 640 x 180 with far field 10 D diverged at iteration 225 (sphere Mach 3) | later | P3 | found in the full 3D release shock study; Medium / Fine converge |
+| Validation references that are correlations (Billig) vs mesh-converged Euler | later | P2 | full 3D release: Billig differs from converged Euler by +7.6 % (cylinder M3), +4.4 % (sphere M3); add the structured mesh-converged value as a second reference |
+| Plume region of a half nozzle (y >= 0 only) | later | P3 | Revolve sectors start at +y; quarter and full nozzles work |

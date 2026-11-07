@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 - Full 3D release: multiple zones, 3D completeness, 3D validation (November 2026)
+
+- **Multiple cell zones** (2D and 3D): the Geometry step's *Fluid zones* joins overlapping fluid bodies with
+  OpenCASCADE Fragment (conformal interfaces; the later body wins), with a name, a cell size and "exclude" per zone;
+  meshes carry `cell_zones`; interface fluxes are stored, so the flux balance is shown per zone and per interface
+  (conservation to round-off, tested); a zone can be a start region of a run; field *Cell zone* in Results.
+  Mesh files keep zones: Gmsh physical surfaces / volumes, SU2 NZONE, CGNS (several zones, and now 3D CGNS import),
+  Fluent cell zones. A one-zone mesh is exactly the mesh of before (arrays, files, results).
+- **3D nozzles**: new template *3D nozzle (3D Euler)* (`nozzle_3d`: the axisymmetric nozzle's contour revolved, quarter
+  or full, optional plume region as a second zone, exit numbers on the zone interface), the *Plume / plenum* tool round
+  any fluid nozzle, a tutorial (`docs/tutorials/nozzle_3d_plume.md`) and the example *N2 nozzle 3D with plume*.
+- **3D Results**: tabs Patches, XY plot (a field along a plane cut of the walls, e.g. Cp along a wing section), Reports
+  (report definitions; 3D force reports now equal the solver's Cd) and Snapshots (save, compare key numbers).
+- **3D geometry**: edge picking (Edges filter), local edge size, fillet and chamfer of solid edges, split bodies by a
+  plane. Geometry dialogs follow *View > Units*. Internal-flow `external_3d` projects hide the free-stream inputs.
+- **Shock position on tetrahedra (measured, no scheme change)**: on a structured grid the solver's converged Mach 3
+  cylinder stand-off is 0.698 R (+7.6 % from Billig's correlation); the triangle mesh is within 0.7 % of it. The
+  sphere's tetrahedral stand-off converges at first order to the structured value (60k: +6.1 %, 144k: +4.5 % from
+  the structured 0.2139 R). The validation SHORTFALLS vs Billig are the correlation's gap at Mach 3 and shock-layer
+  resolution, not a simplex error. Tool: `tools/shock_position_study.py`.
+- **Validation**: new `nozzle_3d` (3D quarter vs axisymmetric: Isp PASS 0.49 %, mass flow +2.8 % and thrust +2.3 %
+  SHORTFALL vs the pre-registered 2 %), `nozzle_3d_laminar` (3D CubeSat with prism layers). ONERA M6: not run (the
+  ONERA D section coordinates are not in the repository) - SHORTFALL; sphere Re 100: PENDING REFERENCE.
+- No validated number of earlier cases changed (no default, scheme or template file of an existing case changed).
+- As at every release the version is part of every fingerprint: results of 0.2 projects are shown as "needs
+  update" (Run brings them up to date; the examples are regenerated).
+
 ## Unreleased - AI connector: drive AeroFlowSim from Claude or any MCP app (November 2026)
 
 - New command `aeroflowsim mcp`: a local MCP server (stdio only, no network port) with 25 tools over a new tool

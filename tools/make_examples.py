@@ -44,6 +44,7 @@ EXAMPLES = {
                                      "boundaries": {"inlet": {"type": "total_pressure_inlet", "p0": 500000.0,
                                                               "T0": 293.15},
                                                     "outlet": {"type": "pressure_outlet", "p": 1000.0}}}, True),
+    "N2 nozzle 3D with plume": ("nozzle_3d", {"plume": True, "max_iter": 20000}, True),   # full 3D release stage
 }
 
 
@@ -80,7 +81,7 @@ def main():
             project.set_post("report_definitions", [
                 ReportDefinition("exit p0 (mass-weighted)", "surface", "outlet", "mass_weighted", "p0").to_dict()])
             project.save()
-        if template == "external_3d":            # no recorded animation: it would be most of the example's size
+        if template in ("external_3d", "nozzle_3d"):   # no recorded animation: it would be most of the example's size
             project.set_post("animation", {"record": False, "every": 0})
             project.save()
         if name == "N2 nozzle 3D":
@@ -88,7 +89,7 @@ def main():
         if solve:
             print(f"Solving {name} ...", flush=True)
             run_project(project)
-            if template == "external_3d":        # 3D: ship only what the project needs (exports are re-made on demand)
+            if template in ("external_3d", "nozzle_3d"):   # 3D: ship only what the project needs
                 for extra in ("results/fields.csv", "results/solution.vtu", "mesh/mesh.vtu"):
                     (folder / extra).unlink(missing_ok=True)
         print(f"Made {folder}")

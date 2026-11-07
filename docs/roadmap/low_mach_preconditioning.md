@@ -121,5 +121,26 @@ preconditioning stage: do all parts below in order, in this one session, without
   the 3D quarter cube-sat nozzle with prism layers (2D vs 3D within 2 %), ONERA M6; and the references of Coutanceau &
   Bouard / Dennis & Chang / Johnson & Patel (attach the PDFs). See the gap register.
 
+## Findings of the full 3D release stage (7 Nov 2026) - part of this stage
+
+* Version 0.3.0 has multiple cell zones (`Mesh.cell_zones`; conformal interfaces = interior faces; developer guide
+  "Multiple cell zones"). The preconditioner must act per cell only (it does not care about zones), and the zone
+  balance (`post.integrals.zone_balance`, series `interface_flux`) is a free conservation check for low-Mach runs:
+  add it to the low-Mach validation cases (a two-zone duct: inflow zone + test zone).
+* The shock-position "simplex error" was measured to be resolution plus the gap of Billig's correlation (theory manual
+  13k): do NOT change shock-capturing dissipation while adding preconditioning; the preconditioned dissipation must
+  fall back to the unpreconditioned HLLC/HLLE where M_ref -> 1 (Weiss-Smith cut-off M_ref = min(max(|u|/c, M_cut), 1)),
+  and every supersonic number in report.md must stay bit for bit (preconditioning OFF there).
+* New template `nozzle_3d` (3D quarter / full, plume zone): its default-mesh mass flow is +2.8 % above the axisymmetric
+  run (SHORTFALL of validation/nozzle_3d). Low Mach is not involved (choked throat), but the plume region's slow
+  entrained gas near `plume_base` is: run nozzle_3d with the plume on at p_back = p0 / 3 (over-expanded, subsonic
+  regions in the plume) with and without preconditioning as an extra case.
+* Laminar square duct 24 x 24 re-run: see the ledger of docs/roadmap/full_3d_release.md (tools/duct_resolution.py);
+  re-run it at 1 atm with preconditioning.
+* Still open and NOT for this stage unless time remains: ONERA M6 (needs the ONERA D section coordinates added to the
+  repository: ask the user), sphere Re 100 (reference data not attached).
+* Tooling: the venv `python.exe` is a launcher; the solver process is `python3.13.exe` (check that name when you look
+  for a running validation job).
+
 ## Ledger (progress log)
 

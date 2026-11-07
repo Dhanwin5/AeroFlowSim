@@ -20,8 +20,8 @@ between sessions by hand.
 | Robust second order | `robust_second_order.md` | Second order on triangles and tetrahedra at strong shocks: node-value gradients, per-cell update limit | done |
 | Viscous flow (laminar + RANS) | `laminar_viscous.md` | Laminar Navier-Stokes and RANS (Spalart-Allmaras, k-omega SST), 2D, axisymmetric and 3D: walls, skin friction, heat flux, cube-sat nozzle losses | done (see its ledger for what moved on) |
 | AI connector | `ai_connector.md` | MCP server + skill: Claude or any MCP app sets up, runs and reports AeroFlowSim projects safely | done |
-| Full 3D release | `full_3d_release.md` | Shock position on tetrahedra, multiple zones, 3D Results panels, 3D nozzle template, ONERA M6, release v0.3.0 | next |
-| Low-Mach preconditioning | `low_mach_preconditioning.md` | Weiss-Smith preconditioning: accurate, fast steady flows at any Mach number | after full 3D release |
+| Full 3D release | `full_3d_release.md` | Shock position on tetrahedra, multiple zones, 3D Results panels, 3D nozzle template, ONERA M6, release v0.3.0 | done (0.3.0; validation SHORTFALLS in the ledger) |
+| Low-Mach preconditioning | `low_mach_preconditioning.md` | Weiss-Smith preconditioning: accurate, fast steady flows at any Mach number | next |
 
 Earlier stages (desktop GUI, geometry workspace, gas library and units, 2D Euler solver) were planned before this
 folder existed; their results are in the gap register and the CHANGELOG. Where the later stages fit: `next_steps.md`
