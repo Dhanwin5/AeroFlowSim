@@ -64,6 +64,7 @@ class FaceMeta:
 class BodyMeta:
     id: str
     role: str
+    zone: str = ""                  # cell zone name of a fluid body ("" = its id); set by the Fluid zones operation
 
 
 class Kernel3D:
@@ -321,10 +322,44 @@ class Kernel3D:
         for body_id, vols in by_id.items():
             source = next((m for m in inputs if m.id == body_id), first)
             for n, t in enumerate(sorted(vols), start=1):
-                new_meta[t] = BodyMeta(body_id if len(vols) == 1 else f"{body_id}#{n}", role or source.role)
+                new_meta[t] = BodyMeta(body_id if len(vols) == 1 else f"{body_id}#{n}", role or source.role,
+                                       source.zone)
         self.body_meta = {t: m for t, m in new_meta.items() if t in self.volume_tags()}
         self.relabel(snap, op_id)
         return result
+
+    def fragment(self, bodies, op_id, names=None) -> list:
+        """Gmsh/OpenCASCADE Fragment of fluid bodies (full 3D release stage, multiple zones): overlapping bodies are
+        cut into pieces that share their faces (conformal interfaces, one surface mesh on both sides). Each piece is a
+        cell zone named after the LAST input body that covers it (a later body has priority, like the region order
+        of commercial meshers); names = {body id: zone name} (default: the body id). Pieces keep the id of that body
+        ("#1", "#2" ... when one zone has several pieces). Returns the result volume tags."""
+        tags = [self.body_by_id(b) if not isinstance(b, (int, np.integer)) else int(b) for b in bodies]
+        if len(tags) < 2:
+            raise ValueError("fluid zones need at least two fluid bodies")
+        inputs = [self.body_meta.get(t, BodyMeta(f"body{t}", FLUID)) for t in tags]
+        names = dict(names or {})
+        snap = self.snapshot()
+        out, out_map = self.occ.fragment([(3, t) for t in tags], [], removeObject=True, removeTool=True)
+        self.sync()
+        winner = {}
+        for k, produced in enumerate(out_map):            # later inputs overwrite: the last body wins
+            for d, t in produced:
+                if d == 3:
+                    winner[t] = inputs[k]
+        used = set(tags)
+        new_meta = {t: m for t, m in self.body_meta.items() if t not in used and t not in winner}
+        by_id = {}
+        for t in sorted(winner):
+            by_id.setdefault(winner[t].id, []).append(t)
+        for body_id, vols in by_id.items():
+            source = next(m for m in inputs if m.id == body_id)
+            zone = names.get(body_id) or source.zone or body_id
+            for n, t in enumerate(vols, start=1):
+                new_meta[t] = BodyMeta(body_id if len(vols) == 1 else f"{body_id}#{n}", FLUID, zone)
+        self.body_meta = {t: m for t, m in new_meta.items() if t in self.volume_tags()}
+        self.relabel(snap, op_id)
+        return [t for d, t in out if d == 3]
 
     # ---- the result ------------------------------------------------------------------------------
 
@@ -366,7 +401,7 @@ class Kernel3D:
             faces = [face_ids[f] for f in self.faces_of(tag)]
             built.bodies[meta.id] = Body3D(meta.id, meta.role, faces, float(occ.getMass(3, tag)),
                                            float(sum(built.faces[f].area for f in faces)),
-                                           np.asarray(occ.getCenterOfMass(3, tag), dtype=float))
+                                           np.asarray(occ.getCenterOfMass(3, tag), dtype=float), meta.zone)
         # Boundary names: first the defaults from the operations, then the user's names in order.
         for face in built.faces.values():
             if face.default_name:

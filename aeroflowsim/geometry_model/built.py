@@ -75,6 +75,7 @@ class Face:
     area: float                     # [m²] (exact, from the CAD kernel)
     centroid: np.ndarray            # (2,) [m]
     triangles: np.ndarray = None    # (m, 3, 2) a coarse triangulation, for drawing the face filled
+    zone: str = ""                  # cell zone of a fluid face ("" = its id; see operations.FluidZones)
 
 
 @dataclass

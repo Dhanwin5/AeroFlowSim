@@ -282,6 +282,27 @@ class BooleanOp(Operation):
         kernel.boolean(p["kind"], p["objects"], p["tools"], self.id, remove_tools=not p["keep_tools"])
 
 
+class FluidZones(Operation):
+    """Several fluid zones (full 3D release stage): the fluid faces listed (all fluid faces when empty) are joined by
+    Fragment, so neighbouring zones share their edges (a conformal interface). Where faces overlap the LATER face
+    wins (an enclosure, then a plume region inside it). names: {face id: zone name}. The 2D form of FluidZones3D."""
+
+    type, title = "fluid_zones", "Fluid zones"
+    DEFAULTS = {"faces": [], "names": {}}
+
+    def summary(self) -> str:
+        n = len(self.params["faces"])
+        return f"Fluid zones: {n} faces" if n else "Fluid zones: all fluid faces"
+
+    def apply(self, kernel, context):
+        faces = list(self.params["faces"]) or [kernel.face_meta[t].id for t in kernel.faces_with_role(FLUID)
+                                               if t in kernel.face_meta]
+        for f in faces:
+            if kernel.face_meta[kernel.face_by_id(f)].role != FLUID:
+                raise ValueError(f"face '{f}' is solid: only fluid faces become zones (mark it fluid first)")
+        kernel.fragment(faces, self.id, self.params.get("names") or {})
+
+
 class SetRole(Operation):
     """Mark faces as fluid (meshed) or solid (a body to cut out of the fluid)."""
 
@@ -945,6 +966,7 @@ def _copy_entities(kernel, targets, op_id):
 
 
 OPERATIONS = {cls.type: cls for cls in (TemplateShape, TemplateEnclosure, Transform, Delete, Fillet, BooleanOp, SetRole,
+                                        FluidZones,
                                         ImportFile, Sketch, SketchGroup, Enclosure, NameBoundary, Refinement)}
 
 

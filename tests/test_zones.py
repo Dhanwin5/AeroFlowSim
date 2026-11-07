@@ -188,3 +188,50 @@ def test_fluent_cell_zones_on_import(tmp_path):
     mesh = mesh_io.import_mesh(path)
     assert mesh.zone_names == ["inner", "plume"] and mesh.n_cells == 2
     assert mesh.interfaces() == [("inner", "plume", 1)]
+
+
+@pytest.mark.parametrize("layers", [False, True])
+def test_workspace_3d_fluid_zones(layers):
+    """3D workspace: a sphere in a box enclosure plus a fluid box behind it (a 'plume' region); the Fluid zones
+    operation (Fragment) makes two conformal zones; the plume zone's volume is the box's exactly (to the mesh's
+    approximation of the flat box: exact), prism layers on the sphere go to the zone they grow into."""
+    pytest.importorskip("gmsh")
+    from aeroflowsim.geometry_model import GeometryDocument
+    from aeroflowsim.geometry_model.operations3d import Box, Enclosure3D, FluidZones3D, Sphere
+    from aeroflowsim.nozzle_mesh import Inflation
+    from aeroflowsim.workspace_mesh3d import MeshSettings3D, mesh_3d
+    ops = [Sphere("op1", radius=0.5), Enclosure3D("op2", kind="box", upstream=2, downstream=3, lateral=2),
+           Box("op3", x0=0.6, y0=-0.8, z0=-0.8, dx=2.0, dy=1.6, dz=1.6, role="fluid"),
+           FluidZones3D("op4", names={"op2": "outer", "op3": "plume"})]
+    settings = MeshSettings3D(surface_size=0.15, max_size=0.6, growth=1.3, curvature=12,
+                              inflation=Inflation(0.01, 3, 1.2) if layers else None)
+    mesh = mesh_3d(GeometryDocument(ops, dimension=3), None, settings)
+    assert sorted(mesh.zone_names) == ["outer", "plume"]
+    assert np.isclose(mesh.cell_volumes[mesh.zone_cells("plume")].sum(), 2.0 * 1.6 * 1.6, rtol=1e-9)
+    (a, b, n), = mesh.interfaces()
+    assert n > 0 and {a, b} == {"outer", "plume"}
+    assert not any("op3" in p.name for p in mesh.patches)       # the interface is not a boundary
+    assert np.all(mesh.cell_volumes > 0)
+
+
+def test_workspace_2d_fluid_zones():
+    """2D workspace (external_2d template: body in a circular far field) + a fluid rectangle behind the body + Fluid
+    zones: two zones sharing their edges; the rectangle's zone has exactly its area; no new boundary patch."""
+    pytest.importorskip("gmsh")
+    from aeroflowsim.discovery import load_case
+    from aeroflowsim.geometry_model import template_document
+    from aeroflowsim.geometry_model.operations import FluidZones, Sketch
+    from aeroflowsim.parameters import defaults, validate
+    from aeroflowsim.workspace_mesh import mesh_for
+    case = load_case("external_2d")
+    p = validate(case.parameters(), {**defaults(case.parameters()), "mesh_type": "Unstructured (Gmsh)",
+                                     "surface_size": 0.02, "farfield_size": 2.0})
+    doc = template_document(case)
+    plain = mesh_for(case, p, doc)
+    doc.add(Sketch("wake", kind="rectangle", points=[[1.5, -0.5], [4.0, 0.5]], role="fluid"))
+    doc.add(FluidZones("zones", names={"wake": "wake"}))
+    mesh = mesh_for(case, p, doc)
+    assert len(mesh.zone_names) == 2 and "wake" in mesh.zone_names
+    assert np.isclose(mesh.cell_volumes[mesh.zone_cells("wake")].sum(), 2.5, rtol=1e-12)
+    assert sorted(q.name for q in mesh.patches) == sorted(q.name for q in plain.patches)
+    assert np.isclose(mesh.cell_volumes.sum(), plain.cell_volumes.sum(), rtol=1e-4)   # the far-field circle is a polygon

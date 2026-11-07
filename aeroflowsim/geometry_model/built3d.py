@@ -69,6 +69,7 @@ class Body3D:
     volume: float                   # [m³] (exact, from the CAD kernel)
     area: float                     # total surface area [m²]
     centroid: np.ndarray            # (3,) [m]
+    zone: str = ""                  # cell zone of a fluid body ("" = its id; see operations3d.FluidZones3D)
 
 
 @dataclass

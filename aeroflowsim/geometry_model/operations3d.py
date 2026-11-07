@@ -412,6 +412,29 @@ class SetRole3D(Operation3D):
             kernel.body_meta[tag].role = role
 
 
+class FluidZones3D(Operation3D):
+    """Several fluid zones (full 3D release stage): the fluid bodies listed (all fluid bodies when empty) are joined by
+    Fragment, so they share their interface faces (a conformal interface: the mesh has one face there, owned by one zone
+    and neighboured by the other). Where bodies overlap the LATER body wins (e.g. an enclosure, then a plume region
+    inside it: the region becomes the zone "plume", the rest of the enclosure keeps its zone). names: {body id: zone
+    name}. Solid bodies are not touched (they are still cut out by the enclosure)."""
+
+    type, title = "fluid_zones_3d", "Fluid zones"
+    DEFAULTS = {"bodies": [], "names": {}}
+
+    def summary(self) -> str:
+        n = len(self.params["bodies"])
+        return f"Fluid zones: {n} bodies" if n else "Fluid zones: all fluid bodies"
+
+    def apply(self, kernel, context):
+        bodies = list(self.params["bodies"]) or [kernel.body_meta[t].id for t in kernel.bodies_with_role(FLUID)
+                                                 if t in kernel.body_meta]
+        for b in bodies:
+            if kernel.body_meta[kernel.body_by_id(b)].role != FLUID:
+                raise ValueError(f"body '{b}' is solid: only fluid bodies become zones (mark it fluid first)")
+        kernel.fragment(bodies, self.id, self.params.get("names") or {})
+
+
 class Delete3D(Operation3D):
     """Delete bodies."""
 
@@ -663,5 +686,5 @@ def _nearest_segment(points, probes) -> int:
 
 
 OPERATIONS_3D = {cls.type: cls for cls in (Box, Cylinder, Cone, Sphere, ImportSolid, Revolve, Extrude, Transform3D,
-                                           Boolean3D, SetRole3D, Delete3D, Enclosure3D, NameFaces, Refinement3D,
+                                           Boolean3D, SetRole3D, FluidZones3D, Delete3D, Enclosure3D, NameFaces, Refinement3D,
                                            TemplateBody, TemplateEnclosure3D)}

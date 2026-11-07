@@ -180,10 +180,43 @@ def mesh_3d(document, context, settings) -> Mesh:
             raise ValueError(f"Gmsh could not fill the volume with tetrahedra: {error}. Try other cell sizes"
                              f"{' or thinner inflation layers' if layers else ''}.") from None
         nodes, types, cells, boundary = _arrays(gmsh, fluid, surfaces, layers)
+        zone_of_volume = {v: (kernel.body_meta[v].zone if v in kernel.body_meta else "") for v in fluid}
+        zoned = any(zone_of_volume.values())           # only a Fluid zones operation makes zones
+        zone_of_volume = {v: z or "fluid" for v, z in zone_of_volume.items()}
+        tet_counts = [len(gmsh.model.mesh.getElementsByType(GMSH_TETRA, v)[1]) // 4 for v in fluid]
     info = {"generator": "workspace 3D (Gmsh tetrahedra" + (" + prism layers)" if layers else ")"),
             "operations": len(document.operations), "reference_length": float(built.reference_length()),
             "fluid_volume_exact": float(built.fluid_volume()), **settings_info(settings)}
-    return Mesh.from_cells(nodes, types, cells, boundary, dim=3, info=info)
+    mesh = Mesh.from_cells(nodes, types, cells, boundary, dim=3, info=info)
+    if not zoned or len(set(zone_of_volume.values())) < 2:
+        return mesh                                     # one zone: exactly the mesh as before
+    return with_zones(mesh, [zone_of_volume[v] for v in fluid], tet_counts)
+
+
+def with_zones(mesh, volume_zones, tet_counts) -> Mesh:
+    """The mesh with its cell zones: the tetrahedra come first, volume after volume (tet_counts), so each block gets
+    the zone of its volume; every other cell (the prism layers, which follow) gets the zone of the cell it touches
+    through its faces (a prism stack grows from a wall into one zone), found by passing zones across interior faces
+    until every cell has one."""
+    zone = np.full(mesh.n_cells, -1, dtype=np.int64)
+    names = list(dict.fromkeys(volume_zones))
+    start = 0
+    for name, n in zip(volume_zones, tet_counts):
+        zone[start:start + n] = names.index(name)
+        start += n
+    nI = mesh.n_interior_faces
+    own, nb = mesh.owner[:nI], mesh.neighbour[:nI]
+    while np.any(zone < 0):
+        before = int(np.count_nonzero(zone < 0))
+        take = (zone[own] < 0) & (zone[nb] >= 0)
+        zone[own[take]] = zone[nb[take]]
+        take = (zone[nb] < 0) & (zone[own] >= 0)
+        zone[nb[take]] = zone[own[take]]
+        if int(np.count_nonzero(zone < 0)) == before:
+            zone[zone < 0] = 0                           # cells cut off from every volume (cannot happen): zone 1
+    cells = {n: np.flatnonzero(zone == k) for k, n in enumerate(names)}
+    return Mesh(mesh.nodes, mesh.cell_types, mesh.cell_nodes, mesh.face_nodes, mesh.owner, mesh.neighbour,
+                mesh.patches, mesh.dim, mesh.axisymmetric, mesh.info, cell_zones=cells)
 
 
 def _drop_solids(kernel, fluid):

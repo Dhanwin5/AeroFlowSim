@@ -173,7 +173,11 @@ def workspace_mesh(document, context, settings) -> Mesh:
         except Exception as error:
             raise ValueError(f"Gmsh could not mesh this geometry: {error}. Try other cell sizes, or check the "
                              "geometry for very small features.") from None
-        nodes, types, cells, boundary = _arrays(gmsh, patch_types)
+        fluid_faces = kernel.faces_with_role(FLUID)
+        face_zones = [kernel.face_meta[t].zone if t in kernel.face_meta else "" for t in fluid_faces]
+        zoned = any(face_zones)                      # only a Fluid zones operation makes zones
+        face_zones = [z or "fluid" for z in face_zones]
+        nodes, types, cells, boundary, counts = _arrays(gmsh, patch_types, fluid_faces if zoned else None)
     for chain, grown, segment_edges in layers:
         nodes, types, cells, boundary = _add_layers(nodes, types, cells, boundary, chain, grown, segment_edges, named)
     nodes, types, cells, boundary = _drop_unused_nodes(nodes, types, cells, boundary)
@@ -182,7 +186,11 @@ def workspace_mesh(document, context, settings) -> Mesh:
     info = {"generator": "workspace", "axisymmetric": bool(built.axisymmetric),
             "operations": len(document.operations), "reference_length": float(built.reference_length()),
             **gmsh_settings(settings)}
-    return Mesh.from_cells(nodes, types, cells, boundary, dim=2, axisymmetric=built.axisymmetric, info=info)
+    mesh = Mesh.from_cells(nodes, types, cells, boundary, dim=2, axisymmetric=built.axisymmetric, info=info)
+    if not zoned or len(set(face_zones)) < 2:
+        return mesh                                  # one zone: exactly the mesh (and code path) as before
+    from aeroflowsim.workspace_mesh3d import with_zones
+    return with_zones(mesh, face_zones, counts)
 
 
 def _check(built):
@@ -463,24 +471,30 @@ def _wall_node_ids(layers):
     return np.r_[faces[:, 0], faces[-1, 1]]
 
 
-def _arrays(gmsh, patch_types):
-    """Nodes, cells and boundary faces of the 2D mesh Gmsh made (as in gmsh_mesh._gmsh_arrays)."""
+def _arrays(gmsh, patch_types, faces=None):
+    """Nodes, cells and boundary faces of the 2D mesh Gmsh made (as in gmsh_mesh._gmsh_arrays), and the number of
+    cells of each face entity in `faces` (cells come face after face in that order; None = all at once, as before)."""
     tags, coords, _ = gmsh.model.mesh.getNodes()
     tags = np.asarray(tags, dtype=np.int64)
     xy = np.asarray(coords, dtype=float).reshape(-1, 3)[:, :2].copy()
     lookup = np.full(int(tags.max()) + 1, -1, dtype=np.int64)
     lookup[tags] = np.arange(len(tags))
-    cells, types = [], []
-    kinds, _, element_nodes = gmsh.model.mesh.getElements(2)
-    for kind, node_tags in zip(kinds, element_nodes):
-        node_tags = np.asarray(node_tags, dtype=np.int64)
-        if kind == 2:
-            tri = lookup[node_tags.reshape(-1, 3)]
-            cells.append(np.column_stack([tri, np.full(len(tri), -1)]))
-            types.append(np.full(len(tri), TRIANGLE))
-        elif kind == 3:
-            cells.append(lookup[node_tags.reshape(-1, 4)])
-            types.append(np.full(len(cells[-1]), QUAD))
+    cells, types, counts = [], [], []
+    for entity in ([-1] if faces is None else faces):
+        kinds, _, element_nodes = gmsh.model.mesh.getElements(2, entity)
+        n = 0
+        for kind, node_tags in zip(kinds, element_nodes):
+            node_tags = np.asarray(node_tags, dtype=np.int64)
+            if kind == 2:
+                tri = lookup[node_tags.reshape(-1, 3)]
+                cells.append(np.column_stack([tri, np.full(len(tri), -1)]))
+                types.append(np.full(len(tri), TRIANGLE))
+                n += len(tri)
+            elif kind == 3:
+                cells.append(lookup[node_tags.reshape(-1, 4)])
+                types.append(np.full(len(cells[-1]), QUAD))
+                n += len(cells[-1])
+        counts.append(n)
     if not cells:
         raise ValueError("Gmsh made no cells. Check the geometry and the cell sizes.")
     cells, types = _counter_clockwise(xy, np.vstack(cells), np.concatenate(types))
@@ -495,7 +509,7 @@ def _arrays(gmsh, patch_types):
                     faces.append(lookup[np.asarray(node_tags, dtype=np.int64).reshape(-1, 2)])
         if faces:
             boundary[name] = (patch_types[name], np.vstack(faces))
-    return xy, types, cells, boundary
+    return xy, types, cells, boundary, counts
 
 
 def _add_layers(nodes, types, cells, boundary, chain, layers, segment_edges, built):

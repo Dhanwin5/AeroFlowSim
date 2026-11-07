@@ -86,6 +86,7 @@ class EdgeMeta:
 class FaceMeta:
     id: str
     role: str
+    zone: str = ""                  # cell zone name of a fluid face ("" = its id); set by Fluid zones
 
 
 class Kernel:
@@ -335,6 +336,37 @@ class Kernel:
 
     # ---- booleans --------------------------------------------------------------------------------
 
+    def fragment(self, faces, op_id, names=None) -> list:
+        """Fragment of fluid faces (several cell zones, full 3D release stage): overlapping faces are cut into pieces
+        that share their edges (conformal interfaces). Each piece is a zone named after the LAST input face covering
+        it (a later face has priority); names = {face id: zone name}. The 2D form of Kernel3D.fragment."""
+        tags = [self.face_by_id(f) if not isinstance(f, (int, np.integer)) else int(f) for f in faces]
+        if len(tags) < 2:
+            raise ValueError("fluid zones need at least two fluid faces")
+        inputs = [self.face_meta.get(t, FaceMeta(f"face{t}", FLUID)) for t in tags]
+        names = dict(names or {})
+        snap = self.snapshot()
+        out, out_map = self.occ.fragment([(2, t) for t in tags], [], removeObject=True, removeTool=True)
+        self.sync()
+        winner = {}
+        for k, produced in enumerate(out_map):
+            for d, t in produced:
+                if d == 2:
+                    winner[t] = inputs[k]
+        used = set(tags)
+        new_meta = {t: m for t, m in self.face_meta.items() if t not in used and t not in winner}
+        by_id = {}
+        for t in sorted(winner):
+            by_id.setdefault(winner[t].id, []).append(t)
+        for face_id, pieces in by_id.items():
+            source = next(m for m in inputs if m.id == face_id)
+            zone = names.get(face_id) or names.get(face_id.split(":")[0]) or source.zone or face_id
+            for n, t in enumerate(pieces, start=1):
+                new_meta[t] = FaceMeta(face_id if len(pieces) == 1 else f"{face_id}#{n}", FLUID, zone)
+        self.face_meta = {t: m for t, m in new_meta.items() if t in self.face_tags()}
+        self.relabel(snap, op_id)
+        return [t for d, t in out if d == 2]
+
     def boolean(self, kind, objects, tools, op_id, role=None, remove_tools=True) -> list:
         """Union ("fuse"), subtract ("cut") or intersect faces given by stable id or tag.
 
@@ -369,7 +401,8 @@ class Kernel:
         for face_id, tags in by_id.items():
             source = next(m for m in inputs + [first] if m.id == face_id)
             for n, t in enumerate(sorted(tags), start=1):
-                new_meta[t] = FaceMeta(face_id if len(tags) == 1 else f"{face_id}#{n}", role or source.role)
+                new_meta[t] = FaceMeta(face_id if len(tags) == 1 else f"{face_id}#{n}", role or source.role,
+                                       source.zone)
         if not remove_tools:                      # tools stay as they were (same tags)
             for _, t in tool:
                 if t in self.face_meta:
@@ -409,7 +442,7 @@ class Kernel:
             _, loop_curves = self.occ.getCurveLoops(tag)
             loops = [[edge_ids[abs(int(c))] for c in curves] for curves in loop_curves]
             area, centre = self.face_integrals([[abs(int(c)) for c in curves] for curves in loop_curves])
-            face = Face(meta.id, meta.role, loops, area, centre)
+            face = Face(meta.id, meta.role, loops, area, centre, zone=meta.zone)
             built.faces[meta.id] = face
         for face in built.faces.values():         # outer loop first (the one enclosing the largest area)
             if len(face.loops) > 1:
