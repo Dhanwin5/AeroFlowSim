@@ -135,8 +135,8 @@ preconditioning stage: do all parts below in order, in this one session, without
   run (SHORTFALL of validation/nozzle_3d). Low Mach is not involved (choked throat), but the plume region's slow
   entrained gas near `plume_base` is: run nozzle_3d with the plume on at p_back = p0 / 3 (over-expanded, subsonic
   regions in the plume) with and without preconditioning as an extra case.
-* Laminar square duct 24 x 24 re-run: see the ledger of docs/roadmap/full_3d_release.md (tools/duct_resolution.py);
-  re-run it at 1 atm with preconditioning.
+* Laminar square duct 24 x 24 re-run (full 3D release): the error GREW (-3.2 % / +2.9 % vs 1.7 / 2.3 % at 12 x 12):
+  not resolution. Test the development length (20 D duct) and compressibility (lower Mach with preconditioning).
 * Still open and NOT for this stage unless time remains: ONERA M6 (needs the ONERA D section coordinates added to the
   repository: ask the user), sphere Re 100 (reference data not attached).
 * Tooling: the venv `python.exe` is a launcher; the solver process is `python3.13.exe` (check that name when you look

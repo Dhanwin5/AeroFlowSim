@@ -225,3 +225,8 @@ and published validation. 0.3.0 completes the 3D workflow:
 
 Installers: Windows (setup.exe), macOS (.dmg) and Linux (.AppImage), built by GitHub Actions from the tag. Not
 code-signed (see the user guide). Results of 0.2 projects show "needs update": press Run.
+
+### Ledger 4 - duct resolution (2026-11-07)
+- Square duct 24 x 24 per half side (tools/duct_resolution.py, validation/results/duct_resolution.jsonl): u_max/u_mean
+  2.0295 vs series 2.0962 (-3.2 %), fRe 58.55 vs 56.91 (+2.9 %); 12 x 12 gave 1.7 % / 2.3 %. The error GROWS with
+  resolution: the resolution hypothesis is rejected. Next (low-Mach stage file): development length and compressibility.
