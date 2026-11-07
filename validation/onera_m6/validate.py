@@ -59,8 +59,12 @@ def write_step(path):
         for y in (0.0, B):
             c = chord_at(y)
             pts = [occ.addPoint(x_le(y) + c * x, y, c * z) for x, z in sec]
-            spline = occ.addSpline(pts + [pts[0]])
-            loops.append(occ.addWire([spline]))
+            # Two splines (upper LE -> TE, lower TE -> LE) meeting at the sharp trailing edge: one closed spline
+            # through the corner overshoots there and gives Gmsh coincident surface points.
+            te = len(sec) // 2
+            upper = occ.addSpline(pts[:te + 1])
+            lower = occ.addSpline(pts[te:] + [pts[0]])
+            loops.append(occ.addWire([upper, lower]))
         occ.addThruSections(loops, makeSolid=True, makeRuled=True)
         occ.synchronize()
         gmsh.write(str(path))
