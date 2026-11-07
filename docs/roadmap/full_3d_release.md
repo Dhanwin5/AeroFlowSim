@@ -230,3 +230,10 @@ code-signed (see the user guide). Results of 0.2 projects show "needs update": p
 - Square duct 24 x 24 per half side (tools/duct_resolution.py, validation/results/duct_resolution.jsonl): u_max/u_mean
   2.0295 vs series 2.0962 (-3.2 %), fRe 58.55 vs 56.91 (+2.9 %); 12 x 12 gave 1.7 % / 2.3 %. The error GROWS with
   resolution: the resolution hypothesis is rejected. Next (low-Mach stage file): development length and compressibility.
+
+### Ledger 5 - sphere L3, laminar 3D nozzle, ONERA M6 data (2026-11-07)
+- Sphere 359k cells: 0.2230 R (+4.2 % from the structured 0.2139). The trend of the first two meshes does not continue:
+  CORRECTION of the earlier conclusion (theory 13k, CHANGELOG, gap register fixed): ~3.5 % simplex gap remains open.
+- nozzle_3d_laminar: PASS (Cd ratio 1.0083, tol 3 %; Isp ratio 0.9957, tol 1.5 %), 1,126 s.
+- ONERA M6: the user approved downloading the NASA NPARC files (airfoil.txt, foilmod.txt, cp1-7 l/u .ex) into
+  validation/onera_m6/data/ (sources in its README).

@@ -1,0 +1,91 @@
+{
+ "name": "nozzle_3d",
+ "title": "3D quarter nozzle vs the axisymmetric nozzle on the same contour",
+ "case": "cases/nozzle_3d",
+ "date": "2026-11-07",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "mdot_ratio",
+    "quantity": "Mass flow, 3D quarter (x 4) / axisymmetric",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "cases/nozzle_axi on the same contour (code-to-code consistency, 2D axisymmetric Euler validated vs theory)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.028003422583215
+  },
+  {
+   "reference": {
+    "id": "thrust_ratio",
+    "quantity": "Vacuum thrust (exit plane), 3D / axisymmetric",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 2.0,
+    "source": "cases/nozzle_axi on the same contour",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0229640151507253
+  },
+  {
+   "reference": {
+    "id": "isp_ratio",
+    "quantity": "Vacuum specific impulse, 3D / axisymmetric",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.0,
+    "source": "cases/nozzle_axi on the same contour",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9950978690130949
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "Mass flow [kg/s]",
+   "Vacuum thrust, exit [N]",
+   "Vacuum thrust, wall [N]",
+   "Isp vacuum [s]"
+  ],
+  "rows": [
+   [
+    "axisymmetric (nozzle_axi)",
+    "8,000",
+    "13,771",
+    "yes",
+    "45",
+    "6.721310e-05",
+    "4.711156e-02",
+    "4.711152e-02",
+    "71.475"
+   ],
+   [
+    "3D quarter (nozzle_3d)",
+    "11,532",
+    "20,000",
+    "NO",
+    "174",
+    "6.909530e-05",
+    "4.819343e-02",
+    "4.819466e-02",
+    "71.124"
+   ]
+  ],
+  "notes": [
+   "Both runs inviscid, N2, the templates' default chamber state and contour."
+  ]
+ }
+}

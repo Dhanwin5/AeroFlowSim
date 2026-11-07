@@ -1379,11 +1379,13 @@ and the tetrahedra give 0.2269 R at 60k cells and 0.2236 R at 144k cells (templa
 
     p = ln(e1 / e2) / ln(r) = ln(0.0130 / 0.0097) / ln(1.34) = 1.0
 
-(first order, as expected for a captured shock whose half-way pressure point moves with the smearing), and the
-Richardson value f_2 + (f_2 - f_1) / (r^p - 1) = 0.2236 - 0.0033 / 0.34 = 0.214 is the structured answer. Conclusion:
-the tetrahedral stand-off is a resolution error of the shock layer (about 5 cells across the shock layer at 60k), it
-converges to the structured value, and the remaining gap to Billig is the correlation's. No scheme change was made, so no
-validated number changed.
+(first order between the first two meshes). The third mesh (359k cells, 0.2230 R, +4.2 %) does NOT continue the trend:
+from 144k to 359k (r = 1.36) the error falls only from 0.0097 to 0.0091 R. Correction of a first reading made after two
+meshes: the tetrahedral stand-off converges to about 0.222 R (Richardson of the two finest at p = 1: 0.2213), about
+3.5 % above the structured value. Resolution explains the larger part of the 60k-cell gap; a residual ~3.5 % gap on
+tetrahedra remains, not yet explained (candidates for the next study: the residual of the unsettled wake, 2e-3 after
+8,000 iterations on the finest mesh; the HLLE blend on skewed faces near the stagnation line). No scheme change was made,
+so no validated number changed.
 
 **Multiple cell zones (Fluent "cell zones", conformal interfaces).** A mesh may carry `cell_zones` = {name: cell ids}.
 An interface between zones A and B is a set of ordinary interior faces f with owner in A and neighbour in B. The

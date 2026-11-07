@@ -17,9 +17,9 @@
   plane. Geometry dialogs follow *View > Units*. Internal-flow `external_3d` projects hide the free-stream inputs.
 - **Shock position on tetrahedra (measured, no scheme change)**: on a structured grid the solver's converged Mach 3
   cylinder stand-off is 0.698 R (+7.6 % from Billig's correlation); the triangle mesh is within 0.7 % of it. The
-  sphere's tetrahedral stand-off converges at first order to the structured value (60k: +6.1 %, 144k: +4.5 % from
-  the structured 0.2139 R). The validation SHORTFALLS vs Billig are the correlation's gap at Mach 3 and shock-layer
-  resolution, not a simplex error. Tool: `tools/shock_position_study.py`.
+  sphere's tetrahedral stand-off (60k / 144k / 359k cells: 0.2269 / 0.2236 / 0.2230 R) approaches the structured
+  0.2139 R but levels off about 3.5 % above it: resolution is most of the gap, a smaller simplex part remains open.
+  Tool: `tools/shock_position_study.py`.
 - **Validation**: new `nozzle_3d` (3D quarter vs axisymmetric: Isp PASS 0.49 %, mass flow +2.8 % and thrust +2.3 %
   SHORTFALL vs the pre-registered 2 %), `nozzle_3d_laminar` (3D CubeSat with prism layers). ONERA M6: not run (the
   ONERA D section coordinates are not in the repository) - SHORTFALL; sphere Re 100: PENDING REFERENCE.

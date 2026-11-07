@@ -1,0 +1,71 @@
+{
+ "name": "nozzle_3d_laminar",
+ "title": "3D quarter CubeSat nozzle, laminar with prism layers, vs the axisymmetric laminar nozzle",
+ "case": "cases/nozzle_3d",
+ "date": "2026-11-07",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "cd_ratio",
+    "quantity": "Discharge coefficient, 3D quarter laminar / axisymmetric laminar",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 3.0,
+    "source": "cases/nozzle_axi laminar on the same contour (validation/viscous_cubesat_nozzle setup)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 1.0082575832755167
+  },
+  {
+   "reference": {
+    "id": "isp_ratio",
+    "quantity": "Vacuum specific impulse, 3D quarter laminar / axisymmetric laminar",
+    "value": 1.0,
+    "unit": "-",
+    "tolerance_percent": 1.5,
+    "source": "cases/nozzle_axi laminar on the same contour",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9956617868847839
+  }
+ ],
+ "study": {
+  "title": "Runs",
+  "columns": [
+   "Run",
+   "Cells",
+   "Iterations",
+   "Converged",
+   "Time [s]",
+   "Cd",
+   "Isp vacuum [s]"
+  ],
+  "rows": [
+   [
+    "axisymmetric laminar (nozzle_axi)",
+    "8,000",
+    "10,726",
+    "yes",
+    "64",
+    "0.94400",
+    "70.606"
+   ],
+   [
+    "3D quarter laminar (nozzle_3d)",
+    "34,568",
+    "30,000",
+    "NO",
+    "1058",
+    "0.95180",
+    "70.300"
+   ]
+  ],
+  "notes": [
+   "Laminar, adiabatic no-slip walls, N2, p0 = 5 bar, p_back = 1 kPa."
+  ]
+ }
+}
