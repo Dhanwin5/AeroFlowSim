@@ -46,6 +46,7 @@ solver, validity checks and report. **You assist; the physics and the verdicts a
 | Nozzle with 2D effects: discharge coefficient, divergence loss, thrust two ways, plume start, viscous losses (laminar / RANS) | `nozzle_axi` | Axisymmetric 2D Euler or Navier-Stokes. Mesh presets. |
 | Airfoil, wedge, diamond, cylinder, nose cone, capsule, intake in a free stream: Cl, Cd, Cm, Cp, shock angles | `external_2d` | Shape library (`list_shapes`), planar or axisymmetric. |
 | Sphere, cylinder, nose cone, box, or a STEP solid in 3D free stream | `external_3d` | Tetrahedra + prism layers. Large meshes: check the estimate. |
+| A converging-diverging nozzle in 3D (quarter or full), optionally with its exhaust plume | `nozzle_3d` | Same contour inputs as `nozzle_axi`; plume region = second zone; thrust, Isp, Cf. |
 | The user's own 2D drawing or CAD (DXF / STEP / IGES / coordinates): nozzle domain or body | `geometry_2d` | `import_geometry` with `enclosure` for a body; edges without a suggested name must be named in the desktop app. |
 | The user already has a mesh (Gmsh .msh, SU2, CGNS, Fluent ASCII) | `imported_mesh` | `import_geometry` the mesh file; boundary types from its names. |
 | Unsteady shock tube / Riemann problem, solver verification | `sod_shock_tube` | Exact Riemann solution overlay. |

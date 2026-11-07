@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dhanwin Mehta
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The AI evals (docs/ai_evals/tasks.json, tools/run_ai_evals.py): 25 tasks, every template covered, and the grader
+"""The AI evals (docs/ai_evals/tasks.json, tools/run_ai_evals.py): 26 tasks, every template covered, and the grader
 passes a correct attempt and fails a wrong number, a refused input that was run anyway, and a self-confirmed run."""
 
 import json
@@ -21,7 +21,7 @@ import run_ai_evals  # noqa: E402
 
 def test_tasks_cover_every_template():
     tasks = run_ai_evals.tasks()
-    assert len(tasks) == 25
+    assert len(tasks) == 26   # + nozzle_3d_plume (full 3D release)
     covered = {t["expect"].get("template") for t in tasks.values()}
     assert set(find_cases()[0]) <= covered, set(find_cases()[0]) - covered
     assert any(t["expect"].get("refuse") for t in tasks.values())

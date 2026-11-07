@@ -179,3 +179,49 @@ Part 1 measurements (`validation/results/shock_study.jsonl`, `tools/shock_positi
 - Decision (why): conformal interfaces only, as Fluent's "interior" between cell zones - exact conservation with no
   interpolation; non-conformal interfaces are later.
 - Next: Part 3.
+
+### Ledger 3 - Part 3 (3D completeness) and Part 4 docs (2026-11-07)
+Done:
+- 3D Results tabs Patches / XY plot / Reports / Snapshots (`gui/results3d.py`, all numbers from `post/`):
+  `view3d.wall_cut` (tested: exact for linear fields), `integrals.forces_3d` (a Cd report = the solver's Cd to 5e-16).
+- Template `cases/nozzle_3d` (schema, README, 5 tests): revolved conical contour of nozzle_axi, quarter / full, plume
+  region as zone "plume" (one template step: Revolve + Fragment), exit numbers on the zone interface;
+  `nozzle_problem_3d(..., wall_names=...)` (default = before). Revolve gained profile "nozzle" and per-edge names.
+- Plume / plenum operation round any fluid nozzle (`NozzleRegion3D`), Edge size / Fillet / Chamfer / Split by plane,
+  Edges selection filter in the 3D view; geometry dialogs follow View > Units; free-stream inputs hidden for internal
+  flows (generic rule from the template's `is_internal`, so `external_3d/case.py` is unchanged: an edit there would have
+  marked every 3D project "needs update" through the template fingerprint - found and reverted).
+- Validation nozzle_3d (pre-registered 2 % / 2 % / 1 %, commit before the run): mass flow ratio 1.0280 (SHORTFALL),
+  thrust 1.0230 (SHORTFALL), Isp 0.9951 (PASS). nozzle_3d_laminar pre-registered (3 % / 1.5 %; set after seeing the
+  inviscid gap - stated in the file).
+- Docs: theory 13k, user guide 3D chapter (tabs, zones, nozzle template, edges), developer guide zones, tutorial
+  `nozzle_3d_plume.md`, CHANGELOG 0.3.0, gap register, low-Mach stage file, roadmap README; version 0.3.0.
+Anomalies:
+- Two background shells seemed to die; in fact the solver runs as `python3.13.exe` (the venv python.exe is a launcher)
+  and I looked for `python`. Result: duplicate sphere L3 runs; one stopped through its task, one detached duplicate
+  could not be stopped (Stop-Process was refused by the permission system) - it only costs CPU time and writes a
+  duplicate row.
+- ONERA M6 not run: the ONERA D section coordinates are not in the repository and adding external geometry data needs
+  the user's OK. Sphere Re 100: no reference attached (PENDING REFERENCE).
+Next: sphere L3, duct 24 x 24, laminar 3D nozzle, examples, full validation, installer.
+
+### Draft of the GitHub release text (v0.3.0) - waiting for the user's yes before push / tag / release
+**AeroFlowSim 0.3.0 - "3D"**
+
+AeroFlowSim is a GUI-first, open-source CFD solver for nozzle and propulsion aerodynamics, with built-in validity checks
+and published validation. 0.3.0 completes the 3D workflow:
+
+- **Multiple cell zones** in 2D and 3D: overlapping fluid bodies become zones that share their faces (Gmsh/OpenCASCADE
+  Fragment), each with its own name, cell size, start state or "excluded"; flux balance per zone and per interface;
+  zones kept in Gmsh, SU2, CGNS (now also 3D) and Fluent mesh files.
+- **3D nozzles**: a new 3D nozzle template (quarter or full, optional plume region), plume / plenum regions round any
+  imported nozzle, and a step-by-step tutorial.
+- **3D Results**: Cp (or any field) along a cut of the walls, report definitions, snapshots and comparison.
+- **3D geometry**: pick edges for a local cell size, fillet, chamfer; split bodies by a plane.
+- **Honest validation**: the bow-shock stand-off on tetrahedra was traced to shock-layer resolution plus the gap of
+  Billig's correlation (the solver's structured-grid answer is converged; the tetrahedral one converges to it). The
+  new 3D-vs-axisymmetric nozzle case passes for Isp and is a documented SHORTFALL for mass flow / thrust on the default
+  mesh. Every SHORTFALL is listed in `validation/report.md`.
+
+Installers: Windows (setup.exe), macOS (.dmg) and Linux (.AppImage), built by GitHub Actions from the tag. Not
+code-signed (see the user guide). Results of 0.2 projects show "needs update": press Run.
