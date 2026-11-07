@@ -146,7 +146,9 @@ class RunPage(QWidget):
         project = self.window.project
         if project is None:
             return
-        dialog = InitialisationDialog(self, project, self.window.units)
+        mesh = getattr(self.window, "mesh", None)
+        dialog = InitialisationDialog(self, project, self.window.units,
+                                      zones=list(getattr(mesh, "cell_zones", None) or {}))
         if dialog.exec():
             dialog.apply()
             self.window.update_title()

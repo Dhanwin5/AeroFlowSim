@@ -1590,9 +1590,10 @@ class FieldsPanel(_Base):
 class InitialisationDialog(QDialog):
     """Patch regions for a fresh start, and the interpolation onto a new mesh (Run step)."""
 
-    def __init__(self, parent, project, prefs):
+    def __init__(self, parent, project, prefs, zones=()):
         super().__init__(parent)
         self.project = project
+        self.zones = list(zones)                     # cell zones of the mesh: each can be a region (its own start)
         self.setWindowTitle("Start of a run")
         unit = prefs.unit_for("m")
         self.k = float(unit.from_si(1.0)) if unit else 1.0
@@ -1601,7 +1602,7 @@ class InitialisationDialog(QDialog):
                                      checked=project.post.get("interpolate_new_mesh", True))
         self.table = ValueTable(["Region", "Values (SI)"])
         self.region = QComboBox()
-        self.region.addItems(["Box", "Circle"])
+        self.region.addItems(["Box", "Circle"] + [f"Zone {z}" for z in self.zones])
         self.coords = QLineEdit()
         self.coords.setPlaceholderText(f"box: x1, y1, x2, y2   circle: x, y, radius  [{lu}]")
         self.p, self.T, self.u, self.v = (QLineEdit() for _ in range(4))
@@ -1640,7 +1641,8 @@ class InitialisationDialog(QDialog):
         rows = []
         for p in self.patches:
             r = p["region"]
-            where = (f"box {r['min']} - {r['max']} m" if r["type"] == "box" else f"circle {r['centre']} m, r = {r['radius']} m")
+            where = (f"box {r['min']} - {r['max']} m" if r["type"] == "box" else f"zone {r['name']}"
+                     if r["type"] == "zone" else f"circle {r['centre']} m, r = {r['radius']} m")
             rows.append((where, ", ".join(f"{k} = {v:g}" for k, v in p["values"].items())))
         self.table.set_rows(rows)
 
@@ -1648,7 +1650,9 @@ class InitialisationDialog(QDialog):
         nums = [v / self.k for v in (_number(t) for t in self.coords.text().split(",")) if v is not None]
         values = {k: _number(b.text()) for k, b in (("p", self.p), ("T", self.T), ("u", self.u), ("v", self.v))}
         values = {k: v for k, v in values.items() if v is not None}
-        if self.region.currentText() == "Box" and len(nums) == 4:
+        if self.region.currentText().startswith("Zone "):
+            region = {"type": "zone", "name": self.region.currentText()[5:]}
+        elif self.region.currentText() == "Box" and len(nums) == 4:
             region = {"type": "box", "min": nums[:2], "max": nums[2:]}
         elif self.region.currentText() == "Circle" and len(nums) == 3:
             region = {"type": "circle", "centre": nums[:2], "radius": nums[2]}
