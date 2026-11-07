@@ -1,0 +1,20 @@
+# ONERA M6 wing, M = 0.8395, incidence 3.06 deg (Schmitt & Charpin 1979, AGARD AR-138, test 2308; data from the NASA
+# NPARC archive, validation/onera_m6/data/), 3D EULER on tetrahedra (external_3d with the imported wing, half domain).
+# Measure: at each of the six sections y/b = 0.20, 0.44, 0.65, 0.80, 0.90, 0.95 the RMS difference between computed and
+# measured Cp at the measured x/c points (both surfaces; computed Cp from view3d.wall_cut of the wall, linearly
+# interpolated in x/c); the score is the mean of the six RMS values.
+# PRE-REGISTERED 7 Nov 2026 (full 3D release stage) BEFORE any M6 run: mean RMS(Delta Cp) <= 0.10. The framework
+# compares within a percentage of a reference value, so it is written as reference 0.05 with tolerance 100 % (= 0 to
+# 0.10). Inviscid Euler misses the viscous shock-boundary-layer interaction, so 0.10 (about 10 % of the suction peak)
+# is the expected inviscid level, not a fine match. Spalart-Allmaras: not run in this stage (time box) - SHORTFALL.
+
+title = "ONERA M6 wing, M 0.8395, 3.06 deg: Cp at six sections (3D Euler)"
+case = "cases/external_3d"
+
+[[reference]]
+id = "cp_rms"
+quantity = "Mean over six sections of RMS(Cp computed - Cp measured), Euler"
+value = 0.05
+unit = "-"
+tolerance_percent = 100.0
+source = "Schmitt & Charpin (1979) AGARD AR-138, via NASA NPARC Validation Archive (m6wing)"
