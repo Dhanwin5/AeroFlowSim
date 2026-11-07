@@ -1,0 +1,300 @@
+# Inputs of this case. The GUI builds its input panel from this file automatically.
+# A 3D converging-diverging nozzle: the conical contour of the axisymmetric nozzle template (same inputs and defaults),
+# revolved about the x axis (a quarter with two symmetry planes, or the full nozzle), with an optional plume region
+# behind the exit as a second fluid zone (full 3D release stage). Tetrahedra (+ optional prism layers) from the 3D
+# workspace mesher; 3D Euler (or viscous) solver: mass flow, thrust two ways, Isp, Cf, discharge coefficient.
+# Mesh sizes are multiples of the throat diameter.
+
+[case]
+name = "3D nozzle (3D Euler)"
+description = "Steady 3D flow through a converging-diverging nozzle: the conical contour (as in the axisymmetric nozzle) revolved about the x axis, a quarter (two symmetry planes) or the full nozzle, optional plume region behind the exit (a second cell zone), tetrahedra with optional prism layers; mass flow, thrust, Isp, Cf and discharge coefficient. Its geometry can be edited in the 3D geometry workspace (e.g. replaced by a STEP nozzle with faces named inlet / outlet)."
+steady = true
+requires = ["gmsh"]
+euler_solver = true          # adds the Numerics inputs and the boundary-condition table (aeroflowsim/euler/setup.py)
+# The 3D defaults of external_3d (measured in the 3D Euler and robust-second-order stages).
+solver_defaults = { gradient = "Green-Gauss (node values)", update_limit = 0.2, venkat_k = 1.0, first_order_iterations = 100, monitor_window = 300 }
+
+# ---- geometry (the inputs of the axisymmetric nozzle) ---------------------------------------------------
+
+[[input]]
+key = "d_inlet"
+label = "Inlet diameter"
+unit = "m"
+type = "float"
+default = 0.002
+min = 1e-05
+max = 1.0
+group = "Geometry"
+step = "geometry"
+help = "Diameter of the straight inlet section."
+
+[[input]]
+key = "L_inlet"
+label = "Straight inlet length"
+unit = "m"
+type = "float"
+default = 0.00133
+min = 0.0
+max = 10.0
+group = "Geometry"
+step = "geometry"
+help = "Length of the straight (cylindrical) inlet before the convergent cone."
+
+[[input]]
+key = "half_angle_conv"
+label = "Convergent half-angle"
+unit = "deg"
+type = "float"
+default = 30.0
+min = 1.0
+max = 89.0
+group = "Geometry"
+step = "geometry"
+help = "Half-angle of the convergent cone."
+
+[[input]]
+key = "d_throat"
+label = "Throat diameter"
+unit = "m"
+type = "float"
+default = 0.00028
+min = 1e-06
+max = 1.0
+group = "Geometry"
+step = "geometry"
+help = "Smallest diameter. It stays exact also with a rounded throat."
+
+[[input]]
+key = "half_angle_div"
+label = "Divergent half-angle"
+unit = "deg"
+type = "float"
+default = 15.0
+min = 1.0
+max = 89.0
+group = "Geometry"
+step = "geometry"
+help = "Half-angle of the divergent cone."
+
+[[input]]
+key = "d_exit"
+label = "Exit diameter"
+unit = "m"
+type = "float"
+default = 0.000911
+min = 1e-06
+max = 1.0
+group = "Geometry"
+step = "geometry"
+help = "Diameter at the nozzle exit."
+
+[[input]]
+key = "Rcu_ratio"
+label = "Throat radius ratio upstream Rcu/Rt"
+unit = "-"
+type = "float"
+default = 0.0
+min = 0.0
+max = 10.0
+group = "Geometry"
+step = "geometry"
+help = "Radius of curvature of the wall just upstream of the throat, divided by the throat radius. 0 = sharp throat. Typical: 1.5. The arc is tangent to the convergent cone; the cone gets shorter."
+
+[[input]]
+key = "Rcd_ratio"
+label = "Throat radius ratio downstream Rcd/Rt"
+unit = "-"
+type = "float"
+default = 0.0
+min = 0.0
+max = 10.0
+group = "Geometry"
+step = "geometry"
+help = "Radius of curvature of the wall just downstream of the throat, divided by the throat radius. 0 = sharp throat. Typical: 0.4. The arc is tangent to the divergent cone; the cone gets shorter."
+
+# ---- domain -------------------------------------------------------------------------------------------
+
+[[input]]
+key = "quarter_domain"
+label = "Quarter nozzle (two symmetry planes)"
+type = "bool"
+default = true
+group = "Domain"
+step = "geometry"
+help = "Mesh a quarter of the nozzle (90 degrees, symmetry planes y = 0 and z = 0): a quarter of the cells for the same answer, as long as the flow is axisymmetric. Off: the full 360 degrees."
+
+[[input]]
+key = "plume"
+label = "Plume region behind the exit"
+type = "bool"
+default = false
+group = "Domain"
+step = "geometry"
+help = "A cylinder of gas behind the nozzle exit (its own cell zone 'plume', joined to the nozzle at the exit plane), so the jet and its expansion or shocks are computed outside the nozzle. Its boundaries are pressure outlets at the back pressure. Off: the exit plane is the outlet."
+
+[[input]]
+key = "plume_length"
+label = "Plume region length / exit diameter"
+unit = "-"
+type = "float"
+default = 5.0
+min = 0.5
+max = 100.0
+group = "Domain"
+step = "geometry"
+help = "Length of the plume region behind the exit, in exit diameters."
+show_if = { plume = true }
+
+[[input]]
+key = "plume_radius"
+label = "Plume region radius / exit diameter"
+unit = "-"
+type = "float"
+default = 2.0
+min = 0.6
+max = 50.0
+group = "Domain"
+step = "geometry"
+help = "Radius of the plume region, in exit diameters (more than 0.5: wider than the exit)."
+show_if = { plume = true }
+
+# ---- mesh ---------------------------------------------------------------------------------------------
+
+[[input]]
+key = "surface_size"
+label = "Cell size on the wall / throat diameter"
+unit = "-"
+type = "float"
+default = 0.2
+min = 1e-05
+max = 1.0
+group = "Mesh"
+step = "mesh"
+help = "Size of the triangles on the nozzle wall, in throat diameters (0.2: five cells across the throat)."
+
+[[input]]
+key = "farfield_size"
+label = "Largest cell size / throat diameter"
+unit = "-"
+type = "float"
+default = 1.0
+min = 1e-04
+max = 100.0
+group = "Mesh"
+step = "mesh"
+help = "Size of the largest cells (inlet, plume region), in throat diameters."
+
+[[input]]
+key = "size_growth"
+label = "Size growth rate"
+unit = "-"
+type = "float"
+default = 1.25
+min = 1.01
+max = 3.0
+group = "Mesh"
+step = "mesh"
+help = "How fast the cells grow away from the body: a cell is about this many times larger than its neighbour nearer the wall."
+
+[[input]]
+key = "curvature_cells"
+label = "Cells per circle on curved faces"
+unit = "-"
+type = "int"
+default = 24
+min = 0
+max = 360
+group = "Mesh"
+step = "mesh"
+help = "On curved faces the cells are at most a 1/n of the full circle of the local curvature, so small rounded features get smaller cells (0 = off)."
+
+[[input]]
+key = "inflation"
+label = "Prism layers on the body"
+type = "bool"
+default = false
+group = "Prism layers"
+step = "mesh"
+help = "Thin prism layers along the walls, for boundary layers in viscous flow; the Geometry step's Boundaries tab switches them on or off per wall. Not needed for inviscid (Euler) flow."
+
+[[input]]
+key = "first_layer_height"
+label = "First layer height / throat diameter"
+unit = "-"
+type = "float"
+default = 0.0005
+min = 1e-09
+max = 0.05
+group = "Prism layers"
+step = "mesh"
+help = "Height of the prism layer touching the wall, in throat diameters."
+show_if = { inflation = true }
+
+[[input]]
+key = "n_layers"
+label = "Number of layers"
+unit = "-"
+type = "int"
+default = 5
+min = 1
+max = 50
+group = "Prism layers"
+step = "mesh"
+help = "Number of prism layers on the walls."
+show_if = { inflation = true }
+
+[[input]]
+key = "growth_rate"
+label = "Layer growth rate"
+unit = "-"
+type = "float"
+default = 1.2
+min = 1.0
+max = 2.0
+group = "Prism layers"
+step = "mesh"
+help = "Each layer is this many times thicker than the one below it."
+show_if = { inflation = true }
+
+# ---- flow (Setup step) --------------------------------------------------------------------------------
+
+[[input]]
+key = "gas"
+label = "Gas"
+type = "gas"
+default = "N2"
+group = "Gas"
+help = "The gas, from the gas library (calorically perfect: constant gamma and R; see the Details for the values and their sources), or a custom gas of your own. N2 gives gamma = 1.4 and R = 296.8 J/(kg K)."
+
+[[input]]
+key = "p0"
+label = "Total (chamber) pressure"
+unit = "Pa"
+type = "float"
+default = 500000.0
+min = 1.0
+max = 1000000000.0
+group = "Operating conditions"
+help = "Reservoir pressure: the default of the inlet's total-pressure condition (the boundary table can override it)."
+
+[[input]]
+key = "T0"
+label = "Total (chamber) temperature"
+unit = "K"
+type = "float"
+default = 293.15
+min = 1.0
+max = 5000.0
+group = "Operating conditions"
+help = "Reservoir temperature: the default of the inlet's total-pressure condition."
+
+[[input]]
+key = "p_back"
+label = "Back pressure"
+unit = "Pa"
+type = "float"
+default = 1000.0
+min = 0.0
+max = 1000000000.0
+group = "Operating conditions"
+help = "Ambient pressure at the exit: the default of the outlet's pressure condition. Acts only where the exit flow is subsonic; a supersonic exit ignores it (as in a real nozzle)."

@@ -501,7 +501,7 @@ def mesh_wall_profile_3d(mesh, wall_names):
     return WallProfile(x * size, r)
 
 
-def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:
+def nozzle_problem_3d(params, mesh, gas, defaults, restart=None, wall_names=None) -> Problem:
     """Internal (nozzle) flow on a 3D mesh: total-pressure inlet, pressure (or supersonic) outlet, slip walls, symmetry
     planes. Mass flows and thrusts are those of the WHOLE nozzle: the sums over the meshed part times 2 per flat
     symmetry plane (a quarter domain: x 4). Starts from the quasi-1D solution of the wall profile r(x)."""
@@ -509,6 +509,8 @@ def nozzle_problem_3d(params, mesh, gas, defaults, restart=None) -> Problem:
     inlets = forces.patch_names_of(bcs, "total_pressure_inlet", "mass_flow_inlet", "supersonic_inlet")
     outlets = forces.patch_names_of(bcs, "pressure_outlet", "supersonic_outlet")
     walls = forces.patch_names_of(bcs, "slip_wall", "no_slip_wall")
+    if wall_names is not None:                 # only these walls are the nozzle (e.g. not the base of a plume region)
+        walls = [w for w in walls if w in wall_names]
     if not inlets or not outlets:
         raise ValueError("A nozzle needs at least one inlet and one outlet boundary condition.")
     tp = next((bc for bc in bcs.values() if bc.type == "total_pressure_inlet"), None)

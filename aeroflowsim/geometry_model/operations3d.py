@@ -213,11 +213,15 @@ class Revolve(Operation3D):
     profile "wall": a nozzle wall CSV file (x_mm,r_mm, as everywhere in AeroFlowSim), closed with the inlet,
     the axis and the outlet; its faces are ":wall" (a wall), ":inlet" and ":outlet". The default role of a
     nozzle is fluid (the gas inside it).
+    profile "nozzle" (full 3D release stage): the same as "wall", with the wall points [[x, r], ...] [m] given in
+    `points` instead of a file (the nozzle_3d template revolves its parametric contour this way).
+    names (profile "points", optional): one [name, type] per edge (e.g. the outlets of a plume region); "" = the
+    default of the role.
     """
 
     type, title = "revolve", "Revolve"
     DEFAULTS = {"profile": "points", "points": [[0.0, 0.0], [0.1, 0.0], [0.1, 0.02], [0.0, 0.02]], "file": "",
-                "angle": 360.0, "role": SOLID}
+                "angle": 360.0, "role": SOLID, "names": []}
 
     def summary(self) -> str:
         p = self.params
@@ -230,7 +234,7 @@ class Revolve(Operation3D):
         angle = float(p["angle"])
         if not 0.0 < angle <= 360.0:
             raise ValueError("the angle of revolution must be more than 0 and at most 360 degrees")
-        if p["profile"] == "wall":
+        if p["profile"] in ("wall", "nozzle"):
             points, labels, names = self._wall(context)
         elif p["profile"] == "points":
             points = np.asarray(p["points"], dtype=float)
@@ -238,6 +242,9 @@ class Revolve(Operation3D):
                 raise ValueError("a profile needs at least three [x, r] points")
             labels = [f"edge{k}" for k in range(1, len(points) + 1)]
             names = [_wall_defaults(role)] * len(points)
+            for k, entry in enumerate((p.get("names") or [])[:len(points)]):
+                if entry and entry[0]:
+                    names[k] = (str(entry[0]), str(entry[1] if len(entry) > 1 else entry[0]))
         else:
             raise ValueError(f"unknown profile '{p['profile']}'")
         if np.any(points[:, 1] < -1e-12):
@@ -264,10 +271,16 @@ class Revolve(Operation3D):
             kernel.name_body(vol, self.id, role)
 
     def _wall(self, context):
-        from aeroflowsim.geometry import read_profile_csv
-        path = context.path(self.params["file"]) if context is not None else self.params["file"]
-        wall = read_profile_csv(path)
-        x, r = np.asarray(wall.x, dtype=float), np.asarray(wall.r, dtype=float)
+        if self.params["profile"] == "nozzle":
+            xr = np.asarray(self.params["points"], dtype=float)
+            if xr.ndim != 2 or xr.shape[1] != 2 or len(xr) < 2 or np.any(np.diff(xr[:, 0]) <= 0):
+                raise ValueError("a nozzle wall needs two or more [x, r] points with x increasing")
+            x, r = xr[:, 0], xr[:, 1]
+        else:
+            from aeroflowsim.geometry import read_profile_csv
+            path = context.path(self.params["file"]) if context is not None else self.params["file"]
+            wall = read_profile_csv(path)
+            x, r = np.asarray(wall.x, dtype=float), np.asarray(wall.r, dtype=float)
         points = np.vstack([np.column_stack([x, r]), [[x[-1], 0.0], [x[0], 0.0]]])
         # edge k runs from point k to point k+1: the wall edges, then outlet, axis, inlet
         n = len(x) - 1
@@ -635,6 +648,8 @@ class TemplateEnclosure3D(Operation3D):
 
     def apply(self, kernel, context):
         op = context.case.domain_3d(context.params)
+        if op is None:                         # no far field for these inputs (e.g. a nozzle without plume region)
+            return
         op.id = self.id
         op.apply(kernel, context)
 
