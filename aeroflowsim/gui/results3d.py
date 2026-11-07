@@ -3,7 +3,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """The Results step of a 3D run: a PyVista view with the walls, a moveable slice plane, an iso-surface or streamlines,
-coloured by a field; click to probe; key numbers beside it; export .vtu / CSV.
+coloured by a field; click to probe; key numbers beside it; export .vtu / CSV. Full 3D release stage: the 2D
+post-processing panels as tabs beside the view - Patches (which boundaries are drawn), XY plot (a field along a plane
+cut of the walls, e.g. Cp along a wing section: view3d.wall_cut), Reports (the project's report definitions, the flux
+and zone balance: post.definitions / post.integrals) and Snapshots (save the result, compare key numbers with one:
+post.snapshots / post.compare). No new math here: every number comes from aeroflowsim/post.
 
 All geometry (slices, iso-surfaces, streamlines, probes) comes from aeroflowsim/post/view3d.py (no Qt, tested); this
 file only draws it. A slice or iso-surface is computed on the cells it crosses only, so moving the slider stays quick on
@@ -13,8 +17,9 @@ import numpy as np
 import pyvista as pv
 from pyvistaqt import QtInteractor
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QSlider, QSplitter, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QInputDialog, QLabel,
+                               QLineEdit, QListWidget, QListWidgetItem, QPushButton, QSlider, QSplitter, QTabWidget,
+                               QVBoxLayout, QWidget)
 
 from aeroflowsim.gui.theme import view_colours
 from aeroflowsim.gui.widgets import ValueTable
@@ -82,9 +87,15 @@ class Results3DPanel(QWidget):
         buttons.addWidget(vtu)
         buttons.addWidget(csv)
         side_layout.addLayout(buttons)
+        self.tabs = QTabWidget()
+        self.tabs.addTab(side, "View")
+        self.tabs.addTab(self._patches_tab(), "Patches")
+        self.tabs.addTab(self._xy_tab(), "XY plot")
+        self.tabs.addTab(self._reports_tab(), "Reports")
+        self.tabs.addTab(self._snapshots_tab(), "Snapshots")
         splitter = QSplitter()
         splitter.addWidget(self.view)
-        splitter.addWidget(side)
+        splitter.addWidget(self.tabs)
         splitter.setSizes([900, 380])
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -104,6 +115,20 @@ class Results3DPanel(QWidget):
         self.field.setCurrentIndex(max(index, 0))
         self.field.blockSignals(False)
         self.numbers.set_rows(list(rows))
+        self.patch_list.blockSignals(True)
+        self.patch_list.clear()
+        for patch in sol.mesh.patches:
+            item = QListWidgetItem(f"{patch.name} ({patch.type})")
+            item.setData(Qt.UserRole, patch.name)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if patch.type == "wall" else Qt.Unchecked)
+            self.patch_list.addItem(item)
+        self.patch_list.blockSignals(False)
+        self.xy_field.clear()
+        for key, label in field_choices_3d(sol):
+            self.xy_field.addItem(label, key)
+        self.xy_field.setCurrentIndex(max(self.xy_field.findData("Cp"), 0))
+        self.refresh_snapshots()
         self.draw(reset_camera=True)
 
     def node_values(self, key):
@@ -119,7 +144,7 @@ class Results3DPanel(QWidget):
         sol, mesh = self.sol, self.sol.mesh
         key = self.field.currentData()
         colour = self.node_values(key)
-        walls = [p.name for p in mesh.patches if p.type == "wall"]
+        walls = self.shown_patches()
         out, lines = [], []
         mode = self.display.currentText()
         if self.walls.isChecked() or mode == "Walls":
@@ -197,6 +222,181 @@ class Results3DPanel(QWidget):
         if path:
             from aeroflowsim.post.export import fields_csv
             fields_csv(self.sol, path)
+
+    # ---- Patches, XY plot, Reports, Snapshots (full 3D release stage) ----------------------------------------
+
+    def _patches_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.addWidget(QLabel("Boundaries drawn with Show walls (and cut by the XY plot):"))
+        self.patch_list = QListWidget()
+        self.patch_list.itemChanged.connect(lambda _=None: self.draw())
+        lay.addWidget(self.patch_list, 1)
+        return w
+
+    def shown_patches(self) -> list:
+        """Names of the checked patches (the walls by default)."""
+        out = []
+        for i in range(self.patch_list.count()):
+            item = self.patch_list.item(i)
+            if item.checkState() == Qt.Checked:
+                out.append(item.data(Qt.UserRole))
+        return out
+
+    def _xy_tab(self):
+        from aeroflowsim.gui.figures import PlotCanvas
+        w = QWidget()
+        form = QFormLayout(w)
+        self.xy_field = QComboBox()
+        self.xy_normal = QComboBox()
+        self.xy_normal.addItems(AXES)
+        self.xy_normal.setCurrentText("z")
+        self.xy_position = QLineEdit("0")
+        self.xy_along = QComboBox()
+        self.xy_along.addItems(AXES)
+        plot = QPushButton("Plot")
+        plot.clicked.connect(self.plot_cut)
+        self.xy_canvas = PlotCanvas()
+        self.xy_canvas.setMinimumHeight(230)
+        self.xy_note = QLabel("A field along the cut of the checked patches (Patches tab) by a plane, e.g. Cp along a "
+                              "wing section at a span position.")
+        self.xy_note.setWordWrap(True)
+        save = QPushButton("Save CSV...")
+        save.clicked.connect(self.save_cut)
+        form.addRow("Field", self.xy_field)
+        form.addRow("Cut plane normal", self.xy_normal)
+        form.addRow("Plane position [m]", self.xy_position)
+        form.addRow("Plot against", self.xy_along)
+        form.addRow(plot)
+        form.addRow(self.xy_canvas)
+        form.addRow(self.xy_note)
+        form.addRow(save)
+        return w
+
+    def cut(self):
+        """(points, values) of the current XY-plot settings (view3d.wall_cut)."""
+        from aeroflowsim.post import view3d
+        key = self.xy_field.currentData()
+        k = AXES.index(self.xy_normal.currentText())
+        origin = np.zeros(3)
+        origin[k] = float(self.xy_position.text() or 0.0)
+        surface = view3d.patch_surface(self.sol.mesh, self.shown_patches(), self.node_values(key))
+        return view3d.wall_cut(surface, origin, np.eye(3)[k], AXES.index(self.xy_along.currentText()))
+
+    def plot_cut(self):
+        from matplotlib.figure import Figure
+        if self.sol is None:
+            return None
+        try:
+            points, values = self.cut()
+        except ValueError as error:
+            self.xy_note.setText(str(error))
+            return None
+        a = AXES.index(self.xy_along.currentText())
+        fig = Figure(figsize=(5, 3.2), layout="constrained")
+        ax = fig.add_subplot()
+        ax.plot(points[:, a], values, ".", ms=3)
+        ax.set_xlabel(f"{AXES[a]} [m]")
+        ax.set_ylabel(self.xy_field.currentText())
+        if self.xy_field.currentData() == "Cp":
+            ax.invert_yaxis()                                   # the usual way of showing Cp
+        self.xy_canvas.set_figure(fig)
+        self.xy_note.setText(f"{len(points)} points on the cut." if len(points) else
+                             "The plane does not cut the checked patches: change its position.")
+        return points, values
+
+    def save_cut(self):
+        if self.sol is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Save the cut", "cut.csv", "CSV (*.csv)")
+        if path:
+            from aeroflowsim.post.export import table_csv
+            points, values = self.cut()
+            table_csv(path, ["x [m]", "y [m]", "z [m]", self.xy_field.currentData()],
+                      [(*q, v) for q, v in zip(points.tolist(), values.tolist())], "AeroFlowSim wall cut (SI)")
+
+    def _reports_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        go = QPushButton("Evaluate")
+        go.clicked.connect(self.evaluate_reports)
+        self.report_table = ValueTable(["Report", "Value", "Unit"])
+        self.balance_table = ValueTable(["Where", "Mass [kg/s]", "Energy [W]"])
+        note = QLabel("The project's report definitions (force, surface and volume reports), evaluated on this "
+                      "3D result, and the flux balance.")
+        note.setWordWrap(True)
+        lay.addWidget(note)
+        lay.addWidget(go)
+        lay.addWidget(self.report_table, 1)
+        lay.addWidget(QLabel("<b>Flux balance</b> (outward positive; zones and interfaces when there are zones)"))
+        lay.addWidget(self.balance_table, 1)
+        return w
+
+    def evaluate_reports(self):
+        from aeroflowsim.post.definitions import definitions_from, evaluate_definitions
+        from aeroflowsim.post.integrals import flux_balance, zone_balance
+        from aeroflowsim.post.surfaces import default_surfaces
+        if self.sol is None:
+            return None
+        project = getattr(self.page.window, "project", None)
+        defs = definitions_from((project.post.get("report_definitions") if project else None) or [])
+        values = evaluate_definitions(self.sol, defs, default_surfaces(self.sol))
+        self.report_table.set_rows([(n, f"{v:.6g}" if np.isfinite(v) else "-", u) for n, (v, u) in values.items()])
+        fb = flux_balance(self.sol)
+        rows = [(r[0], f"{r[2]:.6g}", f"{r[-1]:.6g}") for r in fb["rows"]]
+        rows.append(("Net (out - in)", f"{fb['net'][0]:.6g}", f"{fb['net'][-1]:.6g}"))
+        if self.sol.mesh.cell_zones:
+            zb = zone_balance(self.sol)
+            rows += [(f"Zone {z}", f"{r[0]:.6g}", f"{r[-1]:.6g}") for z, *r in zb["zones"]]
+            rows += [(f"{a} -> {b}", f"{r[0]:.6g}", f"{r[-1]:.6g}") for a, b, *r in zb["interfaces"]]
+        self.balance_table.set_rows(rows)
+        return values, fb
+
+    def _snapshots_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        self.snapshot_list = QListWidget()
+        save = QPushButton("Save the current result as a snapshot...")
+        save.clicked.connect(lambda: self.save_snapshot())
+        compare = QPushButton("Compare key numbers with the selected snapshot")
+        compare.clicked.connect(lambda: self.compare_snapshot())
+        self.compare_table = ValueTable(["Quantity", "Current", "Snapshot", "Unit", "Change %"])
+        lay.addWidget(save)
+        lay.addWidget(self.snapshot_list)
+        lay.addWidget(compare)
+        lay.addWidget(self.compare_table, 1)
+        return w
+
+    def refresh_snapshots(self):
+        from aeroflowsim.post.snapshots import list_snapshots
+        project = getattr(self.page.window, "project", None)
+        self.snapshot_list.clear()
+        for snap in (list_snapshots(project) if project is not None else []):
+            self.snapshot_list.addItem(f"{snap['name']}")
+
+    def save_snapshot(self, name=None):
+        from aeroflowsim.post.snapshots import save_snapshot
+        project = getattr(self.page.window, "project", None)
+        if project is None:
+            return None
+        if name is None:
+            name, ok = QInputDialog.getText(self, "Save snapshot", "Name of the snapshot:")
+            if not ok or not name.strip():
+                return None
+        folder = save_snapshot(project, name.strip())
+        self.refresh_snapshots()
+        return folder
+
+    def compare_snapshot(self, name=None):
+        from aeroflowsim.post.compare import key_number_table
+        item = self.snapshot_list.currentItem()
+        name = name or (item.text() if item else None)
+        if self.sol is None or not name:
+            return None
+        other = self.page.snapshot_solution(name)
+        rows = key_number_table(self.sol, other)
+        self.compare_table.set_rows([(k, f"{a:.6g}", f"{b:.6g}", u, f"{c:+.3g}") for k, a, b, u, c in rows])
+        return rows
 
     def close_view(self):
         self.view.close()

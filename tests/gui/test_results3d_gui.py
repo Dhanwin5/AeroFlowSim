@@ -53,3 +53,18 @@ def test_3d_run_results_continue_and_reopen(qtbot, window, tmp_path):  # noqa: F
     window.save_project() if hasattr(window, "save_project") else project.save()
     again = Project.open(tmp_path / "sphere.afsproj")
     assert again.status("results") == "ok"
+    # full 3D release stage: the post-processing tabs (Patches, XY plot, Reports, Snapshots)
+    assert [panel.tabs.tabText(i) for i in range(panel.tabs.count())] == ["View", "Patches", "XY plot", "Reports",
+                                                                        "Snapshots"]
+    assert panel.shown_patches() == ["wall"]                 # the walls are drawn by default
+    panel.xy_normal.setCurrentText("z")
+    panel.xy_position.setText("0.001")
+    points, values = panel.plot_cut()
+    assert len(points) > 5 and abs(points[:, 2] - 0.001).max() < 1e-12
+    project.post["report_definitions"] = [{"name": "drag", "kind": "force", "walls": ["wall"], "force": "Cd"}]
+    values, fb = panel.evaluate_reports()
+    assert values["drag"][0] == pytest.approx(panel.sol.key_numbers["Cd"][0], rel=1e-9)   # = the solver's own Cd
+    panel.save_snapshot("first")
+    assert panel.snapshot_list.count() == 1
+    rows = panel.compare_snapshot("first")
+    assert any(r[0] == "Cd" and abs(r[4]) < 1e-9 for r in rows)

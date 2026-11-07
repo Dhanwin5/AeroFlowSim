@@ -240,6 +240,8 @@ def forces_and_moments(sol, walls, moment_point=(0.0, 0.0), p_ref=None, q_ref=No
     """
     if not walls:
         raise ValueError("Choose at least one wall.")
+    if sol.mesh.dim == 3:
+        return forces_3d(sol, walls, moment_point, p_ref, q_ref, A_ref, L_ref)
     p_inf, q_inf, _ = sol.reference_pressure()
     if p_ref is None:
         p_ref = p_inf if sol.kind == "external" else 0.0
@@ -322,3 +324,45 @@ def zone_balance(sol) -> dict:
     zones = [(n, *[float(v) for v in out_flux[i]]) for i, n in enumerate(names)]
     momentum = tuple(f"{a}-momentum [N]" for a in "xyz"[:nvar - 2])
     return {"interfaces": rows, "zones": zones, "columns": ("Zone", "Mass [kg/s]", *momentum, "Energy [W]")}
+
+
+def forces_3d(sol, walls, moment_point=(0.0, 0.0, 0.0), p_ref=None, q_ref=None, A_ref=None, L_ref=None) -> dict:
+    """forces_and_moments of a 3D solution (full 3D release stage): the walls' pressure force (p - p_ref) n A and
+    moment, completed by the flat symmetry planes (x 2 per plane, like the solver's own numbers in
+    euler/forces.body_forces_3d) and projected on the wind axes of alpha and beta. A_ref / L_ref default to the run's
+    own reference values (key numbers A_ref, L_ref; else 1). The same keys as the 2D function, plus Fz, Y, Cy and the
+    moment vector; M and Cm are the pitching moment (about z, nose-up positive as in 2D)."""
+    from aeroflowsim.euler.forces import symmetry_planes, wind_axes_3d
+    p_inf, q_inf, _ = sol.reference_pressure()
+    external = sol.kind == "external"
+    p_ref = (p_inf if external else 0.0) if p_ref is None else p_ref
+    q_ref = (q_inf if external else 1.0) if q_ref is None else q_ref
+    kn = sol.key_numbers or {}
+    A_ref = float(kn["A_ref"][0]) if A_ref in (None, 1.0) and "A_ref" in kn else float(A_ref or 1.0)
+    L_ref = float(kn["L_ref"][0]) if L_ref in (None, 1.0) and "L_ref" in kn else float(L_ref or 1.0)
+    point = np.zeros(3)
+    point[:len(moment_point)] = np.asarray(moment_point, float)
+    g = sol.geom
+    F, M = np.zeros(3), np.zeros(3)
+    for name in walls:
+        local = sol.patch_faces(name)
+        n = g.normals[g.n_interior + local]
+        A = g.flux_areas[g.n_interior + local]
+        f = sol.boundary_flux[1:4, local].T - p_ref * n * A[:, None]
+        r = g.face_centres[g.n_interior + local] - point
+        F += f.sum(axis=0)
+        M += np.cross(r, f).sum(axis=0)
+    planes = symmetry_planes(sol.mesh, [p.name for p in sol.mesh.patches if p.type == "symmetry"])
+    for k in planes:
+        F = 2.0 * F
+        F[k] = 0.0
+        m_k = 2.0 * M[k]
+        M = np.zeros(3)
+        M[k] = m_k
+    d, l, y = wind_axes_3d(float(sol.params.get("alpha", 0.0)), float(sol.params.get("beta", 0.0)))
+    D, L, Y = float(F @ d), float(F @ l), float(F @ y)
+    qA = q_ref * A_ref
+    return {"Fx": float(F[0]), "Fy": float(F[1]), "Fz": float(F[2]), "D": D, "L": L, "Y": Y, "M": float(M[2]),
+            "Mx": float(M[0]), "My": float(M[1]), "Mz": float(M[2]), "Cx": float(F[0]) / qA, "Cy": Y / qA,
+            "Cd": D / qA, "Cl": L / qA, "Cm": float(M[2]) / (qA * L_ref), "x_cp": None, "factor": float(2 ** len(planes)),
+            "force_unit": "N", "moment_unit": "N m"}

@@ -175,3 +175,34 @@ def streamlines(mesh, velocity, seeds, max_steps=2000, k=4):
             line.append(x.copy())
         lines.append(np.array(line))
     return lines
+
+
+def wall_cut(surface, origin, normal, along=0):
+    """Where a plane cuts a triangle surface (e.g. patch_surface of the walls): the cut as points with values, sorted
+    along the coordinate `along` (0 = x), for an XY plot such as Cp along a wing section (full 3D release stage).
+
+    Every triangle whose corners lie on both sides of the plane gives one segment; its two ends are found on the edges
+    by linear interpolation (exact for the linear node values on the triangle). Returns (points (n, 3) [m], values
+    (n,)); duplicates (a point shared by two neighbouring segments) are kept once."""
+    origin, normal = np.asarray(origin, float), np.asarray(normal, float)
+    normal = normal / np.linalg.norm(normal)
+    if not surface.n_triangles:
+        return np.zeros((0, 3)), np.zeros(0)
+    s = (surface.points - origin) @ normal                       # signed distance of every point [m]
+    tri = surface.triangles
+    pts, vals = [], []
+    for a, b in ((0, 1), (1, 2), (2, 0)):
+        i, j = tri[:, a], tri[:, b]
+        cross = (s[i] > 0.0) != (s[j] > 0.0)
+        i, j = i[cross], j[cross]
+        t = s[i] / (s[i] - s[j])
+        pts.append(surface.points[i] + t[:, None] * (surface.points[j] - surface.points[i]))
+        vals.append(surface.values[i] + t * (surface.values[j] - surface.values[i]))
+    points, values = np.vstack(pts), np.concatenate(vals)
+    if not len(points):
+        return points, values
+    scale = max(float(np.ptp(surface.points, axis=0).max()), 1e-300)
+    _, keep = np.unique(np.round(points / (1e-9 * scale)).astype(np.int64), axis=0, return_index=True)
+    points, values = points[keep], values[keep]
+    order = np.argsort(points[:, along], kind="stable")
+    return points[order], values[order]
