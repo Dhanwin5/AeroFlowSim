@@ -57,3 +57,29 @@ def test_geometry_dialog_lengths_follow_the_display_unit():
         assert field.unit == "m" and gl.to_text(field, 0.25) == "0.25" and gl.from_text(field, "0.25") == 0.25
     finally:
         gl.set_length_unit(None)
+
+
+def test_3d_edge_tools_from_the_selection(qtbot):
+    """Edge size / fillet / chamfer need picked edges (Edges filter); the 3D view picks edges when the filter is on."""
+    pytest.importorskip("gmsh")
+    from aeroflowsim.geometry_model import GeometryDocument, replay
+    from aeroflowsim.geometry_model.operations3d import Box
+    from aeroflowsim.gui import geometry_logic as gl
+    from aeroflowsim.gui.geometry3d_view import Geometry3DView
+    built = replay(GeometryDocument([Box("b", dx=1.0, dy=1.0, dz=1.0)], dimension=3))
+    edge = next(iter(built.edges))
+    with pytest.raises(ValueError, match="Edges"):
+        gl.operation_for_3d("fillet_3d", [("face", "b:xmin")], built)
+    op = gl.operation_for_3d("fillet_3d", [("edge", edge)], built)
+    assert op.params["edges"] == [edge] and op.params["radius"] == pytest.approx(0.1)
+    assert gl.operation_for_3d("edge_size_3d", [("edge", edge)], built).params["size"] == pytest.approx(0.05)
+    assert gl.operation_for_3d("split_body_3d", [("body", "b")], built).params["bodies"] == ["b"]
+    view = Geometry3DView()
+    qtbot.addWidget(view)
+    view.show_geometry(built, selection=[("edge", edge)])
+    assert len(view.edge_ids) == 12 and view.edge_actor is not None
+    view.pick_kind = "edge"
+    got = []
+    view.picked.connect(lambda kind, entity, add: got.append(kind))
+    view.pick_at(1, 1)                                     # a corner of the window: nothing there
+    assert got == [""]

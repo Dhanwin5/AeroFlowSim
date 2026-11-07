@@ -37,6 +37,7 @@ IMPORT_FILTER_3D = "STEP or IGES solids (*.step *.stp *.iges *.igs);;STEP (*.ste
 STATE_TEXT = {"ok": "", "template": "", "suppressed": "  (suppressed)", "failed": "  (FAILED)",
               "not run": "  (not run: an earlier step failed)"}
 TOOL_ICONS = {"transform_3d": "transform", "boolean_3d": "boolean", "set_role_3d": "role", "fluid_zones_3d": "role", "nozzle_region_3d": "enclosure",
+              "edge_size_3d": "refinement", "fillet_3d": "fillet", "chamfer_3d": "chamfer", "split_body_3d": "split",
               "delete_3d": "delete",
               "enclosure_3d": "enclosure", "name_faces": "name", "refinement_3d": "refinement"}
 
@@ -149,13 +150,18 @@ class Geometry3DPage(QWidget):
             action = QAction(icon(TOOL_ICONS[kind]), text, self, toolTip=tip)
             action.triggered.connect(lambda _=False, k=kind: self.add_operation(k))
             self.tool_actions[kind] = action
-            if kind in ("transform_3d", "boolean_3d", "set_role_3d", "fluid_zones_3d", "delete_3d"):
+            if kind in ("transform_3d", "boolean_3d", "set_role_3d", "fluid_zones_3d", "fillet_3d", "chamfer_3d",
+                        "split_body_3d", "edge_size_3d", "delete_3d"):
                 edit.addAction(action)
         self.edit_button = self._menu_button("Edit", "edit", edit, "Transform, boolean, fluid / solid, delete")
         bar.addWidget(self.edit_button)
         for kind in ("enclosure_3d", "name_faces", "refinement_3d"):
             bar.addAction(self.tool_actions[kind])
         bar.addSeparator()
+        self.act_edges = QAction(icon("split_edge"), "Edges", self, checkable=True,
+                                 toolTip="Selection filter: pick edges instead of faces (edge size, fillet, chamfer)")
+        self.act_edges.toggled.connect(self.set_edge_filter)
+        bar.addAction(self.act_edges)
         self.act_hide = QAction(icon("hide"), "Hide", self, toolTip="Hide the selected faces (view only)")
         self.act_hide.triggered.connect(self.hide_selected)
         self.act_isolate = QAction(icon("isolate"), "Isolate", self, toolTip="Show only the selected faces")
@@ -283,6 +289,11 @@ class Geometry3DPage(QWidget):
         self.summary.set_rows(logic.summary_rows_3d(built, self.window.units))
 
     # ---- selection ------------------------------------------------------------------------------
+
+    def set_edge_filter(self, on):
+        """Pick edges (on) or faces (off); the selection starts again."""
+        self.view.pick_kind = "edge" if on else "face"
+        self.set_selection([])
 
     def on_picked(self, kind, entity, add):
         self.set_selection(logic.toggle_selection(self.selection, (kind, entity) if kind else None, add))

@@ -842,6 +842,13 @@ FIELDS.update({
     "boolean_3d": (Field("kind", "Boolean", "choice", _choices(Boolean3D.KINDS)),),
     "set_role_3d": (Field("role", "Mark as", "choice", ROLE_CHOICES),),
     "fluid_zones_3d": ZONE_FIELDS,
+    "edge_size_3d": (Field("size", "Cell size on the edges", "length"),),
+    "fillet_3d": (Field("radius", "Radius", "length"),),
+    "chamfer_3d": (Field("distance", "Distance", "length"),),
+    "split_body_3d": (
+        Field("x", "Point on the plane x", "length"), Field("y", "Point on the plane y", "length"),
+        Field("z", "Point on the plane z", "length"), Field("nx", "Normal x", "number"),
+        Field("ny", "Normal y", "number"), Field("nz", "Normal z", "number")),
     "nozzle_region_3d": (
         Field("kind", "Region", "choice", (("plume", "Plume region behind the outlet"),
                                            ("plenum", "Inlet plenum in front of the inlet"))),
@@ -914,6 +921,12 @@ TOOLS_3D = (("transform_3d", "Transform…", "Move, rotate, scale or mirror the 
              "(the last selected wins where they overlap: e.g. the enclosure, then a plume region)"),
             ("nozzle_region_3d", "Plume / plenum…", "A plume region behind the nozzle outlet or an inlet plenum in "
              "front of its inlet, as its own cell zone (the nozzle axis is the x axis)"),
+            ("edge_size_3d", "Edge size…", "A local cell size along the selected edges (pick edges with the Edges "
+             "filter)"),
+            ("fillet_3d", "Fillet…", "Round the selected edges of a body"),
+            ("chamfer_3d", "Chamfer…", "Cut the selected edges of a body with a flat chamfer"),
+            ("split_body_3d", "Split by plane…", "Split the selected bodies (or all) by a plane into pieces that share "
+             "the cut face"),
             ("delete_3d", "Delete", "Delete the selected bodies (Del)"),
             ("enclosure_3d", "Enclosure…", "Put a fluid domain (box, cylinder, sphere) round the solid bodies"),
             ("name_faces", "Name boundary…", "Give the selected faces a boundary name and type (a mesh patch)"),
@@ -989,6 +1002,21 @@ def operation_for_3d(kind, selection, built):
         return Transform3D(targets=bodies, cx=float(c[0]), cy=float(c[1]), cz=float(c[2]))
     if kind == "enclosure_3d":
         return Enclosure3D()
+    if kind in ("edge_size_3d", "fillet_3d", "chamfer_3d"):
+        edges = [e for k, e in selection if k == "edge"]
+        if not edges:
+            raise ValueError("Select the edges first: switch the selection filter to Edges and click them "
+                             "(Shift or Ctrl adds).")
+        from aeroflowsim.geometry_model import operations3d as ops3
+        shortest = min(built.edges[e].length for e in edges) if built is not None else L
+        if kind == "edge_size_3d":
+            return ops3.EdgeSize3D(edges=edges, size=float(f"{0.05 * shortest:.2g}"))
+        if kind == "fillet_3d":
+            return ops3.Fillet3D(edges=edges, radius=float(f"{0.1 * shortest:.2g}"))
+        return ops3.Chamfer3D(edges=edges, distance=float(f"{0.1 * shortest:.2g}"))
+    if kind == "split_body_3d":
+        from aeroflowsim.geometry_model.operations3d import SplitBody3D
+        return SplitBody3D(bodies=bodies, x=float(c[0]), y=float(c[1]), z=float(c[2]))
     if kind == "nozzle_region_3d":
         from aeroflowsim.geometry_model.operations3d import NozzleRegion3D
         return NozzleRegion3D(nozzle=bodies[0] if bodies else "")

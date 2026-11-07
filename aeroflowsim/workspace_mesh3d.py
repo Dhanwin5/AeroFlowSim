@@ -293,6 +293,21 @@ def _size_fields(gmsh, kernel, built, settings, walls):
                                ("VIn", size), ("VOut", settings.max_size), ("Thickness", thickness)):
                 field.setNumber(f, key, value)
             fields.append(f)
+    for edge_ids, size, op_id in getattr(kernel, "edge_sizes", []):   # local sizes along picked edges
+        try:
+            curves = kernel.curve_tags(edge_ids)
+        except ValueError:
+            continue                                    # edges removed by the solid / fluid clean-up
+        d = field.add("Distance")
+        field.setNumbers(d, "CurvesList", curves)
+        field.setNumber(d, "Sampling", 60)
+        t = field.add("Threshold")
+        field.setNumber(t, "InField", d)
+        h = min(size, settings.max_size)
+        for key, value in (("SizeMin", h), ("SizeMax", settings.max_size), ("DistMin", 0.0),
+                           ("DistMax", (settings.max_size - h) / (settings.growth - 1.0))):
+            field.setNumber(t, key, value)
+        fields.append(t)
     for zone, size in getattr(kernel, "zone_sizes", {}).items():     # a constant size inside a cell zone
         volumes = [v for v in kernel.volume_tags() if v in kernel.body_meta and kernel.body_meta[v].zone == zone]
         if volumes:

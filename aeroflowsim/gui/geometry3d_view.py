@@ -43,6 +43,8 @@ class Geometry3DView(QWidget):
     box_selected = Signal(list, bool)        # face ids inside the box, add
     context_menu = Signal(str, str, QPoint)  # kind, id ("" for empty space), global position
 
+    pick_kind = "face"                         # selection filter: "face" (faces / bodies) or "edge"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.dark = False
@@ -148,13 +150,24 @@ class Geometry3DView(QWidget):
             if surface.n_cells:
                 self.surface_actor = p.add_mesh(surface, scalars="rgb", rgb=True, smooth_shading=False,
                                                 show_edges=False, pickable=True, reset_camera=False)
-        lines = [e.points for e in built.edges.values() if any(f not in hidden for f in e.faces)]
-        if lines:
-            poly = pv.merge([pv.lines_from_points(pts) for pts in lines])
+        self.edge_ids = [k for k, e in built.edges.items() if any(f not in hidden for f in e.faces)]
+        chosen = {e for kind, e in selection if kind == "edge"}
+        self.edge_actor = None
+        if self.edge_ids:
+            pieces = []
+            for k, edge_id in enumerate(self.edge_ids):
+                line = pv.lines_from_points(built.edges[edge_id].points)
+                line.cell_data["edge"] = np.full(line.n_cells, k, dtype=np.int32)
+                line.cell_data["rgb"] = np.tile(pv.Color(accent if edge_id in chosen else colours["outline"]).int_rgb,
+                                                (line.n_cells, 1)).astype(np.uint8)
+                pieces.append(line)
+            poly = pv.merge(pieces)
             if section is not None:
                 poly = poly.clip(normal=section[1], origin=section[0], invert=False)
             if poly.n_points:
-                p.add_mesh(poly, color=colours["outline"], line_width=1.5, pickable=False, reset_camera=False)
+                self.edges_poly = poly
+                self.edge_actor = p.add_mesh(poly, scalars="rgb", rgb=True, line_width=3 if chosen else 1.5,
+                                             pickable=True, reset_camera=False)
         for region in built.regions:
             outline = _region_outline(region)
             if outline is not None:
@@ -223,6 +236,21 @@ class Geometry3DView(QWidget):
             return None
         return self.face_ids[int(self.surface.cell_data["face"][cell])]
 
+    def edge_at(self, x, y):
+        """The edge id nearest to the VTK display pixel (x, y) within a few pixels, or None (edge picking)."""
+        if getattr(self, "edge_actor", None) is None:
+            return None
+        picker = vtkCellPicker()
+        picker.SetTolerance(0.005)
+        picker.PickFromListOn()
+        picker.AddPickList(self.edge_actor)
+        if not picker.Pick(x, y, 0, self.plotter.renderer):
+            return None
+        cell = picker.GetCellId()
+        if cell < 0:
+            return None
+        return self.edge_ids[int(self.edges_poly.cell_data["edge"][cell])]
+
     def _modifiers(self, interactor) -> bool:
         return bool(interactor.GetShiftKey() or interactor.GetControlKey())
 
@@ -239,6 +267,10 @@ class Geometry3DView(QWidget):
 
     def pick_at(self, x, y, add=False):
         """A click at VTK display pixel (x, y) (origin bottom left): emits picked."""
+        if self.pick_kind == "edge":                  # the Edges selection filter (edge operations)
+            edge = self.edge_at(x, y)
+            self.picked.emit("edge" if edge else "", edge or "", bool(add))
+            return
         face = self.face_at(x, y)
         self.picked.emit("face" if face else "", face or "", bool(add))
 

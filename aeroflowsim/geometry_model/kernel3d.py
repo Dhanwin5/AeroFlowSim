@@ -73,6 +73,7 @@ class Kernel3D:
     dimension = 3
 
     def __init__(self, gmsh):
+        self.edge_sizes = []          # local edge sizes (EdgeSize3D), read by the 3D mesher
         self.gmsh = gmsh
         self.occ = gmsh.model.occ
         self.face_meta = {}          # {OCC surface tag: FaceMeta}
@@ -84,6 +85,8 @@ class Kernel3D:
         self.failed_operation = ""
 
     # ---- small helpers -------------------------------------------------------------------------
+
+    edge_sizes = ()                 # [(edge ids, size [m], op id)] of the Edge size operations (set per replay)
 
     def sync(self):
         self.occ.synchronize()
@@ -388,18 +391,7 @@ class Kernel3D:
                                           meta.default_type, bodies,
                                           box=np.asarray(occ.getBoundingBox(2, tag), dtype=float) +
                                           np.r_[[BBOX_PAD] * 3, [-BBOX_PAD] * 3])
-        edges = []
-        for _, tag in model.getEntities(1):
-            faces = sorted({face_ids[f] for f in model.getAdjacencies(1, tag)[0] if f in face_ids})
-            edges.append((tag, faces))
-        seen = {}
-        edges.sort(key=lambda item: tuple(np.round(self._curve_points(item[0], 3)[1], 12)))
-        for tag, faces in edges:
-            edge_id = "E(" + "|".join(faces) + ")"
-            n = seen.get(edge_id, 0) + 1
-            seen[edge_id] = n
-            if n > 1:
-                edge_id = f"{edge_id}~{n}"
+        for edge_id, (tag, faces) in self._edges(face_ids).items():
             built.edges[edge_id] = Edge3D(edge_id, self._curve_points(tag, EDGE_SAMPLES), float(occ.getMass(1, tag)),
                                           faces)
             for f in faces:
@@ -424,6 +416,36 @@ class Kernel3D:
         if triangulate:
             self._triangulate(built, face_ids)
         return built
+
+    def _edges(self, face_ids=None) -> dict:
+        """{stable edge id: (curve tag, [face ids])}: "E(face|face)" from the faces the edge joins ("~2", "~3" for
+        several edges between the same faces, numbered by position). Used by extract and the edge operations."""
+        model = self.gmsh.model
+        if face_ids is None:
+            face_ids = {t: (self.face_meta.get(t) or FaceMeta(f"surface{t}", (f"surface{t}",))).id
+                        for t in self.face_tags()}
+        edges = []
+        for _, tag in model.getEntities(1):
+            faces = sorted({face_ids[f] for f in model.getAdjacencies(1, tag)[0] if f in face_ids})
+            edges.append((tag, faces))
+        edges.sort(key=lambda item: tuple(np.round(self._curve_points(item[0], 3)[1], 12)))
+        out, seen = {}, {}
+        for tag, faces in edges:
+            edge_id = "E(" + "|".join(faces) + ")"
+            n = seen.get(edge_id, 0) + 1
+            seen[edge_id] = n
+            if n > 1:
+                edge_id = f"{edge_id}~{n}"
+            out[edge_id] = (tag, faces)
+        return out
+
+    def curve_tags(self, edge_ids) -> list:
+        """Curve tags of stable edge ids (ValueError naming an edge that no longer exists)."""
+        edges = self._edges()
+        missing = [e for e in edge_ids if e not in edges]
+        if missing:
+            raise ValueError(f"edge(s) {', '.join(missing[:3])} no longer exist after the earlier changes: pick again")
+        return [edges[e][0] for e in edge_ids]
 
     def _curve_points(self, tag, n) -> np.ndarray:
         """n points (n, 3) along a curve, evenly spaced in its parameter [m] (2 for a straight line)."""

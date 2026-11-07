@@ -5,6 +5,8 @@
 """Multiple cell zones (full 3D release stage, Part 2): Mesh.cell_zones, interfaces, removal of excluded zones,
 mesh files with zones (Gmsh, SU2), and the solver on a two-zone mesh (identical to the same mesh as one zone)."""
 
+import math
+
 import numpy as np
 import pytest
 
@@ -299,3 +301,40 @@ def test_nozzle_region_3d_round_a_nozzle(kind, zone, outer, angle):
     d = 2.0 * (0.016 if kind == "plume" else 0.02)
     volume = math.pi * (1.5 * d) ** 2 * 2.0 * d * angle / 360.0
     assert mesh.cell_volumes[mesh.zone_cells(zone)].sum() == pytest.approx(volume, rel=2e-2)
+
+
+def test_3d_edge_size_fillet_chamfer_and_split():
+    """3D edge operations (full 3D release stage): fillet and chamfer of box edges change the volume as the geometry
+    says; a local edge size gives smaller cells near the edge; a split by a plane gives two conformal pieces."""
+    pytest.importorskip("gmsh")
+    from aeroflowsim.geometry_model import GeometryDocument, replay
+    from aeroflowsim.geometry_model.operations3d import (Box, Chamfer3D, EdgeSize3D, Enclosure3D, Fillet3D,
+                                                         FluidZones3D, SplitBody3D)
+    from aeroflowsim.workspace_mesh3d import MeshSettings3D, mesh_3d
+    box = Box("b", dx=1.0, dy=1.0, dz=1.0)
+    built = replay(GeometryDocument([box], dimension=3))
+    edge = next(e for e in built.edges if "b:xmax" in e and "b:ymax" in e)        # the edge x = 1, y = 1
+    r = 0.2
+    filleted = replay(GeometryDocument([box, Fillet3D("f", edges=[edge], radius=r)], dimension=3))
+    assert filleted.bodies["b"].volume == pytest.approx(1.0 - (1 - math.pi / 4) * r * r, rel=1e-9)
+    assert any(f.startswith("f:") for f in filleted.faces)                       # the new rounded face
+    chamfered = replay(GeometryDocument([box, Chamfer3D("c", edges=[edge], distance=r)], dimension=3))
+    assert chamfered.bodies["b"].volume == pytest.approx(1.0 - 0.5 * r * r, rel=1e-9)
+    split = replay(GeometryDocument([Box("b", dx=1.0, dy=1.0, dz=1.0, role="fluid"),
+                                     SplitBody3D("s", x=0.3, nx=1.0)], dimension=3))
+    vols = sorted(b.volume for b in split.bodies.values())
+    assert vols == pytest.approx([0.3, 0.7], rel=1e-9)
+    settings = MeshSettings3D(surface_size=0.25, max_size=0.25, growth=1.3, curvature=0)
+    ops = [Box("b", x0=0.3, y0=0.3, z0=0.3, dx=0.4, dy=0.4, dz=0.4),
+           Enclosure3D("e", kind="box", upstream=1.0, downstream=1.0, lateral=1.0)]
+    plain = mesh_3d(GeometryDocument(ops, dimension=3), None, settings)
+    near = replay(GeometryDocument(ops, dimension=3))
+    lip = next(e for e in near.edges if "b:xmax" in e and "b:ymax" in e)
+    sized = mesh_3d(GeometryDocument(ops + [EdgeSize3D("es", edges=[lip], size=0.02)], dimension=3), None, settings)
+    assert sized.n_cells > 1.5 * plain.n_cells
+    from aeroflowsim.geometry_model.operations3d import NameFaces
+    sides = [f"b:{k}" for k in ("xmin", "xmax", "ymin", "ymax", "zmin", "zmax")]
+    halves = mesh_3d(GeometryDocument([Box("b", dx=1.0, dy=1.0, dz=1.0, role="fluid"), SplitBody3D("s", x=0.3, nx=1.0),
+                                       FluidZones3D("z"), NameFaces("n", faces=sides, name="walls", kind="wall")],
+                                      dimension=3), None, settings)
+    assert sorted(halves.cell_volumes[halves.zone_cells(z)].sum() for z in halves.zone_names) ==         pytest.approx([0.3, 0.7], rel=1e-9)                                     # split + zones: two conformal halves

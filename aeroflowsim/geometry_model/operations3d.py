@@ -628,6 +628,142 @@ class NozzleRegion3D(Operation3D):
                                                                   nozzle_id: kernel.body_meta[nozzle].zone or "nozzle"})
 
 
+class EdgeSize3D(Operation3D):
+    """A local cell size along picked edges (full 3D release stage; e.g. a nozzle lip or a wing trailing edge):
+    the size is `size` [m] on the edges and grows with the mesh growth rate away from them (Gmsh Distance + Threshold
+    field, combined with the other sizes by Min)."""
+
+    type, title = "edge_size_3d", "Edge size"
+    DEFAULTS = {"edges": [], "size": 0.001}
+
+    def summary(self) -> str:
+        return f"Edge size {self.params['size']:.4g} m on {len(self.params['edges'])} edge(s)"
+
+    def apply(self, kernel, context):
+        if not self.params["edges"]:
+            raise ValueError("no edges chosen")
+        kernel.curve_tags(self.params["edges"])            # every edge must exist now
+        kernel.edge_sizes.append((list(self.params["edges"]), _positive("the size", self.params["size"]), self.id))
+
+
+class Fillet3D(Operation3D):
+    """Round picked edges of a body with a radius [m] (OpenCASCADE fillet). The body keeps its id; the new rounded
+    faces get ids "<op>:fillet..." and the faces that were trimmed keep theirs (lineage)."""
+
+    type, title = "fillet_3d", "Fillet"
+    DEFAULTS = {"edges": [], "radius": 0.001}
+
+    def summary(self) -> str:
+        return f"Fillet r = {self.params['radius']:.4g} m on {len(self.params['edges'])} edge(s)"
+
+    def apply(self, kernel, context):
+        _round_edges(kernel, self.id, self.params["edges"], _positive("the radius", self.params["radius"]), "fillet")
+
+
+class Chamfer3D(Operation3D):
+    """Cut picked edges of a body with a flat chamfer of `distance` [m] (OpenCASCADE chamfer, equal distances)."""
+
+    type, title = "chamfer_3d", "Chamfer"
+    DEFAULTS = {"edges": [], "distance": 0.001}
+
+    def summary(self) -> str:
+        return f"Chamfer {self.params['distance']:.4g} m on {len(self.params['edges'])} edge(s)"
+
+    def apply(self, kernel, context):
+        _round_edges(kernel, self.id, self.params["edges"], _positive("the distance", self.params["distance"]),
+                     "chamfer")
+
+
+def _round_edges(kernel, op_id, edge_ids, size, kind):
+    """Fillet or chamfer edges of ONE body (the body the first edge belongs to)."""
+    if not edge_ids:
+        raise ValueError("no edges chosen")
+    model = kernel.gmsh.model
+    curves = kernel.curve_tags(edge_ids)
+    faces = [f for c in curves for f in model.getAdjacencies(1, c)[0]]
+    bodies = {v for f in faces for v in model.getAdjacencies(2, f)[0]}
+    owner = [v for v in kernel.volume_tags() if any(c in _curves_of(model, v) for c in curves)]
+    if len(owner) != 1:
+        raise ValueError(f"the edges of a {kind} must belong to one body (they touch {len(bodies)})")
+    vol = owner[0]
+    meta = kernel.body_meta.get(vol)
+    snap = kernel.snapshot()
+    if kind == "fillet":
+        out = kernel.occ.fillet([vol], curves, [size], removeVolume=True)
+    else:
+        surfaces = [next(f for f in model.getAdjacencies(1, c)[0] if vol in model.getAdjacencies(2, f)[0])
+                    for c in curves]
+        out = kernel.occ.chamfer([vol], curves, surfaces, [size], removeVolume=True)
+    kernel.sync()
+    new = [t for d, t in out if d == 3]
+    if not new:
+        raise ValueError(f"the {kind} failed (the {'radius' if kind == 'fillet' else 'distance'} is too large for the "
+                         "neighbouring faces?)")
+    kernel.body_meta.pop(vol, None)
+    for t in new:
+        if meta is not None:
+            kernel.body_meta[t] = meta
+    kernel.relabel(snap, op_id, kind)
+
+
+def _curves_of(model, volume) -> set:
+    return {abs(t) for _, t in model.getBoundary([(3, volume)], combined=False, oriented=False, recursive=False)
+            for _, t in [(1, c) for _, c in model.getBoundary([(2, f) for _, f in
+                                                               model.getBoundary([(3, volume)], oriented=False)],
+                                                              combined=False, oriented=False)]}
+
+
+class SplitBody3D(Operation3D):
+    """Split bodies by a plane (point and normal [m]) into conformal pieces that share the cut face (OpenCASCADE
+    Fragment with a large plane). The pieces keep the body's id with "#1", "#2" ... and its role; the cut faces get
+    ids "<op>:cut...". Fluid pieces can then be made separate zones (Fluid zones)."""
+
+    type, title = "split_body_3d", "Split by plane"
+    DEFAULTS = {"bodies": [], "x": 0.0, "y": 0.0, "z": 0.0, "nx": 1.0, "ny": 0.0, "nz": 0.0}
+
+    def summary(self) -> str:
+        p = self.params
+        return f"Split {len(p['bodies']) or 'all'} body(ies) by the plane through ({p['x']:.4g}, {p['y']:.4g}, " \
+               f"{p['z']:.4g}) m"
+
+    def apply(self, kernel, context):
+        p = self.params
+        normal = np.array([p["nx"], p["ny"], p["nz"]], dtype=float)
+        if not np.linalg.norm(normal) > 0.0:
+            raise ValueError("the plane normal cannot be zero")
+        normal /= np.linalg.norm(normal)
+        tags = [kernel.body_by_id(b) for b in p["bodies"]] if p["bodies"] else kernel.volume_tags()
+        if not tags:
+            raise ValueError("there is no body to split")
+        from aeroflowsim.geometry_model.kernel3d import BodyMeta
+        metas = {t: kernel.body_meta.get(t, BodyMeta(f"body{t}", SOLID)) for t in tags}
+        size = 4.0 * kernel.model_size() + float(np.abs([p["x"], p["y"], p["z"]]).max())
+        occ = kernel.occ
+        snap = kernel.snapshot()                       # before the plane exists (it is not a face of any body)
+        disk = occ.addDisk(p["x"], p["y"], p["z"], size, size, zAxis=list(normal))
+        kernel.sync()
+        out, out_map = occ.fragment([(3, t) for t in tags], [(2, disk)], removeObject=True, removeTool=True)
+        kernel.sync()
+        pieces = {}
+        for k, t in enumerate(tags):
+            pieces[t] = sorted(v for d, v in out_map[k] if d == 3)
+        if all(len(v) == 1 for v in pieces.values()):
+            raise ValueError("the plane does not cut the bodies")
+        for t in tags:
+            kernel.body_meta.pop(t, None)
+        for t, vols in pieces.items():
+            m = metas[t]
+            for n, v in enumerate(vols, start=1):
+                kernel.body_meta[v] = BodyMeta(m.id if len(vols) == 1 else f"{m.id}#{n}", m.role, m.zone)
+        kernel.relabel(snap, self.id, "cut")
+        loose = [(2, f) for f in kernel.face_tags() if len(kernel.gmsh.model.getAdjacencies(2, f)[0]) == 0]
+        if loose:                                       # the parts of the plane outside every body
+            occ.remove(loose, recursive=True)
+            kernel.sync()
+            kernel.face_meta = {t: m for t, m in kernel.face_meta.items() if t in kernel.face_tags()}
+        kernel.remove_free_points()
+
+
 class NameFaces(Operation3D):
     """Give faces a boundary name and type (they become a mesh patch of that name); inflation: grow prism
     layers from them (walls)."""
@@ -781,5 +917,5 @@ def _nearest_segment(points, probes) -> int:
 
 
 OPERATIONS_3D = {cls.type: cls for cls in (Box, Cylinder, Cone, Sphere, ImportSolid, Revolve, Extrude, Transform3D,
-                                           Boolean3D, SetRole3D, FluidZones3D, NozzleRegion3D, Delete3D, Enclosure3D, NameFaces, Refinement3D,
+                                           Boolean3D, SetRole3D, FluidZones3D, NozzleRegion3D, EdgeSize3D, Fillet3D, Chamfer3D, SplitBody3D, Delete3D, Enclosure3D, NameFaces, Refinement3D,
                                            TemplateBody, TemplateEnclosure3D)}
