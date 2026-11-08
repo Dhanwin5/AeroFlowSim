@@ -120,9 +120,10 @@ def measure():
         diffs = []
         for side in ("u", "l"):
             exp = np.loadtxt(DATA / f"cp{k}{side}.ex")
+            cp_exp = -exp[:, 1]                    # the NPARC .ex files list -Cp (suction peak positive)
             x, cp = comp[side]
             o = np.argsort(x)
-            diffs.append(np.interp(exp[:, 0], x[o], cp[o]) - exp[:, 1])
+            diffs.append(np.interp(exp[:, 0], x[o], cp[o]) - cp_exp)
         d = np.concatenate(diffs)
         rms[k] = float(np.sqrt(np.mean(d * d)))
     RUNS["Euler"] = {"cells": out.mesh.n_cells, "iterations": r.iterations, "converged": r.converged,

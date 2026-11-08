@@ -7,6 +7,6 @@ at Transonic Mach Numbers", AGARD AR-138, 1979 (test 2308: M = 0.8395, alpha = 3
 - `airfoil.txt`  ONERA D section, x/c and z/c (finite trailing-edge thickness)
 - `foilmod.txt`  the same, trailing edge closed (zero thickness; NPARC foilmod.f90) - used for the CFD geometry
 - `cp<k><l|u>.ex` measured Cp, lower / upper surface, sections k = 1..7 at y/b = 0.20, 0.44, 0.65, 0.80, 0.90, 0.95, 0.99;
-  columns: x/c, Cp, and two uncertainty columns as given by NPARC
+  columns: x/c, -Cp (minus Cp: suction positive, as NPARC plots it), and two uncertainty columns as given by NPARC
 - Planform (NPARC): span b = 1.1963 m, MAC 0.64607 m, aspect ratio 3.8, taper 0.562, leading-edge sweep 30 deg,
   trailing-edge sweep 15.8 deg.
