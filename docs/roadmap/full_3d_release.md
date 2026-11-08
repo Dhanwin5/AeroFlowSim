@@ -252,3 +252,5 @@ Anomalies (both bugs in my script, fixed before the counted run, tolerance untou
   the overall verdict stays FAIL.
 User said yes (8 Nov) to push, tag v0.3.0 and the GitHub release.
 Next: examples, installer smoke build, push, tag, release.
+
+Released (8 Nov): main pushed, tag v0.3.0, GitHub release published with the draft text; installers attach from installer.yml.
