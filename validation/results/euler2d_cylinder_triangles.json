@@ -2,7 +2,7 @@
  "name": "euler2d_cylinder_triangles",
  "title": "Cylinder at Mach 3 on triangles (2D Euler, node-value gradients) vs Billig",
  "case": "cases/external_2d",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {
@@ -39,7 +39,7 @@
     "20,000",
     "max_iterations",
     "1.1e-03",
-    "57",
+    "75",
     "0.7027",
     "0.6485",
     "1.3449",

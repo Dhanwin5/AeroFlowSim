@@ -66,12 +66,12 @@ def main(argv=None):
         validations.append(v)
     passed = all(v.passed for v in validations)
     if argv:
-        every = load_results(validation_folders())          # the other cases from their last run of this set
-        if every is None:
-            print("Only some cases were run and not every case has a saved result: the report is not rewritten.")
-        else:
-            passed = all(v.passed for v in every)
-            print(f"Report rebuilt from the saved results of every case: {write_report(every)}")
+        missing = []
+        every = load_results(validation_folders(), missing)  # the other cases from their last run of this set
+        passed = all(v.passed for v in every) and not missing
+        if missing:
+            print("NOT RUN (no saved result, listed in the report): " + ", ".join(missing))
+        print(f"Report rebuilt from the saved results: {write_report(every, not_run=missing)}")
     else:
         print(f"Report written to {write_report(validations)}")
     print("ALL VALIDATION CASES PASS" if passed else "SOME VALIDATION CASES FAIL")

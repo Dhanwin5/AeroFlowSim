@@ -2,7 +2,7 @@
  "name": "euler3d_sphere",
  "title": "Sphere at Mach 3 (3D Euler, tetrahedra): bow-shock stand-off vs Billig",
  "case": "cases/external_3d",
- "date": "2026-11-05",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {
@@ -54,7 +54,7 @@
     "59,998",
     "20,000",
     "NO",
-    "792",
+    "586",
     "0.2269",
     "0.2230",
     "0.2050",
@@ -80,7 +80,7 @@
     "59,998",
     "20,000",
     "NO",
-    "663",
+    "562",
     "0.1516",
     "0.1530",
     "0.1565",

@@ -2,7 +2,7 @@
  "name": "external_geometry",
  "title": "Gmsh mesh geometry: external domains and rounded-throat nozzle",
  "case": "cases/external_2d",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {

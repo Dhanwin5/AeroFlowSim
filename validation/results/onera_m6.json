@@ -1,0 +1,59 @@
+{
+ "name": "onera_m6",
+ "title": "ONERA M6 wing, M 0.8395, 3.06 deg: Cp at six sections (3D Euler)",
+ "case": "cases/external_3d",
+ "date": "2026-11-07",
+ "comparisons": [
+  {
+   "reference": {
+    "id": "cp_rms",
+    "quantity": "Mean over six sections of RMS(Cp computed - Cp measured), Euler",
+    "value": 0.05,
+    "unit": "-",
+    "tolerance_percent": 100.0,
+    "source": "Schmitt & Charpin (1979) AGARD AR-138, via NASA NPARC Validation Archive (m6wing)",
+    "tolerance_percent_quick": null,
+    "pending": "",
+    "shortfall": ""
+   },
+   "measured": 0.9957265664463965
+  }
+ ],
+ "study": {
+  "title": "Cp RMS difference per section",
+  "columns": [
+   "Section",
+   "RMS(Delta Cp)"
+  ],
+  "rows": [
+   [
+    "1 (y/b = 0.20)",
+    "0.8842"
+   ],
+   [
+    "2 (y/b = 0.44)",
+    "0.9989"
+   ],
+   [
+    "3 (y/b = 0.65)",
+    "1.0447"
+   ],
+   [
+    "4 (y/b = 0.80)",
+    "1.0547"
+   ],
+   [
+    "5 (y/b = 0.90)",
+    "1.0100"
+   ],
+   [
+    "6 (y/b = 0.95)",
+    "0.9818"
+   ]
+  ],
+  "notes": [
+   "Euler, 612,023 cells, 7,729 iterations, converged: True, 6560 s; CL (side force) 0.2875, CD 0.0158.",
+   "Spalart-Allmaras not run in this stage (time box): SHORTFALL."
+  ]
+ }
+}

@@ -2,7 +2,7 @@
  "name": "geometry_workspace",
  "title": "Geometry workspace: sketched, enclosed and plume geometries",
  "case": "cases/geometry_2d",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {

@@ -2,7 +2,7 @@
  "name": "nozzle_axi_geometry",
  "title": "Axisymmetric nozzle mesh geometry (default conical nozzle)",
  "case": "cases/nozzle_axi",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {

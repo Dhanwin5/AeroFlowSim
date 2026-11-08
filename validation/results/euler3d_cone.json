@@ -2,7 +2,7 @@
  "name": "euler3d_cone",
  "title": "10 deg cone at Mach 2 (3D Euler, quarter domain) vs Taylor-Maccoll",
  "case": "cases/external_3d",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {
@@ -53,7 +53,7 @@
     "30,825",
     "1,221",
     "yes",
-    "20",
+    "17",
     "6",
     "33.392",
     "31.206",
@@ -65,7 +65,7 @@
     "72,150",
     "1,014",
     "yes",
-    "43",
+    "38",
     "6",
     "32.780",
     "31.206",

@@ -2,7 +2,7 @@
  "name": "euler3d_nozzle",
  "title": "N2 nozzle in 3D (revolved quarter) vs 2D axisymmetric",
  "case": "cases/external_3d",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {
@@ -52,7 +52,7 @@
     "8,000",
     "13,771",
     "yes",
-    "28",
+    "25",
     "67.2131",
     "47.1116",
     "47.1115",
@@ -63,7 +63,7 @@
     "128,000",
     "30,000",
     "NO",
-    "1787",
+    "1542",
     "67.1108",
     "47.0392",
     "47.0392",

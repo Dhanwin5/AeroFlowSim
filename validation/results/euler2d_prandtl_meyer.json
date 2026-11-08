@@ -2,7 +2,7 @@
  "name": "euler2d_prandtl_meyer",
  "title": "Prandtl-Meyer expansion round a 10 deg corner at Mach 2 (2D Euler, geometry_2d)",
  "case": "cases/geometry_2d",
- "date": "2026-11-04",
+ "date": "2026-11-07",
  "comparisons": [
   {
    "reference": {

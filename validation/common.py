@@ -175,14 +175,18 @@ def save_result(v):
                                                       if hasattr(o, "__float__") else str(o)), encoding="utf-8")
 
 
-def load_results(folders):
-    """CaseValidation of every folder from the saved JSON files (None if one is missing)."""
+def load_results(folders, missing=None):
+    """CaseValidation of every folder from the saved JSON files. A folder without a saved result: None is returned,
+    unless a list `missing` is given - then its name is appended there and the other cases are returned."""
     import json
     out = []
     for f in folders:
         path = _results_dir() / f"{f.name}.json"
         if not path.is_file():
-            return None
+            if missing is None:
+                return None
+            missing.append(f.name)
+            continue
         d = json.loads(path.read_text(encoding="utf-8"))
         comps = [Comparison(Reference(**c["reference"]), c["measured"]) for c in d["comparisons"]]
         out.append(CaseValidation(d["name"], d["title"], d["case"], comps, d["study"]))
@@ -197,10 +201,11 @@ def error_text(error_percent) -> str:
     return f"{error_percent:.3f}"
 
 
-def write_report(validations: list[CaseValidation], path: Path | None = None) -> Path:
-    """Write the pass/fail tables as Markdown (full set: report.md; quick set: report_quick.md)."""
+def write_report(validations: list[CaseValidation], path: Path | None = None, not_run=()) -> Path:
+    """Write the pass/fail tables as Markdown (full set: report.md; quick set: report_quick.md). `not_run`: names of
+    validation cases with no result in this report (listed, and the overall verdict is then FAIL)."""
     path = path or (QUICK_REPORT if is_quick() else REPORT)
-    overall = all(v.passed for v in validations)
+    overall = all(v.passed for v in validations) and not not_run
     lines = [
         "# AeroFlowSim validation report",
         "",
@@ -217,6 +222,9 @@ def write_report(validations: list[CaseValidation], path: Path | None = None) ->
             c.status == "SHORTFALL" for v in validations for c in v.comparisons)) else ")"),
         "",
     ]
+    if not_run:
+        lines += ["**NOT RUN** (no saved result of this set; listed, not hidden): "
+                  + ", ".join(f"`validation/{n}`" for n in not_run), ""]
     for v in validations:
         lines += [
             f"## {v.title}: {'PASS' if v.passed else 'FAIL'}",
