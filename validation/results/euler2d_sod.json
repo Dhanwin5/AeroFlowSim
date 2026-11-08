@@ -2,7 +2,7 @@
  "name": "euler2d_sod",
  "title": "Sod shock tube with the 2D Euler solver (along x, and along a diagonal of a triangle mesh)",
  "case": "cases/sod_shock_tube",
- "date": "2026-11-07",
+ "date": "2026-11-08",
  "comparisons": [
   {
    "reference": {
@@ -156,12 +156,12 @@
    [
     "along x, quads",
     "800",
-    "0.2"
+    "0.5"
    ],
    [
     "diagonal, triangles",
     "20,000",
-    "0.4"
+    "0.5"
    ]
   ],
   "notes": [

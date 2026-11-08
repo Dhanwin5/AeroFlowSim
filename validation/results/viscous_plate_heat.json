@@ -2,7 +2,7 @@
  "name": "viscous_plate_heat",
  "title": "Laminar flat plate at Mach 2: recovery temperature and wall heat flux",
  "case": "aeroflowsim/euler (EulerSolver, viscous=Laminar)",
- "date": "2026-11-05",
+ "date": "2026-11-08",
  "comparisons": [
   {
    "reference": {
@@ -48,7 +48,7 @@
     "M2 adiabatic",
     "8,960",
     "10,829",
-    "45",
+    "41",
     "converged",
     "1.0e-08"
    ],
@@ -56,7 +56,7 @@
     "M2 isothermal",
     "8,960",
     "5,041",
-    "21",
+    "20",
     "converged",
     "1.0e-08"
    ]

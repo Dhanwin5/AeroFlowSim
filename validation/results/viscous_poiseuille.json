@@ -2,7 +2,7 @@
  "name": "viscous_poiseuille",
  "title": "Hagen-Poiseuille flow in a tube (laminar, axisymmetric)",
  "case": "aeroflowsim/euler (EulerSolver, axisymmetric, viscous=Laminar)",
- "date": "2026-11-05",
+ "date": "2026-11-08",
  "comparisons": [
   {
    "reference": {
@@ -62,7 +62,7 @@
    [
     "4,000",
     "21,616",
-    "43",
+    "34",
     "converged",
     "1.0e-09",
     "106.8",

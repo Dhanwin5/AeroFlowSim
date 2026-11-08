@@ -2,7 +2,7 @@
  "name": "viscous_couette",
  "title": "Plane Couette flow with viscous heating (laminar, 2D and 3D)",
  "case": "aeroflowsim/euler (EulerSolver, viscous=Laminar)",
- "date": "2026-11-05",
+ "date": "2026-11-08",
  "comparisons": [
   {
    "reference": {
@@ -75,14 +75,14 @@
     "2D",
     "128",
     "15,700",
-    "10.2",
+    "5.4",
     "converged"
    ],
    [
     "3D",
     "128",
     "12,734",
-    "9.4",
+    "5.4",
     "converged"
    ]
   ],

@@ -2,7 +2,7 @@
  "name": "viscous_cylinder_re40",
  "title": "Laminar cylinder at Re = 40 (2D)",
  "case": "cases/external_2d",
- "date": "2026-11-05",
+ "date": "2026-11-08",
  "comparisons": [
   {
    "reference": {
@@ -84,7 +84,7 @@
     "1.5461",
     "2.217",
     "0.5276",
-    "47"
+    "41"
    ],
    [
     "Fine",
@@ -95,7 +95,7 @@
     "1.5414",
     "2.280",
     "0.5260",
-    "500"
+    "6456"
    ]
   ],
   "notes": [
