@@ -219,9 +219,10 @@ and published validation. 0.3.0 completes the 3D workflow:
 - **3D Results**: Cp (or any field) along a cut of the walls, report definitions, snapshots and comparison.
 - **3D geometry**: pick edges for a local cell size, fillet, chamfer; split bodies by a plane.
 - **Honest validation**: the bow-shock stand-off on tetrahedra was traced to shock-layer resolution plus the gap of
-  Billig's correlation (the solver's structured-grid answer is converged; the tetrahedral one converges to it). The
-  new 3D-vs-axisymmetric nozzle case passes for Isp and is a documented SHORTFALL for mass flow / thrust on the default
-  mesh. Every SHORTFALL is listed in `validation/report.md`.
+  Billig's correlation (the structured-grid answer is converged; the tetrahedral one levels off about 3.5 % above it,
+  an open gap). ONERA M6 (Euler, NASA data) passes its pre-registered Cp limit, just inside (0.0996 vs 0.10). The new
+  3D-vs-axisymmetric nozzle case passes for Isp and is a documented SHORTFALL for mass flow / thrust on the default
+  mesh; the 3D laminar CubeSat nozzle passes. Every SHORTFALL is listed in `validation/report.md`.
 
 Installers: Windows (setup.exe), macOS (.dmg) and Linux (.AppImage), built by GitHub Actions from the tag. Not
 code-signed (see the user guide). Results of 0.2 projects show "needs update": press Run.
@@ -237,3 +238,17 @@ code-signed (see the user guide). Results of 0.2 projects show "needs update": p
 - nozzle_3d_laminar: PASS (Cd ratio 1.0083, tol 3 %; Isp ratio 0.9957, tol 1.5 %), 1,126 s.
 - ONERA M6: the user approved downloading the NASA NPARC files (airfoil.txt, foilmod.txt, cp1-7 l/u .ex) into
   validation/onera_m6/data/ (sources in its README).
+- ONERA M6 case built (validate.py): loft of foilmod.txt, sideslip 3.06 deg in the half domain, sizes 0.012 / 0.25 m.
+
+### Ledger 6 - full validation, ONERA M6 (2026-11-08)
+Done: full validation run. 215 earlier validated numbers bit for bit unchanged (script compared every "measured" with the
+committed JSON; only timings differ) - rule 4 holds. ONERA M6 Euler PASS: mean Cp RMS 0.0996 (limit 0.10, 612,023
+cells, 7,057 s); Spalart-Allmaras not run (SHORTFALL). report.md rebuilt; the turbulent flat plate is listed NOT RUN.
+Anomalies (both bugs in my script, fixed before the counted run, tolerance untouched):
+- Gmsh failed on the wing ("identical points"): one closed spline through the sharp trailing edge overshoots; now an
+  upper and a lower spline meet at the trailing edge.
+- First M6 result 0.996: the NPARC .ex files list -Cp (suction positive). The script now negates them (README notes it).
+- validation/run_all.py refused to rebuild the report while a case had no saved result; it now lists it as NOT RUN and
+  the overall verdict stays FAIL.
+User said yes (8 Nov) to push, tag v0.3.0 and the GitHub release.
+Next: examples, installer smoke build, push, tag, release.

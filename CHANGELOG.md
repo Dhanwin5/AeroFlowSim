@@ -21,8 +21,11 @@
   0.2139 R but levels off about 3.5 % above it: resolution is most of the gap, a smaller simplex part remains open.
   Tool: `tools/shock_position_study.py`.
 - **Validation**: new `nozzle_3d` (3D quarter vs axisymmetric: Isp PASS 0.49 %, mass flow +2.8 % and thrust +2.3 %
-  SHORTFALL vs the pre-registered 2 %), `nozzle_3d_laminar` (3D CubeSat with prism layers). ONERA M6: not run (the
-  ONERA D section coordinates are not in the repository) - SHORTFALL; sphere Re 100: PENDING REFERENCE.
+  SHORTFALL vs the pre-registered 2 %), `nozzle_3d_laminar` (3D CubeSat with prism layers: Cd 0.83 %, Isp 0.43 % - PASS), `onera_m6` (Euler, M 0.8395,
+  3.06 deg, 612k tetrahedra, NASA NPARC data: mean Cp RMS over six sections 0.0996, pre-registered limit 0.10 - PASS, just
+  inside; Spalart-Allmaras not run - SHORTFALL); sphere Re 100: PENDING REFERENCE.
+- `validation/report.md` lists cases with no saved result as NOT RUN (the turbulent flat plate) instead of refusing to
+  rebuild.
 - No validated number of earlier cases changed (no default, scheme or template file of an existing case changed).
 - As at every release the version is part of every fingerprint: results of 0.2 projects are shown as "needs
   update" (Run brings them up to date; the examples are regenerated).
