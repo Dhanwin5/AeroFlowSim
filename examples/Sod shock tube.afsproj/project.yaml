@@ -1,10 +1,10 @@
 format_version: 1
-aeroflowsim_version: 0.2.0a1
+aeroflowsim_version: 0.3.0
 template: sod_shock_tube
 template_title: Sod shock tube
 template_fingerprint: 66c6230c79bc1f1f6986c509f6a3aed6c88bcf380ecd6452783663a6c11d62b0
-created: '2026-10-26T20:37:57'
-modified: '2026-10-26T20:37:58'
+created: '2026-11-08T17:32:24'
+modified: '2026-11-08T17:32:25'
 inputs:
   rho_L: 1.0
   u_L: 0.0
@@ -20,12 +20,12 @@ inputs:
   cfl: 0.5
 steps:
   mesh:
-    fingerprint: 99ddd51f0c3b1e398cc82e64046b7e69c7b65e8ca38af701dd4847b8366594ae
-    time: '2026-10-26T20:37:57'
+    fingerprint: c367997132ceb2c26d40f9023700b6a28b031691f8a25bf25ed800b3c2501e42
+    time: '2026-11-08T17:32:24'
     cells: 400
   run:
-    fingerprint: 027161432fa6d838b8d41180b7f71ece5e40f9cf455ec107cfb3a258614bf496
-    time: '2026-10-26T20:37:58'
+    fingerprint: f49beb4fb6d6be36f29aa3f63df84254af097c3a2411c40c40496257eb969bb8
+    time: '2026-11-08T17:32:25'
     converged: true
     iterations: 349
     run_s: null
@@ -36,3 +36,6 @@ scenes: {}
 xy_plots: {}
 init_patches: []
 interpolate_new_mesh: true
+animation:
+  record: true
+  every: 0

@@ -1,10 +1,10 @@
 format_version: 1
-aeroflowsim_version: 0.2.0a3
+aeroflowsim_version: 0.3.0
 template: external_3d
 template_title: Body in free stream (3D Euler)
-template_fingerprint: 92ba946f9b787278ccc46bbe742110e7eb954e3078fe25de5e2afecee36f358d
-created: '2026-11-04T14:09:02'
-modified: '2026-11-04T14:09:02'
+template_fingerprint: 3b1a18c5dd42aeda6df8ce60784261d5e53aa393b7f33da74a565200b610ab5d
+created: '2026-11-08T17:32:25'
+modified: '2026-11-08T17:32:25'
 inputs:
   body_shape: Sphere
   diameter: 0.1
@@ -34,6 +34,10 @@ inputs:
   reference_area: 0.0
   reference_length: 0.0
   mesh_only: false
+  flow_model: Euler
+  turb_freestream: TMR recommended
+  turb_intensity: 0.1
+  turb_viscosity_ratio: 1.0
   boundaries: {}
   cfl: 0.8
   order: Second order (MUSCL)
@@ -41,12 +45,13 @@ inputs:
   limiter: Venkatakrishnan
   venkat_k: 1.0
   freeze_limiter: 4.0
-  gradient: Green-Gauss
+  gradient: Green-Gauss (node values)
   time_scheme: Implicit LU-SGS
   max_iter: 8000
   tol: 1.0e-06
   monitor_tol: 0.0001
   monitor_window: 300
+  update_limit: 0.2
   carbuncle_fix: true
 steps: {}
 surfaces: []

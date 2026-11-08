@@ -1,0 +1,73 @@
+format_version: 1
+aeroflowsim_version: 0.3.0
+template: nozzle_3d
+template_title: 3D nozzle (3D Euler)
+template_fingerprint: fc69a9a033fd8d025b79f49c202a2190d282822f136e66edece05422a0ebfe97
+created: '2026-11-08T17:33:46'
+modified: '2026-11-08T17:36:54'
+inputs:
+  d_inlet: 0.002
+  L_inlet: 0.00133
+  half_angle_conv: 30.0
+  d_throat: 0.00028
+  half_angle_div: 15.0
+  d_exit: 0.000911
+  Rcu_ratio: 0.0
+  Rcd_ratio: 0.0
+  quarter_domain: true
+  plume: true
+  plume_length: 5.0
+  plume_radius: 2.0
+  surface_size: 0.2
+  farfield_size: 1.0
+  size_growth: 1.25
+  curvature_cells: 24
+  inflation: false
+  first_layer_height: 0.0005
+  n_layers: 5
+  growth_rate: 1.2
+  gas: N2
+  p0: 500000.0
+  T0: 293.15
+  p_back: 1000.0
+  flow_model: Euler
+  turb_freestream: TMR recommended
+  turb_intensity: 0.1
+  turb_viscosity_ratio: 1.0
+  boundaries: {}
+  cfl: 0.8
+  order: Second order (MUSCL)
+  first_order_iterations: 100
+  limiter: Venkatakrishnan
+  venkat_k: 1.0
+  freeze_limiter: 4.0
+  gradient: Green-Gauss (node values)
+  time_scheme: Implicit LU-SGS
+  max_iter: 20000
+  tol: 1.0e-06
+  monitor_tol: 0.0001
+  monitor_window: 300
+  update_limit: 0.2
+  carbuncle_fix: true
+steps:
+  mesh:
+    fingerprint: d0372a4ff1b43d6cc76c750400ba56757b02035cc1b8c6a475bd456a7dd64d6d
+    time: '2026-11-08T17:33:48'
+    cells: 22523
+  run:
+    fingerprint: fd424241fed039cb5891b0cc203fd10eb04b6df537f1e0b4cebb26cfadac9393
+    time: '2026-11-08T17:36:54'
+    converged: false
+    iterations: 20000
+    run_s: null
+    status: max_iterations
+surfaces: []
+report_definitions: []
+custom_fields: {}
+scenes: {}
+xy_plots: {}
+init_patches: []
+interpolate_new_mesh: true
+animation:
+  record: false
+  every: 0

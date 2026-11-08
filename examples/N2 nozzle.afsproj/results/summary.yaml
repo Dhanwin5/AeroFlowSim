@@ -128,6 +128,22 @@ parameters:
     value: Quasi-1D solution
     unit: ''
     label: Initial solution
+  flow_model:
+    value: Euler
+    unit: ''
+    label: Flow model
+  turb_freestream:
+    value: TMR recommended
+    unit: ''
+    label: Free-stream turbulence
+  turb_intensity:
+    value: 0.1
+    unit: '%'
+    label: Turbulence intensity
+  turb_viscosity_ratio:
+    value: 1.0
+    unit: '-'
+    label: Eddy-viscosity ratio mu_t / mu
   boundaries:
     value: {}
     unit: ''
@@ -161,7 +177,7 @@ parameters:
     unit: ''
     label: Gradients
   time_scheme:
-    value: SSP-RK3
+    value: Implicit LU-SGS
     unit: ''
     label: Time stepping
   max_iter:
@@ -180,88 +196,92 @@ parameters:
     value: 500
     unit: '-'
     label: Monitor window
+  update_limit:
+    value: 0.0
+    unit: '-'
+    label: Implicit update limit
   carbuncle_fix:
     value: true
     unit: ''
     label: Carbuncle fix (HLLE near strong shocks)
 converged: true
-iterations: 8095
-final_residual: 9.894263028731458e-07
+iterations: 7908
+final_residual: 9.995574877867246e-07
 key_numbers:
   mdot:
-    value: 6.763121383602134e-05
+    value: 6.763121085123888e-05
     unit: kg/s
   mdot_inlet:
-    value: 6.76316185274865e-05
+    value: 6.763117045191516e-05
     unit: kg/s
   mdot_exit:
-    value: 6.763121383602134e-05
+    value: 6.763121085123888e-05
     unit: kg/s
   mdot_1D:
     value: 7.146926742576224e-05
     unit: kg/s
   discharge_coefficient:
-    value: 0.9462978462214177
+    value: 0.9462978044582577
     unit: '-'
   M_exit:
-    value: 3.9425926089068883
+    value: 3.942592727628775
     unit: '-'
   p_exit:
-    value: 3413.3450777070143
+    value: 3413.345266283203
     unit: Pa
   p0_exit:
-    value: 485488.4073522932
+    value: 485488.57415400696
     unit: Pa
   F_vacuum:
-    value: 0.04739073843703309
+    value: 0.0473907437873169
     unit: N
   F_vacuum_wall:
-    value: 0.04739128611644983
+    value: 0.04739065390273067
     unit: N
   thrust_difference:
-    value: 0.0011556676152291098
+    value: 0.000189666966673558
     unit: '%'
   F_at_p_back:
-    value: 0.04673892000786812
+    value: 0.046738925358151925
     unit: N
   Isp_vacuum:
-    value: 71.45384740011912
+    value: 71.45385862054965
     unit: s
   Isp_vacuum_wall:
-    value: 71.45467316909335
+    value: 71.45372309618344
     unit: s
   Cf_vacuum:
-    value: 1.5392796487814082
+    value: 1.5392798225618398
     unit: '-'
   Isp_quasi1D:
     value: 72.52552406093923
     unit: s
   Isp_2D_over_quasi1D:
-    value: 0.985223455125679
+    value: 0.9852236098357715
     unit: '-'
   A_throat:
     value: 6.157521601035994e-08
     unit: m²
   wall_time:
-    value: 68.70556540007237
+    value: 4.651652600150555
     unit: s
   positivity_events:
     value: 0.0
     unit: '-'
   cfl_final:
-    value: 0.8
+    value: 100.0
     unit: '-'
 max_error_vs_reference: {}
 checks:
 - name: Convergence
   level: info
   message: The residual dropped 6.0 orders of magnitude.
-  value: 6.004616548549534
+  value: 6.000192223146082
   unit: orders
 - name: Mass balance
   level: info
-  message: Inlet and exit mass flow agree within 0.0006 %.
-  value: 0.0005983779255478166
+  message: Inlet and exit mass flow agree within 6e-05 %.
+  value: 5.973475157757224e-05
   unit: '%'
 - name: Run status
   level: info
@@ -271,21 +291,21 @@ checks:
 - name: Monitors settled
   level: info
   message: 'The monitors changed less than 0.01 % over the last 500 iterations (largest:
-    Thrust (vacuum), exit plane, 0.0003 %).'
-  value: 0.0003019658147271161
+    Mass flow out, 2.9e-06 %).'
+  value: 2.9191852906621813e-06
   unit: '%'
 - name: Thrust two ways
   level: info
-  message: The exit-plane and wall-pressure thrusts agree within 0.0012 % (momentum
+  message: The exit-plane and wall-pressure thrusts agree within 0.00019 % (momentum
     balance).
-  value: 0.0011556676152291098
+  value: 0.000189666966673558
   unit: '%'
 - name: Total-pressure loss
   level: warning
   message: 'The exit total pressure is 2.9 % below the inlet total pressure (an isentropic
     nozzle loses nothing). This is numerical (or a shock in the nozzle): refine the
     mesh, especially at the throat.'
-  value: 2.902318529541359
+  value: 2.902285169198604
   unit: '%'
 - name: Positivity
   level: info
@@ -294,21 +314,21 @@ checks:
   unit: ''
 - name: CFL number
   level: info
-  message: No CFL reductions were needed (CFL 0.8).
+  message: No CFL reductions were needed (CFL 100).
   value: null
   unit: ''
 - name: Ideal gas
   level: info
   message: The ideal-gas law holds within 0.37 % (largest |Z - 1|, Peng-Robinson estimate,
     in the flow (136.3 kPa, 201.8 K)).
-  value: 0.36620149444139827
+  value: 0.36620180761017807
   unit: '%'
   quantities:
-  - value: 136256.81227326795
+  - value: 136257.22916107066
     unit: Pa
     digits: 4
     delta: false
-  - value: 201.84396995332722
+  - value: 201.84409690446452
     unit: K
     digits: 4
     delta: false
@@ -322,30 +342,30 @@ checks:
     the vapour-pressure curve (Clausius-Clapeyron); the true frost point is somewhat
     higher (N2 at the default exit: about 0.6 K), so read this margin as an upper
     limit.'
-  value: 11.316632175298196
+  value: 11.31662513307559
   unit: K
   quantities:
   - value: 0.6
     unit: K
     digits: 2
     delta: true
-  - value: 71.06281107975403
+  - value: 71.06295737227597
     unit: K
     digits: 4
     delta: false
-  - value: 2802.460930298446
+  - value: 2802.4614359342613
     unit: Pa
     digits: 4
     delta: false
-  - value: 55.92000947753618
+  - value: 55.92001024935497
     unit: K
     digits: 4
     delta: false
-  - value: 15.142801602217844
+  - value: 15.142947122921008
     unit: K
     digits: 3
     delta: true
-  - value: 11.316632175298196
+  - value: 11.31662513307559
     unit: K
     digits: 3
     delta: true
@@ -358,14 +378,14 @@ checks:
   level: info
   message: Temperatures 67.41 K to 293.2 K are inside the valid range of the gas data
     (63.15 K to 521.2 K).
-  value: 67.41071135362243
+  value: 67.41070629264259
   unit: K
   quantities:
-  - value: 67.41071135362243
+  - value: 67.41070629264259
     unit: K
     digits: 4
     delta: false
-  - value: 293.1521086469233
+  - value: 293.15219491014625
     unit: K
     digits: 4
     delta: false
@@ -421,19 +441,23 @@ run:
   mesh_signature: c44e7a6275ec2bae
   continued_from: null
   residual_norm:
-  - 1269927.812869138
-  - 474174434.53225046
+  - 1277908.038466897
+  - 494935278.9810606
   - 2349198823.700142
-  - 369851385972.5849
+  - 375180251858.64294
   message: ''
   kind: nozzle
   axisymmetric: true
   positivity_events: 0
   positivity_last: 0
+  limited_updates: 0
   cfl_reductions: 0
-  cfl_final: 0.8
-  wall_time_s: 68.70556540007237
-  limiter_frozen_at: 3911
+  cfl_final: 100.0
+  wall_time_s: 4.651652600150555
+  limiter_frozen_at: 1408
+  backend: numba
+  threads: 16
+  backend_note: ''
   diverged_at: null
   L_ref: 0.00028
   scales:
@@ -447,6 +471,7 @@ run:
   - x-momentum
   - y-momentum
   - energy
+  dim: 2
   converge_on:
   - thrust
   - mdot_out
@@ -458,7 +483,7 @@ run:
   gamma: 1.4
   report_values:
     exit p0 (mass-weighted):
-    - 485418.43511311023
+    - 485418.6011336644
     - Pa
 boundary_conditions:
   inlet:

@@ -1,10 +1,10 @@
 format_version: 1
-aeroflowsim_version: 0.2.0a1
+aeroflowsim_version: 0.3.0
 template: nozzle_axi
 template_title: Axisymmetric nozzle (2D Euler)
 template_fingerprint: 2ee6d31fc7dd1916d2f79a51a61fb9ad5a6b3b8bdd5441fe8f1a36c70ffac2f0
-created: '2026-10-26T20:36:48'
-modified: '2026-10-26T20:37:57'
+created: '2026-11-08T17:32:19'
+modified: '2026-11-08T17:32:24'
 inputs:
   geometry_source: Parametric (conical)
   d_inlet: 0.002
@@ -37,6 +37,10 @@ inputs:
   T0: 293.15
   p_back: 1000.0
   initialisation: Quasi-1D solution
+  flow_model: Euler
+  turb_freestream: TMR recommended
+  turb_intensity: 0.1
+  turb_viscosity_ratio: 1.0
   boundaries: {}
   cfl: 0.8
   order: Second order (MUSCL)
@@ -45,22 +49,23 @@ inputs:
   venkat_k: 5.0
   freeze_limiter: 4.0
   gradient: least squares
-  time_scheme: SSP-RK3
+  time_scheme: Implicit LU-SGS
   max_iter: 20000
   tol: 1.0e-06
   monitor_tol: 0.0001
   monitor_window: 500
+  update_limit: 0.0
   carbuncle_fix: true
 steps:
   mesh:
-    fingerprint: f37736728e79fba5ae4c8a7c28f2ac9b7efe655169b94700ac4bbcd4daad1e74
-    time: '2026-10-26T20:36:48'
+    fingerprint: 7c8a3494419b680d374ad0a94c381fcb7e08951b0114d141018ef3365134b6f5
+    time: '2026-11-08T17:32:19'
     cells: 2000
   run:
-    fingerprint: b9d8da98db33fc523d8883edcbc98f415ca7b240e0eae11c2371eb437ddb0688
-    time: '2026-10-26T20:37:57'
+    fingerprint: 0bc8c96c165eb39637aaf0ba8b7b44b829d8068c832a13a9f866f15924b05ece
+    time: '2026-11-08T17:32:24'
     converged: true
-    iterations: 8095
+    iterations: 7908
     run_s: null
     status: converged
 surfaces: []
@@ -80,3 +85,6 @@ scenes: {}
 xy_plots: {}
 init_patches: []
 interpolate_new_mesh: true
+animation:
+  record: true
+  every: 0

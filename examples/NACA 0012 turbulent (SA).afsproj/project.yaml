@@ -1,10 +1,10 @@
 format_version: 1
-aeroflowsim_version: 0.2.0a3
+aeroflowsim_version: 0.3.0
 template: external_2d
 template_title: Body in free stream (2D Euler)
 template_fingerprint: 740ebb4c655816b4373dac40c047ba6eda646b0424502cbca6c945200809b3a4
-created: '2026-11-05T11:53:19'
-modified: '2026-11-05T11:53:19'
+created: '2026-11-08T17:32:25'
+modified: '2026-11-08T17:32:25'
 inputs:
   shape: NACA 4-digit airfoil
   diamond.chord: 1.0

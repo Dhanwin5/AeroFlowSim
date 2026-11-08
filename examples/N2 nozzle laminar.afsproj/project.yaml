@@ -1,10 +1,10 @@
 format_version: 1
-aeroflowsim_version: 0.2.0a3
+aeroflowsim_version: 0.3.0
 template: nozzle_axi
 template_title: Axisymmetric nozzle (2D Euler)
 template_fingerprint: 2ee6d31fc7dd1916d2f79a51a61fb9ad5a6b3b8bdd5441fe8f1a36c70ffac2f0
-created: '2026-11-05T11:53:19'
-modified: '2026-11-05T11:53:19'
+created: '2026-11-08T17:32:25'
+modified: '2026-11-08T17:32:25'
 inputs:
   geometry_source: Parametric (conical)
   d_inlet: 0.002
