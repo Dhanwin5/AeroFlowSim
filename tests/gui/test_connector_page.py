@@ -74,23 +74,26 @@ def test_tools_menu_has_the_page(qtbot, tmp_path, settings_file):
     assert "connector" in w.act and "AI assistants" in w.act["connector"].text()
 
 
-def test_add_to_claude_desktop_button(qtbot, tmp_path, settings_file, monkeypatch):
-    """The one-click button: greyed out in a source installation; in the installed program it opens the bundled
-    extension file (a LOCAL file) so that Claude Desktop shows its Install dialog."""
-    from PySide6.QtGui import QDesktopServices
+def test_add_to_claude_button_writes_the_plugin_file(qtbot, tmp_path, settings_file, monkeypatch):
+    """"Add to Claude": writes AeroFlowSim-Claude-plugin.zip (plugin.json with this program and the workspace, and
+    the skill) into the workspace folder, opens that LOCAL folder, and says where to upload it in Claude."""
+    import zipfile
 
-    from aeroflowsim.connector import snippets
-    d = ConnectorDialog()
-    qtbot.addWidget(d)
-    assert not d.add_claude.isEnabled()                  # source installation: nothing bundled
-    ext = tmp_path / "AeroFlowSim-claude.mcpb"
-    ext.write_bytes(b"zip")
-    monkeypatch.setattr(snippets, "extension_file", lambda: ext)
+    from PySide6.QtGui import QDesktopServices
     opened = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
-    d2 = ConnectorDialog()
-    qtbot.addWidget(d2)
-    assert d2.add_claude.isEnabled()
-    d2.add_claude.click()
-    assert opened == [ext.as_posix()] and "Install" in d2.result.text()
-    assert not settings_file.exists()                   # the button changes no AeroFlowSim setting
+    d = ConnectorDialog()
+    qtbot.addWidget(d)
+    ws = tmp_path / "ws"
+    d.workspace.setText(str(ws))
+    d.add_claude.click()
+    path = ws / "AeroFlowSim-Claude-plugin.zip"
+    assert path.is_file() and opened == [ws.as_posix()]
+    assert "Customize > Plugins > Add > Upload" in d.result.text()
+    with zipfile.ZipFile(path) as z:
+        names = z.namelist()
+        manifest = json.loads(z.read(".claude-plugin/plugin.json"))
+    assert "skills/aeroflowsim/SKILL.md" in names
+    server = manifest["mcpServers"]["aeroflowsim"]
+    assert server["command"] == sys.executable
+    assert server["args"][-4:] == ["mcp", "--extension", "--workspace", str(ws)]

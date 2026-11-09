@@ -25,6 +25,7 @@ SolidCompression=yes
 LicenseFile={#SourceDir}\_internal\LICENSE
 UninstallDisplayIcon={app}\AeroFlowSim.exe
 ChangesAssociations=yes
+ChangesEnvironment=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 
@@ -34,6 +35,9 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdi
 [Tasks]
 ; A tick box on the installer's "Additional tasks" page (ticked by default)
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
+; The program folder on the user's PATH, so that Claude (the AeroFlowSim plugin) and terminals can start it by its name
+; "AeroFlowSim" (the folder holds only AeroFlowSim.exe and _internal\; removed again on uninstall)
+Name: "addtopath"; Description: "Let Claude and the command line start AeroFlowSim (add it to PATH)"; GroupDescription: "AI assistants:"
 
 [Icons]
 Name: "{userprograms}\AeroFlowSim"; Filename: "{app}\AeroFlowSim.exe"
@@ -48,5 +52,41 @@ Root: HKCU; Subkey: "Software\Classes\AeroFlowSim.Project"; ValueType: string; V
 Root: HKCU; Subkey: "Software\Classes\AeroFlowSim.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\AeroFlowSim.exe,0"
 Root: HKCU; Subkey: "Software\Classes\AeroFlowSim.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\AeroFlowSim.exe"" ""%1"""
 
+; the user's PATH (HKCU, no administrator rights): appended once, removed on uninstall ([Code] below)
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}'))
+
 [Run]
 Filename: "{app}\AeroFlowSim.exe"; Description: "Start AeroFlowSim"; Flags: nowait postinstall skipifsilent
+
+[Code]
+{ True when the folder is not yet on the user's PATH (so a re-install does not add it twice). }
+function NeedsAddPath(Folder: string): Boolean;
+var
+  Paths: string;
+begin
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', Paths) then
+  begin
+    Result := True;
+    exit;
+  end;
+  Result := Pos(';' + Uppercase(Folder) + ';', ';' + Uppercase(Paths) + ';') = 0;
+end;
+
+{ On uninstall: take the program folder out of the user's PATH again. }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Paths, Folder: string;
+  P: Integer;
+begin
+  if CurUninstallStep <> usPostUninstall then
+    exit;
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', Paths) then
+    exit;
+  Folder := ExpandConstant('{app}');
+  P := Pos(';' + Uppercase(Folder), Uppercase(Paths));
+  if P > 0 then
+  begin
+    Delete(Paths, P, Length(Folder) + 1);
+    RegWriteExpandStringValue(HKCU, 'Environment', 'Path', Paths);
+  end;
+end;

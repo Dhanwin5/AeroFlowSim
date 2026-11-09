@@ -1,26 +1,24 @@
 {
   "name": "aeroflowsim",
   "displayName": "AeroFlowSim",
-  "version": "0.2.0",
-  "description": "Drive the AeroFlowSim CFD program (nozzles, propulsion, external aerodynamics) from Claude: a skill with the workflow and honesty rules, and the local AeroFlowSim MCP server (stdio, no network).",
+  "version": "0.3.2",
+  "description": "Set up, mesh, run and report CFD simulations of nozzles, rocket and CubeSat thrusters and external aerodynamics with the free AeroFlowSim program on your own computer: a skill with the workflow and honesty rules, and the local AeroFlowSim server (no network).",
   "author": {
-    "name": "Dhanwin Mehta"
+    "name": "Dhanwin Mehta",
+    "url": "https://github.com/Dhanwin5"
   },
+  "homepage": "https://github.com/Dhanwin5/AeroFlowSim",
   "repository": "https://github.com/Dhanwin5/AeroFlowSim",
   "license": "GPL-3.0-or-later",
-  "keywords": ["cfd", "aerodynamics", "nozzle", "propulsion", "mcp"],
-  "userConfig": {
-    "python": {
-      "type": "file",
-      "title": "AeroFlowSim program (or its python)",
-      "description": "Installed program: the full path of AeroFlowSim.exe (Windows, e.g. C:\\Users\\<you>\\AppData\\Local\\Programs\\AeroFlowSim\\AeroFlowSim.exe), or of the program inside AeroFlowSim.app / the AppImage. From source: the python that has AeroFlowSim and its [ai] extra. The desktop app shows it in Tools > Use with AI assistants.",
-      "required": true
-    }
-  },
+  "icon": "./logo.png",
+  "documentationUrl": "https://github.com/Dhanwin5/AeroFlowSim/blob/main/docs/user_guide.md",
+  "supportUrl": "https://github.com/Dhanwin5/AeroFlowSim/issues",
+  "privacyPolicyUrl": "https://github.com/Dhanwin5/AeroFlowSim/blob/main/PRIVACY.md",
+  "keywords": ["cfd", "aerodynamics", "nozzle", "propulsion", "rocket", "cubesat", "simulation", "engineering"],
   "mcpServers": {
     "aeroflowsim": {
-      "command": "${user_config.python}",
-      "args": ["-m", "aeroflowsim", "mcp"]
+      "command": "AeroFlowSim",
+      "args": ["mcp", "--extension"]
     }
   }
 }

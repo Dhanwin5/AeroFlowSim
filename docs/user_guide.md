@@ -499,12 +499,17 @@ AeroFlowSim itself works fully without it; nothing of it is loaded until you use
 
 ### Set it up (once)
 
-**Claude Desktop, one click (recommended):** in AeroFlowSim open **Tools > Use with AI assistants** and press **Add to
-Claude Desktop**. Claude Desktop opens its Install dialog with the program and the workspace folder already filled
-in: press **Install**. Done - ask Claude for example "List the AeroFlowSim templates". (Or download
-`AeroFlowSim-<version>-claude-windows.mcpb` from the release page and double-click it.) Installing the extension is
-your permission for Claude to use AeroFlowSim inside the workspace folder; to stop it, switch it off in Claude Desktop
-> Settings > Extensions.
+**Claude (Desktop app), recommended:**
+
+1. In AeroFlowSim open **Tools > Use with AI assistants** and press **Add to Claude: make the plugin file**. It
+   writes `AeroFlowSim-Claude-plugin.zip` into your workspace folder and opens the folder.
+2. In Claude: **Settings > Customize > Plugins > + Add > Upload**, choose that file, press **Upload**.
+3. Start a new chat and ask: "List the AeroFlowSim templates".
+
+Installing the plugin is your permission for Claude to use AeroFlowSim inside the workspace folder; remove or switch
+it off in Claude (Customize > Plugins) to stop it. If you move AeroFlowSim or change the workspace folder, make the
+file again and upload it again. (Older Claude Desktop versions with Settings > Extensions: double-click
+`AeroFlowSim-<version>-claude-windows.mcpb` from the release page instead.)
 
 For Claude Code, other AI apps, or by hand:
 

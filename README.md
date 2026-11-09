@@ -42,9 +42,9 @@ Installers for Windows, macOS (Apple silicon and Intel) and Linux (AppImage): se
 
 ## Use it with Claude or another AI assistant (optional)
 
-**Claude Desktop, one click:** install AeroFlowSim, open **Tools > Use with AI assistants** and press **Add to Claude
-Desktop**, then **Install** in Claude Desktop. (Or double-click `AeroFlowSim-<version>-claude-windows.mcpb` from the
-release page.) Then ask Claude in plain English, for example "thrust and Isp of an N2 thruster, 5 bar, 1 mm throat,
+**Claude Desktop:** install AeroFlowSim, open **Tools > Use with AI assistants**, press **Add to Claude: make the
+plugin file**, then in Claude **Customize > Plugins > Add > Upload** that file.
+Then ask Claude in plain English, for example "thrust and Isp of an N2 thruster, 5 bar, 1 mm throat,
 area ratio 25": it sets up, meshes, checks, runs and reports the project through the same input checks, solver and
 validity checks as the GUI.
 

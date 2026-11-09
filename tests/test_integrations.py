@@ -54,8 +54,14 @@ def test_plugin_manifest_structure():
     data = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     assert data["name"] == "aeroflowsim" and not data["name"].startswith(("claude", "anthropic"))
     server = data["mcpServers"]["aeroflowsim"]
-    assert server["args"] == ["-m", "aeroflowsim", "mcp"] and server["command"] == "${user_config.python}"
-    assert set(data["userConfig"]["python"]) <= {"type", "title", "description", "required", "default"}
+    # directory rules: a plain command (the installed program on PATH), no ${...} variable, no userConfig needed
+    assert server == {"command": "AeroFlowSim", "args": ["mcp", "--extension"]}
+    assert "userConfig" not in data and "${" not in json.dumps(server)
+    assert (PLUGIN / data["icon"]).is_file() and data["license"] == "GPL-3.0-or-later"
+    from aeroflowsim import __version__
+    assert data["version"] == __version__                                  # raise it with every release
+    readme = (PLUGIN / "README.md").read_text(encoding="utf-8")
+    assert len(readme.split()) >= 40 and "What this plugin runs" in readme
     assert (PLUGIN / "skills" / "aeroflowsim" / "SKILL.md").is_file()
     assert not (PLUGIN / ".claude-plugin" / "skills").exists()        # components live at the plugin root
 

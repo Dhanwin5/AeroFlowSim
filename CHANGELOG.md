@@ -1,18 +1,26 @@
 # Changelog
 
-## 0.3.2 - One-click Claude Desktop extension (November 2026)
+## 0.3.2 - Add AeroFlowSim to Claude in a few clicks (November 2026)
 
-- **Add AeroFlowSim to Claude Desktop in one click.** Tools > Use with AI assistants has a button **Add to Claude
-  Desktop**: Claude Desktop opens its own Install dialog with everything filled in (the program and the workspace
-  folder); press Install. No configuration file to edit, no restart. The same extension is attached to every release
-  as `AeroFlowSim-<version>-claude-<windows|macos|linux>.mcpb` (double-click it, or drag it into Claude Desktop >
-  Settings > Extensions).
-- The extension contains no program code: it tells Claude Desktop to start the installed program as
-  `AeroFlowSim mcp --extension --workspace <folder>`. Installing it is the user's permission (Claude Desktop shows
-  what it is and asks first), so the "Allow" tick is not needed for it; its switch in Claude Desktop > Settings >
-  Extensions turns it off. Everything else is unchanged: local only, the workspace folder only, nothing deleted.
-- New: `tools/build_mcpb.py` (the extension, checked against the official MCPB manifest schema v0.3); the installer
-  build bundles it and its smoke test checks it is there; the release workflow attaches it.
+- **Add to Claude.** Tools > Use with AI assistants has a button **Add to Claude: make the plugin file**. It writes
+  `AeroFlowSim-Claude-plugin.zip` into the workspace folder (with the full path of this AeroFlowSim, the workspace
+  folder, the AeroFlowSim skill and the logo) and opens that folder. In Claude: **Customize > Plugins > Add >
+  Upload**, choose the file, Upload. Then ask Claude "List the AeroFlowSim templates". No configuration file to
+  edit. (Current Claude Desktop versions add programs that run on this computer as plugins; "Add custom connector"
+  only takes internet (HTTPS) servers.) Tested in Claude Desktop 4.23118 on Windows.
+- Installing the plugin is the user's permission (Claude shows what it is and asks first), so the "Allow" tick is not
+  needed for it: the plugin starts `AeroFlowSim mcp --extension --workspace <folder>`. Remove or switch off the plugin
+  in Claude to stop it. Everything else is unchanged: local only, the workspace folder only, nothing deleted.
+- The logo: the plugin carries `icon` (read by Anthropic's plugin directory; Claude shows a plain icon for plugins
+  you upload yourself until AeroFlowSim is listed in the directory).
+- Also new: `tools/build_mcpb.py` writes a Claude Desktop extension (.mcpb, checked against the official schema) for
+  Claude Desktop versions that install extensions; attached to every release. The installer bundles the skill and
+  its smoke test checks it.
+- **Ready for Anthropic's plugin directory:** the plugin in `integrations/claude` starts the installed program by
+  its name (`AeroFlowSim mcp --extension`, no path variable, as the directory requires), has a README that says what
+  it runs and sends, the logo, licence, documentation, support and privacy links; new `PRIVACY.md`. The Windows
+  installer has a ticked box "Let Claude and the command line start AeroFlowSim (add it to PATH)" (the user's PATH,
+  removed again on uninstall). Tested: Claude ran `list_templates` through the uploaded plugin in a normal chat.
 - No solver, template or validated number changed (results of 0.3.1 projects show "needs update": press Run).
 
 ## 0.3.1 - The AI connector in the installed program (November 2026)

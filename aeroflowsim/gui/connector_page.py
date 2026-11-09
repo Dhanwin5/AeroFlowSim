@@ -54,24 +54,20 @@ class ConnectorDialog(QDialog):
         form.addRow("Workspace folder", row)
         form.addRow("Ask before runs longer than", self.confirm)
 
-        # One click: open the bundled Claude Desktop extension; Claude Desktop shows its own Install dialog.
-        self.extension = snippets.extension_file()
-        self.add_claude = QPushButton("Add to Claude Desktop (one click)")
+        # "Add to Claude": write the Claude plugin file of this computer (program path + workspace + skill) into the
+        # workspace folder and show it; the user uploads it in Claude > Customize > Plugins > Add > Upload.
+        self.add_claude = QPushButton("Add to Claude: make the plugin file")
         self.add_claude.setObjectName("add_to_claude")
-        self.add_claude.setEnabled(self.extension is not None)
-        self.add_claude.setToolTip(
-            "Opens the AeroFlowSim extension in Claude Desktop: press Install there. Installing it is your "
-            "permission for Claude to use AeroFlowSim inside the workspace folder; turn it off in Claude Desktop "
-            "> Settings > Extensions." if self.extension else
-            "Available in the installed program (a source installation: python tools/build_mcpb.py, then "
-            "double-click the .mcpb file).")
+        self.add_claude.setToolTip("Writes AeroFlowSim-Claude-plugin.zip into the workspace folder. In Claude: Customize "
+                                   "> Plugins > Add > Upload, choose that file. Installing it is your permission for "
+                                   "Claude to use AeroFlowSim inside the workspace folder.")
         self.add_claude.clicked.connect(self._add_to_claude)
 
         self.tabs = QTabWidget()
         python = None                                   # snippets: this Python, or the installed program itself
         program = snippets.server_entry()["command"]
         self._add_tab("Claude Desktop", snippets.claude_desktop_json(python),
-                      "Easiest: the button 'Add to Claude Desktop' above. By hand: add this to "
+                      "Easiest: the button 'Add to Claude' above. By hand (older Claude Desktop versions): add this to "
                       f"{snippets.desktop_config_location()} (Claude Desktop: Settings > Developer > Edit Config), "
                       "then quit and restart Claude Desktop.")
         self._add_tab("Claude Code", "\n".join(snippets.claude_code_plugin_commands()) + "\n\n# or the server alone:\n"
@@ -118,16 +114,21 @@ class ConnectorDialog(QDialog):
         self.tabs.addTab(page, title)
 
     def _add_to_claude(self):
-        """Open the local .mcpb file with the program the system links to it (Claude Desktop)."""
+        """Write the plugin file into the workspace folder, open that folder, and say what to do in Claude."""
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
-        if self.extension is None:
+
+        from aeroflowsim.connector.plugin_file import write_plugin_file
+        self.apply()                                   # the workspace shown is the one written into the plugin
+        workspace = self.s.workspace_path()
+        try:
+            path = write_plugin_file(workspace, workspace)
+        except OSError as error:
+            self.result.setText(f"Could not write the plugin file: {error}")
             return
-        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.extension))):
-            self.result.setText("Claude Desktop did not open the extension. Is Claude Desktop installed? You can also "
-                                f"drag this file into Claude Desktop > Settings > Extensions: {self.extension}")
-        else:
-            self.result.setText("Claude Desktop opened the AeroFlowSim extension: press Install there.")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))     # show the (local) folder
+        self.result.setText(f"Plugin file made: {path}\nIn Claude: Customize > Plugins > Add > Upload, choose this "
+                            "file, then Upload. Then ask Claude: \"List the AeroFlowSim templates\".")
 
     def _choose_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Workspace folder of the AI connector", self.workspace.text())

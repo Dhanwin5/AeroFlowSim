@@ -120,6 +120,9 @@ def pyinstaller():
     named = BUILD / "claude" / "AeroFlowSim-claude.mcpb"
     shutil.copyfile(ext, named)
     args += ["--add-data", f"{named}{';' if sys.platform == 'win32' else ':'}claude"]
+    # the skill, for the plugin file made by the "Add to Claude" button (aeroflowsim/connector/plugin_file.py)
+    skill = ROOT / "integrations" / "claude" / "skills" / "aeroflowsim"
+    args += ["--add-data", f"{skill}{';' if sys.platform == 'win32' else ':'}claude/skill"]
     args.append(str(ROOT / "tools" / "installer" / "aeroflowsim_app.py"))
     subprocess.run(args, check=True, cwd=ROOT)
     # cases are found next to the package (aeroflowsim/discovery.py: the package folder's parent)
@@ -247,6 +250,8 @@ def smoke(folder):
     if bundled is not None:
         assert bundled.is_file(), f"the Claude Desktop extension is missing: {bundled}"
         print("Claude extension bundled:", bundled.name)
+        skill = exe.parent / "_internal" / "claude" / "skill" / "SKILL.md"
+        assert skill.is_file(), f"the skill for the Claude plugin file is missing: {skill}"
     print("Smoke test passed")
 
 
