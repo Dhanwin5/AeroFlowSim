@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.2 - One-click Claude Desktop extension (November 2026)
+
+- **Add AeroFlowSim to Claude Desktop in one click.** Tools > Use with AI assistants has a button **Add to Claude
+  Desktop**: Claude Desktop opens its own Install dialog with everything filled in (the program and the workspace
+  folder); press Install. No configuration file to edit, no restart. The same extension is attached to every release
+  as `AeroFlowSim-<version>-claude-<windows|macos|linux>.mcpb` (double-click it, or drag it into Claude Desktop >
+  Settings > Extensions).
+- The extension contains no program code: it tells Claude Desktop to start the installed program as
+  `AeroFlowSim mcp --extension --workspace <folder>`. Installing it is the user's permission (Claude Desktop shows
+  what it is and asks first), so the "Allow" tick is not needed for it; its switch in Claude Desktop > Settings >
+  Extensions turns it off. Everything else is unchanged: local only, the workspace folder only, nothing deleted.
+- New: `tools/build_mcpb.py` (the extension, checked against the official MCPB manifest schema v0.3); the installer
+  build bundles it and its smoke test checks it is there; the release workflow attaches it.
+- No solver, template or validated number changed (results of 0.3.1 projects show "needs update": press Run).
+
 ## 0.3.1 - The AI connector in the installed program (November 2026)
 
 - **The installed program now includes the AI connector.** 0.3.0 installers left out the MCP package, so Claude and

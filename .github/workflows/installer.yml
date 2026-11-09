@@ -76,9 +76,24 @@ jobs:
           name: pypi-package
           path: dist/*
 
+  # The one-click Claude Desktop extensions (.mcpb, one per operating system; tools/build_mcpb.py): no program code,
+  # only the instruction to start the installed AeroFlowSim program as the AI connector.
+  claude-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -e . && python tools/build_mcpb.py --out extension
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-extension
+          path: extension/*
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, pypi-package]
+    needs: [build, pypi-package, claude-extension]
     runs-on: ubuntu-latest
     permissions:
       contents: write

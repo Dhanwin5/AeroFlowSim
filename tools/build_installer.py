@@ -111,6 +111,15 @@ def pyinstaller():
     for src, dst in data:
         if src.exists():
             args += ["--add-data", f"{src}{';' if sys.platform == 'win32' else ':'}{dst}"]
+    # the one-click Claude Desktop extension of this operating system (tools/build_mcpb.py), for the button in
+    # Tools > Use with AI assistants
+    sys.path.insert(0, str(ROOT / "tools"))
+    import build_mcpb
+    platform = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
+    ext = build_mcpb.build(platform, BUILD / "claude")
+    named = BUILD / "claude" / "AeroFlowSim-claude.mcpb"
+    shutil.copyfile(ext, named)
+    args += ["--add-data", f"{named}{';' if sys.platform == 'win32' else ':'}claude"]
     args.append(str(ROOT / "tools" / "installer" / "aeroflowsim_app.py"))
     subprocess.run(args, check=True, cwd=ROOT)
     # cases are found next to the package (aeroflowsim/discovery.py: the package folder's parent)
@@ -234,6 +243,10 @@ def smoke(folder):
                        stdin=subprocess.DEVNULL)
     print("AI connector:", c.stdout.strip()[:200] or c.stderr.strip()[-300:])
     assert '"ok": true' in c.stdout, c.stdout[-2000:] + c.stderr[-2000:]
+    bundled = (exe.parent / "_internal" / "claude" / "AeroFlowSim-claude.mcpb") if sys.platform == "win32" else None
+    if bundled is not None:
+        assert bundled.is_file(), f"the Claude Desktop extension is missing: {bundled}"
+        print("Claude extension bundled:", bundled.name)
     print("Smoke test passed")
 
 

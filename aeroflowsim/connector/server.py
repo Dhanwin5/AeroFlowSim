@@ -87,9 +87,18 @@ def build_server(api: Api):
     return server
 
 
-def main(settings=None) -> int:
-    """Entry of  aeroflowsim mcp : refuse unless allowed, then serve over stdio until the client closes."""
+def main(settings=None, extension=False, workspace=None) -> int:
+    """Entry of  aeroflowsim mcp : refuse unless allowed, then serve over stdio until the client closes.
+
+    extension: started by the AeroFlowSim extension of Claude Desktop (`mcp --extension`). Installing that extension
+    is the user's explicit opt-in (Claude Desktop shows its name, description and workspace folder and asks before it
+    installs; its switch in Settings > Extensions turns it off), so the "Allow" setting is not needed there.
+    workspace: the folder chosen in the extension's settings (else the saved setting)."""
     settings = settings or load_settings()
+    if extension:
+        settings.allow = True
+    if workspace:
+        settings.workspace = str(workspace)
     if not settings.allow:
         print(OFF_MESSAGE, file=sys.stderr)
         return 2

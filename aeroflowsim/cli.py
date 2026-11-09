@@ -270,8 +270,13 @@ def main(argv=None):
     assist.add_argument("--allow-online", action="store_true", help="online: confirm that the text may leave this computer")
     assist_key = commands.add_parser("assist-key", help="store or remove the online provider's key in the OS keyring")
     assist_key.add_argument("action", choices=("set", "delete"))
-    commands.add_parser("mcp", help="AI connector: serve AeroFlowSim to an AI assistant (Claude, any MCP client) over "
-                                    "stdio; off until allowed with  settings --allow-ai-connector on")
+    mcp_parser = commands.add_parser("mcp", help="AI connector: serve AeroFlowSim to an AI assistant (Claude, any MCP "
+                                                 "client) over stdio; off until allowed with  settings "
+                                                 "--allow-ai-connector on")
+    mcp_parser.add_argument("--extension", action="store_true",
+                            help="started by the Claude Desktop extension (installing it is the opt-in)")
+    mcp_parser.add_argument("--workspace", default=None, metavar="FOLDER",
+                            help="the only folder the assistant may use (default: the saved setting)")
     settings = commands.add_parser("settings", help="show or change the AI connector settings")
     settings.add_argument("--allow-ai-connector", choices=("on", "off"), default=None,
                           help="let AI assistants use AeroFlowSim through  aeroflowsim mcp  (default off)")
@@ -282,7 +287,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.command == "mcp":
         from aeroflowsim.connector.server import main as mcp_main
-        return mcp_main()
+        return mcp_main(extension=args.extension, workspace=args.workspace)
     if args.command == "settings":
         return command_settings(args)
     if args.command == "run":

@@ -250,3 +250,49 @@ def test_snippets_for_the_installed_program(monkeypatch):
     assert '"args": [\n        "mcp"' in snippets.claude_desktop_json()
     # an explicit python (a source installation) keeps the python form
     assert snippets.server_entry("py.exe")["args"] == ["-m", "aeroflowsim", "mcp"]
+
+
+def test_claude_desktop_extension(tmp_path):
+    """The one-click extension (tools/build_mcpb.py): a valid bundle whose start command, exactly as Claude Desktop
+    runs it (`<program> mcp --extension --workspace <folder>`), serves the connector although "Allow" was never
+    ticked (installing the extension is the opt-in), inside the chosen workspace only."""
+    pytest.importorskip("mcp")
+    import json
+    import zipfile
+
+    from mcp import Client, StdioServerParameters
+    sys_path = str(ROOT / "tools")
+    import sys
+    sys.path.insert(0, sys_path)
+    try:
+        import build_mcpb
+    finally:
+        sys.path.remove(sys_path)
+    files = {}
+    for platform in build_mcpb.PROGRAMS:
+        path = build_mcpb.build(platform, tmp_path / "dist")
+        with zipfile.ZipFile(path) as z:
+            assert sorted(z.namelist()) == ["icon.png", "manifest.json"]       # no code inside, only instructions
+            files[platform] = json.loads(z.read("manifest.json"))
+    m = files["windows"]
+    assert m["server"]["type"] == "binary" and m["compatibility"]["platforms"] == ["win32"]
+    assert [t["name"] for t in m["tools"]] == TOOLS
+    assert m["user_config"]["program"]["default"].endswith("AeroFlowSim/AeroFlowSim.exe")
+    args = m["server"]["mcp_config"]["args"]
+    assert args[:2] == ["mcp", "--extension"]
+
+    ws = tmp_path / "ws"
+    settings = tmp_path / "never_allowed.json"                                  # missing file: "Allow" is off
+    real = [ws.as_posix() if a == "${user_config.workspace}" else a for a in args]
+    params = StdioServerParameters(command=PYTHON, args=["-m", "aeroflowsim", *real], cwd=str(ROOT),
+                                   env={**os.environ, "AEROFLOWSIM_CONNECTOR_SETTINGS": str(settings)})
+
+    async def main():
+        async with Client(params, read_timeout_seconds=120) as client:
+            names = [t.name for t in (await client.list_tools()).tools]
+            made = await call(client, "create_project", template="sod_shock_tube", name="ext")
+            return names, made
+
+    names, made = asyncio.run(main())
+    assert names == TOOLS and made["ok"], made
+    assert (ws / "ext.afsproj").is_dir() and not settings.exists()            # the workspace chosen; settings untouched

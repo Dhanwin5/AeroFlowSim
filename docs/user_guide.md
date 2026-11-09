@@ -499,6 +499,16 @@ AeroFlowSim itself works fully without it; nothing of it is loaded until you use
 
 ### Set it up (once)
 
+**Claude Desktop, one click (recommended):** in AeroFlowSim open **Tools > Use with AI assistants** and press **Add to
+Claude Desktop**. Claude Desktop opens its Install dialog with the program and the workspace folder already filled
+in: press **Install**. Done - ask Claude for example "List the AeroFlowSim templates". (Or download
+`AeroFlowSim-<version>-claude-windows.mcpb` from the release page and double-click it.) Installing the extension is
+your permission for Claude to use AeroFlowSim inside the workspace folder; to stop it, switch it off in Claude Desktop
+> Settings > Extensions.
+
+For Claude Code, other AI apps, or by hand:
+
+
 1. **Installed program (the installer from the release page):** nothing to install, the connector is included.
    **From source:** in the AeroFlowSim folder, `.venv\Scripts\python.exe -m pip install -e ".[ai]"` (it adds the
    official MCP Python package, `mcp`).

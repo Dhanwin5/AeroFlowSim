@@ -72,3 +72,25 @@ def test_tools_menu_has_the_page(qtbot, tmp_path, settings_file):
     w = MainWindow(QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat))
     qtbot.addWidget(w)
     assert "connector" in w.act and "AI assistants" in w.act["connector"].text()
+
+
+def test_add_to_claude_desktop_button(qtbot, tmp_path, settings_file, monkeypatch):
+    """The one-click button: greyed out in a source installation; in the installed program it opens the bundled
+    extension file (a LOCAL file) so that Claude Desktop shows its Install dialog."""
+    from PySide6.QtGui import QDesktopServices
+
+    from aeroflowsim.connector import snippets
+    d = ConnectorDialog()
+    qtbot.addWidget(d)
+    assert not d.add_claude.isEnabled()                  # source installation: nothing bundled
+    ext = tmp_path / "AeroFlowSim-claude.mcpb"
+    ext.write_bytes(b"zip")
+    monkeypatch.setattr(snippets, "extension_file", lambda: ext)
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
+    d2 = ConnectorDialog()
+    qtbot.addWidget(d2)
+    assert d2.add_claude.isEnabled()
+    d2.add_claude.click()
+    assert opened == [ext.as_posix()] and "Install" in d2.result.text()
+    assert not settings_file.exists()                   # the button changes no AeroFlowSim setting

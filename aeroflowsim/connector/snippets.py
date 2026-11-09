@@ -26,6 +26,20 @@ def installed_program() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
+EXTENSION_NAME = "AeroFlowSim-claude.mcpb"        # bundled by tools/build_installer.py into <program>/claude/
+
+
+def extension_file():
+    """The one-click Claude Desktop extension shipped with the installed program (tools/build_mcpb.py), or None
+    (a source installation: build it with  python tools/build_mcpb.py )."""
+    from pathlib import Path
+    base = getattr(sys, "_MEIPASS", None)
+    if not base:
+        return None
+    path = Path(base) / "claude" / EXTENSION_NAME
+    return path if path.is_file() else None
+
+
 def server_entry(python=None) -> dict:
     """How an AI app starts the server: `<python> -m aeroflowsim mcp` (a Python installation), or `<program> mcp`
     (the installed program, when `python` is None)."""
