@@ -8,7 +8,11 @@ built by tools/build_installer.py).
     AeroFlowSim.exe                          start the desktop GUI
     AeroFlowSim.exe "My nozzle.afsproj"      open a project in the GUI; double-clicking the file project.afsproj inside
                                              a project folder does this (file association made by the installer)
-    AeroFlowSim.exe run <case or project>    the command line (also: list, report, export, snapshot, --version)
+    AeroFlowSim.exe run <case or project>    the command line (also: list, report, export, snapshot, settings,
+                                             --version)
+    AeroFlowSim.exe mcp                      the AI connector: an AI app (Claude, any MCP client) starts this and talks
+                                             to it over stdin / stdout. "-m aeroflowsim mcp" is accepted too, so a
+                                             configuration written for a Python installation also works here.
 
 The program is built without a console window; for command-line use it attaches to the console it was started
 from, so its output appears there.
@@ -16,7 +20,31 @@ from, so its output appears there.
 
 import sys
 
-COMMANDS = {"run", "list", "report", "export", "snapshot", "gui", "--version", "-h", "--help"}
+COMMANDS = {"run", "list", "report", "export", "snapshot", "settings", "gui", "--version", "-h", "--help"}
+STDIO_COMMANDS = {"mcp", "mcp-selftest"}           # talk to another program through stdin / stdout (no console)
+
+
+def _stdio_from_handles():
+    """A program built without a console may start with sys.stdin / stdout set to None although the AI app gave it
+    pipes: open them from the standard handles of the process (Windows)."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    import io
+    import msvcrt
+    import os
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetStdHandle.restype = ctypes.c_void_p
+    for name, number, reading in (("stdin", -10, True), ("stdout", -11, False), ("stderr", -12, False)):
+        if getattr(sys, name) is not None:
+            continue
+        handle = kernel32.GetStdHandle(number)
+        if not handle or handle == ctypes.c_void_p(-1).value:
+            continue
+        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY if reading else os.O_WRONLY)
+        raw = os.fdopen(fd, "rb" if reading else "wb", buffering=0)
+        buffered = io.BufferedReader(raw) if reading else io.BufferedWriter(raw)
+        setattr(sys, name, io.TextIOWrapper(buffered, encoding="utf-8", line_buffering=not reading))
 
 
 def _attach_console():
@@ -30,6 +58,16 @@ def _attach_console():
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-psn_")]   # macOS Finder may add a process serial number
+    if args[:2] == ["-m", "aeroflowsim"]:                 # a configuration written for "python -m aeroflowsim ..."
+        args = args[2:]
+    if args and args[0] in STDIO_COMMANDS:
+        _stdio_from_handles()
+        if args[0] == "mcp-selftest":
+            from aeroflowsim.connector.selftest import _client_main
+            _client_main()
+            return 0
+        from aeroflowsim.cli import main as cli
+        return cli(args)
     if args and args[0] in COMMANDS:
         _attach_console()
         from aeroflowsim.cli import main as cli

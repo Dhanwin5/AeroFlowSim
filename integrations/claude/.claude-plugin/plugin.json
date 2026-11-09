@@ -12,8 +12,8 @@
   "userConfig": {
     "python": {
       "type": "file",
-      "title": "Python of your AeroFlowSim installation",
-      "description": "The python executable that has AeroFlowSim and its [ai] extra installed, e.g. C:\\Projects\\AeroFlowSim\\.venv\\Scripts\\python.exe. The desktop app shows it in Tools > Use with AI assistants.",
+      "title": "AeroFlowSim program (or its python)",
+      "description": "Installed program: the full path of AeroFlowSim.exe (Windows, e.g. C:\\Users\\<you>\\AppData\\Local\\Programs\\AeroFlowSim\\AeroFlowSim.exe), or of the program inside AeroFlowSim.app / the AppImage. From source: the python that has AeroFlowSim and its [ai] extra. The desktop app shows it in Tools > Use with AI assistants.",
       "required": true
     }
   },

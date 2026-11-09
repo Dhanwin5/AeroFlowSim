@@ -237,3 +237,16 @@ def test_stdio_server_stays_clean_when_libraries_print(tmp_path):
     names, imp, after = asyncio.run(main())
     assert names == TOOLS and "ok" in imp and after["ok"] and len(after["projects"]) == 1, (imp, after)
     assert time.time() - started < 300
+
+
+def test_snippets_for_the_installed_program(monkeypatch):
+    """Inside AeroFlowSim.exe (PyInstaller sets sys.frozen) the AI app starts the program itself: `<program> mcp`."""
+    import sys
+
+    from aeroflowsim.connector import snippets
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    entry = snippets.server_entry()
+    assert entry == {"command": sys.executable, "args": ["mcp"]}
+    assert '"args": [\n        "mcp"' in snippets.claude_desktop_json()
+    # an explicit python (a source installation) keeps the python form
+    assert snippets.server_entry("py.exe")["args"] == ["-m", "aeroflowsim", "mcp"]

@@ -499,18 +499,22 @@ AeroFlowSim itself works fully without it; nothing of it is loaded until you use
 
 ### Set it up (once)
 
-1. Install the optional part: in the AeroFlowSim folder, `.venv\Scripts\python.exe -m pip install -e ".[ai]"`
-   (it adds the official MCP Python package, `mcp`).
+1. **Installed program (the installer from the release page):** nothing to install, the connector is included.
+   **From source:** in the AeroFlowSim folder, `.venv\Scripts\python.exe -m pip install -e ".[ai]"` (it adds the
+   official MCP Python package, `mcp`).
 2. Allow it: **Tools > Use with AI assistants > Allow AI connector**, choose the **workspace folder** (default
    `Documents\AeroFlowSim Projects`; the assistant can use nothing outside it) and press **Save**. Or on the command line:
-   `python -m aeroflowsim settings --allow-ai-connector on`.
+   `python -m aeroflowsim settings --allow-ai-connector on` (installed program: `AeroFlowSim.exe settings
+   --allow-ai-connector on`).
 3. Press **Test**: it starts the server the way an AI app does and lists its tools ("The server works: 25 tools").
-4. Connect your app (the page shows each text ready to **Copy**, with the right python path of this computer):
+4. Connect your app (the page shows each text ready to **Copy**, with the right path of this computer: the
+   installed `AeroFlowSim.exe` with the argument `mcp`, or the python of a source installation):
    * **Claude Desktop:** Settings > Developer > Edit Config opens `claude_desktop_config.json`; add the
      `"aeroflowsim"` entry inside `"mcpServers"`, save, quit and restart Claude Desktop. AeroFlowSim then appears
      among the connectors.
    * **Claude Code:** type `/plugin marketplace add Dhanwin5/AeroFlowSim`, then
-     `/plugin install aeroflowsim@aeroflowsim`; it asks once for the python of your AeroFlowSim installation. The plugin
+     `/plugin install aeroflowsim@aeroflowsim`; it asks once for the AeroFlowSim program (the full path of
+     `AeroFlowSim.exe`, or the python of a source installation). The plugin
      brings the **skill** (how to use AeroFlowSim well and honestly) and the server. The server alone:
      `claude mcp add --transport stdio --scope user aeroflowsim -- <python> -m aeroflowsim mcp`.
    * **Other MCP apps:** the `mcpServers` entry of the third tab (stdio).

@@ -10,8 +10,6 @@ edits another program's configuration files and contains no network code. The Te
 separate process (aeroflowsim/connector/selftest.py), the way an AI client does.
 """
 
-import sys
-
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
@@ -57,14 +55,16 @@ class ConnectorDialog(QDialog):
         form.addRow("Ask before runs longer than", self.confirm)
 
         self.tabs = QTabWidget()
-        python = sys.executable
+        python = None                                   # snippets: this Python, or the installed program itself
+        program = snippets.server_entry()["command"]
         self._add_tab("Claude Desktop", snippets.claude_desktop_json(python),
                       f"Add this to {snippets.desktop_config_location()} (Claude Desktop: Settings > Developer > Edit "
                       "Config), then quit and restart Claude Desktop.")
         self._add_tab("Claude Code", "\n".join(snippets.claude_code_plugin_commands()) + "\n\n# or the server alone:\n"
                       + snippets.claude_code_command(python),
                       "Plugin (skill + server): type the two /plugin lines in Claude Code; it asks once for the "
-                      "python shown below. Server alone: run the claude mcp add line in a terminal.\n" + python)
+                      "program shown below (AeroFlowSim.exe, or python). Server alone: run the claude mcp add line in a "
+                      "terminal.\n" + program)
         self._add_tab("Other MCP apps", snippets.generic_json(python),
                       "The common mcpServers entry (stdio). See your app's documentation for where it goes.")
 

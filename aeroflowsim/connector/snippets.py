@@ -20,7 +20,17 @@ import sys
 SERVER_NAME = "aeroflowsim"
 
 
+def installed_program() -> bool:
+    """True inside the installed program (AeroFlowSim.exe / .app / AppImage, built by PyInstaller): there is no
+    python to give an AI app, the program itself serves the connector with  AeroFlowSim mcp ."""
+    return bool(getattr(sys, "frozen", False))
+
+
 def server_entry(python=None) -> dict:
+    """How an AI app starts the server: `<python> -m aeroflowsim mcp` (a Python installation), or `<program> mcp`
+    (the installed program, when `python` is None)."""
+    if python is None and installed_program():
+        return {"command": sys.executable, "args": ["mcp"]}
     return {"command": str(python or sys.executable), "args": ["-m", "aeroflowsim", "mcp"]}
 
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1 - The AI connector in the installed program (November 2026)
+
+- **The installed program now includes the AI connector.** 0.3.0 installers left out the MCP package, so Claude and
+  other AI apps could not use AeroFlowSim unless it was installed from source. Now `AeroFlowSim.exe mcp` (Windows; the
+  program inside AeroFlowSim.app on macOS, the AppImage on Linux) serves the connector, and **Tools > Use with AI
+  assistants** shows configuration text with the path of the installed program; its **Test** button works there too.
+- A configuration written for a Python installation (`... -m aeroflowsim mcp`) also works with the program.
+- The Claude Code plugin asks for "AeroFlowSim program (or its python)".
+- The installer smoke test now starts the connector and lists its tools; the installer build stops if the MCP
+  package is missing.
+- No solver, template or validated number changed. As at every release the version is part of every fingerprint:
+  results of 0.3.0 projects show "needs update" (press Run).
+
 ## 0.3.0 - Full 3D release: multiple zones, 3D completeness, 3D validation (November 2026)
 
 - **Multiple cell zones** (2D and 3D): the Geometry step's *Fluid zones* joins overlapping fluid bodies with

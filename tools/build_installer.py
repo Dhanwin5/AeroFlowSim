@@ -74,6 +74,8 @@ def _has(module):
 
 def pyinstaller():
     from aeroflowsim import __version__
+    if not _has("mcp"):
+        raise SystemExit('The AI connector needs the "mcp" package in the build environment: pip install -e ".[ai]"')
     third_party_licenses(ROOT / "THIRD_PARTY_LICENSES.txt")
     data = [(ROOT / "cases", "cases"), (ROOT / "assets", "assets"), (ROOT / "LICENSE", "."),
             (ROOT / "THIRD_PARTY_LICENSES.txt", "."), (ROOT / "README.md", "."), (ROOT / "CITATION.cff", "."),
@@ -90,6 +92,12 @@ def pyinstaller():
             "--distpath", str(DIST), "--workpath", str(BUILD), "--specpath", str(BUILD),
             "--collect-all", "aeroflowsim", "--collect-all", "gmsh", "--collect-all", "pyvista",
             "--collect-all", "pyvistaqt", *(["--collect-all", "numba", "--collect-all", "llvmlite"] if _has("numba") else []),
+            # the AI connector (AeroFlowSim mcp): the official MCP SDK; a build without it would ship no connector
+            # (only the parts AeroFlowSim imports: "--collect-all mcp" would also import mcp.cli, which needs typer)
+            "--hidden-import", "mcp", "--hidden-import", "mcp.server", "--hidden-import", "mcp.server.mcpserver",
+            "--hidden-import", "mcp.client.stdio", "--hidden-import", "mcp.server.stdio", "--hidden-import", "mcp_types",
+            "--collect-submodules", "mcp.server", "--collect-submodules", "mcp.client", "--collect-submodules", "mcp.shared",
+            "--copy-metadata", "mcp", "--exclude-module", "mcp.cli",
             "--collect-submodules", "vtkmodules", "--collect-data", "matplotlib",
             "--exclude-module", "streamlit", "--exclude-module", "plotly", "--exclude-module", "pytest",
             "--exclude-module", "tkinter"]
@@ -218,6 +226,14 @@ def smoke(folder):
     g = subprocess.run([str(exe)], timeout=180, env=env)
     print("GUI start/close: exit", g.returncode)
     assert g.returncode == 0
+    # the AI connector: the program serves MCP over stdio, and its own self-test lists the tools (settings in a temp file)
+    env_c = {**__import__("os").environ, "AEROFLOWSIM_CONNECTOR_SETTINGS": str(tmp / "connector.json")}
+    subprocess.run([str(exe), "settings", "--allow-ai-connector", "on"], env=env_c, timeout=120, check=True,
+                   capture_output=True)
+    c = subprocess.run([str(exe), "mcp-selftest"], env=env_c, timeout=180, capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL)
+    print("AI connector:", c.stdout.strip()[:200] or c.stderr.strip()[-300:])
+    assert '"ok": true' in c.stdout, c.stdout[-2000:] + c.stderr[-2000:]
     print("Smoke test passed")
 
 

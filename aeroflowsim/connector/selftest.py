@@ -23,7 +23,9 @@ def _client_main():
     async def main():
         import os
         # the whole environment: the SDK passes only a safe subset by default, which would drop a settings-file override
-        params = StdioServerParameters(command=sys.executable, args=["-m", "aeroflowsim", "mcp"], env=dict(os.environ))
+        from aeroflowsim.connector.snippets import server_entry
+        entry = server_entry()        # exactly what the copied configuration starts (python -m ..., or the program)
+        params = StdioServerParameters(command=entry["command"], args=entry["args"], env=dict(os.environ))
         async with Client(params, read_timeout_seconds=60) as client:
             return [t.name for t in (await client.list_tools()).tools]
 
@@ -42,8 +44,13 @@ def run_selftest(python=None, timeout=90) -> dict:
     from aeroflowsim.connector.settings import load_settings, OFF_MESSAGE
     if not load_settings().allow:
         return {"ok": False, "error": OFF_MESSAGE}
+    from aeroflowsim.connector.snippets import installed_program
+    if python is None and installed_program():
+        command = [sys.executable, "mcp-selftest"]           # the installed program runs the client itself
+    else:
+        command = [python or sys.executable, "-m", "aeroflowsim.connector.selftest"]
     try:
-        out = subprocess.run([python or sys.executable, "-m", "aeroflowsim.connector.selftest"], capture_output=True,
+        out = subprocess.run(command, capture_output=True,
                              text=True, timeout=timeout, stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": f"No answer within {timeout} s."}
